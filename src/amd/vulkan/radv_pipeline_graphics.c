@@ -2599,6 +2599,9 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
           gfx_state->smooth_lines_may_be_enabled)
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_lower_poly_line_smooth, false, RADV_NUM_SMOOTH_AA_SAMPLES);
 
+      if (!gfx_state->ps.color_outputs_need_epilog)
+         NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_remap_color_attachment, gfx_state);
+
       const bool vrs_may_be_enabled =
          gfx_state->vrs_may_be_enabled &&
          !radv_force_disable_vrs(compiler_info->ac->gfx_level, stages[MESA_SHADER_FRAGMENT].nir, gfx_state);
@@ -2612,12 +2615,21 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       opts.dynamic_rasterization_samples = gfx_state->dynamic_rasterization_samples;
       opts.sample_shading = max_sample_shading;
       opts.alpha_func = COMPARE_FUNC_ALWAYS;
+
       opts.color_mask = 0xffffffff;
+      if (!gfx_state->ps.color_outputs_need_epilog) {
+         opts.color_mask = gfx_state->ps.epilog.colors_needed;
+         if (gfx_state->ps.mrt0_alpha_is_dead)
+            opts.color_mask &= ~0x8u;
+         opts.color_no_signed_zero = gfx_state->ps.epilog.no_signed_zero;
+         opts.kill_z = gfx_state->ps.epilog.ignore_depth_output;
+         opts.kill_stencil = gfx_state->ps.epilog.ignore_stencil_output;
+         opts.lower_1bit_sample_mask_to_discard = gfx_state->ps.epilog.lower_1bit_sample_mask_to_discard;
+      }
+
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, ac_nir_lower_ps_early, &opts);
 
       if (!gfx_state->ps.color_outputs_need_epilog) {
-         NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_remap_color_attachment, gfx_state);
-
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_trim_fs_exports, &gfx_state->ps.epilog,
                   gfx_state->ps.mrt0_alpha_is_dead);
 
