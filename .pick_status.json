@@ -1484,7 +1484,7 @@
         "description": "zink: fix the color write mask of blend states",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7b4c1b3a426ec781c81f48bf57e5e7de07bea2af",
         "notes": null

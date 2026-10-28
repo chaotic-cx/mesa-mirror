@@ -329,7 +329,7 @@ zink_create_blend_state(struct pipe_context *pctx,
       if (rt->colormask & PIPE_MASK_A)
          att.colorWriteMask |= VK_COLOR_COMPONENT_A_BIT;
 
-      cso->wrmask |= (rt->colormask << i);
+      cso->wrmask |= ((uint32_t)rt->colormask << (4 * i));
       if (rt->blend_enable)
          cso->enables |= BITFIELD_BIT(i);
 
