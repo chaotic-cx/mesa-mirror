@@ -317,6 +317,7 @@ typedef struct {
    bool dynamic_rasterization_samples; /* TODO: unify with RADV or remove */
    int force_front_face; /* 0 -> keep, 1 -> set to true, -1 -> set to false */
    bool sample_shading;
+   bool lower_sample_pos;
 
    /* barycentrics:
     *    msaa_disabled:

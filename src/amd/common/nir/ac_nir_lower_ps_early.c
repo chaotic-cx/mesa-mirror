@@ -403,6 +403,8 @@ lower_ps_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
    case nir_intrinsic_load_sample_pos:
       if (s->options->msaa_disabled) {
          nir_def_replace(&intrin->def, nir_imm_vec2(b, 0.5, 0.5));
+      } else if (!s->options->lower_sample_pos) {
+         return false;
       } else {
          /* We have to use the alternative way to get sample_pos. */
          nir_def *num_samples = s->options->load_sample_positions_always_loads_current_ones ?
