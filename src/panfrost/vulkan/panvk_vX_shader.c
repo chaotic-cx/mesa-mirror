@@ -903,7 +903,11 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
        * then let nir_opt_non_uniform_access figure out which ones can really
        * be nonuniform based on divergence analysis */
       NIR_PASS(_, nir, nir_shader_instructions_pass,
-               mark_all_access_non_uniform, nir_metadata_all, NULL);
+               mark_all_access_non_uniform,
+               nir_metadata_control_flow |
+                  nir_metadata_live_defs |
+                  nir_metadata_instr_index,
+               NULL);
    }
 #endif
 

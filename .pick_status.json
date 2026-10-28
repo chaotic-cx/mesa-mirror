@@ -1684,7 +1684,7 @@
         "description": "panvk: fix mark_all_access_non_uniform metadata preservation",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a5a3036972c832dca17cdfc3499dfc2f71545890",
         "notes": null
