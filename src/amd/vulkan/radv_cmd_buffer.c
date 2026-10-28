@@ -11170,6 +11170,7 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
             struct radv_image_view *ds_iview = ds_att.iview;
             struct radv_image *ds_image = ds_iview->image;
             uint32_t level = ds_iview->vk.base_mip_level;
+            const uint32_t base_array_layer = ds_iview->vk.base_array_layer;
 
             /* HTILE buffer */
             uint64_t htile_offset =
@@ -11180,8 +11181,22 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
                    render_area.offset.x + render_area.extent.height <= ds_image->vk.extent.height);
 
             /* Copy the VRS rates to the HTILE buffer. */
-            radv_copy_vrs_htile(cmd_buffer, vrs_att.iview, &render_area, ds_image, ds_iview->vk.base_array_layer,
-                                htile_va, true);
+            if (pRenderingInfo->viewMask) {
+               /* The view mask can have holes, copy the rates for each range of consecutive views. */
+               uint32_t mask = pRenderingInfo->viewMask;
+
+               while (mask) {
+                  int start, count;
+
+                  u_bit_scan_consecutive_range(&mask, &start, &count);
+
+                  radv_copy_vrs_htile(cmd_buffer, vrs_att.iview, &render_area, ds_image, base_array_layer + start,
+                                      count, htile_va, true);
+               }
+            } else {
+               radv_copy_vrs_htile(cmd_buffer, vrs_att.iview, &render_area, ds_image, base_array_layer,
+                                   pRenderingInfo->layerCount, htile_va, true);
+            }
          } else {
             /* When a subpass uses a VRS attachment without binding a depth/stencil attachment, or when
              * HTILE isn't enabled, we use a fallback that copies the VRS rates to our internal HTILE buffer.
@@ -11200,7 +11215,7 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
                   MIN2(render_area.extent.height, ds_image->vk.extent.height - render_area.offset.y);
 
                /* Copy the VRS rates to the HTILE buffer. */
-               radv_copy_vrs_htile(cmd_buffer, vrs_att.iview, &render_area, ds_image, 0, htile_va, false);
+               radv_copy_vrs_htile(cmd_buffer, vrs_att.iview, &render_area, ds_image, 0, 1, htile_va, false);
             }
          }
       }

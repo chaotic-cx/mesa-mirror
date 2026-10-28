@@ -77,7 +77,8 @@ get_pipeline(struct radv_device *device, struct radv_image *image, VkPipeline *p
 
 void
 radv_copy_vrs_htile(struct radv_cmd_buffer *cmd_buffer, struct radv_image_view *vrs_iview, const VkRect2D *rect,
-                    struct radv_image *dst_image, uint32_t base_array_layer, uint64_t htile_va, bool read_htile_value)
+                    struct radv_image *dst_image, uint32_t base_array_layer, uint32_t layer_count, uint64_t htile_va,
+                    bool read_htile_value)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    VkPipelineLayout layout;
@@ -124,7 +125,7 @@ radv_copy_vrs_htile(struct radv_cmd_buffer *cmd_buffer, struct radv_image_view *
    uint32_t width = DIV_ROUND_UP(rect->extent.width, 8);
    uint32_t height = DIV_ROUND_UP(rect->extent.height, 8);
 
-   radv_unaligned_dispatch(cmd_buffer, width, height, 1);
+   radv_unaligned_dispatch(cmd_buffer, width, height, layer_count);
 
    cmd_buffer->state.flush_bits |= AC_BARRIER_SYNC_CS | AC_BARRIER_INV_VMEM |
                                    radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,

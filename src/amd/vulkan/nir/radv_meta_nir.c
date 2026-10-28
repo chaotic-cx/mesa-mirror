@@ -850,7 +850,7 @@ radv_meta_nir_build_copy_vrs_htile_shader(enum amd_gfx_level gfx_level, uint32_t
    b.shader->info.workgroup_size[1] = 8;
 
    /* Get coordinates. */
-   nir_def *global_id = radv_meta_nir_get_global_ids(&b, 2);
+   nir_def *global_id = radv_meta_nir_get_global_ids(&b, 3);
 
    nir_def *addr = nir_load_push_constant(&b, 2, 32, nir_imm_int(&b, 0), .range = 8);
    nir_def *htile_va = nir_pack_64_2x32(&b, nir_channels(&b, addr, 0x3));
@@ -858,17 +858,18 @@ radv_meta_nir_build_copy_vrs_htile_shader(enum amd_gfx_level gfx_level, uint32_t
    nir_def *offset = nir_load_push_constant(&b, 2, 32, nir_imm_int(&b, 8), .range = 16);
 
    /* Multiply the coordinates by the HTILE block size. */
-   nir_def *coord = nir_iadd(&b, nir_imul_imm(&b, global_id, 8), offset);
+   nir_def *coord = nir_iadd(&b, nir_imul_imm(&b, nir_channels(&b, global_id, 0x3), 8), offset);
 
    /* Load constants. */
    nir_def *constants = nir_load_push_constant(&b, 4, 32, nir_imm_int(&b, 16), .range = 32);
    nir_def *htile_pitch = nir_channel(&b, constants, 0);
    nir_def *htile_slice_size = nir_channel(&b, constants, 1);
    nir_def *read_htile_value = nir_channel(&b, constants, 2);
-   nir_def *layer = nir_channel(&b, constants, 3);
+   nir_def *base_array_layer = nir_channel(&b, constants, 3);
 
    /* Get the HTILE addr from coordinates. */
    nir_def *zero = nir_imm_int(&b, 0);
+   nir_def *layer = nir_iadd(&b, nir_channel(&b, global_id, 2), base_array_layer);
    nir_def *htile_offset =
       ac_nir_htile_addr_from_coord(&b, gfx_level, gb_addr_config, &surf->u.gfx9.zs.htile_equation, htile_pitch,
                                    htile_slice_size, nir_channel(&b, coord, 0), nir_channel(&b, coord, 1), layer, zero);
@@ -880,7 +881,8 @@ radv_meta_nir_build_copy_vrs_htile_shader(enum amd_gfx_level gfx_level, uint32_t
    input_vrs_img->data.binding = 0;
 
    /* Load the VRS rates from the 2D image. */
-   nir_def *value = nir_txf(&b, global_id, .texture_deref = nir_build_deref_var(&b, input_vrs_img));
+   nir_def *value =
+      nir_txf(&b, nir_channels(&b, global_id, 0x3), .texture_deref = nir_build_deref_var(&b, input_vrs_img));
 
    /* Extract the X/Y rates and clamp them because the maximum supported VRS rate is 2x2 (1x1 in
     * hardware).
