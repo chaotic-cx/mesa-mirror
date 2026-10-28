@@ -192,13 +192,10 @@ fd_create_pipe_fence_fd(struct pipe_context *pctx, struct pipe_fence_handle **pf
          fence_create(fd_context(pctx), NULL, os_dupfd_cloexec(fd), 0);
       break;
    case PIPE_FD_TYPE_SYNCOBJ: {
-      int ret;
       uint32_t syncobj;
 
       assert(ctx->screen->has_syncobj);
-      ret = drmSyncobjFDToHandle(fd_device_fd(ctx->screen->dev), fd, &syncobj);
-      if (!ret)
-         close(fd);
+      drmSyncobjFDToHandle(fd_device_fd(ctx->screen->dev), fd, &syncobj);
 
       *pfence = fence_create(fd_context(pctx), NULL, -1, syncobj);
       break;
