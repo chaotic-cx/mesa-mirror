@@ -84,6 +84,13 @@ def get_c_opcode(op):
         return 'nir_op_' + op
 
 
+def is_2src_commutative(op, num_srcs):
+    """Return whether the first two of num_srcs sources of op can be swapped
+    """
+    return num_srcs >= 2 and op not in conv_opcode_types and \
+           "2src_commutative" in opcodes[op].algebraic_properties
+
+
 _type_re = re.compile(r"(?P<type>int|uint|bool|float)?(?P<bits>\d+)?")
 
 
@@ -444,18 +451,17 @@ class Expression(Value):
 
         return all(s.equivalent(o) for s, o in zip(self.sources, other.sources))
 
+    def is_2src_commutative(self):
+        """Return whether the first two sources of the expression can be swapped
+        """
+        return is_2src_commutative(self.opcode, len(self.sources))
+
     def __index_comm_exprs(self, base_idx):
         """Recursively count and index commutative expressions
         """
         self.comm_exprs = 0
 
-        # A note about the explicit "len(self.sources)" check. The list of
-        # sources comes from user input, and that input might be bad.  Check
-        # that the expected second source exists before accessing it. Without
-        # this check, a unit test that does "('iadd', 'a')" will crash.
-        if self.opcode not in conv_opcode_types and \
-           "2src_commutative" in opcodes[self.opcode].algebraic_properties and \
-           len(self.sources) >= 2 and \
+        if self.is_2src_commutative() and \
            not self.sources[0].equivalent(self.sources[1]):
             self.comm_expr_idx = base_idx
             self.comm_exprs += 1
@@ -972,8 +978,7 @@ class TreeAutomaton(object):
         self.opcodes = self.IndexMap()
 
         def get_item(opcode, children, pattern=None):
-            commutative = len(children) >= 2 \
-                and "2src_commutative" in opcodes[opcode].algebraic_properties
+            commutative = is_2src_commutative(opcode, len(children))
             item = self.items.setdefault((opcode, children),
                                          self.Item(opcode, children))
             if commutative:
