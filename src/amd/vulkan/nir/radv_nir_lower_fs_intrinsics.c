@@ -52,46 +52,6 @@ pass(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
       b->fp_math_ctrl = 0;
       return true;
    }
-   case nir_intrinsic_load_barycentric_at_sample: {
-      nir_def *num_samples = nir_load_rasterization_samples_amd(b);
-      nir_def *new_dest;
-
-      if (gfx_state->dynamic_rasterization_samples) {
-         nir_def *res1, *res2;
-
-         nir_push_if(b, nir_ieq_imm(b, num_samples, 1));
-         {
-            res1 = nir_load_barycentric_pixel(b, 32, .interp_mode = nir_intrinsic_interp_mode(intrin));
-         }
-         nir_push_else(b, NULL);
-         {
-            nir_def *sample_pos = nir_load_sample_positions_amd(b, 32, intrin->src[0].ssa, num_samples);
-
-            /* sample_pos -= 0.5 */
-            sample_pos = nir_fadd_imm(b, sample_pos, -0.5f);
-
-            res2 = nir_load_barycentric_at_offset(b, 32, sample_pos, .interp_mode = nir_intrinsic_interp_mode(intrin));
-         }
-         nir_pop_if(b, NULL);
-
-         new_dest = nir_if_phi(b, res1, res2);
-      } else {
-         if (!gfx_state->ms.rasterization_samples) {
-            new_dest = nir_load_barycentric_pixel(b, 32, .interp_mode = nir_intrinsic_interp_mode(intrin));
-         } else {
-            nir_def *sample_pos = nir_load_sample_positions_amd(b, 32, intrin->src[0].ssa, num_samples);
-
-            /* sample_pos -= 0.5 */
-            sample_pos = nir_fadd_imm(b, sample_pos, -0.5f);
-
-            new_dest =
-               nir_load_barycentric_at_offset(b, 32, sample_pos, .interp_mode = nir_intrinsic_interp_mode(intrin));
-         }
-      }
-
-      nir_def_replace(&intrin->def, new_dest);
-      return true;
-   }
    default:
       return false;
    }
