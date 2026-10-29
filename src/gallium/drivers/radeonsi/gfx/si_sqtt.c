@@ -175,7 +175,7 @@ static void si_sqtt_start(struct si_context *sctx, struct radeon_cmdbuf *cs)
    si_emit_sqtt_start(sctx, cs, ip_type);
 
    if (sctx->sqtt.spm.bo)
-      ac_emit_spm_start(&cs->current, AMD_IP_GFX, &sctx->screen->info);
+      ac_emit_spm_start(&cs->current, ip_type, &sctx->screen->info);
 }
 
 static void si_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs)
@@ -211,7 +211,7 @@ static void si_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs)
    si_cp_dma_wait_for_idle(sctx, cs);
 
    if (sctx->sqtt.spm.bo)
-      ac_emit_spm_stop(&cs->current, AMD_IP_GFX, &sctx->screen->info);
+      ac_emit_spm_stop(&cs->current, ip_type, &sctx->screen->info);
 
    /* Make sure to wait-for-idle before stopping SQTT. */
    sctx->barrier_flags |= AC_BARRIER_SYNC_PS | AC_BARRIER_SYNC_CS |

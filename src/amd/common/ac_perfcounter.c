@@ -905,3 +905,24 @@ ac_pc_emit_shaders(enum amd_gfx_level gfx_level, struct ac_cmdbuf *cs, unsigned 
 
    ac_cmdbuf_end();
 }
+
+void ac_pc_emit_instance(struct ac_cmdbuf *cs, int se, int instance)
+{
+   unsigned value = S_030800_SH_BROADCAST_WRITES(1);
+
+   if (se >= 0) {
+      value |= S_030800_SE_INDEX(se);
+   } else {
+      value |= S_030800_SE_BROADCAST_WRITES(1);
+   }
+
+   if (instance >= 0) {
+      value |= S_030800_INSTANCE_INDEX(instance);
+   } else {
+      value |= S_030800_INSTANCE_BROADCAST_WRITES(1);
+   }
+
+   ac_cmdbuf_begin(cs);
+   ac_cmdbuf_set_ucfg_reg(R_030800_GRBM_GFX_INDEX, value);
+   ac_cmdbuf_end();
+}

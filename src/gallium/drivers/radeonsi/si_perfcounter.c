@@ -69,33 +69,6 @@ static void si_pc_wait_idle(struct si_context *sctx)
                           &sctx->context_roll, &flush_bits);
 }
 
-static void si_pc_emit_instance(struct si_context *sctx, int se, int instance)
-{
-   struct radeon_cmdbuf *cs = &sctx->gfx_cs;
-   unsigned value = S_030800_SH_BROADCAST_WRITES(1);
-
-   if (se >= 0) {
-      value |= S_030800_SE_INDEX(se);
-   } else {
-      value |= S_030800_SE_BROADCAST_WRITES(1);
-   }
-
-   if (sctx->gfx_level >= GFX10) {
-      /* TODO: Expose counters from each shader array separately if needed. */
-      value |= S_030800_SA_BROADCAST_WRITES(1);
-   }
-
-   if (instance >= 0) {
-      value |= S_030800_INSTANCE_INDEX(instance);
-   } else {
-      value |= S_030800_INSTANCE_BROADCAST_WRITES(1);
-   }
-
-   radeon_begin(cs);
-   radeon_set_uconfig_reg(R_030800_GRBM_GFX_INDEX, value);
-   radeon_end();
-}
-
 static void si_pc_emit_select(struct si_context *sctx, struct ac_pc_block *block, unsigned count,
                               unsigned *selectors)
 {
@@ -252,14 +225,14 @@ static void si_pc_query_resume(struct si_context *sctx, struct si_query *squery)
       if (group->se != current_se || group->instance != current_instance) {
          current_se = group->se;
          current_instance = group->instance;
-         si_pc_emit_instance(sctx, group->se, group->instance);
+         ac_pc_emit_instance(&sctx->gfx_cs.current, group->se, group->instance);
       }
 
       si_pc_emit_select(sctx, block, group->num_counters, group->selectors);
    }
 
    if (current_se != -1 || current_instance != -1)
-      si_pc_emit_instance(sctx, -1, -1);
+      ac_pc_emit_instance(&sctx->gfx_cs.current, -1, -1);
 
    uint64_t va = query->buffer.buf->gpu_address + query->buffer.results_end;
    si_pc_emit_start(sctx, query->buffer.buf, va);
@@ -291,14 +264,14 @@ static void si_pc_query_suspend(struct si_context *sctx, struct si_query *squery
          unsigned instance = group->instance >= 0 ? group->instance : 0;
 
          do {
-            si_pc_emit_instance(sctx, se, instance);
+            ac_pc_emit_instance(&sctx->gfx_cs.current, se, instance);
             si_pc_emit_read(sctx, block, group->num_counters, va);
             va += sizeof(uint64_t) * group->num_counters;
          } while (group->instance < 0 && ++instance < block->num_scoped_instances);
       } while (++se < se_end);
    }
 
-   si_pc_emit_instance(sctx, -1, -1);
+   ac_pc_emit_instance(&sctx->gfx_cs.current, -1, -1);
 
    si_inhibit_clockgating(sctx, &sctx->gfx_cs, false);
 }

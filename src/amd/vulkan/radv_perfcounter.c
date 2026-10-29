@@ -523,29 +523,6 @@ radv_pc_init_query_pool(struct radv_physical_device *pdev, const VkQueryPoolCrea
 }
 
 static void
-radv_emit_instance(struct radv_cmd_buffer *cmd_buffer, int se, int instance)
-{
-   struct radv_cmd_stream *cs = cmd_buffer->cs;
-   unsigned value = S_030800_SH_BROADCAST_WRITES(1);
-
-   if (se >= 0) {
-      value |= S_030800_SE_INDEX(se);
-   } else {
-      value |= S_030800_SE_BROADCAST_WRITES(1);
-   }
-
-   if (instance >= 0) {
-      value |= S_030800_INSTANCE_INDEX(instance);
-   } else {
-      value |= S_030800_INSTANCE_BROADCAST_WRITES(1);
-   }
-
-   radeon_begin(cs);
-   radeon_set_uconfig_reg(R_030800_GRBM_GFX_INDEX, value);
-   radeon_end();
-}
-
-static void
 radv_emit_select(struct radv_cmd_buffer *cmd_buffer, struct ac_pc_block *block, unsigned count, unsigned *selectors)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
@@ -613,7 +590,7 @@ radv_pc_sample_block(struct radv_cmd_buffer *cmd_buffer, struct ac_pc_block *blo
 
    for (unsigned se = 0; se < se_end; ++se) {
       for (unsigned instance = 0; instance < block->num_scoped_instances; ++instance) {
-         radv_emit_instance(cmd_buffer, se, instance);
+         ac_pc_emit_instance(cmd_buffer->cs->b, se, instance);
          radv_pc_emit_block_instance_read(cmd_buffer, block, count, va);
          va += sizeof(uint64_t) * 2;
       }
@@ -653,7 +630,7 @@ radv_gfx12_emit_sq_sync_wa(struct radv_cmd_buffer *cmd_buffer, bool disable)
       return;
 
    for (unsigned se = 0; se < pdev->info.max_se; se++) {
-      radv_emit_instance(cmd_buffer, se, -1);
+      ac_pc_emit_instance(cs->b, se, -1);
 
       radeon_begin(cs);
       radeon_set_uconfig_reg(R_036760_SQG_PERFCOUNTER_CTRL, value);
@@ -669,7 +646,7 @@ radv_gfx12_emit_sq_sync_wa(struct radv_cmd_buffer *cmd_buffer, bool disable)
       radeon_end();
    }
 
-   radv_emit_instance(cmd_buffer, -1, -1);
+   ac_pc_emit_instance(cs->b, -1, -1);
 }
 
 static void
@@ -681,7 +658,7 @@ radv_pc_stop_and_sample(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query
 
    radv_perfcounter_emit_sample(cs);
    radv_pc_wait_idle(cmd_buffer);
-   radv_emit_instance(cmd_buffer, -1, -1);
+   ac_pc_emit_instance(cs->b, -1, -1);
    radv_emit_windowed_counters(device, cs, false);
    radv_perfcounter_emit_stop(cs);
 
@@ -724,7 +701,7 @@ radv_pc_stop_and_sample(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query
       *skip_dwords = cs->b->buf + cs->b->cdw - skip_dwords - 1;
    }
 
-   radv_emit_instance(cmd_buffer, -1, -1);
+   ac_pc_emit_instance(cs->b, -1, -1);
 }
 
 void
@@ -782,7 +759,7 @@ radv_pc_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query_poo
       *skip_dwords = cs->b->buf + cs->b->cdw - skip_dwords - 1;
    }
 
-   radv_emit_instance(cmd_buffer, -1, -1);
+   ac_pc_emit_instance(cs->b, -1, -1);
 
    /* The following sequence actually starts the perfcounters. */
 

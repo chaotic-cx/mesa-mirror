@@ -231,4 +231,6 @@ ac_gfx10_get_perfcounters(uint32_t *num_blocks);
 void
 ac_pc_emit_shaders(enum amd_gfx_level gfx_level, struct ac_cmdbuf *cs, unsigned shaders);
 
+void ac_pc_emit_instance(struct ac_cmdbuf *cs, int se, int instance);
+
 #endif
