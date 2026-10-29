@@ -254,11 +254,11 @@ fn op_ureg_latency(
         Op::ALd(_)
         | Op::ASt(_)
         | Op::Ld(_)
-        | Op::Ldcg(_)
         | Op::Ldsm(_)
         | Op::St(_)
         | Op::Atom(_) => decoupled,
         Op::SuLd(_) | Op::SuSt(_) | Op::SuAtom(_) => decoupled,
+        Op::Ldcg(_) => ToUr,
         Op::Ldc(_) => {
             if uniform_op {
                 ToUr

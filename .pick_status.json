@@ -274,7 +274,7 @@
         "description": "nak: Fix missing scoreboard for uniform Ldcg on SM120",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "950465bdecd7ca76768241135e067394b82b6f19",
         "notes": null
