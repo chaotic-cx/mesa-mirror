@@ -959,3 +959,10 @@ ac_pc_emit_select(enum amd_gfx_level gfx_level, enum amd_ip_type hw_ip,
 
    ac_cmdbuf_end();
 }
+
+void ac_pc_emit_sample(struct ac_cmdbuf *cs)
+{
+   ac_cmdbuf_begin(cs);
+   ac_cmdbuf_event_write(V_028A90_PERFCOUNTER_SAMPLE);
+   ac_cmdbuf_end();
+}

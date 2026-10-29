@@ -93,8 +93,9 @@ static void si_pc_emit_stop(struct si_context *sctx, struct si_resource *buffer,
                      EOP_DATA_SEL_VALUE_32BIT, buffer, va, 0, SI_NOT_QUERY);
    ac_emit_cp_wait_mem(&cs->current, va, 0, 0xffffffff, WAIT_REG_MEM_EQUAL);
 
+   ac_pc_emit_sample(&cs->current);
+
    radeon_begin(cs);
-   radeon_event_write(V_028A90_PERFCOUNTER_SAMPLE);
 
    /*
     * The recommended sampling procedure:

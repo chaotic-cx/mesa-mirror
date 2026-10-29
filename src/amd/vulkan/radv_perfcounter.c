@@ -54,14 +54,6 @@ radv_perfcounter_emit_stop(struct radv_cmd_stream *cs)
    radeon_end();
 }
 
-static void
-radv_perfcounter_emit_sample(struct radv_cmd_stream *cs)
-{
-   radeon_begin(cs);
-   radeon_event_write(V_028A90_PERFCOUNTER_SAMPLE);
-   radeon_end();
-}
-
 enum radv_perfcounter_op {
    RADV_PC_OP_SUM,
    RADV_PC_OP_MAX,
@@ -622,7 +614,7 @@ radv_pc_stop_and_sample(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_cmd_stream *cs = cmd_buffer->cs;
 
-   radv_perfcounter_emit_sample(cs);
+   ac_pc_emit_sample(cs->b);
    radv_pc_wait_idle(cmd_buffer);
    ac_pc_emit_instance(cs->b, -1, -1);
    radv_emit_windowed_counters(device, cs, false);

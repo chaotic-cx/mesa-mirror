@@ -238,4 +238,6 @@ ac_pc_emit_select(enum amd_gfx_level gfx_level, enum amd_ip_type hw_ip,
                   struct ac_cmdbuf *cs,
                   struct ac_pc_block *block, unsigned count, unsigned *selectors);
 
+void ac_pc_emit_sample(struct ac_cmdbuf *cs);
+
 #endif
