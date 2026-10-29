@@ -1550,7 +1550,7 @@ static int amdgpu_cs_submit_ib_userq(struct amdgpu_userq *userq,
    uint32_t *syncobj_signal_list =
       (uint32_t*)alloca(num_syncobj_to_signal * sizeof(uint32_t));
    uint64_t *syncobj_signal_points =
-      (uint64_t*)alloca(num_syncobj_to_signal * sizeof(uint32_t));
+      (uint64_t*)alloca(num_syncobj_to_signal * sizeof(uint64_t));
 
    for (unsigned i = 0; i < csc->syncobj_to_signal.num; i++) {
       struct amdgpu_fence *fence =
