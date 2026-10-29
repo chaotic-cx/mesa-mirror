@@ -321,10 +321,23 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
          const uint8_t smaller = larger / 2;
          const bool is_aligned = align_mul % smaller == 0;
 
-         /* Overfetch up to 1 dword if this is a bounds-checked buffer load or the access is aligned. */
-         bool overfetch = bytes + 4 >= larger && (is_buffer_load || is_aligned);
-         bytes = overfetch ? larger : smaller;
-         res.align = is_aligned ? smaller : res.align;
+         const bool can_align_down = align_mul % smaller == 0;
+
+         if (can_align_down)
+            res.align = smaller;
+
+         if (larger > bytes + 4) {
+            /* Avoid overfetching more than one dword. */
+            bytes = smaller;
+         } else if (can_align_down || is_buffer_load) {
+            /* Bounds checking or rounding the address down makes this safe. */
+            bytes = larger;
+         } else if (is_aligned) {
+            /* Additional trailing bytes stay within an accessible page. */
+            bytes = larger;
+         } else {
+            bytes = smaller;
+         }
       }
       res.num_components = DIV_ROUND_UP(bytes, bit_size / 8);
       res.bit_size = bit_size;
