@@ -574,6 +574,8 @@ static struct ac_pc_block_gfxdescr groups_gfx9[] = {
    {&cik_CPC, 35},
 };
 
+#define G_REG_SEL(x)   ((x) & 0xFFFF)
+
 struct ac_pc_block *ac_lookup_counter(const struct ac_perfcounters *pc,
                                       unsigned index, unsigned *base_gid,
                                       unsigned *sub_index)
@@ -924,5 +926,36 @@ void ac_pc_emit_instance(struct ac_cmdbuf *cs, int se, int instance)
 
    ac_cmdbuf_begin(cs);
    ac_cmdbuf_set_ucfg_reg(R_030800_GRBM_GFX_INDEX, value);
+   ac_cmdbuf_end();
+}
+
+void
+ac_pc_emit_select(enum amd_gfx_level gfx_level, enum amd_ip_type hw_ip,
+                  struct ac_cmdbuf *cs,
+                  struct ac_pc_block *block, unsigned count, unsigned *selectors)
+{
+   struct ac_pc_block_base *regs = block->b->b;
+   unsigned idx;
+
+   assert(count <= regs->num_counters);
+
+   /* Fake counters. */
+   if (!regs->select0)
+      return;
+
+   ac_cmdbuf_begin(cs);
+
+   for (idx = 0; idx < count; ++idx) {
+      ac_cmdbuf_set_ucfg_perfctr_reg(gfx_level, hw_ip, regs->select0[idx],
+                                     G_REG_SEL(selectors[idx]) | regs->select_or);
+   }
+
+   if (regs->select1) {
+      for (idx = 0; idx < regs->num_spm_modules; idx++) {
+         ac_cmdbuf_set_ucfg_reg_seq(regs->select1[idx], 1);
+         ac_cmdbuf_emit(0);
+      }
+   }
+
    ac_cmdbuf_end();
 }

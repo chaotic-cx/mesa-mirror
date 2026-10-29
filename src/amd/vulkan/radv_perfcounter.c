@@ -71,7 +71,6 @@ enum radv_perfcounter_op {
 };
 
 #define S_REG_SEL(x)   ((x) & 0xFFFF)
-#define G_REG_SEL(x)   ((x) & 0xFFFF)
 #define S_REG_BLOCK(x) ((x) << 16)
 #define G_REG_BLOCK(x) (((x) >> 16) & 0x7FFF)
 
@@ -523,39 +522,6 @@ radv_pc_init_query_pool(struct radv_physical_device *pdev, const VkQueryPoolCrea
 }
 
 static void
-radv_emit_select(struct radv_cmd_buffer *cmd_buffer, struct ac_pc_block *block, unsigned count, unsigned *selectors)
-{
-   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-   const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
-   struct ac_pc_block_base *regs = block->b->b;
-   struct radv_cmd_stream *cs = cmd_buffer->cs;
-   unsigned idx;
-
-   assert(count <= regs->num_counters);
-
-   /* Fake counters. */
-   if (!regs->select0)
-      return;
-
-   radeon_begin(cs);
-
-   for (idx = 0; idx < count; ++idx) {
-      radeon_set_uconfig_perfctr_reg(gfx_level, cs->hw_ip, regs->select0[idx],
-                                     G_REG_SEL(selectors[idx]) | regs->select_or);
-   }
-
-   if (regs->select1) {
-      for (idx = 0; idx < regs->num_spm_modules; idx++) {
-         radeon_set_uconfig_reg_seq(regs->select1[idx], 1);
-         radeon_emit(0);
-      }
-   }
-
-   radeon_end();
-}
-
-static void
 radv_pc_emit_block_instance_read(struct radv_cmd_buffer *cmd_buffer, struct ac_pc_block *block, unsigned count,
                                  uint64_t va)
 {
@@ -750,7 +716,8 @@ radv_pc_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query_poo
 
          if (offset < cnt) {
             unsigned pass_reg_cnt = MIN2(cnt - offset, ac_block->b->b->num_counters);
-            radv_emit_select(cmd_buffer, ac_block, pass_reg_cnt, pool->pc_regs + i + offset);
+            ac_pc_emit_select(pdev->info.gfx_level, cs->hw_ip, cs->b, ac_block,
+                              pass_reg_cnt, pool->pc_regs + i + offset);
          }
 
          i += cnt;

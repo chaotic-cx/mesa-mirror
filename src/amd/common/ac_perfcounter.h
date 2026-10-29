@@ -233,4 +233,9 @@ ac_pc_emit_shaders(enum amd_gfx_level gfx_level, struct ac_cmdbuf *cs, unsigned 
 
 void ac_pc_emit_instance(struct ac_cmdbuf *cs, int se, int instance);
 
+void
+ac_pc_emit_select(enum amd_gfx_level gfx_level, enum amd_ip_type hw_ip,
+                  struct ac_cmdbuf *cs,
+                  struct ac_pc_block *block, unsigned count, unsigned *selectors);
+
 #endif

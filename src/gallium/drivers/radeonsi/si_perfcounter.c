@@ -69,34 +69,6 @@ static void si_pc_wait_idle(struct si_context *sctx)
                           &sctx->context_roll, &flush_bits);
 }
 
-static void si_pc_emit_select(struct si_context *sctx, struct ac_pc_block *block, unsigned count,
-                              unsigned *selectors)
-{
-   struct ac_pc_block_base *regs = block->b->b;
-   struct radeon_cmdbuf *cs = &sctx->gfx_cs;
-   unsigned idx;
-
-   assert(count <= regs->num_counters);
-
-   /* Fake counters. */
-   if (!regs->select0)
-      return;
-
-   radeon_begin(cs);
-
-   for (idx = 0; idx < count; ++idx) {
-      radeon_set_uconfig_reg_seq(regs->select0[idx], 1);
-      radeon_emit(selectors[idx] | regs->select_or);
-   }
-
-   for (idx = 0; idx < regs->num_spm_modules; idx++) {
-      radeon_set_uconfig_reg_seq(regs->select1[idx], 1);
-      radeon_emit(0);
-   }
-
-   radeon_end();
-}
-
 static void si_pc_emit_start(struct si_context *sctx, struct si_resource *buffer, uint64_t va)
 {
    struct radeon_cmdbuf *cs = &sctx->gfx_cs;
@@ -228,7 +200,8 @@ static void si_pc_query_resume(struct si_context *sctx, struct si_query *squery)
          ac_pc_emit_instance(&sctx->gfx_cs.current, group->se, group->instance);
       }
 
-      si_pc_emit_select(sctx, block, group->num_counters, group->selectors);
+      ac_pc_emit_select(sctx->screen->info.gfx_level, sctx->is_gfx_queue ? AMD_IP_GFX : AMD_IP_COMPUTE,
+                        &sctx->gfx_cs.current, block, group->num_counters, group->selectors);
    }
 
    if (current_se != -1 || current_instance != -1)
