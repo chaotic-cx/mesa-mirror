@@ -16109,7 +16109,7 @@ radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffer, struct ra
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   if (!radv_htile_enabled(image, range->baseMipLevel) && !radv_image_has_hiz(image))
+   if (!radv_htile_enabled(image, range->baseMipLevel) && (pdev->info.gfx_level < GFX12 || !radv_image_has_hiz(image)))
       return;
 
    if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED || src_layout == VK_IMAGE_LAYOUT_ZERO_INITIALIZED_EXT) {
