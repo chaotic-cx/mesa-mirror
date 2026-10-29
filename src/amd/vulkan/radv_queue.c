@@ -1176,6 +1176,8 @@ fail:
       radv_bo_destroy(device, NULL, gsvs_ring_bo);
    if (tess_rings_bo && tess_rings_bo != queue->tess_rings_bo)
       radv_bo_destroy(device, NULL, tess_rings_bo);
+   if (mesh_scratch_ring_bo && mesh_scratch_ring_bo != queue->mesh_scratch_ring_bo)
+      radv_bo_destroy(device, NULL, mesh_scratch_ring_bo);
    if (task_rings_bo && task_rings_bo != queue->task_rings_bo)
       radv_bo_destroy(device, NULL, task_rings_bo);
    if (ge_rings_bo && ge_rings_bo != queue->ge_rings_bo)
