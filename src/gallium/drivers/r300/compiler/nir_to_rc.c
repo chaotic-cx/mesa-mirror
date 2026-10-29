@@ -2236,8 +2236,11 @@ nir_to_rc(struct nir_shader *s, struct pipe_screen *screen,
             is_r500 || s->info.stage == MESA_SHADER_FRAGMENT);
    /* bool_to_float generates MOVs for b2f32 that we want to clean up. */
    NIR_PASS(_, s, nir_opt_copy_prop);
-   /* CSE cleanup after late ftrunc lowering. */
-   NIR_PASS(_, s, nir_opt_cse);
+   /* CSE cleanup after late ftrunc lowering. Keep this before R500 VS fcsel
+    * lowering, which checks how many distinct sources it reads.
+    */
+   if (s->info.stage == MESA_SHADER_VERTEX)
+      NIR_PASS(_, s, nir_opt_cse);
    /* At this point we need to clean up:
     *  a) R300/R400 VS fcsel_ge from ftrunc and seq/sne from bool/int lowering,
     *  b) all flavours of fcsels that read three different temp sources on R500.
@@ -2252,6 +2255,8 @@ nir_to_rc(struct nir_shader *s, struct pipe_screen *screen,
       NIR_PASS(_, s, r300_nir_lower_comparison_fs);
    }
    NIR_PASS(_, s, r300_nir_opt_algebraic_late);
+   if (s->info.stage == MESA_SHADER_FRAGMENT)
+      NIR_PASS(_, s, nir_opt_cse);
    NIR_PASS(_, s, nir_opt_dce);
    NIR_PASS(_, s, nir_opt_shrink_vectors, false);
    NIR_PASS(_, s, nir_opt_dce);
