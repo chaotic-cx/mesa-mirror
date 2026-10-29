@@ -110,7 +110,10 @@ static void
 radv_transfer_fixup_copy_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
                                       const VkImageSubresourceLayers *subresource)
 {
-   if (!radv_image_has_hiz(image))
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+
+   if (pdev->info.gfx_level < GFX12 || !radv_image_has_hiz(image))
       return;
 
    if (!(subresource->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT))
