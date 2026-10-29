@@ -587,7 +587,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_KHR_shader_abort                                   DONE (radv)
   VK_KHR_shader_bfloat16                                DONE (anv/gfx12.5+, radv/gfx12+, vn)
   VK_KHR_shader_clock                                   DONE (anv, hasvk, lvp, nvk, panvk, radv, tu, vn)
-  VK_KHR_shader_constant_data                           DONE (anv, panvk, radv, vn)
+  VK_KHR_shader_constant_data                           DONE (anv, hk, panvk, radv, vn)
   VK_KHR_shader_fma                                     DONE (anv, hk, kk, nvk, panvk, pvr, radv, vn)
   VK_KHR_shader_maximal_reconvergence                   DONE (anv, hk, kk, lvp, nvk, panvk/v9+, radv, v3dv, vn)
   VK_KHR_shader_quad_control                            DONE (anv, hk, lvp, nvk, panvk/v9+, radv, tu/a660+, v3dv/vc7+, vn)

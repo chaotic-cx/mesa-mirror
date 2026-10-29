@@ -11,3 +11,4 @@ cl_khr_external_semaphore on asahi
 cl_khr_external_semaphore_sync_fd on asahi
 VK_KHR_maintenance7 on v3dv
 VK_KHR_maintenance8 on v3dv
+VK_KHR_shader_constant_data on HK

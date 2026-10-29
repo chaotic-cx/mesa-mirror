@@ -112,6 +112,7 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .KHR_separate_depth_stencil_layouts = true,
       .KHR_shader_atomic_int64 = false,
       .KHR_shader_clock = false,
+      .KHR_shader_constant_data = true,
       .KHR_shader_draw_parameters = true,
       .KHR_shader_expect_assume = true,
       .KHR_shader_float_controls = true,
@@ -663,6 +664,9 @@ hk_get_device_features(
 
       /* VK_EXT_blend_operation_advanced */
       .advancedBlendCoherentOperations = true,
+
+      /* VK_KHR_shader_constant_data */
+      .shaderConstantData = true,
 
 #ifdef HK_USE_WSI_PLATFORM
       /* VK_EXT_present_timing */
