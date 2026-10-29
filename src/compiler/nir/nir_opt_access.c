@@ -31,6 +31,7 @@
  *   - Either there are no writes, or ACCESS_NON_WRITEABLE is set. In either
  *     case there are no writes to the underlying memory.
  *   - ACCESS_VOLATILE is not set.
+ *   - fragment shader interlock is not used.
  *
  * If these conditions are true, then image and buffer reads may be treated as
  * if they were uniform buffer reads, i.e. they may be arbitrarily moved,
@@ -49,6 +50,7 @@ struct access_state {
    nir_variable_mode make_available_shader_call_or_gt;
    nir_variable_mode make_visible_shader_call_or_gt;
    bool has_calls;
+   bool has_interlock;
 };
 
 static void
@@ -179,6 +181,11 @@ gather_intrinsic(struct access_state *state, nir_intrinsic_instr *instr)
       state->has_calls = true;
       break;
 
+   case nir_intrinsic_begin_invocation_interlock:
+   case nir_intrinsic_end_invocation_interlock:
+      state->has_interlock = true;
+      break;
+
    default:
       break;
    }
@@ -276,7 +283,12 @@ update_access(struct access_state *state, nir_intrinsic_instr *instr, nir_variab
       access |= ACCESS_NON_WRITEABLE;
    if (is_memory_writeonly)
       access |= ACCESS_NON_READABLE;
-   if (!(access & ACCESS_VOLATILE) && is_memory_readonly)
+
+   /* With fragment shader interlock, memory not written by this shader can
+    * still be written by overlapping fragment invocations (e.g. from other
+    * draws) and it shouldn't be re-ordered.
+    */
+   if (!(access & ACCESS_VOLATILE) && is_memory_readonly && !state->has_interlock)
       access |= ACCESS_CAN_REORDER;
 
    bool progress = nir_intrinsic_access(instr) != access;
