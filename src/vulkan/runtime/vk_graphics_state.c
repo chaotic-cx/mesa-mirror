@@ -1313,14 +1313,6 @@ vk_render_pass_state_init(struct vk_render_pass_state *rp,
    if (r_info == NULL)
       return;
 
-   VkPipelineRenderingCreateInfo local_rendering_info;
-   VkFormat local_color_format;
-   if (vk_android_is_efr_pipeline_rendering_info(info, r_info)) {
-      r_info = vk_android_get_efr_pipeline_rendering_info(
-         info, r_info, &local_rendering_info,
-         &local_color_format);
-   }
-
    const VkCustomResolveCreateInfoEXT *crc_info =
       vk_find_struct_const(info->pNext, CUSTOM_RESOLVE_CREATE_INFO_EXT);
    rp->custom_resolve = crc_info != NULL && crc_info->customResolve;
@@ -1344,6 +1336,19 @@ vk_render_pass_state_init(struct vk_render_pass_state *rp,
    if (info->renderPass == VK_NULL_HANDLE &&
        !(lib & VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT)) {
       return;
+   }
+
+   /* Perform the EFR check after verifying the fragment output interface
+    * is present, since it reads pColorAttachmentFormats which is ignored
+    * (and may be NULL or invalid) when fragment output interface state is
+    * absent.
+    */
+   VkPipelineRenderingCreateInfo local_rendering_info;
+   VkFormat local_color_format;
+   if (vk_android_is_efr_pipeline_rendering_info(info, r_info)) {
+      r_info = vk_android_get_efr_pipeline_rendering_info(
+         info, r_info, &local_rendering_info,
+         &local_color_format);
    }
 
    assert(r_info->colorAttachmentCount <= MESA_VK_MAX_COLOR_ATTACHMENTS);
