@@ -7,6 +7,7 @@
 #include "ac_gpu_info.h"
 #include "ac_perfcounter.h"
 #include "ac_spm.h"
+#include "ac_cmdbuf.h"
 
 #include "util/u_memory.h"
 #include "util/macros.h"
@@ -885,4 +886,22 @@ struct ac_pc_block *ac_pc_get_block(const struct ac_perfcounters *pc,
       }
    }
    return NULL;
+}
+
+void
+ac_pc_emit_shaders(enum amd_gfx_level gfx_level, struct ac_cmdbuf *cs, unsigned shaders)
+{
+   ac_cmdbuf_begin(cs);
+
+   if (gfx_level >= GFX10) {
+      ac_cmdbuf_set_ucfg_reg(R_036780_SQ_PERFCOUNTER_CTRL, shaders & 0x7f);
+      if (gfx_level >= GFX11)
+         ac_cmdbuf_set_ucfg_reg(R_036760_SQG_PERFCOUNTER_CTRL, shaders & 0x7f);
+   } else {
+      ac_cmdbuf_set_ucfg_reg_seq(R_036780_SQ_PERFCOUNTER_CTRL, 2);
+      ac_cmdbuf_emit(shaders & 0x7f);
+      ac_cmdbuf_emit(0xffffffff);
+   }
+
+   ac_cmdbuf_end();
 }

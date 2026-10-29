@@ -14,26 +14,6 @@
 #include "radv_perfcounter.h"
 #include "sid.h"
 
-void
-radv_perfcounter_emit_shaders(struct radv_device *device, struct radv_cmd_stream *cs, unsigned shaders)
-{
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-
-   radeon_begin(cs);
-
-   if (pdev->info.gfx_level >= GFX10) {
-      radeon_set_uconfig_reg(R_036780_SQ_PERFCOUNTER_CTRL, shaders & 0x7f);
-      if (pdev->info.gfx_level >= GFX11)
-         radeon_set_uconfig_reg(R_036760_SQG_PERFCOUNTER_CTRL, shaders & 0x7f);
-   } else {
-      radeon_set_uconfig_reg_seq(R_036780_SQ_PERFCOUNTER_CTRL, 2);
-      radeon_emit(shaders & 0x7f);
-      radeon_emit(0xffffffff);
-   }
-
-   radeon_end();
-}
-
 static void
 radv_emit_windowed_counters(struct radv_device *device, struct radv_cmd_stream *cs, bool enable)
 {
@@ -773,7 +753,7 @@ radv_pc_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query_poo
    radv_perfcounter_emit_reset(cs);
    ac_emit_cp_inhibit_clockgating(cs->b, pdev->info.gfx_level, true);
    ac_emit_cp_spi_config_cntl(cs->b, pdev->info.gfx_level, true);
-   radv_perfcounter_emit_shaders(device, cs, 0x7f);
+   ac_pc_emit_shaders(pdev->info.gfx_level, cs->b, 0x7f);
 
    for (unsigned pass = 0; pass < pool->num_passes; ++pass) {
       uint64_t pred_va = radv_buffer_get_va(device->perf_counter_bo) + PERF_CTR_BO_PASS_OFFSET + 8 * pass;

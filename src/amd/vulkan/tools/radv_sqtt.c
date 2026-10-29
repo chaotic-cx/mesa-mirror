@@ -557,7 +557,7 @@ radv_begin_sqtt(struct radv_queue *queue)
       ac_emit_spm_reset(cs->b);
 
       /* Enable all shader stages by default. */
-      radv_perfcounter_emit_shaders(device, cs, ac_sqtt_get_shader_mask(&pdev->info));
+      ac_pc_emit_shaders(pdev->info.gfx_level, cs->b, ac_sqtt_get_shader_mask(&pdev->info));
 
       radv_emit_spm_setup(device, cs);
    }
