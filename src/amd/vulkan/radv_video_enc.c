@@ -3698,7 +3698,7 @@ radv_video_get_encode_session_memory_requirements(struct radv_device *device, st
       vk_outarray_append_typed(VkVideoSessionMemoryRequirementsKHR, &out, m)
       {
          m->memoryBindIndex = RADV_BIND_ENCODE_QP_MAP;
-         m->memoryRequirements.size = map_width * map_height * sizeof(int16_t);
+         m->memoryRequirements.size = ALIGN_POT(map_width, 2) * map_height * sizeof(int16_t);
          m->memoryRequirements.alignment = 0;
          m->memoryRequirements.memoryTypeBits = memory_type_bits;
       }

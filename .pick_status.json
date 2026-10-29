@@ -544,7 +544,7 @@
         "description": "radv/video_enc: fix VCN5 qp map buffer size",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "5e7b6df860ddaaa291098a427adbe768ceb7e2d0",
         "notes": null
