@@ -243,6 +243,7 @@ get_device_extensions(const struct v3dv_physical_device *device,
       .KHR_vertex_attribute_divisor         = true,
       .KHR_vulkan_memory_model              = true,
       .KHR_zero_initialize_workgroup_memory = true,
+      .ARM_rasterization_order_attachment_access = true,
       .EXT_4444_formats                     = true,
       .EXT_attachment_feedback_loop_layout  = true,
       .EXT_border_color_swizzle             = true,
@@ -273,6 +274,7 @@ get_device_extensions(const struct v3dv_physical_device *device,
       .EXT_pipeline_creation_cache_control  = true,
       .EXT_pipeline_creation_feedback       = true,
       .EXT_pipeline_robustness              = true,
+      .EXT_rasterization_order_attachment_access = true,
       .EXT_robustness2                      = true,
       .EXT_primitive_topology_list_restart  = true,
       .EXT_private_data                     = true,
@@ -501,6 +503,11 @@ get_features(const struct v3dv_physical_device *physical_device,
 
       /* VK_EXT_color_write_enable */
       .colorWriteEnable = true,
+
+      /* VK_EXT_rasterization_order_attachment_access */
+      .rasterizationOrderColorAttachmentAccess = true,
+      .rasterizationOrderDepthAttachmentAccess = true,
+      .rasterizationOrderStencilAttachmentAccess = true,
 
       /* VK_EXT_extended_dynamic_state */
       .extendedDynamicState = true,
