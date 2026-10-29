@@ -2253,6 +2253,13 @@ operand_can_use_reg(ra_ctx& ctx, aco_ptr<Instruction>& instr, unsigned idx, Phys
          return false;
    }
 
+   if (reg < ctx.sgpr_bounds || reg >= 256) {
+      DefInfo info(ctx, instr, rc, idx);
+      PhysRegInterval interval = {reg, rc.size()};
+      if (!info.bounds.contains(interval))
+         return false;
+   }
+
    switch (instr->format) {
    case Format::SMEM:
       return reg != scc && reg != exec &&
