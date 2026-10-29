@@ -666,7 +666,7 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
          intra_refresh_caps->nonRectangularIntraRefreshRegions = false;
       }
 
-      if (qp_map_caps) {
+      if (qp_map_caps && pdev->vk.supported_extensions.KHR_video_encode_quantization_map) {
          qp_map_caps->maxQuantizationMapExtent.width = pCapabilities->maxCodedExtent.width / ecap->qp_map_texel_size;
          qp_map_caps->maxQuantizationMapExtent.height = pCapabilities->maxCodedExtent.height / ecap->qp_map_texel_size;
       }
