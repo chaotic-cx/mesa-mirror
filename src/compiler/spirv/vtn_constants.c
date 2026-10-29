@@ -100,14 +100,8 @@ spec_constant_decoration_cb(struct vtn_builder *b, UNUSED struct vtn_value *val,
    }
 }
 
-struct spec_constant_data_cb_data {
-   nir_constant **elems;
-   unsigned num_elems;
-   unsigned elem_byte_size;
-};
-
 static void
-spec_constant_data_decoration_cb(struct vtn_builder *b, UNUSED struct vtn_value *val,
+spec_constant_data_decoration_cb(struct vtn_builder *b, struct vtn_value *val,
                                  ASSERTED int member,
                                  const struct vtn_decoration *dec, void *data)
 {
@@ -117,8 +111,6 @@ spec_constant_data_decoration_cb(struct vtn_builder *b, UNUSED struct vtn_value 
 
    if (!b->specialization)
       return;
-
-   const struct spec_constant_data_cb_data *ctx = data;
 
    for (unsigned i = 0; i < b->specialization->num_entries; i++) {
       const struct nir_spirv_specialization_entry *entry =
@@ -130,11 +122,11 @@ spec_constant_data_decoration_cb(struct vtn_builder *b, UNUSED struct vtn_value 
       if (entry->size == 0)
          continue;
 
-      for (unsigned e = 0; e < ctx->num_elems; e++) {
-         unsigned offset = e * ctx->elem_byte_size;
-         assert(offset + ctx->elem_byte_size <= entry->size);
-         memcpy(&ctx->elems[e]->values[0], entry->data + offset, ctx->elem_byte_size);
-      }
+      ASSERTED unsigned elem_size =
+         glsl_get_bit_size(val->type->array_element->type) / 8;
+      assert(val->type->length * elem_size == entry->size);
+
+      *(const uint8_t **)data = entry->data;
       return;
    }
 }
@@ -694,17 +686,14 @@ vtn_handle_constants(struct vtn_builder *b, SpvOp opcode,
       unsigned byte_size = bit_size / 8;
 
       const uint8_t *data = (const uint8_t *)&w[3];
+      if (opcode == SpvOpSpecConstantDataKHR)
+         vtn_foreach_decoration(b, val, spec_constant_data_decoration_cb, &data);
 
       nir_constant **elems = ralloc_array(b, nir_constant *, num_elems);
       for (unsigned i = 0; i < num_elems; i++) {
          nir_constant *c = rzalloc(b, nir_constant);
          memcpy(&c->values[0], data + i * byte_size, byte_size);
          elems[i] = c;
-      }
-
-      if (opcode == SpvOpSpecConstantDataKHR) {
-         struct spec_constant_data_cb_data ctx = { elems, num_elems, byte_size };
-         vtn_foreach_decoration(b, val, spec_constant_data_decoration_cb, &ctx);
       }
 
       ralloc_steal(val->constant, elems);
