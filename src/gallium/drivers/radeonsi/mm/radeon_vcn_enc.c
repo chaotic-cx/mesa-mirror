@@ -1898,11 +1898,12 @@ static bool radeon_vcn_enc_efc_supported(struct radeon_encoder *enc,
 {
    struct si_screen *sscreen = (struct si_screen *)enc->screen;
    struct si_texture *tex = (struct si_texture *)((struct vl_video_buffer *)src)->resources[0];
+   struct ac_video_enc_codec_caps *cap =
+      &sscreen->info.video_caps.enc[si_pipe_video_profile_to_codec(enc->base.profile)];
    enum pipe_format src_format = src->buffer_format;
    enum pipe_format dst_format = vpp->dst->buffer_format;
 
-   if (!sscreen->info.video_caps.enc[si_pipe_video_profile_to_codec(enc->base.profile)].efc ||
-       sscreen->multimedia_debug_flags & DBG(NO_EFC))
+   if (!cap->efc || sscreen->multimedia_debug_flags & DBG(NO_EFC))
       return false;
 
    if (vpp->orientation != PIPE_VIDEO_VPP_ORIENTATION_DEFAULT ||
@@ -1919,6 +1920,13 @@ static bool radeon_vcn_enc_efc_supported(struct radeon_encoder *enc,
        vpp->in_transfer_characteristics != vpp->out_transfer_characteristics ||
        (vpp->out_matrix_coefficients != PIPE_VIDEO_VPP_MCF_BT709 &&
         vpp->out_matrix_coefficients != PIPE_VIDEO_VPP_MCF_BT2020_NCL))
+      return false;
+
+   if (cap->efc_range_bug &&
+       (vpp->out_matrix_coefficients != PIPE_VIDEO_VPP_MCF_BT709 ||
+        vpp->out_color_range != PIPE_VIDEO_VPP_CHROMA_COLOR_RANGE_REDUCED) &&
+       (vpp->out_matrix_coefficients != PIPE_VIDEO_VPP_MCF_BT2020_NCL ||
+        vpp->out_color_range != PIPE_VIDEO_VPP_CHROMA_COLOR_RANGE_FULL))
       return false;
 
    if (vpp->out_chroma_siting & (PIPE_VIDEO_VPP_CHROMA_SITING_VERTICAL_BOTTOM |
