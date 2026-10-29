@@ -1697,10 +1697,6 @@ static void ac_compute_cmask(const struct radeon_info *info, const struct ac_sur
    /* Each element of CMASK is a nibble. */
    unsigned slice_bytes = slice_elements / 2;
 
-   surf->u.legacy.color.cmask_slice_tile_max = (width * height) / (128 * 128);
-   if (surf->u.legacy.color.cmask_slice_tile_max)
-      surf->u.legacy.color.cmask_slice_tile_max -= 1;
-
    unsigned num_layers;
    if (config->is_3d)
       num_layers = config->info.depth;
@@ -1712,6 +1708,10 @@ static void ac_compute_cmask(const struct radeon_info *info, const struct ac_sur
    surf->cmask_alignment_log2 = util_logbase2(MAX2(256, base_align));
    surf->cmask_slice_size = align(slice_bytes, num_pipes * pipe_interleave_bytes);
    surf->cmask_size = surf->cmask_slice_size * num_layers;
+
+   surf->u.legacy.color.cmask_slice_tile_max = surf->cmask_slice_size / 128;
+   if (surf->u.legacy.color.cmask_slice_tile_max)
+      surf->u.legacy.color.cmask_slice_tile_max -= 1;
 
    if (info->gfx_level == GFX8 && surf->flags & RADEON_SURF_TC_COMPATIBLE_CMASK) {
       /* There is a way to calculate this, but the equation is too complicated. For simplicity,
