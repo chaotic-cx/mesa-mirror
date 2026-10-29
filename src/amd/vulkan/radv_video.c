@@ -679,7 +679,7 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
          rgb_caps->xChromaOffsets = VK_VIDEO_ENCODE_RGB_CHROMA_OFFSET_COSITED_EVEN_BIT_VALVE;
          rgb_caps->yChromaOffsets = VK_VIDEO_ENCODE_RGB_CHROMA_OFFSET_MIDPOINT_BIT_VALVE |
                                     VK_VIDEO_ENCODE_RGB_CHROMA_OFFSET_COSITED_EVEN_BIT_VALVE;
-         if (pdev->info.vcn_ip_version >= VCN_5_0_0) {
+         if (ecap->efc_range_bug) {
             /* FW bug: only BT709/Limited and BT2020/Full works, so we only expose BT709/Limited */
             rgb_caps->rgbModels = VK_VIDEO_ENCODE_RGB_MODEL_CONVERSION_YCBCR_709_BIT_VALVE;
             rgb_caps->rgbRanges = VK_VIDEO_ENCODE_RGB_RANGE_COMPRESSION_NARROW_RANGE_BIT_VALVE;
