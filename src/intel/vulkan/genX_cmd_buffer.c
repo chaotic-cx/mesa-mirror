@@ -2120,12 +2120,15 @@ genX(emit_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer,
       /* On a render queue, the following stages can also use a pixel shader.
        */
       pb_stall_stages |=
-         VK_PIPELINE_STAGE_2_TRANSFER_BIT |
          VK_PIPELINE_STAGE_2_RESOLVE_BIT |
          VK_PIPELINE_STAGE_2_BLIT_BIT |
          VK_PIPELINE_STAGE_2_CLEAR_BIT;
    }
    VkPipelineStageFlags2 cs_stall_stages =
+      /* Sadly transfer can use a compute dispatch so we have to assume it
+       * requires a CS stall.
+       */
+      VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR |
       VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT |
       VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT |
       VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT |
@@ -2147,42 +2150,35 @@ genX(emit_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer,
          VK_PIPELINE_STAGE_2_RESOLVE_BIT |
          VK_PIPELINE_STAGE_2_BLIT_BIT |
          VK_PIPELINE_STAGE_2_CLEAR_BIT;
-   } else if (batch->engine_class == INTEL_ENGINE_CLASS_RENDER &&
-              current_pipeline == GPGPU) {
-      /* In GPGPU mode, the render queue can also use a compute shader for
-       * transfer operations.
-       */
-      cs_stall_stages |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
    }
 
-   /* Prior to Gfx20, we can restrict pb-stall/cs-stall to some pipeline
-    * modes. Gfx20 doesn't do pipeline switches so we have to assume the worse
-    * case.
+   /* If we just have a dependency between 2 fragment/color-output, we can
+    * limit ourselves to a PB-stall.
+    *
+    * Otherwise if there is a source stage and the destination stage requires
+    * a CS stall, we need to stall.
     */
-   const bool needs_pb_stall =
-      batch->engine_class == INTEL_ENGINE_CLASS_RENDER &&
-#if GFX_VER < 20
-      current_pipeline == _3D &&
-#endif
-      (dst_stages & ~pb_stall_stages) == 0 &&
-      (dst_stages & pb_stall_stages);
-   if (needs_pb_stall) {
+    if ((batch->engine_class == INTEL_ENGINE_CLASS_RENDER ||
+               batch->engine_class == INTEL_ENGINE_CLASS_COMPUTE) &&
+              src_stages != 0 &&
+              dst_stages & cs_stall_stages) {
+      bits |= ANV_PIPE_CS_STALL_BIT;
+   } else if (batch->engine_class == INTEL_ENGINE_CLASS_RENDER &&
+       (src_stages & pb_stall_stages) &&
+       (dst_stages & pb_stall_stages) &&
+       (src_stages & ~pb_stall_stages) == 0 &&
+       (dst_stages & ~pb_stall_stages) == 0) {
       bits |= GFX_VERx10 >= 125 ?
               ANV_PIPE_PSS_STALL_SYNC_BIT :
-              ANV_PIPE_STALL_AT_SCOREBOARD_BIT;
+         ANV_PIPE_STALL_AT_SCOREBOARD_BIT;
    }
-   const bool needs_cs_stall =
-      (batch->engine_class == INTEL_ENGINE_CLASS_RENDER ||
-       batch->engine_class == INTEL_ENGINE_CLASS_COMPUTE) &&
-      (src_stages & cs_stall_stages);
-   if (needs_cs_stall)
-      bits |= ANV_PIPE_CS_STALL_BIT;
 
-   if (bits & ANV_PIPE_RT_BTI_CHANGE) {
-      bits &= ~ANV_PIPE_RT_BTI_CHANGE;
-      bits |= ANV_PIPE_STALL_AT_SCOREBOARD_BIT |
-              ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT;
-   }
+    if (bits & ANV_PIPE_RT_BTI_CHANGE) {
+       bits &= ~ANV_PIPE_RT_BTI_CHANGE;
+       bits |= ANV_PIPE_STALL_AT_SCOREBOARD_BIT |
+               ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT;
+    }
+
 
 #if GFX_VER >= 12 && GFX_VER < 20
    /* From the TGL PRM, Volume 2a, "PIPE_CONTROL":
