@@ -218,6 +218,7 @@ struct iris_screen {
       bool disable_threaded_context;
       bool force_sampler_prefetch;
       bool force_compute_surface_prefetch;
+      uint8_t sample_d_performance;
    } driconf;
 
    /** Does the kernel support various features (KERNEL_HAS_* bitfield)? */

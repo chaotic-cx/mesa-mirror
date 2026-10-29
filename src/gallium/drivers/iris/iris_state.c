@@ -2681,6 +2681,10 @@ fill_sampler_state(struct iris_screen *screen,
          samp.MaxLOD = CLAMP(state->max_lod, 0, hw_max_lod);
          samp.TextureLODBias = CLAMP(state->lod_bias, -16, 15);
          samp.YCRCBBorderMode = YCRCBBM_PASSTHROUGH;
+         /* Bspec 57016 (r77793) HSD 22021085527. Also refer to the names of
+          * values in the dri option.
+          */
+         samp.sample_d_performance = screen->driconf.sample_d_performance;
       }
 
       return;
@@ -2697,6 +2701,14 @@ fill_sampler_state(struct iris_screen *screen,
       samp.MagModeFilter = mag_img_filter;
       samp.MipModeFilter = translate_mip_filter(state->min_mip_filter);
       samp.MaximumAnisotropy = RATIO21;
+
+#if GFX_VER >= 35
+      /* Bspec 57016 (r77793) HSD 22021085527. Also refer to the names of
+       * values in the dri option.
+       */
+      samp.sample_d_performance = screen->driconf.sample_d_performance;
+#endif
+
 #if GFX_VER > 8
       samp.ReductionType = reduction_mode;
       samp.ReductionTypeEnable =

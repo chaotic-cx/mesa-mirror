@@ -30,6 +30,7 @@ DRI_CONF_SECTION_PERFORMANCE
    DRI_CONFIG_INTEL_STORAGE_CACHE_POLICY_WT(false)
    DRI_CONF_OPT_E(bo_reuse, 1, 0, 1, "Buffer object reuse",)
    DRI_CONF_OPT_I(generated_indirect_threshold, 100, 0, INT32_MAX, "Generated indirect draw threshold")
+   DRI_CONF_INTEL_SAMPLE_D_PERFORMANCE(0)
 DRI_CONF_SECTION_END
 
 DRI_CONF_SECTION_QUALITY
