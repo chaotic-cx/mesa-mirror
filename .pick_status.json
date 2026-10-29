@@ -134,7 +134,7 @@
         "description": "spirv: specialize entire constant-data source",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "34b8ce948a64e0bddd79bcbab38445d78f07d763",
         "notes": null
