@@ -138,6 +138,9 @@ struct vk_device {
     */
    const struct vk_device_dispatch_table *command_dispatch_table;
 
+   /** App workarounds dispatch table */
+   struct vk_device_dispatch_table *app_workarounds_dispatch_table;
+
    /** Command buffer vtable when using the common command pool */
    const struct vk_command_buffer_ops *command_buffer_ops;
 

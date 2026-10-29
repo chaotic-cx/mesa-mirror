@@ -340,6 +340,8 @@ vk_device_finish(struct vk_device *device)
 
    simple_mtx_destroy(&device->trace_mtx);
 
+   vk_free(&device->alloc, device->app_workarounds_dispatch_table);
+
    vk_object_base_finish(&device->base);
 }
 
