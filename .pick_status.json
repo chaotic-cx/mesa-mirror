@@ -1264,7 +1264,7 @@
         "description": "radv: fix invalid use of radv_image_has_hiz on GFX6-8",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
