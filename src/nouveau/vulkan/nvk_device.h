@@ -23,12 +23,7 @@ struct vk_pipeline_cache;
 
 enum nvk_dispatch_table {
    NVK_DEVICE_DISPATCH_TABLE,
-   NVK_APP_DISPATCH_TABLE,
    NVK_DISPATCH_TABLE_COUNT,
-};
-
-struct nvk_layer_dispatch_tables {
-   struct vk_device_dispatch_table app;
 };
 
 struct nvk_slm_area {
@@ -50,7 +45,6 @@ struct nvk_device {
 
    struct nvk_upload_queue upload;
 
-   struct nvk_layer_dispatch_tables layer_dispatch;
    struct nvkmd_mem *zero_page;
    struct nvk_descriptor_table images;
    struct nvk_descriptor_table samplers;

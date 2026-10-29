@@ -15,20 +15,6 @@
 
 /* This layer implements various application WAs that don't need to be in the core driver. */
 
-/* Metro Exodus */
-VKAPI_ATTR VkResult VKAPI_CALL
-metro_exodus_GetSemaphoreCounterValue(VkDevice _device, VkSemaphore _semaphore, uint64_t *pValue)
-{
-   /* See https://gitlab.freedesktop.org/mesa/mesa/-/issues/5119. */
-   if (_semaphore == VK_NULL_HANDLE) {
-      fprintf(stderr, "RADV: Ignoring vkGetSemaphoreCounterValue() with NULL semaphore (game bug)!\n");
-      return VK_SUCCESS;
-   }
-
-   VK_FROM_HANDLE(radv_device, device, _device);
-   return device->layer_dispatch.app.GetSemaphoreCounterValue(_device, _semaphore, pValue);
-}
-
 /* No Man's Sky */
 VKAPI_ATTR VkResult VKAPI_CALL
 no_mans_sky_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,

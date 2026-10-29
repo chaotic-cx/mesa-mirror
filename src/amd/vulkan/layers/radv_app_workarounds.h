@@ -9,9 +9,6 @@
 
 #include <vulkan/vulkan.h>
 
-VKAPI_ATTR VkResult VKAPI_CALL metro_exodus_GetSemaphoreCounterValue(VkDevice _device, VkSemaphore _semaphore,
-                                                                     uint64_t *pValue);
-
 VKAPI_ATTR VkResult VKAPI_CALL no_mans_sky_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
                                                            const VkAllocationCallbacks *pAllocator, VkImageView *pView);
 

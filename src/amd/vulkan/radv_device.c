@@ -30,6 +30,7 @@
 #include "radv_formats.h"
 #include "radv_physical_device.h"
 #include "radv_shader.h"
+#include "vk_app_workarounds.h"
 #include "vk_common_entrypoints.h"
 #include "vk_pipeline_cache.h"
 #include "vk_util.h"
@@ -771,9 +772,7 @@ init_app_workarounds_entrypoints(struct radv_device *device, struct dispatch_tab
    struct vk_device_entrypoint_table table = {0};
 
 #define SET_ENTRYPOINT(app_layer, entrypoint) table.entrypoint = app_layer##_##entrypoint;
-   if (!strcmp(pdev->drirc.debug.app_layer, "metroexodus")) {
-      SET_ENTRYPOINT(metro_exodus, GetSemaphoreCounterValue);
-   } else if (!strcmp(pdev->drirc.debug.app_layer, "rage2")) {
+   if (!strcmp(pdev->drirc.debug.app_layer, "rage2")) {
       SET_ENTRYPOINT(rage2, CmdBeginRenderPass);
    } else if (!strcmp(pdev->drirc.debug.app_layer, "quanticdream")) {
       SET_ENTRYPOINT(quantic_dream, UnmapMemory2);
@@ -1530,6 +1529,10 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       goto fail;
 
    init_dispatch_tables(device, pdev);
+
+   result = vk_device_init_app_workarounds(&device->vk, pdev->drirc.debug.vk_app_layer);
+   if (result != VK_SUCCESS)
+      goto fail;
 
    /* Initialize everything required for compilation, first. */
 

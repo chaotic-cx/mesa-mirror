@@ -8,6 +8,7 @@ import sys
 VALID_COMMON_VK_OPTIONS = {
     "force_vk_devicename",
     "force_vk_vendor",
+    "vk_app_layer",
     "vk_zero_vram",
     "heap_memory_percent",
 }

@@ -90,8 +90,6 @@ nvk_files = files(
   'nvk_video_session.h',
   'nvk_wsi.c',
   'nvk_wsi.h',
-  'layers/nvk_app_workarounds.c',
-  'layers/nvk_app_workarounds.h',
   'nvkmd/nouveau/nvkmd_nouveau.h',
   'nvkmd/nouveau/nvkmd_nouveau_ctx.c',
   'nvkmd/nouveau/nvkmd_nouveau_dev.c',
