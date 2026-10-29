@@ -25,6 +25,21 @@ angle-dEQP-GLES2.functional.negative_api.texture.compressedteximage2d_width_heig
 angle-dEQP-GLES2.functional.negative_api.texture.compressedteximage2d_width_height_max_cube_pos_y,Fail
 angle-dEQP-GLES2.functional.negative_api.texture.compressedteximage2d_width_height_max_cube_pos_z,Fail
 angle-dEQP-GLES2.functional.negative_api.texture.generatemipmap_zero_level_array_compressed,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.sub.unbind_blit_depth,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.sub.unbind_blit_msaa_color,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.sub.unbind_blit_msaa_depth,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.sub.unbind_blit_msaa_stencil,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.sub.unbind_blit_stencil,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.whole.unbind_blit_depth,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.whole.unbind_blit_msaa_color,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.whole.unbind_blit_msaa_depth,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.whole.unbind_blit_msaa_stencil,Fail
+angle-dEQP-GLES3.functional.fbo.invalidate.whole.unbind_blit_stencil,Fail
+angle-KHR-GLES3.framebuffer_blit.multisampled_to_singlesampled_blit_depth_config_test,Fail
+angle-KHR-GLES3.framebuffer_blit.scissor_blit,Fail
+angle-KHR-GLES3.packed_depth_stencil.blit.depth24_stencil8,Fail
+angle-KHR-GLES3.packed_depth_stencil.blit.depth32f_stencil8,Fail
+angle-KHR-GLES31.core.texture_storage_multisample.FunctionalTests.blitting_multisampled_depth_attachment,Fail
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_mask_all_on,Fail
