@@ -89,7 +89,7 @@ void si_shader_cache_insert_shader(struct si_screen *sscreen, unsigned char ir_b
                                    struct si_shader *shader, bool insert_into_disk_cache);
 
 /* si_sqtt.c */
-bool si_is_sqtt_active(const struct si_context *sctx);
+MESAPROC bool si_is_sqtt_active(const struct si_context *sctx) TAILB;
 void si_sqtt_write_event_marker(struct si_context* sctx, struct radeon_cmdbuf *rcs,
                                 enum rgp_sqtt_marker_event_type api_type,
                                 uint32_t vertex_offset_user_data,

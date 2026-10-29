@@ -199,7 +199,7 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
       submission_id = ctx->ds_queue.submission_id;
    }
 
-   if (unlikely(ctx->sqtt.data))
+   if (unlikely(si_is_sqtt_active(ctx)))
       si_sqtt_describe_flush(ctx);
 
    /* Flush the CS. */
@@ -445,7 +445,7 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
       return;
    }
 
-   if (unlikely(ctx->sqtt.data))
+   if (unlikely(si_is_sqtt_active(ctx)))
       si_sqtt_describe_begin(ctx, &ctx->gfx_cs);
 
    if (ctx->has_tessellation) {
