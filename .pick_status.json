@@ -2654,7 +2654,7 @@
         "description": "winsys/amdgpu: Fix UserQ signal point array allocation.",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "684bde444763220cdee35420566987e236a7d7d0",
         "notes": null
