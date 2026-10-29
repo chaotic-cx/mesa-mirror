@@ -2535,9 +2535,15 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
 
    sctx->framebuffer.compressed_cb_mask = 0;
    sctx->framebuffer.uncompressed_cb_mask = 0;
+   unsigned old_log_samples = sctx->framebuffer.log_samples;
    sctx->framebuffer.nr_samples = util_framebuffer_get_num_samples(state);
    sctx->framebuffer.nr_color_samples = sctx->framebuffer.nr_samples;
    sctx->framebuffer.log_samples = util_logbase2(sctx->framebuffer.nr_samples);
+
+   /* Gfx11 writes the sample count to DB_Z_INFO.NUM_SAMPLES when no Z/S is bound. */
+   if (sctx->gfx_level >= GFX11 && sctx->gfx_level < GFX12 && !state->zsbuf.texture &&
+       sctx->framebuffer.log_samples != old_log_samples)
+      sctx->framebuffer.dirty_zsbuf = true;
    sctx->framebuffer.any_dst_linear = false;
    sctx->framebuffer.CB_has_shader_readable_metadata = false;
    sctx->framebuffer.DB_has_shader_readable_metadata = false;

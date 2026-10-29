@@ -624,7 +624,7 @@
         "description": "radeonsi: dirty DB_Z_INFO when the sample count changes without Z/S",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9fecac091f3159eb50a3e3dea2312218bb87d8c1",
         "notes": null
