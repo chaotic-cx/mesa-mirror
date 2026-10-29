@@ -328,8 +328,10 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
          unsigned overfetch_align = util_next_power_of_two(larger - bytes + 1);
          const bool can_align_down = align_mul % overfetch_align == 0;
 
-         if (larger > bytes + 4) {
-            /* Avoid overfetching more than one dword. */
+         const unsigned max_overfetch = larger >= 64 ? 16 : (larger >= 32 ? 8 : 4);
+
+         if (larger > bytes + max_overfetch) {
+            /* Avoid overfetching more than one (two for 256bit+ and four for 512bit+) dword. */
             bytes = smaller;
          } else if (can_align_down) {
             /* Rounding the address down makes this safe. */
