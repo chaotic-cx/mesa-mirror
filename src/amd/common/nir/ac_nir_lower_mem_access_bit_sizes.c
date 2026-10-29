@@ -325,14 +325,15 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
          const uint8_t larger = util_next_power_of_two(bytes);
          const uint8_t smaller = larger / 2;
 
-         const bool can_align_down = align_mul % smaller == 0;
+         unsigned overfetch_align = util_next_power_of_two(larger - bytes + 1);
+         const bool can_align_down = align_mul % overfetch_align == 0;
 
          if (larger > bytes + 4) {
             /* Avoid overfetching more than one dword. */
             bytes = smaller;
          } else if (can_align_down) {
             /* Rounding the address down makes this safe. */
-            res.align = smaller;
+            res.align = overfetch_align;
             bytes = larger;
          } else if (is_buffer_load) {
             /* Bounds checking makes this safe. */
