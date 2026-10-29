@@ -190,8 +190,13 @@ optimizations = [
    (('imul', a, '#b(is_neg_power_of_two)'), ('ineg', ('ishl', a, ('find_lsb', ('iabs', b)))), '!options->lower_bitops'),
    (('ishl', a, '#b'), ('imul', a, ('ishl', 1, b)), 'options->lower_bitops'),
 
+   # Only do this when there is no support for imad32 and if imul_2x32_64 also
+   # gets lowered as otherwise this optimization will actually hurt. It won't
+   # be able to beat a 3 instruction sequence (or 2 with zero high/low bits in
+   # the constant).
    (('imul@64', a, '#b(is_bitcount2)'), ('iadd', ('ishl', a, ('ufind_msb', b)), ('ishl', a, ('find_lsb', b))),
-    '!options->lower_bitops && (options->lower_int64_options & (nir_lower_imul64 | nir_lower_shift64)) == nir_lower_imul64'),
+    '!options->lower_bitops && !options->has_imad32 && ' +
+    '(options->lower_int64_options & (nir_lower_imul64 | nir_lower_imul_2x32_64 | nir_lower_shift64)) == (nir_lower_imul64 | nir_lower_imul_2x32_64)'),
 
    (('unpack_64_2x32_split_x', ('imul_2x32_64(is_used_once)', a, b)), ('imul', a, b)),
    (('unpack_64_2x32_split_x', ('umul_2x32_64(is_used_once)', a, b)), ('imul', a, b)),
