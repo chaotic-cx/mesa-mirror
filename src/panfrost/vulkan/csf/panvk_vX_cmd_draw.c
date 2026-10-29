@@ -189,7 +189,8 @@ panvk_per_arch(device_draw_context_init)(struct panvk_device *dev)
    VkResult result = panvk_priv_bo_create(
       dev, fns_bo_size,
       panvk_device_adjust_bo_flags(dev, PAN_KMOD_BO_FLAG_WB_MMAP),
-      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &dev->draw_ctx->fns_bo);
+      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, "Provoking vertex functions",
+      &dev->draw_ctx->fns_bo);
    if (result != VK_SUCCESS)
       goto free_draw_ctx;
 

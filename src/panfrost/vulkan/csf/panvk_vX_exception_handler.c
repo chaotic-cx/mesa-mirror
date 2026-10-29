@@ -370,7 +370,8 @@ panvk_per_arch(init_tiler_oom)(struct panvk_device *device)
    VkResult result = panvk_priv_bo_create(
       device, TILER_OOM_HANDLER_MAX_SIZE * 2 * MAX_RTS,
       panvk_device_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_WB_MMAP),
-      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &device->tiler_oom.handlers_bo);
+      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, "Tiler OOM handlers",
+      &device->tiler_oom.handlers_bo);
    if (result != VK_SUCCESS)
       return result;
 

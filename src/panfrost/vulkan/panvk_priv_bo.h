@@ -27,7 +27,7 @@ struct panvk_priv_bo {
 
 VkResult panvk_priv_bo_create(struct panvk_device *dev, uint64_t size,
                               uint32_t flags, VkSystemAllocationScope scope,
-                              struct panvk_priv_bo **out);
+                              const char *label, struct panvk_priv_bo **out);
 
 static inline struct panvk_priv_bo *
 panvk_priv_bo_ref(struct panvk_priv_bo *bo)

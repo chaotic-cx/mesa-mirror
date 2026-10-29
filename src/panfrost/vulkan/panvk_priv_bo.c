@@ -18,7 +18,8 @@
 
 VkResult
 panvk_priv_bo_create(struct panvk_device *dev, uint64_t size, uint32_t flags,
-                     VkSystemAllocationScope scope, struct panvk_priv_bo **out)
+                     VkSystemAllocationScope scope, const char *label,
+                     struct panvk_priv_bo **out)
 {
    VkResult result;
    int ret;
@@ -37,6 +38,9 @@ panvk_priv_bo_create(struct panvk_device *dev, uint64_t size, uint32_t flags,
 
    priv_bo->bo = bo;
    priv_bo->dev = dev;
+
+   if (label)
+      pan_kmod_set_bo_label(dev->kmod.dev, bo, label);
 
    if (!(flags & PAN_KMOD_BO_FLAG_NO_MMAP)) {
       priv_bo->addr.host =

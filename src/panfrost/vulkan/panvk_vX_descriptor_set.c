@@ -340,7 +340,7 @@ panvk_init_pool_memory(struct panvk_device *device,
          panvk_device_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_WB_MMAP);
       VkResult result = panvk_priv_bo_create(device, pool_size, bo_flags,
                                              VK_SYSTEM_ALLOCATION_SCOPE_OBJECT,
-                                             &pool->desc_bo);
+                                             "Descriptor pool", &pool->desc_bo);
       if (result != VK_SUCCESS)
          return result;
 

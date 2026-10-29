@@ -102,6 +102,9 @@ init_render_desc_ringbuf(struct panvk_gpu_queue *queue)
       return panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
                           "Failed to create a descriptor ring buffer context");
 
+   pan_kmod_set_bo_label(dev->kmod.dev, ringbuf->bo,
+                         "Render descriptor ring buffer");
+
    if (!(flags & PAN_KMOD_BO_FLAG_NO_MMAP)) {
       ringbuf->addr.host = pan_kmod_bo_mmap(ringbuf->bo, PROT_READ | PROT_WRITE,
                                             MAP_SHARED, NULL);
@@ -260,6 +263,8 @@ init_subqueue_tracing(struct panvk_gpu_queue *queue,
    if (!subq->tracebuf.bo)
       return panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
                           "Failed to create a CS tracebuf");
+
+   pan_kmod_set_bo_label(dev->kmod.dev, subq->tracebuf.bo, "CS trace buffer");
 
    subq->tracebuf.addr.host = pan_kmod_bo_mmap(
       subq->tracebuf.bo, PROT_READ | PROT_WRITE, MAP_SHARED, NULL);
