@@ -430,29 +430,39 @@ radv_compute_copy_memory_to_image_indirect(struct radv_cmd_buffer *cmd_buffer,
 
       struct radv_meta_blit2d_surf img_bsurf = radv_blit_surf_for_image_level_layer(
          dst_image, pCopyMemoryToImageIndirectInfo->dstImageLayout, imageSubresource);
+      const uint32_t queue_mask = radv_image_queue_family_mask(dst_image, cmd_buffer->qf);
+      bool decompress = false;
 
       if (!radv_is_buffer_format_supported(img_bsurf.format, NULL)) {
-         const uint32_t queue_mask = radv_image_queue_family_mask(dst_image, cmd_buffer->qf);
          const VkFormat raw_format = vk_format_for_size(vk_format_get_blocksize(img_bsurf.format));
 
-         if (!radv_dcc_formats_compatible(pdev->info.gfx_level, img_bsurf.format, raw_format, NULL) &&
-             radv_layout_dcc_compressed(device, dst_image, imageSubresource->mipLevel, dst_image_layout, queue_mask)) {
-            radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
-
-            radv_decompress_dcc(cmd_buffer, dst_image,
-                                &(VkImageSubresourceRange){
-                                   .aspectMask = imageSubresource->aspectMask,
-                                   .baseMipLevel = imageSubresource->mipLevel,
-                                   .levelCount = 1,
-                                   .baseArrayLayer = imageSubresource->baseArrayLayer,
-                                   .layerCount = vk_image_subresource_layer_count(&dst_image->vk, imageSubresource),
-                                });
-            img_bsurf.disable_compression = true;
-
-            radv_describe_barrier_end(cmd_buffer);
-         }
+         /* If raw_format is incompatible with DCC, we must decompress. */
+         if (radv_layout_dcc_compressed(device, dst_image, imageSubresource->mipLevel, dst_image_layout, queue_mask) &&
+             !radv_dcc_formats_compatible(pdev->info.gfx_level, img_bsurf.format, raw_format, NULL))
+            decompress = true;
 
          img_bsurf.format = raw_format;
+      }
+
+      /* If image stores don't support DCC, we must decompress. */
+      if (radv_layout_dcc_compressed(device, dst_image, imageSubresource->mipLevel, dst_image_layout, queue_mask) &&
+          !radv_image_compress_dcc_on_image_stores(device, dst_image))
+         decompress = true;
+
+      if (decompress) {
+         radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
+
+         radv_decompress_dcc(cmd_buffer, dst_image,
+                             &(VkImageSubresourceRange){
+                                .aspectMask = imageSubresource->aspectMask,
+                                .baseMipLevel = imageSubresource->mipLevel,
+                                .levelCount = 1,
+                                .baseArrayLayer = imageSubresource->baseArrayLayer,
+                                .layerCount = vk_image_subresource_layer_count(&dst_image->vk, imageSubresource),
+                             });
+         img_bsurf.disable_compression = true;
+
+         radv_describe_barrier_end(cmd_buffer);
       }
 
       radv_meta_bind_compute_pipeline(cmd_buffer, pipeline);
