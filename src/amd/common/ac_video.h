@@ -129,6 +129,7 @@ struct ac_video_enc_codec_caps {
    uint32_t max_temporal_layers;
    uint32_t quality_levels;
    bool efc;
+   bool efc_range_bug; /* only bt709/limited and bt2020/full works */
    bool preenc_pitch_wa; /* preenc input pitch uses input pitch */
 
    bool qp_map;
