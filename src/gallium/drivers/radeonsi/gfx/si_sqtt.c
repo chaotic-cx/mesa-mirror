@@ -160,7 +160,7 @@ static void si_sqtt_start(struct si_context *sctx, struct radeon_cmdbuf *cs)
                           AC_BARRIER_PFP_SYNC_ME;
    sctx->emit_barrier(sctx, cs);
 
-   si_inhibit_clockgating(sctx, cs, true);
+   ac_emit_cp_inhibit_clockgating(&sctx->gfx_cs.current, sctx->gfx_level, true);
 
    /* Enable SQG events that collects thread trace data. */
    si_emit_spi_config_cntl(sctx, cs, true);
@@ -228,7 +228,7 @@ static void si_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs)
    /* Restore previous state by disabling SQG events. */
    si_emit_spi_config_cntl(sctx, cs, false);
 
-   si_inhibit_clockgating(sctx, cs, false);
+   ac_emit_cp_inhibit_clockgating(&sctx->gfx_cs.current, sctx->gfx_level, false);
 }
 
 static void si_sqtt_init_cs(struct si_context *sctx)

@@ -161,11 +161,6 @@ static void si_pc_query_destroy(struct si_context *sctx, struct si_query *squery
    FREE(query);
 }
 
-void si_inhibit_clockgating(struct si_context *sctx, struct radeon_cmdbuf *cs, bool inhibit)
-{
-   ac_emit_cp_inhibit_clockgating(&sctx->gfx_cs.current, sctx->gfx_level, inhibit);
-}
-
 static void si_pc_query_resume(struct si_context *sctx, struct si_query *squery)
 /*
                                    struct si_query_hw *hwquery,
@@ -190,7 +185,7 @@ static void si_pc_query_resume(struct si_context *sctx, struct si_query *squery)
    if (query->shaders)
       ac_pc_emit_shaders(sctx->screen->info.gfx_level, &sctx->gfx_cs.current, query->shaders);
 
-   si_inhibit_clockgating(sctx, &sctx->gfx_cs, true);
+   ac_emit_cp_inhibit_clockgating(&sctx->gfx_cs.current, sctx->gfx_level, true);
 
    for (struct si_query_group *group = query->groups; group; group = group->next) {
       struct ac_pc_block *block = group->block;
@@ -247,7 +242,7 @@ static void si_pc_query_suspend(struct si_context *sctx, struct si_query *squery
 
    ac_pc_emit_instance(&sctx->gfx_cs.current, -1, -1);
 
-   si_inhibit_clockgating(sctx, &sctx->gfx_cs, false);
+   ac_emit_cp_inhibit_clockgating(&sctx->gfx_cs.current, sctx->gfx_level, false);
 }
 
 static bool si_pc_query_begin(struct si_context *ctx, struct si_query *squery)

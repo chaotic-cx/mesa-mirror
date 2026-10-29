@@ -1575,7 +1575,6 @@ void si_put_aux_context_flush(struct si_aux_context *ctx);
 /* si_perfcounters.c */
 void si_init_perfcounters(struct si_screen *screen);
 void si_destroy_perfcounters(struct si_screen *screen);
-void si_inhibit_clockgating(struct si_context *sctx, struct radeon_cmdbuf *cs, bool inhibit);
 void si_emit_spm_setup(struct si_context *sctx, struct ac_spm *spm, struct radeon_cmdbuf *cs);
 bool si_spm_init(struct si_context *sctx, struct ac_spm *spm);
 void si_spm_finish(struct si_context *sctx, struct ac_spm *spm);
