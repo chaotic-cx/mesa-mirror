@@ -2602,12 +2602,15 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       const bool vrs_may_be_enabled =
          gfx_state->vrs_may_be_enabled &&
          !radv_force_disable_vrs(compiler_info->ac->gfx_level, stages[MESA_SHADER_FRAGMENT].nir, gfx_state);
+      const bool max_sample_shading =
+         gfx_state->ms.max_sample_shading_enable || stages[MESA_SHADER_FRAGMENT].nir->info.fs.uses_sample_shading;
 
       ac_nir_lower_ps_early_options opts = {0};
       opts.msaa_disabled = !gfx_state->dynamic_rasterization_samples && !gfx_state->ms.rasterization_samples;
       opts.vrs_disabled = !vrs_may_be_enabled;
       opts.custom_sample_locations_disabled = !gfx_state->custom_sample_locs_may_be_enabled;
       opts.dynamic_rasterization_samples = gfx_state->dynamic_rasterization_samples;
+      opts.sample_shading = max_sample_shading;
       opts.alpha_func = COMPARE_FUNC_ALWAYS;
       opts.color_mask = 0xffffffff;
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, ac_nir_lower_ps_early, &opts);
@@ -2635,7 +2638,7 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
 
       ac_nir_lower_sample_mask_in_options lower_sample_mask_in_options = {0};
 
-      if (stages[MESA_SHADER_FRAGMENT].nir->info.fs.uses_sample_shading || gfx_state->ms.max_sample_shading_enable) {
+      if (max_sample_shading) {
          lower_sample_mask_in_options.behavior = ac_nir_lower_samplemask_sample_shading_max;
       } else if (gfx_state->ms.sample_shading_enable) {
          lower_sample_mask_in_options.behavior = ac_nir_lower_samplemask_sample_shading_partial;
