@@ -1012,26 +1012,35 @@ fn gen_decode(
         quote! {try_instr(#idx, input_value, arch)}
     };
 
-    let decoder_cases_ts: TokenStream = decode_per_arch
-        .iter()
-        .map(|(arch, decoder)| {
-            let per_arch = decoder.to_tokens(&make_ret_val, &make_check);
-            quote! {
-                #arch => #per_arch,
-            }
-        })
-        .collect();
+    let mut ts: TokenStream = Default::default();
+    let mut arch_cases: TokenStream = Default::default();
 
-    quote! {
-        pub fn try_decode(
-            input_value: u64, arch: u8
-        ) -> Result<usize, InvalidInstrError> {
-            match arch {
-                #decoder_cases_ts
-                _ => Err(InvalidInstrError::Any),
+    for (arch, decoder) in decode_per_arch.iter() {
+        let per_arch = decoder.to_tokens(&make_ret_val, &make_check);
+        let fn_id = Ident::new(&format!("try_dec_{arch}"), Span::call_site());
+        ts.extend(quote! {
+            fn #fn_id (input_value: u64, arch: u8) -> Result<usize, InvalidInstrError> {
+                #per_arch
             }
-        }
+        });
+
+        arch_cases.extend(quote! {
+            #arch => #fn_id(input_value, arch),
+        });
     }
+
+    ts.extend(quote! {
+      pub fn try_decode(
+          input_value: u64, arch: u8
+      ) -> Result<usize, InvalidInstrError> {
+          match arch {
+              #arch_cases
+              _ => Err(InvalidInstrError::Any),
+          }
+      }
+    });
+
+    ts
 }
 
 pub fn gen_decoder(
