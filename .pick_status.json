@@ -2604,7 +2604,7 @@
         "description": "pan/ci: remove stale flakes",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "54984226000f5c56b6bc2d43199ba91938ed29d5",
         "notes": null
