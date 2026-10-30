@@ -6,7 +6,6 @@ use quote::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::{Hash, Hasher};
 
-use crate::ident;
 use crate::isa::*;
 
 fn bitmask(n: u8) -> u64 {
@@ -986,54 +985,6 @@ fn gen_print(
     ts
 }
 
-struct SimpleEnum {
-    name: String,
-    values: Vec<String>,
-}
-
-impl SimpleEnum {
-    pub fn new(name: &str, values: Vec<String>) -> SimpleEnum {
-        SimpleEnum {
-            name: String::from(name),
-            values: values,
-        }
-    }
-
-    pub fn ident(&self) -> Ident {
-        Ident::new(&self.name, Span::call_site())
-    }
-}
-
-impl ToTokens for SimpleEnum {
-    fn to_tokens(&self, ts: &mut TokenStream) {
-        let name_id = ident!("{}", &self.name);
-
-        let mut idents: Vec<Ident> =
-            self.values.iter().map(|n| ident!("{n}")).collect();
-        idents.sort();
-
-        let display_cases: Vec<TokenStream> = idents
-            .iter()
-            .zip(&self.values)
-            .map(|(i, s)| quote! {#name_id::#i => write!(f, #s)})
-            .collect();
-
-        ts.extend(quote! {
-            pub enum #name_id {
-                #(#idents),*
-            }
-
-            impl std::fmt::Display for #name_id {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    match self {
-                        #(#display_cases),*
-                    }
-                }
-            }
-        })
-    }
-}
-
 fn gen_decode(
     isa: &ISA,
     instr_to_idx: &BTreeMap<InstrKey, usize>,
@@ -1089,19 +1040,6 @@ pub fn gen_decoder(
 ) -> Result<TokenStream> {
     let isa = ISA::from_xml_file(std::fs::File::open(xml_file)?, arch)?;
 
-    let instr_names: HashSet<String> =
-        isa.instrs.iter().map(|i| i.name.clone()).collect();
-    let instr_variants: HashSet<String> = isa
-        .instrs
-        .iter()
-        .filter_map(|i| i.variant.clone())
-        .collect();
-
-    let instr_name_enum =
-        SimpleEnum::new("Mnemonic", instr_names.into_iter().collect());
-    let instr_var_enum =
-        SimpleEnum::new("Variant", instr_variants.into_iter().collect());
-
     let mut instr_to_idx = Default::default();
     let printer_ts = gen_print(&isa.instrs, &mut instr_to_idx);
 
@@ -1112,10 +1050,6 @@ pub fn gen_decoder(
             let r = 32 - enc_width;
             ((v << r) as i32) >> r
         }
-
-        #instr_name_enum
-
-        #instr_var_enum
 
         #decode_ts
 

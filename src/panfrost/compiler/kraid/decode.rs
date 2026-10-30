@@ -5,7 +5,7 @@ use std::io::Write;
 
 use crate::isa::v9;
 
-pub use v9::decode::{Mnemonic, PrintCtx, Variant, try_decode};
+pub use v9::decode::{PrintCtx, try_decode};
 
 use kraid_bindings::*;
 
