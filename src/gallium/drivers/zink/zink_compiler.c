@@ -6097,9 +6097,15 @@ struct zink_shader_object
 zink_shader_tcs_compile(struct zink_screen *screen, struct zink_shader *zs, unsigned patch_vertices, bool can_shobj, struct zink_program *pg)
 {
    assert(zs->info.stage == MESA_SHADER_TESS_CTRL);
-   /* shortcut all the nir passes since we just have to change this one word */
-   zs->spirv->words[zs->spirv->tcs_vertices_out_word] = patch_vertices;
-   return zink_shader_spirv_compile(screen, zs, NULL, can_shobj, pg);
+   /* shortcut all the nir passes since we just have to change this one word;
+    * patch a private copy since variants can be compiled from multiple threads
+    */
+   struct spirv_shader spirv = *zs->spirv;
+   spirv.words = mem_dup(zs->spirv->words, zs->spirv->num_words * sizeof(uint32_t));
+   spirv.words[spirv.tcs_vertices_out_word] = patch_vertices;
+   struct zink_shader_object obj = zink_shader_spirv_compile(screen, zs, &spirv, can_shobj, pg);
+   free(spirv.words);
+   return obj;
 }
 
 /* creating a passthrough tcs shader that's roughly:
