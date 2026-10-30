@@ -563,8 +563,14 @@ nir_visitor::visit(ir_variable *ir)
       mem_access |= ACCESS_NON_READABLE;
    if (ir->data.memory_coherent)
       mem_access |= ACCESS_COHERENT;
+   /* From the GLSL spec, section 4.10 (Memory Qualifiers):
+    *
+    *    "Since the external source reading or writing a volatile variable
+    *    may be another shader invocation, variables declared as volatile are
+    *    automatically treated as coherent."
+    */
    if (ir->data.memory_volatile)
-      mem_access |= ACCESS_VOLATILE;
+      mem_access |= ACCESS_VOLATILE | ACCESS_COHERENT;
    if (ir->data.memory_restrict)
       mem_access |= ACCESS_RESTRICT;
 
@@ -587,7 +593,7 @@ nir_visitor::visit(ir_variable *ir)
             if (field->memory_coherent)
                mem_access |= ACCESS_COHERENT;
             if (field->memory_volatile)
-               mem_access |= ACCESS_VOLATILE;
+               mem_access |= ACCESS_VOLATILE | ACCESS_COHERENT;
             if (field->memory_restrict)
                mem_access |= ACCESS_RESTRICT;
 
@@ -932,7 +938,7 @@ deref_get_qualifier(nir_deref_instr *deref)
          if (field->memory_coherent)
             qualifiers |= ACCESS_COHERENT;
          if (field->memory_volatile)
-            qualifiers |= ACCESS_VOLATILE;
+            qualifiers |= ACCESS_VOLATILE | ACCESS_COHERENT;
          if (field->memory_restrict)
             qualifiers |= ACCESS_RESTRICT;
       }
