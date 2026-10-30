@@ -3289,8 +3289,10 @@ ntq_emit_load_interpolated_input(struct v3d_compile *c,
                                  unsigned mode,
                                  const struct v3d_centroid_jacobian *centroid_j)
 {
-        if (mode == INTERP_MODE_FLAT)
-                return C;
+        /* nir_lower_io never emits load_interpolated_input for flat
+         * varyings.
+         */
+        assert(mode != INTERP_MODE_FLAT);
 
         struct qreg scaleX, scaleY;
         struct qreg p_dx, p_dy;
