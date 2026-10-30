@@ -260,8 +260,7 @@ pan_shader_update_info(struct pan_shader_info *info, nir_shader *s,
                        unsigned arch)
 {
    info->stage = s->info.stage;
-   info->contains_barrier =
-      s->info.uses_memory_barrier || s->info.uses_control_barrier;
+   info->contains_barrier = s->info.uses_control_barrier;
    info->separable = s->info.separate_shader;
 
    switch (info->stage) {
