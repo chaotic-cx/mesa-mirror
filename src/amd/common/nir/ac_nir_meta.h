@@ -78,6 +78,7 @@ typedef union {
       uint8_t num_scaled_coords:2;
       bool x_clamp_to_edge:1;
       bool y_clamp_to_edge:1;
+      bool z_clamp_to_edge:1;
       bool flip_x:1;
       bool flip_y:1;
       bool flip_z:1;
@@ -109,6 +110,7 @@ typedef struct {
       bool is_array;          /* array or cube texture */
       unsigned width0;        /* level 0 width */
       unsigned height0;       /* level 0 height */
+      unsigned depth0;        /* level 0 depth for 3D images only */
       uint8_t num_samples;
       uint8_t level;
       struct pipe_box box;       /* negative width, height only legal for src */

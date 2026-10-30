@@ -305,9 +305,9 @@ static void
 clamp_to_edge(nir_builder *b, nir_def **coord_src, nir_def **src_resinfo,
               nir_deref_instr *img_src_deref, const ac_cs_blit_key *key)
 {
-   const bool clamp_to_edge[2] = {key->x_clamp_to_edge, key->y_clamp_to_edge};
+   const bool clamp_to_edge[3] = {key->x_clamp_to_edge, key->y_clamp_to_edge, key->z_clamp_to_edge};
 
-   for (unsigned chan = 0; chan < 2; chan++) {
+   for (unsigned chan = 0; chan < 3; chan++) {
       if (clamp_to_edge[chan]) {
          assert(!key->src_is_1d || chan == 0);
 
@@ -402,6 +402,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       PRINT(num_scaled_coords);
       PRINT(x_clamp_to_edge);
       PRINT(y_clamp_to_edge);
+      PRINT(z_clamp_to_edge);
       PRINT(flip_x);
       PRINT(flip_y);
       PRINT(flip_z);
@@ -435,7 +436,8 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
                              !key->src_has_z && !key->src_has_non_identity_fmask));
    assert(!key->num_scaled_coords || key->src_is_sampler);
    assert(!key->num_scaled_coords || (!key->x_clamp_to_edge && !key->y_clamp_to_edge &&
-                                      !key->flip_x && !key->flip_y && !key->flip_z));
+                                      !key->z_clamp_to_edge && !key->flip_x && !key->flip_y &&
+                                      !key->flip_z));
    const bool has_src_sampler = key->src_is_sampler;
    const bool has_src_image = !key->is_clear && !key->src_is_sampler;
    const bool has_dst_fmask = key->dst_store_fmask;
@@ -1078,7 +1080,7 @@ static bool
 should_blit_clamp_to_edge(const ac_cs_blit_description *blit, unsigned coord_mask)
 {
    return util_is_box_out_of_bounds(&blit->src.box, coord_mask, blit->src.width0,
-                                    blit->src.height0, 1, blit->src.level);
+                                    blit->src.height0, blit->src.depth0, blit->src.level);
 }
 
 /* Return a power-of-two alignment of a number. */
@@ -1913,6 +1915,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       key.num_scaled_coords = d.is_scaled ? blit->src.dim : 0;
       key.x_clamp_to_edge = !d.is_scaled && should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
       key.y_clamp_to_edge = !d.is_scaled && should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
+      key.z_clamp_to_edge = !d.is_scaled && blit->src.dim == 3 && should_blit_clamp_to_edge(blit, BITFIELD_BIT(2));
       key.flip_x = !d.is_scaled && blit->src.box.width < 0;
       key.flip_y = !d.is_scaled && blit->src.box.height < 0;
       key.flip_z = !d.is_scaled && blit->src.box.depth < 0;
@@ -1968,6 +1971,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       assert(!key.d16);
       assert(!key.x_clamp_to_edge);
       assert(!key.y_clamp_to_edge);
+      assert(!key.z_clamp_to_edge);
       assert(!key.log_samples);
       assert(!(dst_dword_stride & ~0x3ffff));
       assert(!(src_dword_stride & ~0x3ffff));
