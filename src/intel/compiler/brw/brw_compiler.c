@@ -228,6 +228,11 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
    compiler->nir_options_fs_single_prim.divergence_analysis_options |=
       nir_divergence_single_prim_per_subgroup;
 
+   compiler->nir_options_cs_uniform_local_id_z =
+      compiler->nir_options[MESA_SHADER_COMPUTE];
+   compiler->nir_options_cs_uniform_local_id_z.divergence_analysis_options |=
+      nir_divergence_uniform_local_invocation_id_z;
+
    /* Build a list of storage format compatible in component bit size &
     * isl_base_type. We can apply the same lowering to those.
     */

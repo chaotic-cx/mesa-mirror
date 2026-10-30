@@ -72,6 +72,7 @@ struct brw_compiler {
 
    struct nir_shader_compiler_options nir_options[MESA_ALL_SHADER_STAGES];
    struct nir_shader_compiler_options nir_options_fs_single_prim;
+   struct nir_shader_compiler_options nir_options_cs_uniform_local_id_z;
 
    /**
     * Apply workarounds for SIN and COS output range problems.
