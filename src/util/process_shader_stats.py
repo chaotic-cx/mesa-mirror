@@ -73,8 +73,10 @@ TYPE_MAP = {
     'u16': ('uint16_t', 'u64', '" PRIu16 "'),
     'i32': ('int32_t', 'i64', '" PRId32 "'),
     'u32': ('uint32_t', 'u64', '" PRIu32 "'),
+    'x32': ('uint32_t', 'u64', '" PRIx32 "'),
     'i64': ('int64_t', 'i64', '" PRId64 "'),
     'u64': ('uint64_t', 'u64', '" PRIu64 "'),
+    'x64': ('uint64_t', 'u64', '" PRIx64 "'),
     'float': ('float', 'f64', 'f'),
     'bool': ('bool', 'bool', 'u'),
 }
@@ -90,6 +92,8 @@ class Stat:
         self.description = textwrap.dedent(el.text or '').replace('\n', ' ').strip()
         self.count = int(el.attrib.get('count', 1))
         self.c_name = safe_name(self.display).lower()
+        if self.hash:
+            type_ = {'u64': 'x64', 'u32': 'x32'}.get(type_, type_)
         self.c_type, self.vk_type, format_specifier = TYPE_MAP[type_]
         self.format_strings = [f'%{format_specifier} {self.display.lower()}']
         self.format_args = [f'stats->{self.c_name}']
@@ -108,7 +112,7 @@ class ISA:
         # Derive a the format string to print statistics in GL (report.py)
         # format. report.py has a weird special case for spills/fills, which we
         # need to fix up here.
-        external_stats = [stat for stat in self.stats if not (stat.hidden or stat.hash)]
+        external_stats = [stat for stat in self.stats if not stat.hidden]
         fmt = ', '.join([x for stat in external_stats for x in stat.format_strings])
         self.format_string = fmt.replace('%" PRIu32 " spills, %" PRIu32 " fills', '%" PRIu32 ":%" PRIu32 " spills:fills')
         self.format_args = ', '.join([x for stat in external_stats for x in stat.format_args])
