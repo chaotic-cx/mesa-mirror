@@ -3141,11 +3141,10 @@ ntq_get_barycentric_centroid(struct v3d_compile *c,
                              struct qreg *out_x,
                              struct qreg *out_y)
 {
-        struct qreg sample_mask;
-        if (c->output_sample_mask_index != -1)
-                sample_mask = c->outputs[c->output_sample_mask_index];
-        else
-                sample_mask = vir_MSF(c);
+        /* Use the sample mask the hardware used for interpolation. The
+         * shader may have written gl_SampleMask or discarded since.
+         */
+        struct qreg sample_mask = c->start_msf;
 
         struct qreg i0 = vir_uniform_ui(c, 0);
         struct qreg i1 = vir_uniform_ui(c, 1);
