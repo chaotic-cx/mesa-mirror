@@ -150,6 +150,10 @@ static void set_custom_cu_en_mask(struct radeon_info *info)
                   is_good_form = false;
                   break;
                }
+            } else {
+               fprintf(stderr, "amd: invalid AMD_CU_MASK: unexpected character: %c\n", *str);
+               is_good_form = false;
+               break;
             }
 
             if (comma || !*str) {
