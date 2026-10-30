@@ -373,6 +373,9 @@ void radv_nir_shader_info_pass(const struct radv_compiler_info *compiler_info, c
                                const enum radv_pipeline_type pipeline_type, bool consider_force_vrs,
                                struct radv_shader_info *info);
 
+bool radv_force_disable_vrs(enum amd_gfx_level gfx_level, const struct nir_shader *nir,
+                            const struct radv_graphics_state_key *gfx_state);
+
 void radv_get_esgs_gsvs_ring_size(const struct radv_device *device, struct radv_shader_regs *regs,
                                   const struct radv_shader_info *es_info, const struct radv_shader_info *gs_info);
 void radv_get_legacy_gs_info(const struct radv_compiler_info *compiler_info, struct radv_shader_info *es_info,
