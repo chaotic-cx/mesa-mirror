@@ -5871,6 +5871,11 @@ zink_shader_init(struct zink_screen *screen, struct zink_shader *zs)
          subgroup_options.lower_vote_trivial = true;
       }
       subgroup_options.lower_inverse_ballot = true;
+
+      /* fp64 scan/reduce lowering requires (relative) shuffles */
+      subgroup_options.lower_relative_shuffle = !(screen->base.caps.shader_subgroup_supported_features & PIPE_SHADER_SUBGROUP_FEATURE_SHUFFLE_RELATIVE);
+      subgroup_options.lower_shuffle = !(screen->base.caps.shader_subgroup_supported_features & PIPE_SHADER_SUBGROUP_FEATURE_SHUFFLE);
+
       NIR_PASS(_, nir, nir_lower_subgroups, &subgroup_options);
    }
 

@@ -1309,7 +1309,7 @@ zink_init_screen_caps(struct zink_screen *screen)
 
    caps->mesh.pipeline_statistic_queries = screen->info.mesh_feats.meshShaderQueries;
 
-   if (screen->info.feats12.subgroupBroadcastDynamicId && screen->info.feats12.shaderSubgroupExtendedTypes && screen->info.feats.features.shaderFloat64) {
+   if (screen->info.feats12.subgroupBroadcastDynamicId && screen->info.feats12.shaderSubgroupExtendedTypes) {
       caps->shader_subgroup_size = screen->info.subgroup.subgroupSize;
       if (screen->info.have_EXT_mesh_shader)
          caps->shader_subgroup_supported_stages = screen->info.subgroup.supportedStages & BITFIELD_MASK(MESA_SHADER_MESH_STAGES);

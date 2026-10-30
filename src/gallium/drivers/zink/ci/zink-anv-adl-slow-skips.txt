@@ -11,6 +11,20 @@ KHR-Single-GL46.enhanced_layouts.varying_array_components
 KHR-Single-GL46.enhanced_layouts.varying_structure_locations
 KHR-Single-GL46.enhanced_layouts.xfb_override_qualifiers_with_api
 KHR-Single-GL46.enhanced_layouts.xfb_stride
+KHR-Single-GL46.subgroups.arithmetic.compute.subgroupadd_double
+KHR-Single-GL46.subgroups.arithmetic.compute.subgroupmul_double
+KHR-Single-GL46.subgroups.arithmetic.compute.subgroupexclusiveadd_double
+KHR-Single-GL46.subgroups.arithmetic.compute.subgroupexclusivemul_double
+KHR-Single-GL46.subgroups.arithmetic.compute.subgroupinclusiveadd_double
+KHR-Single-GL46.subgroups.arithmetic.compute.subgroupinclusivemul_double
+KHR-Single-GL46.subgroups.arithmetic.graphics.subgroupadd_double
+KHR-Single-GL46.subgroups.arithmetic.graphics.subgroupinclusiveadd_double
+KHR-Single-GL46.subgroups.arithmetic.graphics.subgroupexclusiveadd_double
+KHR-Single-GL46.subgroups.clustered.compute.subgroupclusteredadd_double
+KHR-Single-GL46.subgroups.clustered.compute.subgroupclusteredmul_double
+KHR-Single-GL46.subgroups.clustered.graphics.subgroupclusteredadd_double
+KHR-Single-GL46.subgroups.clustered.graphics.subgroupclusteredmul_double
+KHR-Single-GL46.subgroups.*dvec*
 spec@!opengl 1.1@copypixels-sync
 spec@!opengl 1.1@draw-sync
 spec@arb_compute_shader@local-id-explosion
