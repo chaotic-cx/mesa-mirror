@@ -1353,7 +1353,10 @@ create_buffer(struct zink_screen *screen, struct zink_resource_object *obj,
       return retval;
 
    if (!(templ->flags & PIPE_RESOURCE_FLAG_SPARSE)) {
-      if (VKSCR(BindBufferMemory)(screen->dev, obj->buffer, zink_bo_get_mem(obj->bo), obj->offset) != VK_SUCCESS) {
+      zink_bo_lock_mem(obj->bo);
+      VkResult res = VKSCR(BindBufferMemory)(screen->dev, obj->buffer, zink_bo_get_mem(obj->bo), obj->offset);
+      zink_bo_unlock_mem(obj->bo);
+      if (res != VK_SUCCESS) {
          mesa_loge("ZINK: vkBindBufferMemory failed");
          return roc_fail_and_cleanup_all ;
       }
@@ -1573,15 +1576,21 @@ bind_image_memory(struct zink_screen *screen, struct zink_resource_object *obj,
             planes[i].planeAspect = plane_aspects[i];
          }
       }
-      if (VKSCR(BindImageMemory2)(screen->dev, num_planes, infos) != VK_SUCCESS) {
+      zink_bo_lock_mem(obj->bo);
+      VkResult res = VKSCR(BindImageMemory2)(screen->dev, num_planes, infos);
+      zink_bo_unlock_mem(obj->bo);
+      if (res != VK_SUCCESS) {
          mesa_loge("ZINK: vkBindImageMemory2 failed");
          return roc_fail_and_cleanup_all;
       }
    } else {
       if (!(templ->flags & PIPE_RESOURCE_FLAG_SPARSE)) {
          assert(!alloc_info->need_dedicated || obj->offset == 0);
-         if (VKSCR(BindImageMemory)(screen->dev, obj->image,
-                                    zink_bo_get_mem(obj->bo), obj->offset) != VK_SUCCESS) {
+         zink_bo_lock_mem(obj->bo);
+         VkResult res = VKSCR(BindImageMemory)(screen->dev, obj->image,
+                                               zink_bo_get_mem(obj->bo), obj->offset);
+         zink_bo_unlock_mem(obj->bo);
+         if (res != VK_SUCCESS) {
             mesa_loge("ZINK: vkBindImageMemory failed");
             return roc_fail_and_cleanup_all;
          }

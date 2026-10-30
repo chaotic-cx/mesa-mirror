@@ -374,7 +374,7 @@
         "description": "zink: lock bo memory around memory binds",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "40fdb3212c3ded2150faf952dc2b669991bfbf94",
         "notes": null
