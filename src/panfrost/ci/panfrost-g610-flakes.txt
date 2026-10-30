@@ -212,8 +212,5 @@ spec@ext_framebuffer_multisample@accuracy all_samples color small depthstencil
 # See Mesa bug #15880 ("panfrost: incomplete glCopyPixels() with feedback loop")
 spec@!opengl 1.4@copy-pixels
 
-# uprev Piglit in Mesa
-KHR-GLES31.core.draw_indirect.advanced-twoPass-transformFeedback-elements
-
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.local_read.max_remapped_attachments_with_gap_write_read
