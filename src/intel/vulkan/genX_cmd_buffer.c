@@ -2020,6 +2020,16 @@ emit_resource_barrier(struct anv_batch *batch,
    }
 #endif
 
+   /* Pushed UBO ranges (3DSTATE_CONSTANT_* buffer pointers) are fetched by
+    * the front end of the pipeline, ahead of the raster/pixel stages. A
+    * barrier making memory visible to fragment shader uniform reads must
+    * therefore wait at the top of the pipe. The other shader stages that
+    * can push UBOs already map to RESOURCE_BARRIER_STAGE_TOP.
+    */
+   if ((bits & ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT) &&
+       (dst_stages & VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT))
+      wait_stages = RESOURCE_BARRIER_STAGE_TOP;
+
    if (wait_stages == RESOURCE_BARRIER_STAGE_NONE)
       wait_stages = RESOURCE_BARRIER_STAGE_TOP;
 
