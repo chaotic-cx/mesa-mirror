@@ -960,7 +960,7 @@ anv_fixup_subgroup_size(struct anv_device *device,
     */
    if (pdevice->drirc.debug.assume_full_subgroups &&
        info->uses_wide_subgroup_intrinsics &&
-       info->api_subgroup_size == BRW_SUBGROUP_SIZE &&
+       info->min_subgroup_size != info->max_subgroup_size &&
        local_size &&
        local_size % BRW_SUBGROUP_SIZE == 0) {
       info->max_subgroup_size = BRW_SUBGROUP_SIZE;
