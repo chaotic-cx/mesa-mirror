@@ -1220,6 +1220,9 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
 
    /* Get the number of good compute units. */
    info->num_cu = 0;
+   info->min_good_cu_per_sa = UINT32_MAX;
+   info->max_good_cu_per_sa = 0;
+
    for (int i = 0; i < info->max_se; i++) {
       for (int j = 0; j < info->max_sa_per_se; j++) {
          if (info->gfx_level >= GFX11) {
@@ -1242,9 +1245,19 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
          } else {
             info->cu_mask[i][j] = device_info->cu_bitmap[i][j];
          }
-         info->num_cu += util_bitcount(info->cu_mask[i][j]);
+
+         const unsigned num_cu_in_sa = util_bitcount(info->cu_mask[i][j]);
+
+         /* Ignore SAs that have no CUs. */
+         if (num_cu_in_sa) {
+            info->min_good_cu_per_sa = MIN2(info->min_good_cu_per_sa, num_cu_in_sa);
+            info->max_good_cu_per_sa = MAX2(info->max_good_cu_per_sa, num_cu_in_sa);
+            info->num_cu += num_cu_in_sa;
+         }
       }
    }
+
+   assert(info->min_good_cu_per_sa <= info->max_good_cu_per_sa);
 
    if (info->gfx_level >= GFX10_3 && info->max_se > 1) {
       uint32_t enabled_se_mask = 0;
@@ -1277,16 +1290,6 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
    }
 
    info->num_rb = util_bitcount64(info->enabled_rb_mask);
-
-   /* On GFX10, only whole WGPs (in units of 2 CUs) can be disabled,
-    * and max - min <= 2.
-    */
-   unsigned cu_group = info->gfx_level >= GFX10 ? 2 : 1;
-   info->max_good_cu_per_sa =
-      DIV_ROUND_UP(info->num_cu, (info->num_se * info->max_sa_per_se * cu_group)) *
-      cu_group;
-   info->min_good_cu_per_sa =
-      (info->num_cu / (info->num_se * info->max_sa_per_se * cu_group)) * cu_group;
 
    info->gfx_ib_pad_with_type2 = info->gfx_level == GFX6;
 
