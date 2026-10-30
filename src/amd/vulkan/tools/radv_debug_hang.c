@@ -474,7 +474,9 @@ radv_dump_shader(struct radv_device *device, struct radv_pipeline *pipeline, str
 
    struct radv_shader_binary_debug_info dbg = radv_parse_binary_debug_info(&device->compiler_info, shader->binary);
    fprintf(f, "%s IR:\n%s\n", pdev->use_llvm ? "LLVM" : "ACO", dbg.ir_string);
-   fprintf(f, "DISASM:\n%s\n", dbg.disasm_string);
+   fprintf(f, "DISASM:\n");
+   radv_print_shader_disasm(&dbg, shader->code_size, NULL, 0, 0x00000000, f);
+   fprintf(f, "\n");
    radv_free_binary_debug_info(&dbg);
 
    if (pipeline)

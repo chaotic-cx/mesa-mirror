@@ -13,6 +13,7 @@
 #include "nir/nir.h"
 #include "nir/radv_nir.h"
 #include "tools/radv_rmv.h"
+#include "util/memstream.h"
 #include "util/u_atomic.h"
 #include "radv_pipeline_rt.h"
 #include "radv_shader.h"
@@ -983,6 +984,29 @@ radv_copy_representation(void *data, size_t *data_size, const char *src)
    return size < total_size ? VK_INCOMPLETE : VK_SUCCESS;
 }
 
+static VkResult
+radv_copy_assembly(void *data, size_t *data_size, const struct radv_shader *shader,
+                   const struct radv_shader_binary_debug_info *dbg)
+{
+   char *memstream_data = NULL;
+   size_t disasm_size = 0;
+   struct u_memstream mem;
+
+   if (!u_memstream_open(&mem, &memstream_data, &disasm_size)) {
+      *data_size = 0;
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
+   }
+
+   FILE *memf = u_memstream_get(&mem);
+   radv_print_shader_disasm(dbg, shader->code_size, NULL, 0, radv_shader_get_va(shader), memf);
+   fputc(0, memf);
+   u_memstream_close(&mem);
+
+   VkResult result = radv_copy_representation(data, data_size, memstream_data);
+   free(memstream_data);
+   return result;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 radv_GetPipelineExecutableInternalRepresentationsKHR(
    VkDevice _device, const VkPipelineExecutableInfoKHR *pExecutableInfo, uint32_t *pInternalRepresentationCount,
@@ -1031,7 +1055,7 @@ radv_GetPipelineExecutableInternalRepresentationsKHR(
       p->isText = true;
       VK_COPY_STR(p->name, "Assembly");
       VK_COPY_STR(p->description, "Final Assembly");
-      if (radv_copy_representation(p->pData, &p->dataSize, dbg.disasm_string) != VK_SUCCESS)
+      if (radv_copy_assembly(p->pData, &p->dataSize, shader, &dbg) != VK_SUCCESS)
          result = VK_INCOMPLETE;
    }
    ++p;
