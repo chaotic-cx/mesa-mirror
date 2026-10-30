@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include "drm-uapi/drm_fourcc.h"
+#include "c11/time.h"
 
 #ifdef HAVE_VALGRIND
 #include <valgrind.h>
@@ -153,11 +154,6 @@ struct intel_perf_query_result;
 #define MESA_LOG_TAG "MESA-INTEL"
 #include "util/log.h"
 #include "wsi_common.h"
-
-/* The "RAW" clocks on Linux are called "FAST" on FreeBSD */
-#if !defined(CLOCK_MONOTONIC_RAW) && defined(CLOCK_MONOTONIC_FAST)
-#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC_FAST
-#endif
 
 #define NSEC_PER_SEC 1000000000ull
 

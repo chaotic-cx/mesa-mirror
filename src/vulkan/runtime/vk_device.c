@@ -41,6 +41,7 @@
 #include "util/perf/cpu_trace.h"
 #include "util/ralloc.h"
 #include "util/timespec.h"
+#include "c11/time.h"
 
 /* Breaks linking cycles since WSI common depends on runtime,
  * and Meson does not allow runtime to depend on WSI common. */
@@ -879,12 +880,8 @@ vk_device_get_timestamp(struct vk_device *device, VkTimeDomainKHR domain,
       clockid = CLOCK_MONOTONIC;
       break;
    case VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_KHR:
-      /* The "RAW" clocks on Linux are called "FAST" on FreeBSD */
 #if defined(CLOCK_MONOTONIC_RAW)
       clockid = CLOCK_MONOTONIC_RAW;
-      break;
-#elif defined(CLOCK_MONOTONIC_FAST)
-      clockid = CLOCK_MONOTONIC_FAST;
       break;
 #else
       FALLTHROUGH;

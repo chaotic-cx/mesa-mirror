@@ -12,6 +12,11 @@
 
 /*---------------------------- macros ---------------------------*/
 
+/* The "RAW" clocks on Linux are called "FAST" on FreeBSD */
+#if !defined(CLOCK_MONOTONIC_RAW) && defined(CLOCK_MONOTONIC_FAST)
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC_FAST
+#endif
+
 /* Refer to https://htmlpreview.github.io/?https://icube-forge.unistra.fr/icps/c23-library/-/raw/main/README.html#time_monotonic-time_active-time_thread_active */
 #if defined(TIME_UTC) && \
    defined(TIME_MONOTONIC) && \

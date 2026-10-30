@@ -38,6 +38,7 @@
 #include "drm-uapi/drm_fourcc.h"
 #include "drm-uapi/drm.h"
 #include <xf86drm.h>
+#include "c11/time.h"
 
 #include "anv_private.h"
 #include "anv_measure.h"
@@ -71,11 +72,6 @@
 
 /* Render engine timestamp register */
 #define TIMESTAMP 0x2358
-
-/* The "RAW" clocks on Linux are called "FAST" on FreeBSD */
-#if !defined(CLOCK_MONOTONIC_RAW) && defined(CLOCK_MONOTONIC_FAST)
-#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC_FAST
-#endif
 
 static void
 compiler_debug_log(void *data, UNUSED unsigned *id, const char *fmt, ...)
