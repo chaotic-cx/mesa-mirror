@@ -1261,9 +1261,6 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
       info->clock_crystal_freq = 1;
    }
 
-   info->tcc_rb_non_coherent = info->gfx_level < GFX12 &&
-                               !util_is_power_of_two_or_zero(info->num_tcc_blocks) &&
-                               info->num_rb != info->num_tcc_blocks;
    info->cp_sdma_ge_use_system_memory_scope = info->gfx_level == GFX12;
    info->cp_dma_use_L2 = info->gfx_level >= GFX7 && !info->cp_sdma_ge_use_system_memory_scope;
 
@@ -1343,6 +1340,9 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
    }
 
    info->num_rb = util_bitcount64(info->enabled_rb_mask);
+   info->tcc_rb_non_coherent = info->gfx_level < GFX12 &&
+                               !util_is_power_of_two_or_zero(info->num_tcc_blocks) &&
+                               info->num_rb != info->num_tcc_blocks;
 
    info->gfx_ib_pad_with_type2 = info->gfx_level == GFX6;
 
