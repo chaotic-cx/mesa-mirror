@@ -18,6 +18,7 @@
 typedef struct {
    const ac_nir_lower_ps_early_options *options;
    bool centroid_to_pixel;
+   bool sample_to_pixel;
 
    nir_variable *persp_center;
    nir_variable *persp_centroid;
@@ -69,10 +70,10 @@ get_baryc_var(nir_builder *b, nir_intrinsic_op baryc_op, enum glsl_interp_mode m
       }
    case nir_intrinsic_load_barycentric_sample:
       if (mode == INTERP_MODE_NOPERSPECTIVE) {
-         return get_baryc_var_common(b, s->options->msaa_disabled, &s->linear_sample,
+         return get_baryc_var_common(b, s->sample_to_pixel, &s->linear_sample,
                                      "linear_sample");
       } else {
-         return get_baryc_var_common(b, s->options->msaa_disabled, &s->persp_sample,
+         return get_baryc_var_common(b, s->sample_to_pixel, &s->persp_sample,
                                      "persp_sample");
       }
    default:
@@ -451,7 +452,7 @@ lower_ps_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
          return true;
       }
 
-      if (s->options->sample_shading &&
+      if (s->options->sample_shading && s->options->custom_sample_locations_disabled &&
           nir_def_is_intrinsic(sample_id) &&
           nir_def_as_intrinsic(sample_id)->intrinsic == nir_intrinsic_load_sample_id) {
          nir_def_replace(&intrin->def, nir_load_barycentric_sample(b, 32, .interp_mode = mode));
@@ -533,6 +534,7 @@ ac_nir_lower_ps_early(nir_shader *nir, const ac_nir_lower_ps_early_options *opti
    lower_ps_early_state state = {
       .options = options,
       .centroid_to_pixel = options->msaa_disabled && options->vrs_disabled,
+      .sample_to_pixel = options->msaa_disabled && options->custom_sample_locations_disabled,
    };
 
    /* Don't gather shader_info. Just gather the single thing we want to know. */

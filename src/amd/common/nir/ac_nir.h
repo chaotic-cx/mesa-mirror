@@ -313,6 +313,8 @@ typedef struct {
    /* System values. */
    bool msaa_disabled; /* true if MSAA is disabled, false may mean that the state is unknown */
    bool vrs_disabled; /* true if VRS is disabled, false may mean that the state is unknown */
+   /* true if programmable sample locations are disabled, false may mean that the state is unknown */
+   bool custom_sample_locations_disabled;
    bool load_sample_positions_always_loads_current_ones; /* TODO: unify with RADV or remove */
    bool dynamic_rasterization_samples; /* TODO: unify with RADV or remove */
    int force_front_face; /* 0 -> keep, 1 -> set to true, -1 -> set to false */
