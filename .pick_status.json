@@ -464,7 +464,7 @@
         "description": "v3dv: pad the shader assembly BO for the QPU instruction prefetch",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "e354c528015aaa33cb8f6c1de2e12122992f1afe",
         "notes": null

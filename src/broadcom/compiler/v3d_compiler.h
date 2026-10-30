@@ -1102,6 +1102,12 @@ const struct v3d_compiler *v3d_compiler_init(const struct v3d_device_info *devin
 void v3d_compiler_free(const struct v3d_compiler *compiler);
 void v3d_optimize_nir(struct v3d_compile *c, struct nir_shader *s);
 
+/* The QPU prefetches the instruction after the one it executes, so the
+ * buffer holding the shader code needs this much space after the last
+ * instruction, or the prefetch can fall on an unmapped page.
+ */
+#define V3D_QPU_PREFETCH_PAD sizeof(uint64_t)
+
 uint64_t *v3d_compile(const struct v3d_compiler *compiler,
                       struct v3d_key *key,
                       struct v3d_prog_data **prog_data,

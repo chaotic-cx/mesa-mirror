@@ -1566,7 +1566,11 @@ upload_assembly(struct v3dv_pipeline *pipeline)
          total_size += variant->qpu_insts_size;
    }
 
-   struct v3dv_bo *bo = v3dv_bo_alloc(pipeline->device, total_size,
+   /* Shaders for each pipeline stage are packed with no gap, so pad after
+    * the last one.
+    */
+   struct v3dv_bo *bo = v3dv_bo_alloc(pipeline->device,
+                                      total_size + V3D_QPU_PREFETCH_PAD,
                                       "pipeline shader assembly", true,
                                       VK_OBJECT_TYPE_PIPELINE,
                                       vk_object_to_u64_handle(&pipeline->base));
