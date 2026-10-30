@@ -414,7 +414,8 @@ v3dv_pipeline_shared_data_new(struct v3dv_pipeline_cache *cache,
    new_entry->owner_type = VK_OBJECT_TYPE_PIPELINE_CACHE;
    new_entry->owner_handle = vk_object_to_u64_handle(&cache->base);
 
-   struct v3dv_bo *bo = v3dv_bo_alloc(cache->device, total_assembly_size,
+   struct v3dv_bo *bo = v3dv_bo_alloc(cache->device,
+                                      total_assembly_size + V3D_QPU_PREFETCH_PAD,
                                       "pipeline shader assembly", true,
                                       new_entry->owner_type,
                                       new_entry->owner_handle);
