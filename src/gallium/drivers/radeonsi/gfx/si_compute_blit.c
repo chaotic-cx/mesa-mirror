@@ -528,7 +528,7 @@ void si_init_compute_blit_functions(struct si_context *sctx)
 bool si_should_blit_clamp_to_edge(const struct pipe_blit_info *info, unsigned coord_mask)
 {
    return util_is_box_out_of_bounds(&info->src.box, coord_mask, info->src.resource->width0,
-                                    info->src.resource->height0, info->src.level);
+                                    info->src.resource->height0, 1, info->src.level);
 }
 
 bool si_compute_clear_image(struct si_context *sctx, struct pipe_resource *tex,

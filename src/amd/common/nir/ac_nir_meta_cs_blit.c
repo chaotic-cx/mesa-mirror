@@ -1014,7 +1014,7 @@ static bool
 should_blit_clamp_to_edge(const ac_cs_blit_description *blit, unsigned coord_mask)
 {
    return util_is_box_out_of_bounds(&blit->src.box, coord_mask, blit->src.width0,
-                                    blit->src.height0, blit->src.level);
+                                    blit->src.height0, 1, blit->src.level);
 }
 
 /* Return a power-of-two alignment of a number. */

@@ -347,10 +347,12 @@ util_is_box_sint16(const struct pipe_box *box)
 
 static inline bool
 util_is_box_out_of_bounds(const struct pipe_box *src_box, unsigned coord_mask,
-                          unsigned width, unsigned height, unsigned mip_level)
+                          unsigned width, unsigned height, unsigned depth,
+                          unsigned mip_level)
 {
    int src_width = u_minify(width, mip_level);
    int src_height = u_minify(height, mip_level);
+   int src_depth = u_minify(depth, mip_level);
    struct pipe_box box = *src_box;
 
    /* Eliminate negative width/height/depth. */
@@ -362,16 +364,24 @@ util_is_box_out_of_bounds(const struct pipe_box *src_box, unsigned coord_mask,
       box.y += box.height;
       box.height *= -1;
    }
+   if (box.depth < 0) {
+      box.z += box.depth;
+      box.depth *= -1;
+   }
 
    bool x_in_bounds = box.x >= 0 && box.x < src_width &&
                       box.x + box.width > 0 && box.x + box.width <= src_width;
    bool y_in_bounds = box.y >= 0 && box.y < src_height &&
                       box.y + box.height > 0 && box.y + box.height <= src_height;
+   bool z_in_bounds = box.z >= 0 && box.z < src_depth &&
+                      box.z + box.depth > 0 && box.z + box.depth <= src_depth;
 
    /* Return if the box is not in bounds. */
    if (coord_mask & BITFIELD_BIT(0) && !x_in_bounds)
       return true;
    if (coord_mask & BITFIELD_BIT(1) && !y_in_bounds)
+      return true;
+   if (coord_mask & BITFIELD_BIT(2) && !z_in_bounds)
       return true;
 
    return false;
