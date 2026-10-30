@@ -720,7 +720,7 @@ zink_bo_map(struct zink_screen *screen, struct zink_bo *bo)
    p_atomic_inc(&real->u.real.map_count);
    cpu = p_atomic_read(&real->u.real.cpu_ptr);
    if (!cpu) {
-      simple_mtx_lock(&real->lock);
+      zink_bo_lock_mem(real);
       /* Must re-check due to the possibility of a race. Re-check need not
        * be atomic thanks to the lock. */
       cpu = real->u.real.cpu_ptr;
@@ -728,7 +728,7 @@ zink_bo_map(struct zink_screen *screen, struct zink_bo *bo)
          VkResult result = VKSCR(MapMemory)(screen->dev, real->mem, 0, real->base.size, 0, &cpu);
          if (result != VK_SUCCESS) {
             mesa_loge("ZINK: vkMapMemory failed (%s)", vk_Result_to_str(result));
-            simple_mtx_unlock(&real->lock);
+            zink_bo_unlock_mem(real);
             p_atomic_dec(&real->u.real.map_count);
             return NULL;
          }
@@ -738,7 +738,7 @@ zink_bo_map(struct zink_screen *screen, struct zink_bo *bo)
          }
          p_atomic_set(&real->u.real.cpu_ptr, cpu);
       }
-      simple_mtx_unlock(&real->lock);
+      zink_bo_unlock_mem(real);
    }
 
    return (uint8_t*)cpu + offset;
@@ -756,7 +756,7 @@ zink_bo_unmap(struct zink_screen *screen, struct zink_bo *bo)
       if (real->u.real.clientptr_heap)
          return;
 
-      simple_mtx_lock(&real->lock);
+      zink_bo_lock_mem(real);
       void *cpu_ptr = real->u.real.cpu_ptr;
       p_atomic_set(&real->u.real.cpu_ptr, NULL);
 
@@ -770,7 +770,7 @@ zink_bo_unmap(struct zink_screen *screen, struct zink_bo *bo)
       } else {
          p_atomic_set(&real->u.real.cpu_ptr, cpu_ptr);
       }
-      simple_mtx_unlock(&real->lock);
+      zink_bo_unlock_mem(real);
    }
 }
 
@@ -1581,7 +1581,7 @@ zink_bo_map_clientptr(struct zink_screen *screen, struct zink_bo *bo,
       return true;
    }
 
-   simple_mtx_lock(&real->lock);
+   zink_bo_lock_mem(real);
 
    /* check again incase we raced with ourselves */
    if (!real->u.real.clientptr_range) {
@@ -1594,7 +1594,7 @@ zink_bo_map_clientptr(struct zink_screen *screen, struct zink_bo *bo,
 
          p_atomic_set(&real->u.real.cpu_ptr, old_cpu);
 
-         simple_mtx_unlock(&real->lock);
+         zink_bo_unlock_mem(real);
          p_atomic_dec(&real->u.real.map_count);
 
          return false;
@@ -1611,7 +1611,7 @@ zink_bo_map_clientptr(struct zink_screen *screen, struct zink_bo *bo,
 
       if (zink_bo_do_placed_map(screen, real, new_clientptr_range) != VK_SUCCESS) {
          p_atomic_dec(&real->u.real.map_count);
-         simple_mtx_unlock(&real->lock);
+         zink_bo_unlock_mem(real);
          return false;
       }
 
@@ -1624,7 +1624,7 @@ zink_bo_map_clientptr(struct zink_screen *screen, struct zink_bo *bo,
       p_atomic_set(&real->u.real.clientptr_range, clientptr_range);
    }
 
-   simple_mtx_unlock(&real->lock);
+   zink_bo_unlock_mem(real);
 
    *ptr = (uint8_t *)real->u.real.cpu_ptr + offset;
    *range_size = 0;
@@ -1648,14 +1648,14 @@ zink_bo_unmap_clientptr_range(struct zink_screen *screen, struct zink_bo *bo, st
       return false;
    }
 
-   simple_mtx_lock(&bo->lock);
+   zink_bo_lock_mem(bo);
 
    void *old_ptr = bo->u.real.cpu_ptr;
    struct zink_clientptr_range *old_range = bo->u.real.clientptr_range;
 
    /* check again in case of race with ourselves */
    if (!old_range) {
-      simple_mtx_unlock(&bo->lock);
+      zink_bo_unlock_mem(bo);
       return true;
    }
 
@@ -1665,7 +1665,7 @@ zink_bo_unmap_clientptr_range(struct zink_screen *screen, struct zink_bo *bo, st
    if (p_atomic_read(&bo->u.real.map_count) > 0) {
       p_atomic_set(&bo->u.real.cpu_ptr, old_ptr);
       p_atomic_set(&bo->u.real.clientptr_range, old_range);
-      simple_mtx_unlock(&bo->lock);
+      zink_bo_unlock_mem(bo);
       return false;
    }
 
@@ -1689,7 +1689,7 @@ zink_bo_unmap_clientptr_range(struct zink_screen *screen, struct zink_bo *bo, st
    UNREACHABLE("client ptr not supported on Windows");
 #endif
 
-   simple_mtx_unlock(&bo->lock);
+   zink_bo_unlock_mem(bo);
 
    *range = old_range;
    return true;

@@ -132,6 +132,19 @@ zink_bo_get_mem(const struct zink_bo *bo)
    return bo->mem ? bo->mem : bo->u.slab.real->mem;
 }
 
+/* slabs share memory, so binds must take the lock that mapping takes */
+static ALWAYS_INLINE void
+zink_bo_lock_mem(struct zink_bo *bo)
+{
+   simple_mtx_lock(bo->mem ? &bo->lock : &bo->u.slab.real->lock);
+}
+
+static ALWAYS_INLINE void
+zink_bo_unlock_mem(struct zink_bo *bo)
+{
+   simple_mtx_unlock(bo->mem ? &bo->lock : &bo->u.slab.real->lock);
+}
+
 static ALWAYS_INLINE VkDeviceSize
 zink_bo_get_size(const struct zink_bo *bo)
 {
