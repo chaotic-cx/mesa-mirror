@@ -1228,7 +1228,13 @@ static int surf_config_sanity(const struct ac_surf_config *config, unsigned flag
    return 0;
 }
 
-static unsigned bpe_to_format(const struct radeon_surf *surf)
+static bool
+is_astc_format(const struct radeon_surf *surf)
+{
+   return surf->blk_w >= 5;
+}
+
+static unsigned bpe_to_format(const struct radeon_info *info, const struct radeon_surf *surf)
 {
    if (surf->blk_w != 1 || surf->blk_h != 1) {
       if (surf->blk_w == 4 && surf->blk_h == 4) {
@@ -1246,32 +1252,38 @@ static unsigned bpe_to_format(const struct radeon_surf *surf)
          default:
             UNREACHABLE("invalid compressed bpe");
          }
-      } else if (surf->blk_w == 5 && surf->blk_h == 4)
-         return ADDR_FMT_ASTC_5x4;
-      else if (surf->blk_w == 5 && surf->blk_h == 5)
-         return ADDR_FMT_ASTC_5x5;
-      else if (surf->blk_w == 6 && surf->blk_h == 5)
-         return ADDR_FMT_ASTC_6x5;
-      else if (surf->blk_w == 6 && surf->blk_h == 6)
-         return ADDR_FMT_ASTC_6x6;
-      else if (surf->blk_w == 8 && surf->blk_h == 5)
-         return ADDR_FMT_ASTC_8x5;
-      else if (surf->blk_w == 8 && surf->blk_h == 6)
-         return ADDR_FMT_ASTC_8x6;
-      else if (surf->blk_w == 8 && surf->blk_h == 8)
-         return ADDR_FMT_ASTC_8x8;
-      else if (surf->blk_w == 10 && surf->blk_h == 5)
-         return ADDR_FMT_ASTC_10x5;
-      else if (surf->blk_w == 10 && surf->blk_h == 6)
-         return ADDR_FMT_ASTC_10x6;
-      else if (surf->blk_w == 10 && surf->blk_h == 8)
-         return ADDR_FMT_ASTC_10x8;
-      else if (surf->blk_w == 10 && surf->blk_h == 10)
-         return ADDR_FMT_ASTC_10x10;
-      else if (surf->blk_w == 12 && surf->blk_h == 10)
-         return ADDR_FMT_ASTC_12x10;
-      else if (surf->blk_w == 12 && surf->blk_h == 12)
-         return ADDR_FMT_ASTC_12x12;
+      } else if (is_astc_format(surf)) {
+         if (info->gfx_level >= GFX9) {
+            if (surf->blk_w == 5 && surf->blk_h == 4)
+               return ADDR_FMT_ASTC_5x4;
+            else if (surf->blk_w == 5 && surf->blk_h == 5)
+               return ADDR_FMT_ASTC_5x5;
+            else if (surf->blk_w == 6 && surf->blk_h == 5)
+               return ADDR_FMT_ASTC_6x5;
+            else if (surf->blk_w == 6 && surf->blk_h == 6)
+               return ADDR_FMT_ASTC_6x6;
+            else if (surf->blk_w == 8 && surf->blk_h == 5)
+               return ADDR_FMT_ASTC_8x5;
+            else if (surf->blk_w == 8 && surf->blk_h == 6)
+               return ADDR_FMT_ASTC_8x6;
+            else if (surf->blk_w == 8 && surf->blk_h == 8)
+               return ADDR_FMT_ASTC_8x8;
+            else if (surf->blk_w == 10 && surf->blk_h == 5)
+               return ADDR_FMT_ASTC_10x5;
+            else if (surf->blk_w == 10 && surf->blk_h == 6)
+               return ADDR_FMT_ASTC_10x6;
+            else if (surf->blk_w == 10 && surf->blk_h == 8)
+               return ADDR_FMT_ASTC_10x8;
+            else if (surf->blk_w == 10 && surf->blk_h == 10)
+               return ADDR_FMT_ASTC_10x10;
+            else if (surf->blk_w == 12 && surf->blk_h == 10)
+               return ADDR_FMT_ASTC_12x10;
+            else if (surf->blk_w == 12 && surf->blk_h == 12)
+               return ADDR_FMT_ASTC_12x12;
+         } else {
+            return ADDR_FMT_32_32_32_32;
+         }
+      }
    } else {
       switch (surf->bpe) {
       case 1:
@@ -1297,29 +1309,6 @@ static unsigned bpe_to_format(const struct radeon_surf *surf)
       }
    }
    return ADDR_FMT_INVALID;
-}
-
-static bool
-is_astc_format(unsigned format)
-{
-   switch (format) {
-   case ADDR_FMT_ASTC_5x4:
-   case ADDR_FMT_ASTC_5x5:
-   case ADDR_FMT_ASTC_6x5:
-   case ADDR_FMT_ASTC_6x6:
-   case ADDR_FMT_ASTC_8x5:
-   case ADDR_FMT_ASTC_8x6:
-   case ADDR_FMT_ASTC_8x8:
-   case ADDR_FMT_ASTC_10x5:
-   case ADDR_FMT_ASTC_10x6:
-   case ADDR_FMT_ASTC_10x8:
-   case ADDR_FMT_ASTC_10x10:
-   case ADDR_FMT_ASTC_12x10:
-   case ADDR_FMT_ASTC_12x12:
-      return true;
-   default:
-      return false;
-   }
 }
 
 /* The addrlib pitch alignment is forced to this number for all chips to support interop
@@ -1382,6 +1371,11 @@ static int gfx6_compute_level(struct ac_addrlib *addrlib, const struct ac_surf_c
       /* Convert blocks to pixels for compressed formats. */
       if (compressed)
          AddrSurfInfoIn->basePitch *= surf->blk_w;
+   }
+
+   if (is_astc_format(surf)) {
+      AddrSurfInfoIn->width = DIV_ROUND_UP(u_minify(config->info.width, level), surf->blk_w);
+      AddrSurfInfoIn->height = DIV_ROUND_UP(u_minify(config->info.height, level), surf->blk_h);
    }
 
    ret = AddrComputeSurfaceInfo(addrlib->handle, AddrSurfInfoIn, AddrSurfInfoOut);
@@ -2283,7 +2277,7 @@ static int gfx6_compute_surface(struct ac_addrlib *const addrlib,
 
    compressed = surf->blk_w == 4 && surf->blk_h == 4;
 
-   AddrSurfInfoIn.format = bpe_to_format(surf);
+   AddrSurfInfoIn.format = bpe_to_format(info, surf);
    if (!compressed)
       AddrDccIn.bpp = AddrSurfInfoIn.bpp = surf->bpe * 8;
 
@@ -3380,7 +3374,7 @@ static int gfx9_compute_surface(struct ac_addrlib *addrlib, const struct radeon_
 
    compressed = surf->blk_w == 4 && surf->blk_h == 4;
 
-   AddrSurfInfoIn.format = bpe_to_format(surf);
+   AddrSurfInfoIn.format = bpe_to_format(info, surf);
    if (!compressed)
       AddrSurfInfoIn.bpp = surf->bpe * 8;
 
@@ -4242,7 +4236,7 @@ static bool gfx12_compute_surface(struct ac_addrlib *addrlib, const struct radeo
       AddrSurfInfoIn.bpp = 8;
       AddrSurfInfoIn.format = ADDR_FMT_8;
    } else {
-      AddrSurfInfoIn.format = bpe_to_format(surf);
+      AddrSurfInfoIn.format = bpe_to_format(info, surf);
       if (!compressed)
          AddrSurfInfoIn.bpp = surf->bpe * 8;
    }
@@ -4294,7 +4288,7 @@ static bool gfx12_compute_surface(struct ac_addrlib *addrlib, const struct radeo
       AddrSurfInfoIn.swizzleMode = ADDR3_LINEAR;
    } else if (surf->flags & RADEON_SURF_VIDEO_REFERENCE) {
       AddrSurfInfoIn.swizzleMode = ADDR3_256B_2D;
-   } else if (is_astc_format(AddrSurfInfoIn.format)) {
+   } else if (is_astc_format(surf)) {
       AddrSurfInfoIn.swizzleMode = config->is_3d ? ADDR3_4KB_3D : ADDR3_4KB_2D;
    } else {
       AddrSurfInfoIn.swizzleMode = gfx12_select_swizzle_mode(addrlib, info, config, surf,
@@ -5431,7 +5425,7 @@ gfx9_surface_copy_mem_surface(struct ac_addrlib *addrlib, const struct radeon_in
                               const struct ac_surface_copy_region *surf_copy_region,
                               bool surface_is_dst)
 {
-   uint32_t format = bpe_to_format(surf);
+   uint32_t format = bpe_to_format(info, surf);
    uint32_t bpe = surf->bpe;
    uint32_t texel_scale = 1;
 
@@ -5515,7 +5509,7 @@ gfx12_surface_copy_mem_surface(struct ac_addrlib *addrlib, const struct radeon_i
                                const struct ac_surface_copy_region *surf_copy_region,
                                bool surface_is_dst)
 {
-   uint32_t format = bpe_to_format(surf);
+   uint32_t format = bpe_to_format(info, surf);
    uint32_t bpe = surf->bpe;
    uint32_t texel_scale = 1;
 
