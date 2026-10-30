@@ -285,12 +285,7 @@ ac_create_clear_copy_buffer_cs(const ac_cs_clear_copy_buffer_options *const opti
           */
          if_first_thread = nir_push_if(&b, nir_ieq_imm(&b, thread_id, 0));
          {
-            unsigned num_removed_comps = -realign_offset / alignment;
-            unsigned num_inbounds_comps = num_comps - num_removed_comps;
-
-            /* Only 8 and 16 component vectors are valid after 5 in NIR. */
-            while (!nir_num_components_valid(num_inbounds_comps))
-               num_inbounds_comps = util_next_power_of_two(num_inbounds_comps);
+            const unsigned num_removed_comps = -realign_offset / alignment;
 
             nir_if *if_first_last_thread = NULL;
             nir_def *value0_last = NULL;
@@ -311,7 +306,7 @@ ac_create_clear_copy_buffer_cs(const ac_cs_clear_copy_buffer_options *const opti
                nir_push_else(&b, if_first_last_thread);
             }
 
-            value0 = load_buffer_sparse_split(&b, key, num_comps, num_removed_comps, num_inbounds_comps,
+            value0 = load_buffer_sparse_split(&b, key, num_comps, num_removed_comps, num_comps - num_removed_comps,
                                               bit_size, src_buf, offset, ACCESS_RESTRICT, 4, 0,
                                               key->src_scalarize_for_sparse);
 
