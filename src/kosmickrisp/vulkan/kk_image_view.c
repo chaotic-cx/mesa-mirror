@@ -219,7 +219,10 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
           */
          if (view->vk.usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) {
             VkImageViewType original_type = view_layout.view_type;
-            if (requires_type_change || requires_format_change) {
+            bool requires_subresource =
+               view_layout.base_array_layer != 0 || view_layout.base_level != 0;
+            if (requires_type_change || requires_format_change ||
+                requires_subresource) {
                view_layout.view_type = requires_type_change
                                           ? VK_IMAGE_VIEW_TYPE_2D_ARRAY
                                           : original_type;
