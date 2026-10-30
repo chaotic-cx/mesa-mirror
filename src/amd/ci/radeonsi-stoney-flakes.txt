@@ -23,9 +23,7 @@ dEQP-GLES3.functional.texture.vertex.3d.wrap.repeat_clamp_mirror
 
 dEQP-GLES3.functional.shaders.derivate.dfdx.texture.msaa4.vec3_highp
 
-dEQP-GLES31.functional.copy_image.compressed.viewclass_astc_12x12_rgba.srgb8_alpha8_astc_12x12_khr_srgb8_alpha8_astc_12x12_khr.texture2d_to_cubemap
 dEQP-GLES31.functional.copy_image.mixed.viewclass_128_bits_mixed.rgba32f_srgb8_alpha8_etc2_eac.texture2d_array_to_cubemap
-dEQP-GLES31.functional.copy_image.mixed.viewclass_128_bits_mixed.srgb8_alpha8_astc_8x8_khr_rgba32f.texture3d_to_texture2d
 dEQP-GLES31.functional.copy_image.mixed.viewclass_64_bits_mixed.rg32i_r11_eac.cubemap_to_texture2d
 dEQP-GLES31.functional.copy_image.non_compressed.viewclass_64_bits.rg32f_rgba16ui.texture3d_to_renderbuffer
 dEQP-GLES31.functional.copy_image.non_compressed.viewclass_96_bits.rgb32f_rgb32i.texture3d_to_texture2d
