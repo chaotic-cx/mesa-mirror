@@ -273,6 +273,34 @@ print_shader_key_field(FILE *f, const char *name, unsigned value)
 
 DEBUG_GET_ONCE_OPTION(log_keys, "AMD_CS_BLIT_LOG_KEYS_FILE", false)
 
+static nir_def *
+flip_coords(nir_builder *b, nir_def *src_xyz, const ac_cs_blit_key *key)
+{
+   const bool flip[3] = {key->flip_x, key->flip_y, key->flip_z};
+   const unsigned lane_dim[3] = {
+      1 << key->log_lane_width,
+      1 << key->log_lane_height,
+      1 << key->log_lane_depth
+   };
+
+   for (unsigned i = 0; i < 3; i++) {
+      if (flip[i]) {
+         /* A normal blit loads from (box.x + tid.x) where tid.x = 0..(width - 1).
+          *
+          * A flipped blit sets box.x = width, so we should make tid.x negative to load from
+          * (width - 1)..0.
+          *
+          * Therefore do: x = -x - 1, which becomes (width - 1) to 0 after we add box.x = width.
+          */
+         nir_def *comp = nir_channel(b, src_xyz, i);
+         comp = nir_iadd_imm(b, nir_ineg(b, comp), -(int)lane_dim[i]);
+         src_xyz = nir_vector_insert_imm(b, src_xyz, comp, i);
+      }
+   }
+
+   return src_xyz;
+}
+
 /* The compute blit shader.
  *
  * Implementation details:
@@ -596,23 +624,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
    if (!key->num_scaled_coords) {
       /* Flip src coordinates. */
-      const bool flip[3] = {key->flip_x, key->flip_y, key->flip_z};
-      const unsigned lane_dim[3] = {lane_width, lane_height, lane_depth};
-
-      for (unsigned i = 0; i < 3; i++) {
-         if (flip[i]) {
-            /* A normal blit loads from (box.x + tid.x) where tid.x = 0..(width - 1).
-             *
-             * A flipped blit sets box.x = width, so we should make tid.x negative to load from
-             * (width - 1)..0.
-             *
-             * Therefore do: x = -x - 1, which becomes (width - 1) to 0 after we add box.x = width.
-             */
-            nir_def *comp = nir_channel(&b, src_xyz, i);
-            comp = nir_iadd_imm(&b, nir_ineg(&b, comp), -(int)lane_dim[i]);
-            src_xyz = nir_vector_insert_imm(&b, src_xyz, comp, i);
-         }
-      }
+      src_xyz = flip_coords(&b, src_xyz, key);
 
       /* Add src box.xyz. */
       if (!key->is_clear) {
