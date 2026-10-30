@@ -2064,7 +2064,7 @@
         "description": "anv/dric: set anv_assume_full_subgroups for Last Of Us 2",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
