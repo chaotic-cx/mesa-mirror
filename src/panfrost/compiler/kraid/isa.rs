@@ -458,6 +458,21 @@ pub mod v9 {
             }
         }
 
+        fn try_instr(
+            instr_idx: usize,
+            val: u64,
+            arch: u8,
+        ) -> Result<(), InvalidInstrError> {
+            print_instr_int(
+                &DISASM_TABLE[instr_idx],
+                val,
+                arch,
+                &mut NullWriter,
+                &Default::default(),
+            )
+            .map_err(|e| e.into_invalid_instr())
+        }
+
         pub fn print_instr(
             instr: &Instr,
             val: u64,

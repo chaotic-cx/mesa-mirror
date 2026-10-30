@@ -151,9 +151,8 @@ impl DecoderNode<'_> {
                         let val_ts = elem_cb(option.instr);
                         quote! {
                             if (input_value & #fixed_mask) == #expected_masked {
-                                result = #check_ts.map(|_| #val_ts);
-                                if result.is_ok() {
-                                    return result;
+                                if (#check_ts).is_ok() {
+                                    return Ok(#val_ts);
                                 }
                             }
                         }
@@ -1059,9 +1058,7 @@ fn gen_decode(
 
     let make_check = |instr: &Instr| {
         let idx = instr_to_idx.get(&instr.into()).unwrap();
-        quote! {print_instr_int(&DISASM_TABLE[#idx], input_value, arch,
-            &mut NullWriter, &Default::default())
-        .map_err(|e| e.into_invalid_instr())}
+        quote! {try_instr(#idx, input_value, arch)}
     };
 
     let decoder_cases_ts: TokenStream = decode_per_arch
