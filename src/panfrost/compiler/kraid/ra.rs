@@ -325,6 +325,7 @@ impl RegAlignConstraint {
     }
 
     fn for_align(mul: u8, offset: u8) -> Self {
+        debug_assert!(offset < mul);
         let mask = match mul {
             1 => 0xff,
             2 => 0x55 << offset,
@@ -633,7 +634,7 @@ impl SSAVecRepr {
     }
 
     fn set_affinity(&self, byte: u8, ssa: &SSAValue, a: &mut SSAAffinity) {
-        a.add_align(RegAlignConstraint::for_align(self.size.min(8), byte));
+        a.add_align(RegAlignConstraint::for_align(self.size.min(8), byte % 8));
 
         let repr = self.repr.as_ref().unwrap();
         if self.comps > 1 && a.vec_size == 0 {

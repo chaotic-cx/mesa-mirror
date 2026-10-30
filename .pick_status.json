@@ -774,7 +774,7 @@
         "description": "kraid/ra: Fix shift overflow in SSAVecRepr::set_affinity",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "be1663257fec730fa8a704f8a0f12808db2e812f",
         "notes": null
