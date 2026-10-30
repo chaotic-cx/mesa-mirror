@@ -2427,10 +2427,9 @@ void ac_get_harvested_configs(const struct radeon_info *info, unsigned raster_co
    unsigned se_mask[4];
    unsigned se;
 
-   se_mask[0] = ((1 << rb_per_se) - 1) & rb_mask;
-   se_mask[1] = (se_mask[0] << rb_per_se) & rb_mask;
-   se_mask[2] = (se_mask[1] << rb_per_se) & rb_mask;
-   se_mask[3] = (se_mask[2] << rb_per_se) & rb_mask;
+   /* se_mask[i] == 0 means the rasterizer and the pixel pipeline in the SE is harvested. */
+   for (unsigned i = 0; i < 4; i++)
+      se_mask[i] = (rb_mask >> (i * rb_per_se)) & BITFIELD_MASK(rb_per_se);
 
    assert(num_se == 1 || num_se == 2 || num_se == 4);
    assert(sh_per_se == 1 || sh_per_se == 2);
