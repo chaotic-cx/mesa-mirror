@@ -301,6 +301,44 @@ flip_coords(nir_builder *b, nir_def *src_xyz, const ac_cs_blit_key *key)
    return src_xyz;
 }
 
+static void
+clamp_to_edge(nir_builder *b, nir_def **coord_src, nir_def **src_resinfo,
+              nir_deref_instr *img_src_deref, const ac_cs_blit_key *key)
+{
+   const bool clamp_to_edge[2] = {key->x_clamp_to_edge, key->y_clamp_to_edge};
+
+   for (unsigned chan = 0; chan < 2; chan++) {
+      if (clamp_to_edge[chan]) {
+         assert(!key->src_is_1d || chan == 0);
+
+         if (!*src_resinfo) {
+            /* Always use the 32-bit return type because the image dimensions can be
+             * > INT16_MAX even if the blit box fits within sint16. The txs builder
+             * always sets the type to nir_type_int32.
+             */
+            if (key->src_is_sampler) {
+               *src_resinfo = nir_txs(b, .texture_deref = img_src_deref,
+                                     .dim = img_src_deref->type->sampler_dimensionality,
+                                     .is_array = img_src_deref->type->sampler_array);
+            } else {
+               *src_resinfo = nir_image_deref_size(b, 4, 32, &img_src_deref->def,
+                                                  nir_imm_int(b, 0));
+            }
+
+            if (key->a16) {
+               *src_resinfo = nir_umin_imm(b, *src_resinfo, INT16_MAX);
+               *src_resinfo = nir_i2i16(b, *src_resinfo);
+            }
+         }
+
+         nir_def *tmp = nir_channel(b, *coord_src, chan);
+         tmp = nir_imax_imm(b, tmp, 0);
+         tmp = nir_imin(b, tmp, nir_iadd_imm(b, nir_channel(b, *src_resinfo, chan), -1));
+         *coord_src = nir_vector_insert_imm(b, *coord_src, tmp, chan);
+      }
+   }
+}
+
 /* The compute blit shader.
  *
  * Implementation details:
@@ -729,37 +767,8 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
                                                     num_src_coords - 1);
             }
 
-            /* Clamp to edge for src, only X and Y because Z can't be out of bounds. */
-            for (unsigned chan = 0; chan < 2; chan++) {
-               if (chan ? key->y_clamp_to_edge : key->x_clamp_to_edge) {
-                  assert(!key->src_is_1d || chan == 0);
-
-                  if (!src_resinfo) {
-                     /* Always use the 32-bit return type because the image dimensions can be
-                      * > INT16_MAX even if the blit box fits within sint16. The txs builder
-                      * always sets the type to nir_type_int32.
-                      */
-                     if (has_src_sampler) {
-                        src_resinfo = nir_txs(&b, .texture_deref = img_src_deref,
-                                              .dim = img_src->type->sampler_dimensionality,
-                                              .is_array = img_src->type->sampler_array);
-                     } else {
-                        src_resinfo = nir_image_deref_size(&b, 4, 32, &img_src_deref->def,
-                                                           zero_coord);
-                     }
-
-                     if (coord_bit_size == 16) {
-                        src_resinfo = nir_umin_imm(&b, src_resinfo, INT16_MAX);
-                        src_resinfo = nir_i2i16(&b, src_resinfo);
-                     }
-                  }
-
-                  nir_def *tmp = nir_channel(&b, coord_src[i], chan);
-                  tmp = nir_imax_imm(&b, tmp, 0);
-                  tmp = nir_imin(&b, tmp, nir_iadd_imm(&b, nir_channel(&b, src_resinfo, chan), -1));
-                  coord_src[i] = nir_vector_insert_imm(&b, coord_src[i], tmp, chan);
-               }
-            }
+            /* Clamp to edge for src. */
+            clamp_to_edge(&b, &coord_src[i], &src_resinfo, img_src_deref, key);
 
             /* Compute the src offset for global-addressed images. */
             if (key->format_is_96bit) {
