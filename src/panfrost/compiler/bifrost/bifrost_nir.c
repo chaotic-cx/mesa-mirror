@@ -875,8 +875,8 @@ bifrost_postprocess_nir(nir_shader *nir,
          nir->info.outputs_written & (BITFIELD_BIT(FRAG_RESULT_DEPTH) |
                                       BITFIELD_BIT(FRAG_RESULT_STENCIL));
       const bool skip_atest = inputs->is_blit && !emit_zs;
-      NIR_PASS(_, nir, pan_nir_lower_fs_outputs, skip_atest,
-               inputs->fragcolor_nr_cbufs);
+      NIR_PASS(_, nir, pan_nir_lower_fs_outputs, skip_atest, gpu_arch,
+               inputs->model, inputs->fragcolor_nr_cbufs);
    } else if (nir->info.stage == MESA_SHADER_VERTEX) {
       NIR_PASS(_, nir, nir_lower_viewport_transform);
       NIR_PASS(_, nir, nir_lower_point_size, 1.0, 0.0);

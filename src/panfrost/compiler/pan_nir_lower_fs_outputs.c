@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "panfrost/model/pan_model.h"
 #include "pan_nir.h"
 #include "nir_builder.h"
 
@@ -88,7 +89,8 @@ gather_output_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *_data)
 }
 
 bool
-pan_nir_lower_fs_outputs(nir_shader *shader, bool skip_atest,
+pan_nir_lower_fs_outputs(nir_shader *shader, bool skip_atest, unsigned arch,
+                         const struct pan_model *model,
                          unsigned fragcolor_nr_cbufs)
 {
    nir_function_impl *impl = nir_shader_get_entrypoint(shader);
@@ -147,8 +149,19 @@ pan_nir_lower_fs_outputs(nir_shader *shader, bool skip_atest,
     * alpha value is only used for alpha-to-coverage, a stage which is
     * skipped for pure integer framebuffers, so the issue is moot.
     */
-   if (!skip_atest)
+   if (!skip_atest) {
       coverage = nir_atest_pan(b, coverage, alpha);
+
+      /* Mali-G77 has a hardware bug where it does not automatically demote
+       * threads, it instead needs to call DISCARD manually.  The bug has been
+       * fixed in G78
+       */
+      bool needs_manual_discard = arch == 9 &&
+         (model == NULL || PAN_PROD_ID_ARCH_MINOR(model->gpu_prod_id) < 2);
+      if (needs_manual_discard) {
+         nir_demote_if(b, nir_ieq_imm(b, nir_u2u16(b, coverage), 0));
+      }
+   }
 
    /* We discard depth/stencil writes if early fragment tests is forced. */
    if ((out.depth || out.stencil) && !shader->info.fs.early_fragment_tests) {

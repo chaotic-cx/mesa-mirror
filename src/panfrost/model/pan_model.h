@@ -39,6 +39,8 @@ struct pan_tiler_features {
 #define PAN_PROD_ID(arch_major, arch_minor, prod_major)                        \
    (((arch_major) << 16) | ((arch_minor) << 8) | (prod_major))
 
+#define PAN_PROD_ID_ARCH_MINOR(prod_id) (((prod_id) >> 8) & 0xff)
+
 /* GPU revision (rXpY) */
 #define PAN_REV(ver_major, ver_minor) (((ver_major) << 8) | ((ver_minor)))
 

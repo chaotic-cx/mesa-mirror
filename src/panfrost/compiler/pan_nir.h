@@ -356,7 +356,8 @@ bool pan_nir_lower_framebuffer(nir_shader *shader,
                                unsigned blend_shader_nr_samples,
                                bool broken_ld_special);
 
-bool pan_nir_lower_fs_outputs(nir_shader *shader, bool skip_atest,
+bool pan_nir_lower_fs_outputs(nir_shader *shader, bool skip_atest, unsigned arch,
+                              const struct pan_model *model,
                               unsigned fragcolor_nr_cbufs);
 
 uint32_t pan_nir_collect_noperspective_varyings_fs(nir_shader *s);

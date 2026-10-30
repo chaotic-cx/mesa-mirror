@@ -1777,7 +1777,7 @@ panvk_compile_shader(struct panvk_device *dev,
        * to a driver-provided FAU instead of using the blend descriptors
        * uploaded by the hardware.  See panvk_vX_blend.c for details.
        */
-      NIR_PASS(_, nir, pan_nir_lower_fs_outputs, false,
+      NIR_PASS(_, nir, pan_nir_lower_fs_outputs, false, PAN_ARCH, inputs.model,
                0 /* fragcolor_nr_cbufs */);
 
       variant->own_bin = true;

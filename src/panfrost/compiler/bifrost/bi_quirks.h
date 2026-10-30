@@ -35,7 +35,7 @@ bifrost_get_quirks(unsigned arch, const struct pan_model *model)
     */
    unsigned arch_minor = 0;
    if (model)
-      arch_minor = (model->gpu_prod_id >> 8) & 0xff;
+      arch_minor = PAN_PROD_ID_ARCH_MINOR(model->gpu_prod_id);
 
    /* Applies to archs before 6.2 */
    unsigned quirks = 0;
