@@ -359,8 +359,8 @@ void radv_fast_clear_eliminate(struct radv_cmd_buffer *cmd_buffer, struct radv_i
                                const VkImageSubresourceRange *subresourceRange);
 void radv_fmask_decompress(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
                            const VkImageSubresourceRange *subresourceRange);
-void radv_fmask_color_expand(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
-                             const VkImageSubresourceRange *subresourceRange);
+void radv_fmask_color_expand(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout layout,
+                             const VkImageSubresourceRange *subresourceRange, unsigned queue_mask);
 
 void radv_copy_vrs_htile(struct radv_cmd_buffer *cmd_buffer, struct radv_image_view *vrs_iview, const VkRect2D *rect,
                          struct radv_image *dst_image, uint32_t base_array_layer, uint32_t layer_count,

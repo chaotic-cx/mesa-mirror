@@ -16407,7 +16407,7 @@ radv_handle_color_image_transition(struct radv_cmd_buffer *cmd_buffer, struct ra
    }
 
    if (needs_fmask_color_expand)
-      radv_fmask_color_expand(cmd_buffer, image, range);
+      radv_fmask_color_expand(cmd_buffer, image, dst_layout, range, dst_queue_mask);
 
    if (needs_dcc_retile)
       radv_retile_dcc(cmd_buffer, image);

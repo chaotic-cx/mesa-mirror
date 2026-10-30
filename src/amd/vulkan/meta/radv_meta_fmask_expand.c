@@ -92,8 +92,8 @@ get_pipeline(struct radv_device *device, uint32_t samples_log2, VkPipeline *pipe
 }
 
 static void
-radv_process_color_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
-                         const VkImageSubresourceRange *subresourceRange)
+radv_process_color_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout image_layout,
+                         const VkImageSubresourceRange *subresourceRange, unsigned queue_mask)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const uint32_t samples = image->vk.samples;
@@ -134,7 +134,10 @@ radv_process_color_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *
                                  .layerCount = layer_count,
                               },
                         },
-                        NULL);
+                        &(struct radv_image_view_extra_create_info){
+                           .disable_compression = !radv_layout_dcc_compressed(
+                              device, image, subresourceRange->baseMipLevel, image_layout, queue_mask),
+                        });
 
    radv_meta_bind_descriptors(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 2,
                               (VkDescriptorGetInfoEXT[]){{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT,
@@ -159,8 +162,8 @@ radv_process_color_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *
 }
 
 void
-radv_fmask_color_expand(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
-                        const VkImageSubresourceRange *subresourceRange)
+radv_fmask_color_expand(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout layout,
+                        const VkImageSubresourceRange *subresourceRange, unsigned queue_mask)
 {
    struct radv_barrier_data barrier = {0};
 
@@ -173,7 +176,7 @@ radv_fmask_color_expand(struct radv_cmd_buffer *cmd_buffer, struct radv_image *i
    cmd_buffer->state.flush_bits |= radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                                                          VK_ACCESS_2_SHADER_READ_BIT, 0, image, subresourceRange);
 
-   radv_process_color_image(cmd_buffer, image, subresourceRange);
+   radv_process_color_image(cmd_buffer, image, layout, subresourceRange, queue_mask);
 
    cmd_buffer->state.flush_bits |=
       AC_BARRIER_SYNC_CS | radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
