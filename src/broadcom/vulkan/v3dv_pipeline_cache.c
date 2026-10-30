@@ -400,7 +400,8 @@ v3dv_pipeline_shared_data_new(struct v3dv_pipeline_cache *cache,
       new_entry->variants[stage] = variants[stage];
    }
 
-   struct v3dv_bo *bo = v3dv_bo_alloc(cache->device, total_assembly_size,
+   struct v3dv_bo *bo = v3dv_bo_alloc(cache->device,
+                                      total_assembly_size + V3D_QPU_PREFETCH_PAD,
                                       "pipeline shader assembly", true);
    if (!bo) {
       mesa_loge("failed to allocate memory for shaders assembly\n");
