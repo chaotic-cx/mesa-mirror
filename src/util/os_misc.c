@@ -483,7 +483,14 @@ os_get_available_system_memory(uint64_t *size)
       return false;
    }
 
-   *size = ((uint64_t)vm_stats.free_count + (uint64_t)vm_stats.inactive_count) * PAGE_SIZE;
+   /* host_statistics64() counts are in kernel pages. Query their size
+    * since PAGE_SIZE may differ (e.g. under Rosetta). */
+   vm_size_t page_size;
+   if (host_page_size(mach_host_self(), &page_size) != KERN_SUCCESS)
+      return false;
+
+   *size = ((uint64_t)vm_stats.free_count +
+            (uint64_t)vm_stats.inactive_count) * page_size;
    return true;
 #else
    return false;
