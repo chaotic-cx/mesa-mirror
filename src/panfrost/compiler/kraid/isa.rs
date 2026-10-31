@@ -275,6 +275,51 @@ pub mod v9 {
         use crate::isa::*;
         use rustc_hash::FxHashMap;
 
+        enum DecodeStage {
+            Inner {
+                mask: u64,
+                children: &'static [(u64, usize)],
+            },
+            // (mask, value, instr index)
+            Leaf(&'static [(u64, u64, usize)]),
+        }
+
+        fn try_decode_table(
+            instr: u64,
+            arch: u8,
+            table: &[DecodeStage],
+        ) -> Result<usize, InvalidInstrError> {
+            let mut stage_idx = 0;
+            'stages: loop {
+                match table[stage_idx] {
+                    DecodeStage::Inner { mask, children } => {
+                        let masked = instr & mask;
+                        for (val, next) in children {
+                            if masked == *val {
+                                assert!(stage_idx < *next);
+                                stage_idx = *next;
+                                continue 'stages;
+                            }
+                        }
+                        // Failed to decode
+                        return Err(InvalidInstrError::Any);
+                    }
+                    DecodeStage::Leaf(options) => {
+                        for (mask, value, instr_idx) in options {
+                            let masked = instr & mask;
+                            if masked == *value
+                                && try_instr(*instr_idx, instr, arch).is_ok()
+                            {
+                                return Ok(*instr_idx);
+                            }
+                        }
+                        // Failed to decode
+                        return Err(InvalidInstrError::Any);
+                    }
+                }
+            }
+        }
+
         enum SourceEncodingX<const IS64: bool> {
             Register {
                 idx: u8,

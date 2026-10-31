@@ -133,10 +133,9 @@ impl DecoderNode<'_> {
         }
     }
 
-    fn to_tokens<F, G>(&self, elem_cb: &F, check_cb: &G) -> TokenStream
+    fn to_tokens_int<F>(&self, elem_cb: &F, tss: &mut Vec<TokenStream>) -> ()
     where
         F: Fn(&Instr) -> TokenStream,
-        G: Fn(&Instr) -> TokenStream,
     {
         match self {
             DecoderNode::Leaf { options } => {
@@ -146,52 +145,44 @@ impl DecoderNode<'_> {
                         let fixed_mask = option.fixed_mask;
                         let expected_masked =
                             option.fixed_value & option.fixed_mask;
-                        let check_ts = check_cb(option.instr);
                         let val_ts = elem_cb(option.instr);
-                        quote! {
-                            if (input_value & #fixed_mask) == #expected_masked {
-                                if (#check_ts).is_ok() {
-                                    return Ok(#val_ts);
-                                }
-                            }
-                        }
+                        quote! { (#fixed_mask, #expected_masked, #val_ts), }
                     })
                     .collect();
 
-                quote! {
-                    {
-                        let mut result = Err(InvalidInstrError::Any);
-                        #cases
-                        return result;
-                    }
-                }
+                tss.push(quote! { DecodeStage::Leaf(&[#cases]), });
             }
             DecoderNode::Internal { mask, children } => {
                 // For better readability, sort the keys for the output.
                 let mut sorted: Vec<_> = children.keys().collect();
                 sorted.sort();
 
-                let cases: TokenStream = sorted
-                    .into_iter()
-                    .map(|key| {
-                        let child_impl = children
-                            .get(key)
-                            .expect("Key must exist")
-                            .to_tokens(elem_cb, check_cb);
-                        quote! {
-                            #key => #child_impl,
-                        }
-                    })
-                    .collect();
+                // Placeholder for ourselves.
+                let own_idx = tss.len();
+                tss.push(quote! {});
 
-                quote! {
-                    match input_value & #mask {
-                        #cases
-                        _ => Err(InvalidInstrError::Any)
-                    }
+                let mut child_indices: TokenStream = Default::default();
+                for key in sorted {
+                    let child_impl = children.get(key).unwrap();
+                    let child_idx = tss.len();
+                    child_indices.extend(quote! {(#key, #child_idx),});
+                    child_impl.to_tokens_int(elem_cb, tss);
                 }
+
+                *tss.get_mut(own_idx).unwrap() = quote! {
+                    DecodeStage::Inner{mask: #mask, children: &[#child_indices]},
+                };
             }
         }
+    }
+
+    fn to_tokens<F>(&self, elem_cb: &F) -> Vec<TokenStream>
+    where
+        F: Fn(&Instr) -> TokenStream,
+    {
+        let mut tss = Default::default();
+        self.to_tokens_int(elem_cb, &mut tss);
+        tss
     }
 }
 
@@ -989,43 +980,30 @@ fn gen_decode(
     isa: &ISA,
     instr_to_idx: &BTreeMap<InstrKey, usize>,
 ) -> TokenStream {
-    let mut decode_per_arch: BTreeMap<_, Box<DecoderNode>> = Default::default();
-
-    for target_arch in isa.arch.clone() {
-        let instrs: Vec<&Instr> = isa
-            .instrs
-            .iter()
-            .filter(|i| i.arch.contains(&target_arch))
-            .collect();
-
-        let decoder = DecoderNode::build(instrs);
-        decode_per_arch.insert(target_arch, Box::new(decoder));
-    }
-
     let make_ret_val = |instr: &Instr| {
         let idx = instr_to_idx.get(&instr.into()).unwrap();
         quote! { #idx }
     };
-
-    let make_check = |instr: &Instr| {
-        let idx = instr_to_idx.get(&instr.into()).unwrap();
-        quote! {try_instr(#idx, input_value, arch)}
-    };
-
     let mut ts: TokenStream = Default::default();
     let mut arch_cases: TokenStream = Default::default();
 
-    for (arch, decoder) in decode_per_arch.iter() {
-        let per_arch = decoder.to_tokens(&make_ret_val, &make_check);
-        let fn_id = Ident::new(&format!("try_dec_{arch}"), Span::call_site());
+    for arch in isa.arch.clone() {
+        let instrs: Vec<&Instr> = isa
+            .instrs
+            .iter()
+            .filter(|i| i.arch.contains(&arch))
+            .collect();
+
+        let decoder = DecoderNode::build(instrs);
+        let stages = decoder.to_tokens(&make_ret_val);
+        let n_stages = stages.len();
+        let table_id = Ident::new(&format!("DECODE_{arch}"), Span::call_site());
         ts.extend(quote! {
-            fn #fn_id (input_value: u64, arch: u8) -> Result<usize, InvalidInstrError> {
-                #per_arch
-            }
+            static #table_id: [DecodeStage; #n_stages] = [#(#stages)*];
         });
 
         arch_cases.extend(quote! {
-            #arch => #fn_id(input_value, arch),
+            #arch => try_decode_table(input_value, arch, &#table_id),
         });
     }
 
