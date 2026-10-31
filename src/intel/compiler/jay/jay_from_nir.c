@@ -655,8 +655,8 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
       jay_ADD(b, type, dst, src[0], src[1])->saturate = true;
       break;
 
+   case nir_op_isub_sat_intel:
    case nir_op_usub_sat:
-   case nir_op_isub_sat:
       jay_ADD(b, type, dst, src[0], jay_negate(src[1]))->saturate = true;
       break;
 

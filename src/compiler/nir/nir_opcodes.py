@@ -1657,6 +1657,14 @@ float src1_f = get_float_source(src1_cv, execution_mode, 32);
 dst = (src0_f > src1_f || isnan(src1_f)) ? src0 : src1;
 """, valid_fp_math_ctrl = preserve_inf + preserve_nan)
 
+binop("isub_sat_intel", tint, "", """
+      util_sub_check_overflow({dest_type}, src0, src1) ?
+         (src1 < 0 ? u_intN_max(bit_size) : u_intN_min(bit_size)) : (src0 - src1)
+""", description = """
+Signed saturating subtraction, like isub_sat, but src1 must not be the minimum
+signed value for its bit size.  The result is undefined otherwise.
+""", needs_dest_type=True)
+
 # Intel multiply-adds
 triop("imad_32x16_intel", tint32, "", "(src0 * (int16_t) src1) + src2",
       description = "Multiply 32-bits with low 16-bits, with sign extension, then add a 32-bit value")

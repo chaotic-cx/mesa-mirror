@@ -31,6 +31,16 @@ lower_fsign = [
                     ('bcsel', ('!flt', a, 0), -1.0, 0.0))),
     (('fceil', a), ('fneg', ('ffloor', ('fneg', a)))),
 
+    (('isub_sat', a, 0), a),
+    (('isub_sat', a, '#b(is_not_int_min)'), ('isub_sat_intel', a, b)),
+
+    # Split b so neither part is INT_MIN and both can be negated at the
+    # source bit size.  The parts have the same sign, so intermediate
+    # saturation does not change the result.
+    (('isub_sat', a, b),
+     ('isub_sat_intel', ('isub_sat_intel', a, ('ishr', b, 1)),
+      ('iadd', b, ('ineg', ('ishr', b, 1))))),
+
     # Remove the zeroing. Down-conversion is free but extracts are not.
     (('u2f32', ('extract_u8', a, 0)), ('u2f32', ('u2u8', a))),
     (('u2f32', ('extract_u16', a, 0)), ('u2f32', ('u2u16', a))),

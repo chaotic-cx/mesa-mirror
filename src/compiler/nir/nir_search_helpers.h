@@ -829,6 +829,23 @@ is_5lsb_not_zero(UNUSED const nir_search_state *state, const nir_alu_instr *inst
    return true;
 }
 
+static inline bool
+is_not_int_min(UNUSED const nir_search_state *state, const nir_alu_instr *instr,
+               unsigned src, unsigned num_components,
+               const uint8_t *swizzle)
+{
+   if (!nir_src_is_const(instr->src[src].src))
+      return false;
+
+   const int64_t int_min = u_intN_min(nir_src_bit_size(instr->src[src].src));
+   for (unsigned i = 0; i < num_components; i++) {
+      if (nir_src_comp_as_int(instr->src[src].src, swizzle[i]) == int_min)
+         return false;
+   }
+
+   return true;
+}
+
 /**
  * Returns whether at least one bit is 0.
  */
