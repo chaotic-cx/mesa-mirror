@@ -813,10 +813,20 @@ radv_get_compat_color_ds_format(VkFormat format)
    }
 }
 
+struct radv_copy_info {
+   VkOffset3D src_offset;
+   VkOffset3D dst_offset;
+   VkExtent3D src_extent;
+   VkFormat src_format;
+   VkFormat dst_format;
+   bool src_needs_dcc_decompress;
+   bool dst_needs_dcc_decompress;
+};
+
 static void
-gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image,
-                          VkImageLayout src_image_layout, struct radv_image *dst_image, VkImageLayout dst_image_layout,
-                          const VkImageCopy2 *region, const bool use_compute)
+get_copy_info(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image, struct radv_image *dst_image,
+              VkImageLayout src_image_layout, VkImageLayout dst_image_layout, const VkImageCopy2 *region,
+              struct radv_copy_info *out)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -845,8 +855,8 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
     * Also, convert the offsets and extent from units of texels to units of
     * blocks - which is the highest resolution accessible in this command.
     */
-   const VkOffset3D dst_offset_el = vk_image_offset_to_elements(&dst_image->vk, region->dstOffset);
-   const VkOffset3D src_offset_el = vk_image_offset_to_elements(&src_image->vk, region->srcOffset);
+   out->dst_offset = vk_image_offset_to_elements(&dst_image->vk, region->dstOffset);
+   out->src_offset = vk_image_offset_to_elements(&src_image->vk, region->srcOffset);
 
    /*
     * From Vulkan 1.0.68, "Copying Data Between Images":
@@ -857,20 +867,7 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
     * clamping depth when copying multiple layers of a 2D image to
     * a 3D image.
     */
-   const VkExtent3D img_extent_el = vk_image_extent_to_elements(&src_image->vk, region->extent);
-
-   /* Determine the layer range. */
-   unsigned layer_count = vk_image_subresource_layer_count(&src_image->vk, &region->srcSubresource);
-   unsigned src_layer = region->srcSubresource.baseArrayLayer;
-   unsigned dst_layer = region->dstSubresource.baseArrayLayer;
-
-   if (src_image->vk.image_type == VK_IMAGE_TYPE_3D) {
-      src_layer = src_offset_el.z;
-      layer_count = img_extent_el.depth;
-   }
-
-   if (dst_image->vk.image_type == VK_IMAGE_TYPE_3D)
-      dst_layer = dst_offset_el.z;
+   out->src_extent = vk_image_extent_to_elements(&src_image->vk, region->extent);
 
    /* Determine the copy formats. */
    VkFormat src_format = get_copy_format(src_image, &region->srcSubresource);
@@ -882,8 +879,6 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    const uint32_t src_queue_mask = radv_image_queue_family_mask(src_image, cmd_buffer->qf);
    const bool src_compressed =
       radv_layout_dcc_compressed(device, src_image, region->srcSubresource.mipLevel, src_image_layout, src_queue_mask);
-   bool dst_needs_dcc_decompress = false;
-   bool src_needs_dcc_decompress = false;
 
    if (!src_compressed || radv_dcc_formats_sign_compatible(pdev->info.gfx_level, src_format, dst_format)) {
       src_format = dst_format;
@@ -899,11 +894,44 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
       dst_format = radv_get_compat_color_ds_format(dst_image->vk.format);
    }
 
-   if (dst_compressed && !radv_dcc_formats_sign_compatible(pdev->info.gfx_level, dst_image->vk.format, dst_format))
-      dst_needs_dcc_decompress = true;
+   out->dst_needs_dcc_decompress =
+      dst_compressed && !radv_dcc_formats_sign_compatible(pdev->info.gfx_level, dst_image->vk.format, dst_format);
 
    /* This is only needed for color->Z/S copies where src must use a Z/S-compatible format. */
-   if (src_compressed && !radv_dcc_formats_sign_compatible(pdev->info.gfx_level, src_image->vk.format, src_format)) {
+   out->src_needs_dcc_decompress =
+      src_compressed && !radv_dcc_formats_sign_compatible(pdev->info.gfx_level, src_image->vk.format, src_format);
+
+   out->src_format = src_format;
+   out->dst_format = dst_format;
+}
+
+static void
+gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image,
+                          VkImageLayout src_image_layout, struct radv_image *dst_image, VkImageLayout dst_image_layout,
+                          const VkImageCopy2 *region, const bool use_compute)
+{
+   struct radv_copy_info info;
+
+   get_copy_info(cmd_buffer, src_image, dst_image, src_image_layout, dst_image_layout, region, &info);
+
+   const VkOffset3D dst_offset_el = info.dst_offset;
+   const VkOffset3D src_offset_el = info.src_offset;
+   const VkExtent3D img_extent_el = info.src_extent;
+
+   /* Determine the layer range. */
+   unsigned layer_count = vk_image_subresource_layer_count(&src_image->vk, &region->srcSubresource);
+   unsigned src_layer = region->srcSubresource.baseArrayLayer;
+   unsigned dst_layer = region->dstSubresource.baseArrayLayer;
+
+   if (src_image->vk.image_type == VK_IMAGE_TYPE_3D) {
+      src_layer = src_offset_el.z;
+      layer_count = img_extent_el.depth;
+   }
+
+   if (dst_image->vk.image_type == VK_IMAGE_TYPE_3D)
+      dst_layer = dst_offset_el.z;
+
+   if (info.src_needs_dcc_decompress) {
       radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
       radv_decompress_dcc(cmd_buffer, src_image,
                           &(VkImageSubresourceRange){
@@ -914,14 +942,12 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
                              .layerCount = layer_count,
                           });
       radv_describe_barrier_end(cmd_buffer);
-
-      src_needs_dcc_decompress = true;
    }
 
    /* DCC decompression is done by radv_meta_fixup_dst_metadata for compute when image stores with DCC
     * are unsupported and when the DCC formats are incompatible.
     */
-   if (dst_needs_dcc_decompress && !use_compute) {
+   if (info.dst_needs_dcc_decompress && !use_compute) {
       radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
       radv_decompress_dcc(cmd_buffer, dst_image,
                           &(VkImageSubresourceRange){
@@ -936,7 +962,7 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
 
    if (use_compute) {
       radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
-                                   &region->dstOffset, &region->extent, dst_format, true);
+                                   &region->dstOffset, &region->extent, info.dst_format, true);
    }
 
    /* Create blit surfaces */
@@ -949,11 +975,11 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    b_src.layer = src_layer;
    b_dst.layer = dst_layer;
 
-   b_src.format = src_format;
-   b_dst.format = dst_format;
+   b_src.format = info.src_format;
+   b_dst.format = info.dst_format;
 
-   b_src.disable_compression = src_needs_dcc_decompress;
-   b_dst.disable_compression = dst_needs_dcc_decompress;
+   b_src.disable_compression = info.src_needs_dcc_decompress;
+   b_dst.disable_compression = info.dst_needs_dcc_decompress;
 
    for (unsigned layer = 0; layer < layer_count; layer++) {
       /* Perform Blit */
@@ -974,7 +1000,7 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
 
    if (use_compute) {
       radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
-                                   &region->dstOffset, &region->extent, dst_format, false);
+                                   &region->dstOffset, &region->extent, info.dst_format, false);
    }
 }
 
