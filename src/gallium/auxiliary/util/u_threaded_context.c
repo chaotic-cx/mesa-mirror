@@ -4725,9 +4725,9 @@ tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
    } else if (tc->in_renderpass) {
       tc_check_fb_access(tc, info->src.resource, info->dst.resource);
    }
-   struct tc_blit_call *blit = tc_blit_enqueue(tc, info);
-   if (!ended && tc->renderpass_info_recording->ended)
-      tc_batch_rp_info(tc->renderpass_info_recording)->end_call = blit;
+   /* write the geometry before the enqueue, which can flush the batch and
+    * change the recording info
+    */
    if (is_resolve) {
       tc->renderpass_info_recording->resolve_geometry.x = info->src.box.x;
       tc->renderpass_info_recording->resolve_geometry.y = info->src.box.y;
@@ -4735,8 +4735,13 @@ tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
       tc->renderpass_info_recording->resolve_geometry.width = info->src.box.width;
       tc->renderpass_info_recording->resolve_geometry.height = info->src.box.height;
       tc->renderpass_info_recording->resolve_geometry.depth = info->src.box.depth;
-      blit->base.call_id = TC_CALL_resolve;
    }
+
+   struct tc_blit_call *blit = tc_blit_enqueue(tc, info);
+   if (!ended && tc->renderpass_info_recording->ended)
+      tc_batch_rp_info(tc->renderpass_info_recording)->end_call = blit;
+   if (is_resolve)
+      blit->base.call_id = TC_CALL_resolve;
 }
 
 struct tc_generate_mipmap {
