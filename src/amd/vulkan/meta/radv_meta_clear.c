@@ -2156,7 +2156,41 @@ radv_CmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t attachmentCount
 {
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    const struct radv_rendering_state *render = &cmd_buffer->state.render;
+   VkClearAttachment z_clear = {0}, s_clear = {0}, combined_zs_clear = {0};
    struct radv_clear_sync_info sync_info = {0};
+
+   /* This merges separate Z/S clears into a combined Z/S clear if both Z and S clears occur only once.
+    * Combined Z/S clears are more efficient since slow clears get only one draw instead of two and fast
+    * clears get one HTILE clear instead of "HTILE RMW -> barrier -> HTILE RMW".
+    */
+   for (unsigned a = 0; a < attachmentCount; a++) {
+      switch (pAttachments[a].aspectMask) {
+      case VK_IMAGE_ASPECT_COLOR_BIT:
+         continue;
+      case VK_IMAGE_ASPECT_DEPTH_BIT:
+         if (!z_clear.aspectMask) {
+            z_clear = pAttachments[a];
+            continue;
+         }
+         break;
+      case VK_IMAGE_ASPECT_STENCIL_BIT:
+         if (!s_clear.aspectMask) {
+            s_clear = pAttachments[a];
+            continue;
+         }
+         break;
+      }
+
+      assert(pAttachments[a].aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT));
+      z_clear.aspectMask = s_clear.aspectMask = 0; /* do nothing */
+      break;
+   }
+
+   if (z_clear.aspectMask && s_clear.aspectMask) {
+      combined_zs_clear.aspectMask = z_clear.aspectMask | s_clear.aspectMask;
+      combined_zs_clear.clearValue.depthStencil.depth = z_clear.clearValue.depthStencil.depth;
+      combined_zs_clear.clearValue.depthStencil.stencil = s_clear.clearValue.depthStencil.stencil;
+   }
 
    /* Attachments can have draws in flight. Set that there are pending draw flushes, so that compute/CP DMA
     * clears wait.
@@ -2175,7 +2209,18 @@ radv_CmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t attachmentCount
 
    radv_meta_begin_rendering(cmd_buffer);
 
+   /* Execute the combined Z/S clear first. */
+   if (combined_zs_clear.aspectMask) {
+      for (uint32_t r = 0; r < rectCount; ++r)
+         emit_clear(cmd_buffer, &combined_zs_clear, &pRects[r], cmd_buffer->state.render.view_mask, &sync_info, ATT_ZS);
+   }
+
+   /* Execute the remaining clears. */
    for (uint32_t a = 0; a < attachmentCount; ++a) {
+      /* Combined Z/S clears have already been done above. */
+      if (combined_zs_clear.aspectMask & pAttachments[a].aspectMask)
+         continue;
+
       const enum att_id att_id = pAttachments[a].aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                                     ? ATT_ZS
                                     : ATT_COLOR0 + pAttachments[a].colorAttachment;
