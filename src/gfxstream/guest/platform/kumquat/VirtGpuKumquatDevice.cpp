@@ -85,15 +85,15 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
     switch (capset) {
         case kCapsetGfxStreamVulkan:
             get_caps.size = sizeof(struct vulkanCapset);
-            get_caps.addr = (unsigned long long)&mCaps.vulkanCapset;
+            get_caps.addr = (uint64_t)(uintptr_t)&mCaps.vulkanCapset;
             break;
         case kCapsetGfxStreamGles:
             get_caps.size = sizeof(struct glesCapset);
-            get_caps.addr = (unsigned long long)&mCaps.glesCapset;
+            get_caps.addr = (uint64_t)(uintptr_t)&mCaps.glesCapset;
             break;
         case kCapsetGfxStreamComposer:
             get_caps.size = sizeof(struct composerCapset);
-            get_caps.addr = (unsigned long long)&mCaps.composerCapset;
+            get_caps.addr = (uint64_t)(uintptr_t)&mCaps.composerCapset;
             break;
         default:
             get_caps.size = 0;
@@ -123,11 +123,11 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
 
     if (mCaps.params[kParamExplicitDebugName] && processName) {
         ctx_set_params[init.num_params].param = VIRTGPU_KUMQUAT_CONTEXT_PARAM_DEBUG_NAME;
-        ctx_set_params[init.num_params].value = reinterpret_cast<uint64_t>(processName);
+        ctx_set_params[init.num_params].value = (uint64_t)(uintptr_t)processName;
         init.num_params++;
     }
 
-    init.ctx_set_params = (unsigned long long)&ctx_set_params[0];
+    init.ctx_set_params = (uint64_t)(uintptr_t)&ctx_set_params[0];
     ret = virtgpu_kumquat_context_init(mVirtGpu, &init);
     if (ret) {
         mesa_loge(
