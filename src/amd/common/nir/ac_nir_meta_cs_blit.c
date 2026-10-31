@@ -76,7 +76,6 @@
 #include "ac_nir_helpers.h"
 #include "ac_surface.h"
 #include "nir_format_convert.h"
-#include "compiler/aco_interface.h"
 #include "util/format_srgb.h"
 #include "util/u_pack_color.h"
 
@@ -290,7 +289,6 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
          fprintf(f, "Internal shader: compute_blit\n");
 
 #define PRINT(field) print_shader_key_field(f, "key." #field, key->field)
-      PRINT(use_aco);
       PRINT(wg_dim);
       PRINT(has_start_xyz);
       PRINT(format_is_96bit);
@@ -344,8 +342,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
    _mesa_blake3_update(&blake3, key, sizeof(*key));
    _mesa_blake3_final(&blake3, b.shader->info.source_blake3);
 
-   b.shader->info.use_aco_amd = options->use_aco ||
-                                (key->use_aco && aco_is_gpu_supported(options->info));
+   b.shader->info.use_aco_amd = options->use_aco;
 
    assert(!key->is_clear || (!key->src_is_sampler && !key->src_is_1d && !key->src_is_msaa &&
                              !key->src_has_z && !key->src_has_non_identity_fmask));
@@ -1772,8 +1769,6 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
    ac_cs_blit_key key;
    key.key = 0;
 
-   /* Only ACO can form VMEM clauses for image stores, which is a requirement for performance. */
-   key.use_aco = true;
    key.is_clear = d.is_clear;
    key.wg_dim = wg_dim;
    key.has_start_xyz = start_x || start_y || start_z;

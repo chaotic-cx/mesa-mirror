@@ -46,7 +46,6 @@ ac_create_resolve_ps(const struct ac_ps_resolve_options *options,
 /* This describes all possible variants of the compute blit shader. */
 typedef union {
    struct {
-      bool use_aco:1;
       /* Workgroup settings. */
       uint8_t wg_dim:2; /* 1, 2, or 3 */
       bool has_start_xyz:1;
