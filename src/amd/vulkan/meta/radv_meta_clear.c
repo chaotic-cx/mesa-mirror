@@ -197,8 +197,8 @@ get_color_pipeline(struct radv_device *device, uint32_t samples, uint32_t frag_o
 }
 
 static void
-emit_color_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_att, const VkClearRect *clear_rect,
-                 uint32_t view_mask)
+emit_render_color_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_att,
+                        const VkClearRect *clear_rect, uint32_t view_mask)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_rendering_state *render = &cmd_buffer->state.render;
@@ -1561,7 +1561,7 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_at
                                     view_mask)) {
          radv_fast_clear_color(cmd_buffer, color_att->iview, clear_att, clear_rect, pre_flush, post_flush, view_mask);
       } else {
-         emit_color_clear(cmd_buffer, clear_att, clear_rect, view_mask);
+         emit_render_color_clear(cmd_buffer, clear_att, clear_rect, view_mask);
       }
    } else {
       const struct radv_attachment *ds_att = &render->ds_att;
