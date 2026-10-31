@@ -431,7 +431,7 @@ anv_h264_brc_fill_init_dmem(struct anv_cmd_buffer *cmd,
    uint32_t gop = rc->gop_frame_count ? rc->gop_frame_count : 30;
    uint32_t gop_ref_dist = MAX2(rc->consecutive_b_frames + 1, 1);
 
-   dmem->BRCFunc_U8 = 0;
+   dmem->BRCFunc_U8 = rc->frame_counter ? 2 : 0;
    dmem->INIT_BRCFlag_U16 =
       is_cbr ? ANV_HUC_AVC_BRC_FLAG_CBR : ANV_HUC_AVC_BRC_FLAG_VBR;
    dmem->INIT_FrameWidth_U16 = width;
@@ -534,7 +534,7 @@ anv_h264_brc_fill_update_dmem(struct anv_cmd_buffer *cmd,
    dmem->BRCFunc_U8 = 1;
    uint64_t target_acc =
       (uint64_t)MIN2(rc->vbv_initial_fullness_bits, rc->vbv_size_bits) +
-      (uint64_t)rc->frame_counter * input_bits_per_frame;
+      (uint64_t)(rc->frame_counter - rc->brc_init_frame) * input_bits_per_frame;
    dmem->UPD_TARGETSIZE_U32 = rc->vbv_size_bits ?
       (uint32_t)(target_acc % rc->vbv_size_bits) : (uint32_t)target_acc;
 
@@ -788,6 +788,8 @@ anv_h264_brc_emit_huc_init(struct anv_cmd_buffer *cmd,
 
    memset(dmem_state.map, 0, dmem_size);
    anv_h264_brc_fill_init_dmem(cmd, sps, dmem_state.map);
+   vid->rc.brc_init_frame = vid->rc.frame_counter;
+   vid->rc.brc_reset = false;
 
    anv_h264_brc_emit_huc_common(cmd, ANV_HUC_AVC_BRC_INIT_KERNEL_DESCRIPTOR,
                                 anv_cmd_buffer_temporary_state_address(cmd, dmem_state),
@@ -1731,6 +1733,7 @@ anv_h265_brc_emit_huc_init(struct anv_cmd_buffer *cmd,
 
    memset(dmem_state.map, 0, dmem_size);
    anv_h265_brc_fill_init_dmem(cmd, sps, is_low_delay, dmem_state.map);
+   vid->rc.brc_reset = false;
 
    anv_h265_brc_emit_huc_common(cmd, ANV_HUC_HEVC_BRC_INIT_KERNEL_DESCRIPTOR,
                                 anv_cmd_buffer_temporary_state_address(cmd, dmem_state),

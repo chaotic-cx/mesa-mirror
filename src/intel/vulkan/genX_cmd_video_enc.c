@@ -1776,7 +1776,7 @@ anv_h264_brc_init_update(struct anv_cmd_buffer *cmd,
 
    /* frame_counter == 0 means the HuC BRC running state has not been set
     * up yet (fresh session or after a RESET), so run the init pass. */
-   if (vid->rc.frame_counter == 0)
+   if (vid->rc.frame_counter == 0 || vid->rc.brc_reset)
       anv_h264_brc_emit_huc_init(cmd, frame_info);
    anv_h264_brc_emit_huc_update(cmd, frame_info, 0, brc_input_slb);
 
@@ -3721,7 +3721,7 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
    anv_video_emit_force_wakeup(cmd, true);
    for (uint32_t pass = 0; pass < num_passes; pass++) {
       if (brc_enabled) {
-         if (pass == 0 && vid->rc.frame_counter == 0)
+         if (pass == 0 && (vid->rc.frame_counter == 0 || vid->rc.brc_reset))
             anv_h265_brc_emit_huc_init(cmd, sps, is_low_delay);
 
          anv_h265_brc_emit_huc_update(cmd, brc_update_dmem[pass],

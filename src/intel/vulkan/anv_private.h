@@ -7208,6 +7208,8 @@ struct anv_video_rc_state {
    /* H.264 and H.265 rate control flag bits share the same values. */
    uint32_t rc_flags;
    uint32_t frame_counter;
+   uint32_t brc_init_frame;
+   bool brc_reset;
 };
 
 struct anv_video_session {
