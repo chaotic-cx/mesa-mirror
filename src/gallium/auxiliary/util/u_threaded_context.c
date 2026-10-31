@@ -5789,6 +5789,22 @@ batch_execute(struct tc_batch *batch, struct pipe_context *pipe, bool parsing)
 #endif
       TC_TRACE_SCOPE(call->call_id);
 
+      /* iterate before executing the first draw or clear after an rp end */
+      if (parsing && increment_rp_info_on_draw_clear) {
+         switch (call->call_id) {
+         case TC_CALL_clear:
+         case TC_CALL_draw_single:
+         case TC_CALL_draw_multi:
+         case TC_CALL_draw_single_drawid:
+         case TC_CALL_draw_vstate_multi:
+            batch->tc->renderpass_info = incr_rp_info(batch->tc->renderpass_info);
+            increment_rp_info_on_draw_clear = false;
+            break;
+         default:
+            break;
+         }
+      }
+
       /* This executes the call using a switch. */
       switch (call->call_id) {
 #define CALL(name) \
@@ -5817,19 +5833,6 @@ batch_execute(struct tc_batch *batch, struct pipe_context *pipe, bool parsing)
             increment_rp_info_on_draw_clear = false;
          } else if (call == tc_batch_rp_info(batch->tc->renderpass_info)->end_call) {
             increment_rp_info_on_draw_clear = true;
-         } else if (increment_rp_info_on_draw_clear) {
-            switch (call->call_id) {
-            case TC_CALL_clear:
-            case TC_CALL_draw_single:
-            case TC_CALL_draw_multi:
-            case TC_CALL_draw_single_drawid:
-            case TC_CALL_draw_vstate_multi:
-               batch->tc->renderpass_info = incr_rp_info(batch->tc->renderpass_info);
-               increment_rp_info_on_draw_clear = false;
-               break;
-            default:
-               break;
-            }
          }
       }
    }
