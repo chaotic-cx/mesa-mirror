@@ -193,7 +193,16 @@ by a particular renderpass/blit.
 		<reg32 offset="0x0" name="REG"/>
 	</array>
 
-	<reg32 offset="0x0840" name="CP_RL_ERROR_DETAILS_0" variants="A8XX-"/>
+	<reg32 offset="0x09b4" name="CP_RL_ERROR_DETAILS_0" variants="A7XX">
+		<bitfield name="ADDR" low="0" high="19"/>
+		<bitfield name="WRITE" pos="28" type="boolean"/>
+	</reg32>
+	<reg32 offset="0x09cf" name="CP_RL_ERROR_DETAILS_1" variants="A7XX"/>
+
+	<reg32 offset="0x0840" name="CP_RL_ERROR_DETAILS_0" variants="A8XX-">
+		<bitfield name="ADDR" low="0" high="19"/>
+		<bitfield name="WRITE" pos="28" type="boolean"/>
+	</reg32>
 	<reg32 offset="0x0841" name="CP_RL_ERROR_DETAILS_1" variants="A8XX-"/>
 
 	<reg64 offset="0x0830" name="CP_SQE_INSTR_BASE" variants="A6XX-A7XX"/>
@@ -958,9 +967,13 @@ by a particular renderpass/blit.
 		<bitfield high="7" low="0" name="PING_INDEX"/>
 		<bitfield high="15" low="8" name="PING_BLK_SEL"/>
 	</reg32>
-	<reg32 offset="0x0603" name="DBGC_CFG_DBGBUS_SEL_D" variants="A7XX-">
+	<reg32 offset="0x0603" name="DBGC_CFG_DBGBUS_SEL_D" variants="A7XX">
 		<bitfield high="7" low="0" name="PING_INDEX"/>
 		<bitfield high="24" low="16" name="PING_BLK_SEL"/>
+	</reg32>
+	<reg32 offset="0x0603" name="DBGC_CFG_DBGBUS_SEL_D" variants="A8XX">
+		<bitfield high="7" low="0" name="PING_INDEX"/>
+		<bitfield high="27" low="16" name="PING_BLK_SEL"/>
 	</reg32>
 	<reg32 offset="0x0604" name="DBGC_CFG_DBGBUS_CNTLT">
 		<bitfield high="5" low="0" name="TRACEEN"/>
@@ -5090,6 +5103,7 @@ by a particular renderpass/blit.
 	<reg32 offset="0x0005" name="CFG_DBGBUS_CNTLM">
 		<bitfield high="27" low="24" name="ENABLE"/>
 	</reg32>
+	<reg32 offset="0x0006" name="CFG_DBGBUS_OPL"/>
 	<reg32 offset="0x0008" name="CFG_DBGBUS_IVTL_0"/>
 	<reg32 offset="0x0009" name="CFG_DBGBUS_IVTL_1"/>
 	<reg32 offset="0x000a" name="CFG_DBGBUS_IVTL_2"/>
@@ -5119,15 +5133,26 @@ by a particular renderpass/blit.
 		<bitfield high="31" low="28" name="BYTEL15"/>
 	</reg32>
 
+	<reg32 offset="0x001e" name="CFG_DBGBUS_IDX"/>
+	<reg32 offset="0x0026" name="CFG_DBGBUS_OVER"/>
 	<reg32 offset="0x002f" name="CFG_DBGBUS_TRACE_BUF1"/>
 	<reg32 offset="0x0030" name="CFG_DBGBUS_TRACE_BUF2"/>
+	<reg32 offset="0x0031" name="CFG_DBGBUS_TRACE_BUF3"/>
 </domain>
 
 <domain name="A7XX_CX_DBGC" width="32" varset="chip">
 	<!-- Bitfields shifted, but otherwise the same: -->
-	<reg32 offset="0x0000" name="CFG_DBGBUS_SEL_A" variants="A7XX-">
+	<reg32 offset="0x0000" name="CFG_DBGBUS_SEL_A" variants="A7XX">
 		<bitfield high="7" low="0" name="PING_INDEX"/>
 		<bitfield high="24" low="16" name="PING_BLK_SEL"/>
+	</reg32>
+</domain>
+
+<domain name="A8XX_CX_DBGC" width="32" varset="chip">
+	<!-- Bitfields shifted, but otherwise the same: -->
+	<reg32 offset="0x0000" name="CFG_DBGBUS_SEL_A" variants="A8XX-">
+		<bitfield high="7" low="0" name="PING_INDEX"/>
+		<bitfield high="27" low="16" name="PING_BLK_SEL"/>
 	</reg32>
 </domain>
 
