@@ -581,6 +581,10 @@ tc_batch_flush(struct threaded_context *tc, bool full_copy)
     * renderpass info can only be accessed by its owner batch during execution
     */
    if (tc->renderpass_info_recording) {
+      /* an rp ended by an end_call is not continued: the driver advances after
+       * the end_call, so a copy would leave it one info behind
+       */
+      full_copy &= !tc_batch_rp_info(tc->renderpass_info_recording)->end_call;
       tc_batch_increment_renderpass_info(tc, next_id, full_copy);
    }
 
