@@ -136,6 +136,9 @@ static std::vector<const char*> filteredInstanceExtensionNames(uint32_t count,
 // Always provided by guest driver only; never encoded/decoded to/from host
 static const char* const kGuestEmulatedDeviceExtensions[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+#if !DETECT_OS_ANDROID
+    VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME,
+#endif
     VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
     VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
 };
