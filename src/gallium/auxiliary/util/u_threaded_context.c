@@ -5353,6 +5353,8 @@ batch_execute(struct tc_batch *batch, struct pipe_context *pipe, bool parsing)
          case TC_CALL_draw_single:
          case TC_CALL_draw_multi:
          case TC_CALL_draw_single_drawid:
+         case TC_CALL_draw_indirect:
+         case TC_CALL_draw_vstate_single:
          case TC_CALL_draw_vstate_multi:
             batch->tc->renderpass_info = incr_rp_info(batch->tc->renderpass_info);
             increment_rp_info_on_draw_clear = false;
