@@ -494,7 +494,7 @@
         "description": "nir: don't hardcode dedup_entry size in static_assert",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "136596668e09431605d5cbac79243fb935da4520",
         "notes": null

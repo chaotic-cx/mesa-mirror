@@ -3205,7 +3205,10 @@ print_dedup_entry(const char *place, struct set *set, dedup_entry *entry)
  * over the full struct are correct and efficient.
  * If this assert fires, audit all nir_scalar assignments below.
  */
-static_assert(sizeof(dedup_entry) == (sizeof(void *) == 8 ? 48 : 28),
+static_assert(sizeof(dedup_entry) ==
+              ALIGN_POT(sizeof(nir_block *) + 2 * sizeof(nir_scalar) +
+                        sizeof(unsigned) + sizeof(bool),
+                        alignof(dedup_entry)),
               "dedup_entry layout changed");
 
 static uint32_t
