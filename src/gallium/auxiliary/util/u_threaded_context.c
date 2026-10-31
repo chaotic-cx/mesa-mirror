@@ -5148,7 +5148,7 @@ tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
       tc_check_fb_access(tc, info->src.resource, info->dst.resource);
    }
    struct tc_blit_call *blit = tc_blit_enqueue(tc, info);
-   if (ended != tc->renderpass_info_recording->ended)
+   if (!ended && tc->renderpass_info_recording->ended)
       tc_batch_rp_info(tc->renderpass_info_recording)->end_call = blit;
    if (is_resolve) {
       tc->renderpass_info_recording->resolve_geometry.x = info->src.box.x;
