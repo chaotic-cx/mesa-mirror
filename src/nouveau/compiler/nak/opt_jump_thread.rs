@@ -17,7 +17,7 @@ fn clone_branch(op: &Op) -> Op {
     }
 }
 
-fn jump_thread(func: &mut Function) -> bool {
+fn jump_thread(func: &mut Function) {
     // Let's call a basic block "trivial" if its only instruction is an
     // unconditional branch. If a block is trivial, we can update all of its
     // predecessors to jump to its sucessor.
@@ -105,8 +105,6 @@ fn jump_thread(func: &mut Function) -> bool {
         // We don't update the CFG above, so rewrite it if we made progress
         rewrite_cfg(func);
     }
-
-    progress
 }
 
 fn rewrite_cfg(func: &mut Function) {
@@ -157,9 +155,8 @@ fn opt_fall_through(func: &mut Function) {
 
 impl Function {
     pub fn opt_jump_thread(&mut self) {
-        if jump_thread(self) {
-            opt_fall_through(self);
-        }
+        jump_thread(self);
+        opt_fall_through(self);
     }
 }
 
