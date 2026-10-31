@@ -99,26 +99,30 @@ convert_linear_to_srgb(nir_builder *b, nir_def *input)
 }
 
 static nir_def *
-apply_blit_output_modifiers(nir_builder *b, nir_def *color,
-                            const ac_cs_blit_key *key)
+apply_blit_output_modifiers(nir_builder *b, nir_def *color, const ac_cs_blit_key *key,
+                            const struct radeon_info *info)
 {
-   unsigned bit_size = color->bit_size;
-   nir_def *zero = nir_imm_intN_t(b, 0, bit_size);
-
    if (key->sint_to_uint)
-      color = nir_imax(b, color, zero);
+      color = nir_imax(b, color, nir_imm_intN_t(b, 0, color->bit_size));
 
    if (key->uint_to_sint) {
       color = nir_umin(b, color,
-                       nir_imm_intN_t(b, bit_size == 16 ? INT16_MAX : INT32_MAX,
-                                      bit_size));
+                       nir_imm_intN_t(b, color->bit_size == 16 ? INT16_MAX : INT32_MAX,
+                                      color->bit_size));
+   }
+
+   /* This should be done before the conversion to sRGB. */
+   if (key->force_f2f16_rtz) {
+      assert(!key->is_clear && color->bit_size == 32);
+      color = nir_f2f16_rtz(b, color);
+
+      /* On HW without full FP16 ALU, convert immediately back to FP32. */
+      if (info->gfx_level <= GFX7)
+         color = nir_f2f32(b, color);
    }
 
    if (key->dst_is_srgb)
       color = convert_linear_to_srgb(b, color);
-
-   nir_def *one = key->use_integer_one ? nir_imm_intN_t(b, 1, bit_size) :
-                                             nir_imm_floatN_t(b, 1, bit_size);
 
    if (key->is_clear) {
       if (key->last_dst_channel < 3)
@@ -131,8 +135,12 @@ apply_blit_output_modifiers(nir_builder *b, nir_def *color,
       if (key->last_src_channel < key->last_dst_channel) {
          color = nir_pad_vector(b, color, key->last_dst_channel + 1);
 
-         for (unsigned chan = key->last_src_channel + 1; chan <= key->last_dst_channel; chan++)
+         for (unsigned chan = key->last_src_channel + 1; chan <= key->last_dst_channel; chan++) {
+            nir_def *zero = nir_imm_intN_t(b, 0, color->bit_size);
+            nir_def *one = key->use_integer_one ? nir_imm_intN_t(b, 1, color->bit_size) :
+                                                  nir_imm_floatN_t(b, 1, color->bit_size);
             color = nir_vector_insert_imm(b, color, chan == 3 ? one : zero, chan);
+         }
       }
 
       /* Discard channels not present in dst. The hardware fills unstored channels with 0. */
@@ -143,12 +151,15 @@ apply_blit_output_modifiers(nir_builder *b, nir_def *color,
        * Determined by trial and error.
        */
       if (key->dst_is_rgb5)
-         color = nir_fadd(b, color, nir_imm_floatN_t(b, -1.0/4096, bit_size));
+         color = nir_fadd(b, color, nir_imm_floatN_t(b, -1.0/4096, color->bit_size));
    }
 
    /* Discard channels not present in dst. The hardware fills unstored channels with 0. */
    if (key->last_dst_channel < 3)
       color = nir_trim_vector(b, color, key->last_dst_channel + 1);
+
+   if (key->force_f2f16_rtz && !key->d16 && color->bit_size == 16)
+      color = nir_f2f32(b, color);
 
    return color;
 }
@@ -318,6 +329,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       PRINT(dst_is_rgb5);
       PRINT(a16);
       PRINT(d16);
+      PRINT(force_f2f16_rtz);
       PRINT(log_samples);
       PRINT(clear_sample0_only);
       PRINT(resolve_mode);
@@ -398,14 +410,16 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       if (key->dst_is_msaa)
          BITSET_SET(b.shader->info.msaa_images, has_src_image);
 
-      const enum glsl_base_type img_data_type = key->d16 ? GLSL_TYPE_UINT16 : GLSL_TYPE_UINT;
+      const enum glsl_base_type src_img_data_type =
+         key->d16 && !key->force_f2f16_rtz ? GLSL_TYPE_UINT16 : GLSL_TYPE_UINT;
+      const enum glsl_base_type dst_img_data_type = key->d16 ? GLSL_TYPE_UINT16 : GLSL_TYPE_UINT;
 
       if (has_src_sampler) {
          const struct glsl_type *src_sampler_type =
             glsl_sampler_type(key->num_scaled_coords == 3 ? GLSL_SAMPLER_DIM_3D :
                               key->src_is_1d ? GLSL_SAMPLER_DIM_1D :
                               key->src_is_msaa ? GLSL_SAMPLER_DIM_MS : GLSL_SAMPLER_DIM_2D,
-                              false, key->src_has_z && key->num_scaled_coords <= 2, img_data_type);
+                              false, key->src_has_z && key->num_scaled_coords <= 2, src_img_data_type);
 
          img_src = nir_variable_create(b.shader, nir_var_uniform, src_sampler_type, "src_sampler");
       }
@@ -414,7 +428,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
          const struct glsl_type *src_image_type =
             glsl_image_type(key->src_is_1d ? GLSL_SAMPLER_DIM_1D :
                             key->src_is_msaa ? GLSL_SAMPLER_DIM_MS : GLSL_SAMPLER_DIM_2D,
-                            key->src_has_z, img_data_type);
+                            key->src_has_z, src_img_data_type);
 
          img_src = nir_variable_create(b.shader, nir_var_image, src_image_type, "src_image");
       }
@@ -422,7 +436,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       const struct glsl_type *dst_image_type =
          glsl_image_type(key->dst_is_1d ? GLSL_SAMPLER_DIM_1D :
                          key->dst_is_msaa ? GLSL_SAMPLER_DIM_MS : GLSL_SAMPLER_DIM_2D,
-                         key->dst_has_z, img_data_type);
+                         key->dst_has_z, dst_img_data_type);
 
       img_dst = nir_variable_create(b.shader, nir_var_image, dst_image_type, "dst_image");
       /* NOTE: This is only correct for RADV where sampler and image bindings are in the same
@@ -897,7 +911,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
       /* Apply the blit output modifiers, once per sample.  */
       foreach_pixel_in_lane(src_samples, sample, x, y, z, i) {
-         color[i] = apply_blit_output_modifiers(&b, color[i], key);
+         color[i] = apply_blit_output_modifiers(&b, color[i], key, options->info);
       }
    }
 
@@ -1906,6 +1920,10 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                 (util_format_is_pure_integer(blit->dst.format) ?
                     (key.sint_to_uint || key.uint_to_sint ? 10 : 16) :
                     (d.is_resolve ? 10 : 11));
+      key.force_f2f16_rtz = blit->force_f2f16_rtz && !key.dst_is_rgb5 &&
+                            ((d.max_dst_chan_size <= 10 && (util_format_is_unorm(blit->dst.format) ||
+                                                            util_format_is_snorm(blit->dst.format))) ||
+                             (d.max_dst_chan_size <= 16 && util_format_is_float(blit->dst.format)));
    }
 
    dispatch->shader_key = key;
