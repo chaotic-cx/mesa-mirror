@@ -224,7 +224,7 @@ static void set_custom_cu_en_mask(struct radeon_info *info)
 
       if (!error) {
          info->spi_cu_en = spi_cu_en;
-         info->spi_cu_en_has_effect = spi_cu_en & BITFIELD_MASK(info->max_good_cu_per_sa);
+         info->spi_cu_en_has_effect = (~spi_cu_en & BITFIELD_MASK(info->max_good_cu_per_sa)) != 0;
       }
    }
 }
