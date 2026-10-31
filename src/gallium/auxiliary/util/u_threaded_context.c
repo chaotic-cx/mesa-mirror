@@ -349,6 +349,27 @@ tc_check_fb_access(struct threaded_context *tc, struct pipe_resource *src, struc
    return false;
 }
 
+/* calls that continue the recording info through tc_parse_draw or a clear:
+ * the driver must advance its info before executing the first one after an
+ * end_call, keep this in sync with their callers
+ */
+static ALWAYS_INLINE bool
+tc_call_may_advance_rp_info(enum tc_call_id id)
+{
+   switch (id) {
+   case TC_CALL_clear:
+   case TC_CALL_draw_single:
+   case TC_CALL_draw_multi:
+   case TC_CALL_draw_single_drawid:
+   case TC_CALL_draw_indirect:
+   case TC_CALL_draw_vstate_single:
+   case TC_CALL_draw_vstate_multi:
+      return true;
+   default:
+      return false;
+   }
+}
+
 /* update metadata at draw time */
 static void
 tc_parse_draw(struct threaded_context *tc)
@@ -5347,21 +5368,10 @@ batch_execute(struct tc_batch *batch, struct pipe_context *pipe, bool parsing)
       TC_TRACE_SCOPE(call->call_id);
 
       /* iterate before executing the first draw or clear after an rp end */
-      if (parsing && increment_rp_info_on_draw_clear) {
-         switch (call->call_id) {
-         case TC_CALL_clear:
-         case TC_CALL_draw_single:
-         case TC_CALL_draw_multi:
-         case TC_CALL_draw_single_drawid:
-         case TC_CALL_draw_indirect:
-         case TC_CALL_draw_vstate_single:
-         case TC_CALL_draw_vstate_multi:
-            batch->tc->renderpass_info = incr_rp_info(batch->tc->renderpass_info);
-            increment_rp_info_on_draw_clear = false;
-            break;
-         default:
-            break;
-         }
+      if (parsing && increment_rp_info_on_draw_clear &&
+          tc_call_may_advance_rp_info(call->call_id)) {
+         batch->tc->renderpass_info = incr_rp_info(batch->tc->renderpass_info);
+         increment_rp_info_on_draw_clear = false;
       }
 
       /* This executes the call using a switch. */
