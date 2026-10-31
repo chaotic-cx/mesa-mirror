@@ -5354,7 +5354,7 @@
         "description": "util/tc: reset the new rp info fence before linking it",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "07017aa137b9fa48ec25ef5d1e3fd2d137beb651",
         "notes": null

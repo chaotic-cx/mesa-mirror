@@ -275,6 +275,10 @@ tc_batch_increment_renderpass_info(struct threaded_context *tc, unsigned batch_i
    batch->renderpass_info_idx++;
    tc_batch_renderpass_infos_resize(tc, batch);
    tc_info = batch->renderpass_infos.data;
+   /* the driver can reach this info through the previous one as soon as that
+    * is signaled: it has to wait on this one by then
+    */
+   util_queue_fence_reset(&tc_info[batch->renderpass_info_idx].ready);
 
    if (full_copy) {
       /* this should only be called when changing batches */
@@ -310,7 +314,6 @@ tc_batch_increment_renderpass_info(struct threaded_context *tc, unsigned batch_i
    assert(!full_copy || !tc->renderpass_info_recording || tc_batch_rp_info(tc->renderpass_info_recording)->next);
    /* signal existing info since it will not be used anymore */
    tc_signal_renderpass_info_ready(tc);
-   util_queue_fence_reset(&tc_info[batch->renderpass_info_idx].ready);
    /* guard against deadlock scenario */
    assert(tc->renderpass_info_recording != &tc_info[batch->renderpass_info_idx].info);
    tc_info[batch->renderpass_info_idx].end_call = NULL;
