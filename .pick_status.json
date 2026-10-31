@@ -2384,7 +2384,7 @@
         "description": "dri: round up the subsampled plane size on dma-buf import",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ecd6fce2611e88ff8468a354cff8eda39f260a31",
         "notes": null

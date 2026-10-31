@@ -822,8 +822,8 @@ dri_create_image_from_winsys(struct dri_screen *screen,
       struct pipe_resource *tex;
 
       templ.next = img->texture;
-      templ.width0 = width >> map->planes[i].width_shift;
-      templ.height0 = height >> map->planes[i].height_shift;
+      templ.width0 = DIV_ROUND_UP(width, 1 << map->planes[i].width_shift);
+      templ.height0 = DIV_ROUND_UP(height, 1 << map->planes[i].height_shift);
       if (use_lowered)
          templ.format = map->planes[i].dri_format;
       else
