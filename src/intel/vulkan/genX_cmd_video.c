@@ -89,8 +89,15 @@ genX(CmdControlVideoCodingKHR)(VkCommandBuffer commandBuffer,
          flush.VideoPipelineCacheInvalidate = 1;
       }
 
-      if (pCodingControlInfo->flags &  VK_VIDEO_CODING_CONTROL_ENCODE_RATE_CONTROL_BIT_KHR)
-         cmd_buffer->video.vid->rc.frame_counter = 0;
+      /* From the Vulkan 1.4 spec, "Video Coding Control":
+       *
+       *    "For encode sessions, the reset operation returns rate control
+       *    configuration to implementation default settings and sets the
+       *    video encode quality level to zero."
+       */
+      struct anv_video_session *vid = cmd_buffer->video.vid;
+      vid->rc_mode = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR;
+      memset(&vid->rc, 0, sizeof(vid->rc));
    }
 
    if (pCodingControlInfo->flags &  VK_VIDEO_CODING_CONTROL_ENCODE_RATE_CONTROL_BIT_KHR) {
