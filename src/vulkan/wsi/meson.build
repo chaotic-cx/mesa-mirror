@@ -38,7 +38,7 @@ if with_platform_macos
   files_vulkan_wsi += files('wsi_common_metal.c', 'wsi_common_metal_layer.m')
 endif
 
-if system_has_kms_drm and not with_platform_android
+if with_platform_display
   files_vulkan_wsi += files('wsi_common_display.c')
 endif
 
