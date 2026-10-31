@@ -584,7 +584,7 @@
         "description": "util/tc: write the resolve geometry before enqueueing the resolve",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4f79fe382c7a4a60d97568d6cbb92cd9e9599a0b",
         "notes": null
