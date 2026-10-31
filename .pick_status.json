@@ -4504,7 +4504,7 @@
         "description": "zink: cast last operands of SpvOpGroupNonUniformShuffle* ops to unsigned",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "cee77ba6ec3d9bea67a4b1c15add0c1458622c3f",
         "notes": null
