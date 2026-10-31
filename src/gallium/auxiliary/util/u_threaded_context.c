@@ -364,6 +364,7 @@ tc_call_may_advance_rp_info(enum tc_call_id id)
    case TC_CALL_draw_indirect:
    case TC_CALL_draw_vstate_single:
    case TC_CALL_draw_vstate_multi:
+   case TC_CALL_draw_mesh_tasks:
       return true;
    default:
       return false;
@@ -5297,6 +5298,9 @@ tc_draw_mesh_tasks(struct pipe_context *_pipe,
                    const struct pipe_grid_info *info)
 {
    struct threaded_context *tc = threaded_context(_pipe);
+   if (tc->options.parse_renderpass_info)
+      tc_parse_draw(tc);
+
    struct tc_draw_mesh_tasks *p = tc_add_call(tc, TC_CALL_draw_mesh_tasks,
                                               tc_draw_mesh_tasks);
 
