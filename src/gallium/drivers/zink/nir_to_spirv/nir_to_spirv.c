@@ -3642,9 +3642,14 @@ emit_shuffle(struct ntv_context *ctx, nir_intrinsic_instr *intr)
               nir_intrinsic_infos[intr->intrinsic].name);
       UNREACHABLE("unhandled intrinsic");
    }
-   nir_alu_type atype, unused;
+   nir_alu_type atype, btype;
    SpvId src0 = get_src(ctx, &intr->src[0], &atype);
-   SpvId src1 = get_src(ctx, &intr->src[1], &unused);
+   SpvId src1 = get_src(ctx, &intr->src[1], &btype);
+
+   if (btype != nir_type_uint) {
+      SpvId uint_type = get_uvec_type(ctx, intr->src[1].ssa->bit_size, 1);
+      src1 = emit_bitcast(ctx, uint_type, src1);
+   }
 
    SpvId result = spirv_builder_emit_binop_subgroup(&ctx->builder, op, get_def_type(ctx, intr->src[0].ssa, atype), src0, src1);
    store_def(ctx, intr->def.index, result, atype);
