@@ -4706,12 +4706,15 @@ tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
       tc->renderpass_info_recording->has_resolve = true;
       tc->renderpass_info_recording->ended = true;
       is_resolve = true;
-   } else if (src == info->src.resource) {
+   } else if (src == info->src.resource && (is_depth || !tc->fb_resolve) &&
+              (!tc->renderpass_info_recording->resolve[is_depth] ||
+               tc->renderpass_info_recording->resolve[is_depth] == info->dst.resource)) {
 #if TC_DEBUG >= 3
       tc_printf("RESOLVE MERGE");
 #endif
-      /* only optimizing out one depth and one color resolve */
-      assert(!tc->renderpass_info_recording->resolve[is_depth] || tc->renderpass_info_recording->resolve[is_depth] == info->dst.resource);
+      /* only optimizing out one depth and one color resolve: a resolve into
+       * any other target is a normal blit
+       */
       pipe_resource_reference(&tc->renderpass_info_recording->resolve[is_depth], info->dst.resource);
       tc_set_resource_batch_usage(tc, info->dst.resource);
       if (tc->renderpass_info_recording->has_resolve) {
