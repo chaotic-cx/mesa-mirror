@@ -484,7 +484,7 @@
         "description": "nir: allow nir_cmat_tensor_load to be smaller than its const_index slots",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "10cd649f7694e695cb3d408d8726748f4796ef97",
         "notes": null
