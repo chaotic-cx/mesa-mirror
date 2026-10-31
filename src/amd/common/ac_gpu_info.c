@@ -197,24 +197,28 @@ static void set_custom_cu_en_mask(struct radeon_info *info)
             error = true;
          }
 
-         /* We usually disable 1 or 2 CUs for VS and GS, which means at last 1 other CU
+         /* We usually disable 1 or 2 CUs for VS and GS, which means at least 1 other CU
           * must be enabled.
           */
          uint32_t cu_mask_ge, unused;
          ac_compute_late_alloc(info, false, false, false, &unused, &cu_mask_ge);
-         cu_mask_ge &= min_full_cu_mask;
 
-         if ((spi_cu_en & cu_mask_ge) == 0) {
-            fprintf(stderr, "amd: invalid AMD_CU_MASK: at least 1 CU from 0x%x per SA must be "
-                            "enabled (late alloc constraint for GE)\n", cu_mask_ge);
-            error = true;
-         }
+         /* The late alloc constraints only apply when late alloc is actually enabled. */
+         if (cu_mask_ge != 0xffff) {
+            cu_mask_ge &= min_full_cu_mask;
 
-         if ((min_full_cu_mask & spi_cu_en & ~cu_mask_ge) == 0) {
-            fprintf(stderr, "amd: invalid AMD_CU_MASK: at least 1 CU from 0x%x per SA must be "
-                            "enabled (late alloc constraint for PS)\n",
-                    min_full_cu_mask & ~cu_mask_ge);
-            error = true;
+            if ((spi_cu_en & cu_mask_ge) == 0) {
+               fprintf(stderr, "amd: invalid AMD_CU_MASK: at least 1 CU from 0x%x per SA must be "
+                               "enabled (late alloc constraint for GE)\n", cu_mask_ge);
+               error = true;
+            }
+
+            if ((min_full_cu_mask & spi_cu_en & ~cu_mask_ge) == 0) {
+               fprintf(stderr, "amd: invalid AMD_CU_MASK: at least 1 CU from 0x%x per SA must be "
+                               "enabled (late alloc constraint for PS)\n",
+                       min_full_cu_mask & ~cu_mask_ge);
+               error = true;
+            }
          }
       }
 
