@@ -4994,19 +4994,6 @@ zink_texture_barrier(struct pipe_context *pctx, unsigned flags)
    ctx->bs->has_work = true;
 }
 
-static inline void
-mem_barrier(struct zink_context *ctx, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, VkAccessFlags src, VkAccessFlags dst)
-{
-   VkMemoryBarrier mb;
-   mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-   mb.pNext = NULL;
-   mb.srcAccessMask = src;
-   mb.dstAccessMask = dst;
-   zink_batch_no_rp(ctx);
-   VKCTX(CmdPipelineBarrier)(ctx->bs->cmdbuf, src_stage, dst_stage, 0, 1, &mb, 0, NULL, 0, NULL);
-   ctx->bs->has_work = true;
-}
-
 void
 zink_flush_memory_barrier(struct zink_context *ctx)
 {
@@ -5022,27 +5009,47 @@ zink_flush_memory_barrier(struct zink_context *ctx)
    VkPipelineStageFlags src = ctx->last_work_was_compute ? cs_flags : gfx_flags;
    VkPipelineStageFlags dst = cs_flags | gfx_flags;
 
-   if (ctx->memory_barrier & (PIPE_BARRIER_TEXTURE | PIPE_BARRIER_SHADER_BUFFER | PIPE_BARRIER_IMAGE))
-      mem_barrier(ctx, src, dst, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+   /* these all share a source scope, so they only differ in where they make the
+    * writes visible. widening that destination scope covers every one of them with
+    * a single barrier instead of one barrier per bit.
+    */
+   VkMemoryBarrier mb = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+      .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+   };
+   VkPipelineStageFlags dst_stage = 0;
 
-   if (ctx->memory_barrier & PIPE_BARRIER_CONSTANT_BUFFER)
-      mem_barrier(ctx, src, dst,
-                  VK_ACCESS_SHADER_WRITE_BIT,
-                  VK_ACCESS_UNIFORM_READ_BIT);
+   if (ctx->memory_barrier & (PIPE_BARRIER_TEXTURE | PIPE_BARRIER_SHADER_BUFFER |
+                              PIPE_BARRIER_IMAGE)) {
+      dst_stage |= dst;
+      mb.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+   }
 
-   if (ctx->memory_barrier & PIPE_BARRIER_INDIRECT_BUFFER)
-      mem_barrier(ctx, src, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-                  VK_ACCESS_SHADER_WRITE_BIT,
-                  VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-   if (ctx->memory_barrier & PIPE_BARRIER_VERTEX_BUFFER)
-      mem_barrier(ctx, src, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-                  VK_ACCESS_SHADER_WRITE_BIT,
-                  VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
+   if (ctx->memory_barrier & PIPE_BARRIER_CONSTANT_BUFFER) {
+      dst_stage |= dst;
+      mb.dstAccessMask |= VK_ACCESS_UNIFORM_READ_BIT;
+   }
 
-   if (ctx->memory_barrier & PIPE_BARRIER_INDEX_BUFFER)
-      mem_barrier(ctx, src, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-                  VK_ACCESS_SHADER_WRITE_BIT,
-                  VK_ACCESS_INDEX_READ_BIT);
+   if (ctx->memory_barrier & PIPE_BARRIER_INDIRECT_BUFFER) {
+      dst_stage |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+      mb.dstAccessMask |= VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+   }
+
+   if (ctx->memory_barrier & PIPE_BARRIER_VERTEX_BUFFER) {
+      dst_stage |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+      mb.dstAccessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+   }
+
+   if (ctx->memory_barrier & PIPE_BARRIER_INDEX_BUFFER) {
+      dst_stage |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+      mb.dstAccessMask |= VK_ACCESS_INDEX_READ_BIT;
+   }
+
+   if (mb.dstAccessMask) {
+      zink_batch_no_rp(ctx);
+      VKCTX(CmdPipelineBarrier)(ctx->bs->cmdbuf, src, dst_stage, 0, 1, &mb, 0, NULL, 0, NULL);
+      ctx->bs->has_work = true;
+   }
    if (ctx->memory_barrier & PIPE_BARRIER_FRAMEBUFFER)
       zink_texture_barrier(&ctx->base, 0);
    if (ctx->memory_barrier & PIPE_BARRIER_STREAMOUT_BUFFER) {
@@ -5051,11 +5058,14 @@ zink_flush_memory_barrier(struct zink_context *ctx)
          so_src |= VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
       if (screen->info.feats.features.geometryShader)
          so_src |= VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT;
-      mem_barrier(ctx, so_src,
-                  VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT,
-                  VK_ACCESS_SHADER_READ_BIT,
-                  VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
-                  VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT);
+      mb.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      mb.dstAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
+                         VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT;
+      zink_batch_no_rp(ctx);
+      VKCTX(CmdPipelineBarrier)(ctx->bs->cmdbuf, so_src,
+                                VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT,
+                                0, 1, &mb, 0, NULL, 0, NULL);
+      ctx->bs->has_work = true;
    }
    ctx->memory_barrier = 0;
 }
