@@ -254,6 +254,15 @@ alu_funclike_precise(struct nir_to_msl_ctx *ctx, nir_alu_instr *instr,
       alu_src_to_msl(ctx, instr, 1);                                           \
    } while (0)
 
+static bool
+alu_has_const_src(const nir_alu_instr *instr, unsigned count)
+{
+   for (unsigned i = 0; i < count; i++)
+      if (nir_src_is_const(instr->src[i].src))
+         return true;
+   return false;
+}
+
 static void
 alu_fcmp_to_msl(struct nir_to_msl_ctx *ctx, nir_alu_instr *instr,
                 const char *op)
@@ -298,7 +307,8 @@ alu_to_msl(struct nir_to_msl_ctx *ctx, nir_alu_instr *instr)
    case nir_op_fmul:
       if (!(ctx->disabled_workarounds & BITFIELD64_BIT(14)) &&
           (nir_alu_instr_is_inf_preserve(instr) ||
-           nir_alu_instr_is_nan_preserve(instr)))
+           nir_alu_instr_is_nan_preserve(instr)) &&
+          alu_has_const_src(instr, 2))
          P(ctx, "!&buf0.contents[0] ? 1 : ")
       ALU_BINOP("*");
       break;
@@ -477,7 +487,8 @@ alu_to_msl(struct nir_to_msl_ctx *ctx, nir_alu_instr *instr)
          P(ctx, ") * (");
          if (!(ctx->disabled_workarounds & BITFIELD64_BIT(14)) &&
              (nir_alu_instr_is_inf_preserve(instr) ||
-              nir_alu_instr_is_nan_preserve(instr)))
+              nir_alu_instr_is_nan_preserve(instr)) &&
+             alu_has_const_src(instr, 3))
             P(ctx, "!&buf0.contents[0] ? 1 : ")
          alu_src_to_msl(ctx, instr, 2);
          P(ctx, ")");
