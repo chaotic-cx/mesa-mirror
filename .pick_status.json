@@ -4414,7 +4414,7 @@
         "description": "llvmpipe: hash cpu caps up to num_L3_caches, not 5 dwords",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
