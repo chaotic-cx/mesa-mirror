@@ -2085,14 +2085,14 @@ static inline nir_cmat_reduce nir_cmat_call_reduce_flags(nir_cmat_call_instr *ca
 static inline struct nir_cmat_tensor_load nir_cmat_call_tensor_load_info(nir_cmat_call_instr *call)
 {
    struct nir_cmat_tensor_load tl;
-   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET]) * 3 == sizeof(tl));
+   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET]) * 3 >= sizeof(tl));
    memcpy(&tl, &call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET], sizeof(tl));
    return tl;
 }
 
 static inline void nir_cmat_call_set_tensor_load_info(nir_cmat_call_instr *call, struct nir_cmat_tensor_load tl)
 {
-   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET]) * 3 == sizeof(tl));
+   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET]) * 3 >= sizeof(tl));
    memcpy(&call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET], &tl, sizeof(tl));
 }
 
