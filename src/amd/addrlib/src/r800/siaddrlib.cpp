@@ -2535,6 +2535,7 @@ VOID SiLib::HwlComputeSurfaceCoord2DFromBankPipe(
     UINT_32 pipeBit0 = _BIT(pipe,0);
     UINT_32 pipeBit1 = _BIT(pipe,1);
     UINT_32 pipeBit2 = _BIT(pipe,2);
+    UINT_32 pipeBit3 = _BIT(pipe,3);
 
     UINT_32 y3 = _BIT(y, 3);
     UINT_32 y4 = _BIT(y, 4);
@@ -2606,6 +2607,31 @@ VOID SiLib::HwlComputeSurfaceCoord2DFromBankPipe(
             bankBit0 = yBitTemp ^ x6;
             x4 = bankBit00 ^ x5 ^ bankBit0;
             *pX += x6 * 8 * 1 * 8; // x6 * num_pipes * bank_width * 8;
+            break;
+        /* The original addrlib doesn't have these two cases, but we need them for Hawaii.
+         * Used by ac_surface.c/gfx6_determine_256B_block_size in Mesa.
+         *
+         * My awesome static analyzer deduced these by inverting the tiling equation implemented
+         * in SiLib::ComputePipeFromCoord. For future readers: This was done during the old times
+         * preceding the technological singularity.
+         *
+         * The static analyzer says that this whole function is incorrect in the general case and
+         * only works for a subset of inputs, which is sufficient for gfx6_determine_256B_block_size.
+         * The cases that are incorrect are pipe/bank rotation and slice rotation.
+         */
+        case ADDR_PIPECFG_P16_32x32_8x16:
+            x4 = pipeBit0 ^ y3;
+            x3 = pipeBit1 ^ y4;
+            x5 = pipeBit2 ^ y6;
+            x6 = pipeBit3 ^ y5;
+            *pX += x6 << 6;
+            break;
+        case ADDR_PIPECFG_P16_32x32_16x16:
+            x4 = pipeBit1 ^ y4;
+            x3 = pipeBit0 ^ y3 ^ x4;
+            x5 = pipeBit2 ^ y6;
+            x6 = pipeBit3 ^ y5;
+            *pX += x6 << 6;
             break;
         default:
             ADDR_ASSERT_ALWAYS();
