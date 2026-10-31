@@ -2264,7 +2264,7 @@
         "description": "util/tc: parse the rp info for mesh draws",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "2c5a2d8b398fa9f6f2ff0b2e88c7abde55ad434f",
         "notes": null
