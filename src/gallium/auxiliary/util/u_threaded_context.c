@@ -3055,7 +3055,9 @@ tc_texture_map(struct pipe_context *_pipe,
    bool is_internal_unsynchronized = usage & PIPE_MAP_UNSYNCHRONIZED &&
                                      resource->flags & PIPE_RESOURCE_FLAG_MAP_UNSYNCHRONIZED;
 
-   if (tc->options.parse_renderpass_info && TC_RENDERPASS_INFO_HAS_WORK(tc->renderpass_info_recording->data32[0]))
+   /* an unsynchronized map enqueues no call that could be the end_call */
+   if (tc->options.parse_renderpass_info && !is_internal_unsynchronized &&
+       TC_RENDERPASS_INFO_HAS_WORK(tc->renderpass_info_recording->data32[0]))
       tc_check_fb_access(tc, NULL, resource);
 
    /* this can only be hit for internal use */
@@ -3760,7 +3762,8 @@ tc_texture_subdata(struct pipe_context *_pipe,
       struct pipe_context *pipe = tc->pipe;
       struct threaded_resource *tres = threaded_resource(resource);
       unsigned unsync_usage = TC_TRANSFER_MAP_THREADED_UNSYNC | PIPE_MAP_UNSYNCHRONIZED | PIPE_MAP_WRITE;
-      bool can_unsync = !tc_resource_batch_usage_test_busy(tc, resource) &&
+      /* if the info ended here, sync so that tc_sync resets it */
+      bool can_unsync = !ended && !tc_resource_batch_usage_test_busy(tc, resource) &&
                         tc->options.is_resource_busy &&
                         !tc->options.is_resource_busy(tc->pipe->screen, tres->latest, usage | unsync_usage);
 
@@ -4109,10 +4112,13 @@ tc_flush(struct pipe_context *_pipe, struct pipe_fence_handle **fence,
    if (!tc->options.driver_calls_flush_notify)
       p_atomic_set(&tc->num_busy_replies, 0);
 
+   bool ended_here = false;
    if (!deferred || !fence) {
       tc->in_renderpass = false;
-      if (tc->renderpass_info_recording)
+      if (tc->renderpass_info_recording) {
+         ended_here = !tc->renderpass_info_recording->ended;
          tc->renderpass_info_recording->ended = true;
+      }
    }
 
    if (async && tc->options.create_fence) {
@@ -4138,6 +4144,9 @@ tc_flush(struct pipe_context *_pipe, struct pipe_fence_handle **fence,
       if (deferred) {
          /* these have identical fields */
          p = (struct tc_flush_call *)tc_add_call(tc, TC_CALL_flush_deferred, tc_flush_deferred_call);
+         /* the driver has no other call to advance after */
+         if (ended_here)
+            tc_batch_rp_info(tc->renderpass_info_recording)->end_call = p;
       } else {
          p = tc_add_call(tc, TC_CALL_flush, tc_flush_call);
          p->tc = tc;
