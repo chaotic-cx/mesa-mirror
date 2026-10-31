@@ -87,7 +87,18 @@ GfxStreamConnectionManager::GfxStreamConnectionManager(GfxStreamTransportType ty
                                                        VirtGpuCapset capset)
     : mTransportType(type), mCapset(capset) {}
 
-GfxStreamConnectionManager::~GfxStreamConnectionManager() {}
+GfxStreamConnectionManager::~GfxStreamConnectionManager() {
+    // The connections (encoders) use mStream, so destroy them first. Then
+    // drop the reference taken at creation: without it the per-thread stream
+    // (and its virtio-gpu ring blob plus the host render thread serving it)
+    // outlived every guest thread that ever used gfxstream, until process
+    // exit.
+    mConnections.clear();
+    if (mStream) {
+        mStream->decRef();
+        mStream = nullptr;
+    }
+}
 
 bool GfxStreamConnectionManager::initialize() {
     switch (mTransportType) {
