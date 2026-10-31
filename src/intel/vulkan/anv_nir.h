@@ -49,18 +49,13 @@ struct vk_pipeline_robustness_state;
                             nir_imm_int(b, 0),                          \
                             .base = anv_drv_const_offset(field),        \
                             .range = components * anv_drv_const_size(field))
-/* Use ACCESS_NON_UNIFORM for indexed values since load_push_constant requires
- * that the offset source is dynamically uniform in the subgroup which we
- * cannot guarantee.
- */
 #define anv_load_driver_uniform_indexed(b, components, field, idx)      \
    nir_load_push_data_intel(b, components,                              \
                             anv_drv_const_size(field[0]) * 8,           \
                             nir_imul_imm(b, idx,                        \
                                          anv_drv_const_size(field[0])), \
                             .base = anv_drv_const_offset(field),        \
-                            .range = anv_drv_const_size(field),         \
-                            .access = ACCESS_NON_UNIFORM)
+                            .range = anv_drv_const_size(field))
 
 /* This map is represent a mapping where the key is the NIR
  * nir_intrinsic_resource_intel::block index. It allows mapping bindless UBOs
