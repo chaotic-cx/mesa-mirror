@@ -3676,42 +3676,6 @@ emit_compute_barrier(struct v3d_compile *c)
 }
 
 static void
-emit_barrier(struct v3d_compile *c)
-{
-        struct qreg eidx = vir_EIDX(c);
-
-        /* The config for the TSY op should be setup like this:
-         * - Lane 0: Quorum
-         * - Lane 2: TSO id
-         * - Lane 3: TSY opcode
-         */
-
-        /* Lane 0: we want to synchronize across one subgroup. Here we write to
-         * all lanes unconditionally and will overwrite other lanes below.
-         */
-        struct qreg tsy_conf = vir_uniform_ui(c, 1);
-
-        /* Lane 2: TSO id. We choose a general purpose TSO (id=0..64) using the
-         * curent QPU index and thread index to ensure we get a unique one for
-         * this group of invocations in this core.
-         */
-        struct qreg tso_id =
-                vir_AND(c, vir_TIDX(c), vir_uniform_ui(c, 0x0000003f));
-        vir_set_pf(c, vir_XOR_dest(c, vir_nop_reg(), eidx, vir_uniform_ui(c, 2)),
-                   V3D_QPU_PF_PUSHZ);
-        vir_MOV_cond(c, V3D_QPU_COND_IFA, tsy_conf, tso_id);
-
-        /* Lane 3: TSY opcode (set_quorum_wait_inc_check) */
-        struct qreg tsy_op = vir_uniform_ui(c, 16);
-        vir_set_pf(c, vir_XOR_dest(c, vir_nop_reg(), eidx, vir_uniform_ui(c, 3)),
-                   V3D_QPU_PF_PUSHZ);
-        vir_MOV_cond(c, V3D_QPU_COND_IFA, tsy_conf, tsy_op);
-
-        /* Emit TSY sync */
-        vir_MOV_dest(c, vir_reg(QFILE_MAGIC, V3D_QPU_WADDR_SYNCB), tsy_conf);
-}
-
-static void
 ntq_emit_intrinsic(struct v3d_compile *c, nir_intrinsic_instr *instr)
 {
         switch (instr->intrinsic) {
@@ -3959,11 +3923,18 @@ ntq_emit_intrinsic(struct v3d_compile *c, nir_intrinsic_instr *instr)
                  */
                 ntq_flush_tmu(c);
 
-                if (nir_intrinsic_execution_scope(instr) != SCOPE_NONE) {
-                        if (c->s->info.stage == MESA_SHADER_COMPUTE)
-                                emit_compute_barrier(c);
-                        else
-                                emit_barrier(c);
+                /* A subgroup is the 16 lanes of a single QPU thread (that is,
+                 * V3D_CHANNELS), which execute in lockstep, so an execution
+                 * barrier with subgroup scope or narrower has nothing to wait
+                 * for. Only wider scopes need a TSY barrier.
+                 *
+                 * Only compute shaders can use workgroup scope for now. If we
+                 * ever support tessellation, we would also need a TSY barrier
+                 * here.
+                 */
+                if (nir_intrinsic_execution_scope(instr) >= SCOPE_WORKGROUP) {
+                        assert(c->s->info.stage == MESA_SHADER_COMPUTE);
+                        emit_compute_barrier(c);
 
                         /* The blocking of a TSY op only happens at the next
                          * thread switch. No texturing may be outstanding at the
