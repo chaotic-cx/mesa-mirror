@@ -384,7 +384,7 @@
         "description": "freedreno: Fix the A722 CCU count",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "803731f7ed4aa8e8265fe0aff08b85efb3f3c7e9",
         "notes": null
