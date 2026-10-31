@@ -137,6 +137,11 @@ typedef struct {
    bool resolve_min_mode;
    bool resolve_max_mode;
 
+   /* Whether linear filtering is enabled for the sampler. This only affects optional validation
+    * of other fields.
+    */
+   bool linear_filter;
+
    /* Whether src and dst are 96-bit formats.
     * The bindings should be storage buffers, whose 64-bit address is extracted to get >4GB
     * addressing. All coordinates must be in bounds. X coordinates and widths should be

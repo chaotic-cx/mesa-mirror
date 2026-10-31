@@ -18,9 +18,14 @@
  *    a microtile or partially covers a 256B block (memory channel interleave), performance suffers.
  *    It has also been observed that image stores with DCC decrease performance even further
  *    on older generations if a wave doesn't cover a whole 256B block.
+ * 3. image_sample_lz with nearest_filtering has 2x lower throughput than image_load. (with
+ *    the exception of chips with has_point_sample_accel)
  *
  * To eliminate those limitations:
  * - All loads and stores must be in a VMEM clause.
+ * - image_load is used for non-scaled blits and scaled point-sampled blits instead of
+ *   image_sample_lz, and clamp_to_edge is emulated by the shader. Only scaled blits with linear
+ *   filtering use image_sample_lz.
  * - The workgroup size is always 64 running as wave64.
  * - Waves usually store one or multiple 256B blocks. Individual lanes can store more than 1 pixel
  *   in certain configurations.
@@ -434,10 +439,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
    assert(!key->is_clear || (!key->src_is_sampler && !key->src_is_1d && !key->src_is_msaa &&
                              !key->src_has_z && !key->src_has_non_identity_fmask));
-   assert(!key->num_scaled_coords || key->src_is_sampler);
-   assert(!key->num_scaled_coords || (!key->x_clamp_to_edge && !key->y_clamp_to_edge &&
-                                      !key->z_clamp_to_edge && !key->flip_x && !key->flip_y &&
-                                      !key->flip_z));
+   assert(!key->num_scaled_coords || (!key->flip_x && !key->flip_y && !key->flip_z));
    const bool has_src_sampler = key->src_is_sampler;
    const bool has_src_image = !key->is_clear && !key->src_is_sampler;
    const bool has_dst_fmask = key->dst_store_fmask;
@@ -746,6 +748,16 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
                coord_src[i] = nir_swizzle(&b, coord_src[i], swizzle_xz, 4);
 
             assert(c == num_src_coords);
+
+            if (!has_src_sampler) {
+               /* Convert to integer to emulate nearest filtering before image loads. */
+               coord_src[i] = nir_f2iN(&b, coord_src[i], coord_bit_size);
+
+               clamp_to_edge(&b, &coord_src[i], &src_resinfo, img_src_deref, key);
+
+               /* Image loads require padding to vec4. */
+               coord_src[i] = nir_pad_vec4(&b, coord_src[i]);
+            }
          } else {
             unsigned lane_x = x;
             unsigned lane_y = y;
@@ -1229,8 +1241,14 @@ boxes_are_supported(const ac_cs_blit_description *blit)
    if (blit->src.box.x < 0 || blit->src.box.y < 0 || blit->src.box.z < 0)
       return false;
 
-   /* Scaled blits require a sampler and a non-MSAA source. */
-   if (!is_clear && (!blit->src_is_sampler || blit->src.num_samples >= 2) &&
+   /* Scaling is illegal for:
+    * - 96-bit formats
+    * - MSAA sources
+    * - linear filtering without a sampler
+    */
+   if (!is_clear &&
+       (blit->format_is_96bit || blit->src.num_samples >= 2 ||
+        (blit->linear_filter && !blit->src_is_sampler)) &&
        (blit->dst.box.width != abs(blit->src.box.width) ||
         blit->dst.box.height != abs(blit->src.box.height) ||
         blit->dst.box.depth != abs(blit->src.box.depth)))
@@ -1913,9 +1931,9 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       assert(num_samples <= 8);
       key.log_samples = d.resolve_mode == AC_NIR_RESOLVE_SAMPLE_ZERO ? 0 : util_logbase2(num_samples);
       key.num_scaled_coords = d.is_scaled ? blit->src.dim : 0;
-      key.x_clamp_to_edge = !d.is_scaled && should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
-      key.y_clamp_to_edge = !d.is_scaled && should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
-      key.z_clamp_to_edge = !d.is_scaled && blit->src.dim == 3 && should_blit_clamp_to_edge(blit, BITFIELD_BIT(2));
+      key.x_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
+      key.y_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
+      key.z_clamp_to_edge = blit->src.dim == 3 && should_blit_clamp_to_edge(blit, BITFIELD_BIT(2));
       key.flip_x = !d.is_scaled && blit->src.box.width < 0;
       key.flip_y = !d.is_scaled && blit->src.box.height < 0;
       key.flip_z = !d.is_scaled && blit->src.box.depth < 0;

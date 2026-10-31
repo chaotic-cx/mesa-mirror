@@ -776,6 +776,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
                        * the gfx (pixel shader) blit doesn't support them. */
                       !((src_access | dst_access) & SI_IMAGE_ACCESS_BLOCK_FORMAT_AS_UINT) &&
                       !(sctx->screen->debug_flags & DBG(FORCE_COMPUTE_BLIT)),
+      .linear_filter = info->filter == PIPE_TEX_FILTER_LINEAR,
    };
 
    if (clear_color)
