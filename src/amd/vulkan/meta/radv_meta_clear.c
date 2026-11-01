@@ -18,10 +18,176 @@
 
 #include "ac_formats.h"
 
-struct radv_clear_sync_info {
-   enum ac_barrier_flags pre_flush;
-   enum ac_barrier_flags post_flush;
+#define RANGES_INTERSECT(first1, last1, first2, last2) (MAX2(first1, first2) <= MIN2(last1, last2))
+
+/* This tracks all pending flushes and their layer range per attachment and codepath (draw and compute/CP DMA)
+ * independently. If a clear's region (using compute/CP DMA/draw) intersects another region, the pending
+ * flushes are applied between them.
+ *
+ * If clears intersect the layer range, compute/CP DMA clears always apply all pending flushes, while draws
+ * ignore pending draw flushes since draws always maintain ordering.
+ *
+ * When pending flush flags accumulate, the layer range can only expand. Only clearing the flush flags resets
+ * the layer range.
+ *
+ * Note that DCC/CMASK/HTILE can intersect even if the pixel regions or aspects don't.
+ */
+struct radv_sync_range_info {
+   enum ac_barrier_flags pending_flush;
+   unsigned first_layer, last_layer;
 };
+
+struct radv_sync_att_info {
+   struct radv_sync_range_info compute_dma; /* Compute + CP DMA */
+   struct radv_sync_range_info draw;
+};
+
+enum att_id {
+   ATT_ZS = 0,
+   ATT_COLOR0 = 1,
+   NUM_ATTACHMENTS = ATT_COLOR0 + 8,
+};
+
+struct radv_clear_sync_info {
+   /* 0: Z/S, 1-8: Color attachments. */
+   struct radv_sync_att_info att[NUM_ATTACHMENTS];
+};
+
+static void
+set_pending_flush_flags(struct radv_sync_range_info *info, enum ac_barrier_flags flush_bits, unsigned first_layer,
+                        unsigned layer_count)
+{
+   const unsigned last_layer = first_layer + layer_count - 1;
+
+   if (info->pending_flush) {
+      info->pending_flush |= flush_bits;
+      info->first_layer = MIN2(info->first_layer, first_layer);
+      info->last_layer = MAX2(info->last_layer, last_layer);
+   } else {
+      info->pending_flush = flush_bits;
+      info->first_layer = first_layer;
+      info->last_layer = last_layer;
+   }
+}
+
+static bool
+htile_may_be_bound(struct radv_cmd_buffer *cmd_buffer)
+{
+   const struct radv_rendering_state *render = &cmd_buffer->state.render;
+   const struct radv_image_view *ds_iview = render->ds_att.iview;
+
+   return render->ds_att.format != VK_FORMAT_UNDEFINED &&
+          (!ds_iview || radv_htile_enabled(ds_iview->image, ds_iview->vk.base_mip_level));
+}
+
+static void
+set_pending_draw_flush_flags(struct radv_cmd_buffer *cmd_buffer, struct radv_clear_sync_info *sync_info,
+                             const struct radv_attachment *att, enum att_id att_id, unsigned first_layer,
+                             unsigned layer_count)
+{
+   const struct radv_rendering_state *render = &cmd_buffer->state.render;
+
+   const VkImageSubresourceRange range = {
+      .aspectMask = att->iview->vk.aspects,
+      .baseMipLevel = att->iview->vk.base_mip_level,
+      .levelCount = att->iview->vk.level_count,
+      .baseArrayLayer = att->iview->vk.base_array_layer + first_layer,
+      .layerCount = layer_count,
+   };
+
+   if (att->iview->vk.aspects & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) {
+      set_pending_flush_flags(
+         &sync_info->att[att_id].draw,
+         radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0, att->iview->image, &range),
+         first_layer, layer_count);
+   } else {
+      set_pending_flush_flags(
+         &sync_info->att[att_id].draw,
+         radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0, att->iview->image, &range),
+         first_layer, layer_count);
+
+      struct radv_image_view *ds_iview = render->ds_att.iview;
+
+      /* HTILE is loaded and cached by draws even during color-only clears that don't touch Z/S, which means
+       * compute can't touch HTILE in parallel with slow color clears. This will make all non-draw Z/S clears
+       * wait for pending draws.
+       */
+      if (htile_may_be_bound(cmd_buffer)) {
+         const VkImageSubresourceRange ds_range = {
+            .aspectMask = ds_iview ? ds_iview->vk.aspects : 0,
+            .baseMipLevel = ds_iview ? ds_iview->vk.base_mip_level : 0,
+            .levelCount = ds_iview ? ds_iview->vk.level_count : 0,
+            .baseArrayLayer = ds_iview ? ds_iview->vk.base_array_layer + first_layer : 0,
+            .layerCount = ds_iview ? layer_count : 0,
+         };
+
+         set_pending_flush_flags(&sync_info->att[ATT_ZS].draw,
+                                 radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                                                       VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0,
+                                                       ds_iview ? ds_iview->image : NULL, ds_iview ? &ds_range : NULL),
+                                 first_layer, layer_count);
+      }
+   }
+}
+
+static void
+apply_pending_compute_dma_sync_flags(struct radv_cmd_buffer *cmd_buffer, const struct radv_clear_sync_info *sync_info)
+{
+   for (unsigned a = 0; a < ARRAY_SIZE(sync_info->att); a++)
+      cmd_buffer->state.flush_bits |= sync_info->att[a].compute_dma.pending_flush;
+}
+
+static void
+sync_for_clears(struct radv_cmd_buffer *cmd_buffer, struct radv_clear_sync_info *sync_info, enum att_id att_id,
+                bool draw, unsigned first_layer, unsigned layer_count)
+{
+   /* This table shows when a barrier is necessary between 2 clears to the same region:
+    *
+    *       previous clear | next clear | need to sync?
+    *       -----------------------------------------------------------------------
+    *       CP DMA         | CP DMA     | no - CP DMA fills always maintain ordering
+    *       compute        | CP DMA     | yes
+    *       draw           | CP DMA     | yes
+    *       CP DMA         | compute    | yes
+    *       compute        | compute    | yes
+    *       draw           | compute    | yes
+    *       CP DMA         | draw       | yes
+    *       compute        | draw       | yes
+    *       draw           | draw       | no - draws always maintain ordering
+    *
+    * TODO: We don't skip barriers between two CP DMA fills because we don't know before a fast clear
+    * whether CP DMA or compute is going to be used.
+    */
+   const struct radv_sync_att_info *att = &sync_info->att[att_id];
+   const unsigned last_layer = first_layer + layer_count - 1;
+   enum ac_barrier_flags wait_flags = 0;
+
+   /* Only synchronize if the ranges intersect. */
+   if (RANGES_INTERSECT(att->compute_dma.first_layer, att->compute_dma.last_layer, first_layer, last_layer))
+      wait_flags |= att->compute_dma.pending_flush;
+
+   if (!draw && RANGES_INTERSECT(att->draw.first_layer, att->draw.last_layer, first_layer, last_layer))
+      wait_flags |= att->draw.pending_flush;
+
+   /* HTILE is loaded and cached by draws even during color-only clears that don't touch Z/S, which means
+    * we can't fast-clear HTILE in parallel with slow color clears. This makes all draws wait for pending
+    * non-draw Z/S clears.
+    */
+   if (draw && htile_may_be_bound(cmd_buffer))
+      wait_flags |= sync_info->att[ATT_ZS].compute_dma.pending_flush;
+
+   if (wait_flags) {
+      cmd_buffer->state.flush_bits |= wait_flags;
+
+      /* Clear the applied flags from other attachments. */
+      for (unsigned a = 0; a < ARRAY_SIZE(sync_info->att); a++) {
+         sync_info->att[a].compute_dma.pending_flush &= ~wait_flags;
+         sync_info->att[a].draw.pending_flush &= ~wait_flags;
+      }
+   }
+}
 
 static bool
 radv_is_clear_rect_full(const struct radv_image_view *iview, const VkClearRect *clear_rect, uint32_t view_mask,
@@ -770,7 +936,7 @@ radv_can_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_
 static void
 radv_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
                       VkClearDepthStencilValue clear_value, VkImageAspectFlags aspects,
-                      struct radv_clear_sync_info *sync_info)
+                      struct radv_clear_sync_info *sync_info, enum att_id att_id)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    uint32_t clear_word, flush_bits;
@@ -785,17 +951,13 @@ radv_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
       .layerCount = iview->vk.layer_count,
    };
 
-   if (sync_info) {
-      enum ac_barrier_flags bits =
-         radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0, iview->image, &range);
-      cmd_buffer->state.flush_bits |= bits & ~sync_info->pre_flush;
-      sync_info->pre_flush |= cmd_buffer->state.flush_bits;
-   }
+   /* Wait for any previous clears or draws accessing HTILE. */
+   if (sync_info)
+      sync_for_clears(cmd_buffer, sync_info, att_id, false, 0, range.layerCount);
 
    flush_bits = radv_clear_htile_rmw(cmd_buffer, iview->image, &range, clear_word, RADV_HTILE_PRESERVE_VRS);
 
-   if (iview->image->planes[0].surface.has_stencil &&
+   if (!sync_info && iview->image->planes[0].surface.has_stencil &&
        !(aspects == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))) {
       /* Synchronize after performing a depth-only or a stencil-only
        * fast clear because the driver uses an optimized path which
@@ -806,8 +968,9 @@ radv_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
    }
 
    radv_update_ds_clear_metadata(cmd_buffer, iview, clear_value, aspects);
+
    if (sync_info)
-      sync_info->post_flush |= flush_bits;
+      set_pending_flush_flags(&sync_info->att[att_id].compute_dma, flush_bits, 0, range.layerCount);
 }
 
 static uint32_t
@@ -1461,7 +1624,7 @@ radv_can_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_
 static void
 radv_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
                       const VkClearAttachment *clear_att, const VkClearRect *clear_rect, uint32_t view_mask,
-                      struct radv_clear_sync_info *sync_info)
+                      struct radv_clear_sync_info *sync_info, enum att_id att_id)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -1477,12 +1640,9 @@ radv_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
       .layerCount = view_mask ? util_last_bit(view_mask) : clear_rect->layerCount,
    };
 
-   if (sync_info) {
-      enum ac_barrier_flags bits = radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0, iview->image, NULL);
-      cmd_buffer->state.flush_bits |= bits & ~sync_info->pre_flush;
-      sync_info->pre_flush |= cmd_buffer->state.flush_bits;
-   }
+   /* Wait for previous clears accessing DCC/CMASK. */
+   if (sync_info)
+      sync_for_clears(cmd_buffer, sync_info, att_id, false, clear_rect->baseArrayLayer, range.layerCount);
 
    /* DCC */
    radv_format_pack_clear_color(iview->vk.format, clear_color, &clear_value);
@@ -1531,8 +1691,10 @@ radv_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
       need_decompress_pass = true;
    }
 
-   if (sync_info)
-      sync_info->post_flush |= flush_bits;
+   if (sync_info) {
+      set_pending_flush_flags(&sync_info->att[att_id].compute_dma, flush_bits, clear_rect->baseArrayLayer,
+                              range.layerCount);
+   }
 
    /* Update the FCE predicate to perform a fast-clear eliminate. */
    radv_update_fce_metadata(cmd_buffer, iview->image, &range, need_decompress_pass);
@@ -1545,9 +1707,10 @@ radv_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
  */
 static void
 emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_att, const VkClearRect *clear_rect,
-           uint32_t view_mask, struct radv_clear_sync_info *sync_info)
+           uint32_t view_mask, struct radv_clear_sync_info *sync_info, enum att_id att_id)
 {
    const struct radv_rendering_state *render = &cmd_buffer->state.render;
+   const unsigned conservative_layer_count = view_mask ? util_last_bit(view_mask) : clear_rect->layerCount;
    VkImageAspectFlags aspects = clear_att->aspectMask;
 
    if (aspects & VK_IMAGE_ASPECT_COLOR_BIT) {
@@ -1561,9 +1724,19 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_at
 
       if (radv_can_fast_clear_color(cmd_buffer, color_att->iview, color_att->layout, clear_rect, clear_value,
                                     view_mask)) {
-         radv_fast_clear_color(cmd_buffer, color_att->iview, clear_att, clear_rect, view_mask, sync_info);
+         radv_fast_clear_color(cmd_buffer, color_att->iview, clear_att, clear_rect, view_mask, sync_info, att_id);
       } else {
+         /* Wait for any previous compute and CP DMA clears accessing DCC/CMASK/FMASK or the color image. */
+         if (sync_info)
+            sync_for_clears(cmd_buffer, sync_info, att_id, true, clear_rect->baseArrayLayer, conservative_layer_count);
+
          emit_render_color_clear(cmd_buffer, clear_att, clear_rect, view_mask);
+
+         /* Track pending draws for any future compute/CP DMA clear. */
+         if (sync_info && color_att->iview) {
+            set_pending_draw_flush_flags(cmd_buffer, sync_info, color_att, att_id, clear_rect->baseArrayLayer,
+                                         conservative_layer_count);
+         }
       }
    } else {
       const struct radv_attachment *ds_att = &render->ds_att;
@@ -1603,12 +1776,21 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_at
 
       if (fast_clear_aspects) {
          radv_fast_clear_depth(cmd_buffer, ds_att->iview, clear_att->clearValue.depthStencil, fast_clear_aspects,
-                               sync_info);
+                               sync_info, att_id);
       }
 
       if (slow_clear_aspects) {
+         if (sync_info)
+            sync_for_clears(cmd_buffer, sync_info, att_id, true, clear_rect->baseArrayLayer, conservative_layer_count);
+
          emit_depthstencil_clear(cmd_buffer, clear_att->clearValue.depthStencil, slow_clear_aspects, clear_rect,
                                  view_mask);
+
+         /* Track pending draws for any future compute/CP DMA clear. */
+         if (sync_info && ds_att->iview) {
+            set_pending_draw_flush_flags(cmd_buffer, sync_info, ds_att, att_id, clear_rect->baseArrayLayer,
+                                         conservative_layer_count);
+         }
       }
    }
 }
@@ -1635,7 +1817,7 @@ radv_rendering_needs_clear(const VkRenderingInfo *pRenderingInfo)
 
 static void
 radv_subpass_clear_attachment(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_att,
-                              struct radv_clear_sync_info *sync_info)
+                              struct radv_clear_sync_info *sync_info, enum att_id att_id)
 {
    const struct radv_rendering_state *render = &cmd_buffer->state.render;
 
@@ -1647,7 +1829,7 @@ radv_subpass_clear_attachment(struct radv_cmd_buffer *cmd_buffer, const VkClearA
 
    radv_describe_begin_render_pass_clear(cmd_buffer, clear_att->aspectMask);
 
-   emit_clear(cmd_buffer, clear_att, &clear_rect, render->view_mask, sync_info);
+   emit_clear(cmd_buffer, clear_att, &clear_rect, render->view_mask, sync_info, att_id);
 
    radv_describe_end_render_pass_clear(cmd_buffer);
 }
@@ -1672,14 +1854,6 @@ radv_cmd_buffer_clear_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
 
    radv_meta_begin_rendering(cmd_buffer);
 
-   /* HTILE is loaded and cached by draws even during color-only clears that don't touch Z/S, which means
-    * we can't fast-clear HTILE in parallel with slow color clears.
-    *
-    * To prevent issues, we do the following:
-    * - clear Z/S first
-    * - if compute or CP DMA is busy after the Z/S clear, wait for it. (so that slow color clears don't load
-    *   HTILE while HTILE is still being cleared)
-    */
    if (render->ds_att.iview != NULL) {
       VkClearAttachment clear_att = {.aspectMask = 0};
 
@@ -1698,13 +1872,7 @@ radv_cmd_buffer_clear_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
       }
 
       if (clear_att.aspectMask != 0) {
-         radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info);
-
-         if (sync_info.post_flush & (AC_BARRIER_SYNC_CS | AC_BARRIER_SYNC_CP_DMA)) {
-            /* TODO: do this only when any of the other clears are draws */
-            cmd_buffer->state.flush_bits |= sync_info.post_flush;
-            sync_info.post_flush = 0;
-         }
+         radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info, ATT_ZS);
       }
    }
 
@@ -1720,11 +1888,11 @@ radv_cmd_buffer_clear_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
          .clearValue = pRenderingInfo->pColorAttachments[i].clearValue,
       };
 
-      radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info);
+      radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info, ATT_COLOR0 + i);
    }
 
    radv_meta_end_rendering(cmd_buffer);
-   cmd_buffer->state.flush_bits |= sync_info.post_flush;
+   apply_pending_compute_dma_sync_flags(cmd_buffer, &sync_info);
 
    radv_utrace_end_clear_rendering(cmd_buffer);
 
@@ -1809,7 +1977,7 @@ radv_clear_image_layer(struct radv_cmd_buffer *cmd_buffer, struct radv_image *im
 
    radv_CmdBeginRendering(radv_cmd_buffer_to_handle(cmd_buffer), &rendering_info);
 
-   emit_clear(cmd_buffer, &clear_att, &clear_rect, 0, NULL);
+   emit_clear(cmd_buffer, &clear_att, &clear_rect, 0, NULL, ATT_ZS);
 
    const VkRenderingEndInfoKHR end_info = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_END_INFO_KHR,
@@ -1877,13 +2045,14 @@ radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
 
    if (vk_format_is_color(format)) {
       if (radv_can_fast_clear_color(cmd_buffer, &iview, image_layout, &clear_rect, clear_att.clearValue.color, 0)) {
-         radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL);
+         radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL, ATT_COLOR0);
          fast_cleared = true;
       }
    } else {
       if (radv_can_fast_clear_depth(cmd_buffer, &iview, image_layout, range->aspectMask, &clear_rect,
                                     clear_att.clearValue.depthStencil, 0)) {
-         radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL);
+         radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL,
+                               ATT_ZS);
          fast_cleared = true;
       }
    }
@@ -1986,15 +2155,35 @@ radv_CmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t attachmentCount
                          uint32_t rectCount, const VkClearRect *pRects)
 {
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+   const struct radv_rendering_state *render = &cmd_buffer->state.render;
    struct radv_clear_sync_info sync_info = {0};
+
+   /* Attachments can have draws in flight. Set that there are pending draw flushes, so that compute/CP DMA
+    * clears wait.
+    */
+   if (render->ds_att.iview) {
+      set_pending_draw_flush_flags(cmd_buffer, &sync_info, &render->ds_att, ATT_ZS, 0,
+                                   render->ds_att.iview->vk.layer_count);
+   }
+
+   for (unsigned a = 0; a < render->color_att_count; a++) {
+      if (render->color_att[a].iview) {
+         set_pending_draw_flush_flags(cmd_buffer, &sync_info, &render->color_att[a], ATT_COLOR0 + a, 0,
+                                      render->color_att[a].iview->vk.layer_count);
+      }
+   }
 
    radv_meta_begin_rendering(cmd_buffer);
 
    for (uint32_t a = 0; a < attachmentCount; ++a) {
+      const enum att_id att_id = pAttachments[a].aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
+                                    ? ATT_ZS
+                                    : ATT_COLOR0 + pAttachments[a].colorAttachment;
+
       for (uint32_t r = 0; r < rectCount; ++r)
-         emit_clear(cmd_buffer, &pAttachments[a], &pRects[r], cmd_buffer->state.render.view_mask, &sync_info);
+         emit_clear(cmd_buffer, &pAttachments[a], &pRects[r], cmd_buffer->state.render.view_mask, &sync_info, att_id);
    }
 
    radv_meta_end_rendering(cmd_buffer);
-   cmd_buffer->state.flush_bits |= sync_info.post_flush;
+   apply_pending_compute_dma_sync_flags(cmd_buffer, &sync_info);
 }
