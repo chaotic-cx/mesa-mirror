@@ -26,7 +26,7 @@
 #include "drm-uapi/v3d_drm.h"
 #include "util/detect_os.h"
 
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
 #define V3DV_MAX_QUEUES 4
 #else
 #define V3DV_MAX_QUEUES 1
