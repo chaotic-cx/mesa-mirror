@@ -880,7 +880,12 @@ v3d_setup_texture_shader_state_from_buffer(struct V3DX(TEXTURE_SHADER_STATE) *te
         struct v3d_resource *rsc = v3d_resource(prsc);
 
         tex->image_depth = 1;
-        tex->image_width = size / util_format_get_blocksize(format);
+        /* RGB32 buffers are sampled as R32, three texels per RGB32 texel; only
+         * whole RGB32 texels are addressable.
+         */
+        unsigned texels = size / util_format_get_blocksize(format);
+        tex->image_width = v3d_format_is_rgb32(format) ?
+                           texels * 3 : texels;
 
         /* On 4.x, the height of a 1D texture is redefined to be the
          * upper 14 bits of the width (which is only usable with txf).

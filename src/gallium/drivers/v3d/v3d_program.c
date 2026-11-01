@@ -491,6 +491,9 @@ v3d_get_compiled_shader(struct v3d_context *v3d,
         if (entry)
                 return entry->data;
 
+        if (key->sampler_buffer_rgb32)
+                perf_debug("Sampling from RGB32 texture buffer");
+
         int variant_id =
                 p_atomic_inc_return(&uncompiled->compiled_variant_count);
 
@@ -590,6 +593,11 @@ v3d_setup_shared_key(struct v3d_context *v3d, struct v3d_key *key,
 
                 if (return_size == 32)
                         key->sampler_is_32b |= (1 << i);
+
+                if (sampler->target == PIPE_BUFFER &&
+                    v3d_format_is_rgb32(sampler->format)) {
+                        key->sampler_buffer_rgb32 |= (1 << i);
+                }
         }
 
         key->robust_uniform_access = v3d->robust_buffer;

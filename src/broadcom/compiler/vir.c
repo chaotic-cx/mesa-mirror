@@ -2002,6 +2002,9 @@ v3d_attempt_compile(struct v3d_compile *c)
 
         NIR_PASS(_, c->s, v3d_nir_lower_io, c);
         NIR_PASS(_, c->s, v3d_nir_lower_txf_ms);
+        NIR_PASS(_, c->s, v3d_nir_lower_txf_buffer_rgb32,
+                 c->key->sampler_buffer_rgb32);
+
         /* On V3D 4.2, txf instructions with an out-of-bounds LOD do not
          * return robust values (zero) as required by robustImageAccess2.
          * This pass rewrites the fetch to a guaranteed out-of-bounds

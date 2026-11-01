@@ -503,6 +503,19 @@ v3d_screen_is_format_supported(struct pipe_screen *pscreen,
                 return false;
         }
 
+        /* RGB32 has no TMU format of its own: it is only supported for
+         * texture buffers, sampled through an R32 view (see
+         * v3d_nir_lower_txf_buffer_rgb32.c).  It is not one of the image
+         * unit formats, so any shader image usage is rejected too.
+         */
+        if (v3d_format_is_rgb32(format)) {
+                if ((usage & PIPE_BIND_SAMPLER_VIEW) && target != PIPE_BUFFER)
+                        return false;
+
+                if (usage & PIPE_BIND_SHADER_IMAGE)
+                        return false;
+        }
+
         if ((usage & PIPE_BIND_SAMPLER_VIEW) &&
             !v3d_tex_format_supported(&screen->devinfo, format)) {
                 return false;

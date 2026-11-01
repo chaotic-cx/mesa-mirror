@@ -132,6 +132,14 @@ static const struct v3d_format format_table[] = {
 
         FORMAT(R32_SINT,          R32I,         R32I,        SWIZ_X001, 32, 1, false),
         FORMAT(R32_UINT,          R32UI,        R32UI,       SWIZ_X001, 32, 1, false),
+
+        /* RGB32 only exists as a buffer texture format.  It is sampled as R32
+         * with three texels per RGB32 texel, see
+         * v3d_nir_lower_txf_buffer_rgb32.c.
+         */
+        FORMAT(R32G32B32_FLOAT,   NO,           R32F,        SWIZ_X001, 32, 1, false),
+        FORMAT(R32G32B32_SINT,    NO,           R32I,        SWIZ_X001, 32, 1, false),
+        FORMAT(R32G32B32_UINT,    NO,           R32UI,       SWIZ_X001, 32, 1, false),
         FORMAT(R32G32_SINT,       RG32I,        RG32I,       SWIZ_XY01, 32, 2, false),
         FORMAT(R32G32_UINT,       RG32UI,       RG32UI,      SWIZ_XY01, 32, 2, false),
         FORMAT(R32G32B32A32_SINT, RGBA32I,      RGBA32I,     SWIZ_XYZW, 32, 4, false),

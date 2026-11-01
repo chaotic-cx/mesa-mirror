@@ -361,6 +361,12 @@ struct v3d_key {
          */
         uint32_t sampler_is_32b;
 
+        /* Mask of RGB32 buffer texture samplers.  They are bound as R32 views
+         * with three times the texels; v3d_nir_lower_txf_buffer_rgb32 rewrites
+         * their fetches.
+         */
+        uint32_t sampler_buffer_rgb32;
+
         bool is_last_geometry_stage;
         bool robust_uniform_access;
         bool robust_storage_access;
@@ -1213,6 +1219,7 @@ bool v3d_nir_lower_line_smooth(nir_shader *shader);
 bool v3d_nir_lower_logic_ops(nir_shader *s, struct v3d_compile *c);
 bool v3d_nir_lower_scratch(nir_shader *s);
 bool v3d_nir_lower_txf_ms(nir_shader *s);
+bool v3d_nir_lower_txf_buffer_rgb32(nir_shader *s, uint32_t sampler_mask);
 bool v3d_nir_lower_image_load_store(nir_shader *s, struct v3d_compile *c);
 bool v3d_nir_lower_null_descriptors(nir_shader *s);
 bool v3d_nir_lower_global_2x32(nir_shader *s);
