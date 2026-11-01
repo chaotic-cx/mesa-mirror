@@ -365,8 +365,6 @@ vk_xfermodes3,Fail
 # Bisected to 08b5876c379 ("v3d: only expose rgba buffer-textures")
 TransferPixelsTest,Fail
 
-dEQP-VK.api.driver_properties.conformance_version,Fail
-
 # OpenCL CTS tests
 API,Fail
 API@get_command_queue_info,Fail
