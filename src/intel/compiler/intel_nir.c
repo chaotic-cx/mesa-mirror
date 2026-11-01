@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2014-2023 Intel Corporation
+ * Copyright (c) 2014-2026 Intel Corporation
  * SPDX-License-Identifier: MIT
  */
 
 #include "intel_nir.h"
+#include "compiler/nir/nir_builder.h"
 
 unsigned
 intel_nir_split_conversions_cb(const nir_instr *instr, void *data)
@@ -75,4 +76,27 @@ intel_nir_pulls_at_sample(nir_shader *shader)
    return false;
 }
 
+static bool
+lower_local_ids(nir_builder *b, nir_intrinsic_instr *intr, void *data)
+{
+   if (intr->intrinsic != nir_intrinsic_load_local_invocation_id)
+      return false;
 
+   b->cursor = nir_after_instr(&intr->instr);
+   nir_def *ids[3];
+   for (unsigned c = 0; c < 3; c++)
+      ids[c] = nir_load_local_invocation_id_intel(b, .component = c);
+   nir_def_replace(&intr->def, nir_vec(b, ids, 3));
+   return true;
+}
+
+/* Split local IDs into scalar loads just before backend translation. */
+bool
+intel_nir_lower_local_ids(nir_shader *nir)
+{
+   if (!mesa_shader_stage_is_compute(nir->info.stage))
+      return false;
+
+   return nir_shader_intrinsics_pass(nir, lower_local_ids,
+                                     nir_metadata_control_flow, NULL);
+}

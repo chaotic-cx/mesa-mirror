@@ -2600,19 +2600,15 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
    }
 
-   case nir_intrinsic_load_local_invocation_id:
+   case nir_intrinsic_load_local_invocation_id_intel: {
       assert(cs);
-
-      jay_foreach_comp(dst, c) {
-         jay_def raw = nj->payload.cs.local_invocation_ids[c];
-         if (!jay_is_null(raw)) {
-            jay_def packed = jay_extract_range(raw, 0, s->dispatch_width / 2);
-            jay_CVT(b, JAY_TYPE_U32, jay_extract(dst, c), packed, JAY_TYPE_U16,
-                    JAY_ROUND, 0);
-         }
-      }
-
+      unsigned c = nir_intrinsic_component(intr);
+      jay_def raw = nj->payload.cs.local_invocation_ids[c];
+      unsigned count = intr->def.divergent ? s->dispatch_width / 2 : 1;
+      jay_def packed = jay_extract_range(raw, 0, count);
+      jay_CVT(b, JAY_TYPE_U32, dst, packed, JAY_TYPE_U16, JAY_ROUND, 0);
       break;
+   }
 
    case nir_intrinsic_load_barycentric_pixel:
       jay_emit_barycentric(nj, intr, INTEL_BARYCENTRIC_PERSPECTIVE_PIXEL);

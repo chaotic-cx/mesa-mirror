@@ -1665,11 +1665,15 @@ get_intrinsic_uub(struct analysis_state *state, struct scalar_query q, uint32_t 
                    1u;
       }
       break;
+   case nir_intrinsic_load_local_invocation_id_intel:
    case nir_intrinsic_load_local_invocation_id:
-      if (shader->info.workgroup_size_variable)
+      if (shader->info.workgroup_size_variable) {
          *result = get_max_workgroup_invocations(shader) - 1u;
-      else
-         *result = shader->info.workgroup_size[q.scalar.comp] - 1u;
+      } else {
+         unsigned c = intrin->intrinsic == nir_intrinsic_load_local_invocation_id ?
+            q.scalar.comp : nir_intrinsic_component(intrin);
+         *result = shader->info.workgroup_size[c] - 1u;
+      }
       break;
    case nir_intrinsic_load_workgroup_id:
       *result = get_max_workgroup_count(shader, q.scalar.comp) - 1u;

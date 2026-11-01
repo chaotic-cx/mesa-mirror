@@ -805,6 +805,10 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader)
                  nir_system_value_from_intrinsic(instr->intrinsic));
       break;
 
+   case nir_intrinsic_load_local_invocation_id_intel:
+      BITSET_SET(shader->info.system_values_read, SYSTEM_VALUE_LOCAL_INVOCATION_ID);
+      break;
+
    case nir_intrinsic_is_helper_invocation:
       BITSET_SET(shader->info.system_values_read, SYSTEM_VALUE_HELPER_INVOCATION);
       break;

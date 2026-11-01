@@ -458,6 +458,11 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
       is_divergent = false;
       break;
 
+   case nir_intrinsic_load_local_invocation_id_intel:
+      is_divergent = nir_intrinsic_component(instr) != 2 ||
+         !(state->options & nir_divergence_uniform_local_invocation_id_z);
+      break;
+
    case nir_intrinsic_decl_reg:
    case nir_intrinsic_load_sysval_nv:
       is_divergent = nir_intrinsic_divergent(instr);

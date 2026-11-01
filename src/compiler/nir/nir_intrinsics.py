@@ -2804,6 +2804,10 @@ system_value("msaa_rate_intel", 1)
 # Raw fragment shading rate provided to the FS payload.
 system_value("frag_shading_rate_intel", 2)
 
+# Scalar component of local invocation ID.
+intrinsic("load_local_invocation_id_intel", dest_comp=1, bit_sizes=[32], indices=[COMPONENT],
+          flags=[CAN_ELIMINATE, CAN_REORDER])
+
 # Load a relocatable 32-bit value
 intrinsic("load_reloc_const_intel", dest_comp=1, bit_sizes=[32],
           indices=[PARAM_IDX, BASE], flags=[CAN_ELIMINATE, CAN_REORDER])

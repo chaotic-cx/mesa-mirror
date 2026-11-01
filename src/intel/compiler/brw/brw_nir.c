@@ -2602,7 +2602,7 @@ brw_nir_select_divergence_options(const struct brw_compiler *compiler,
 
    if (use_jay && nir->info.stage == MESA_SHADER_FRAGMENT)
       options = &compiler->nir_options_fs_single_prim;
-   else if (!use_jay && mesa_shader_stage_is_compute(nir->info.stage) &&
+   else if (mesa_shader_stage_is_compute(nir->info.stage) &&
             !nir->info.workgroup_size_variable &&
             nir->info.workgroup_size[0] * nir->info.workgroup_size[1] % 32 == 0)
       options = &compiler->nir_options_cs_uniform_local_id_z;

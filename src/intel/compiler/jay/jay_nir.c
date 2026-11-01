@@ -1195,6 +1195,11 @@ jay_process_nir_for_simd(const struct intel_device_info *devinfo,
                 nir_metadata_control_flow, NULL);
    JAY_NIR_PASS(jay_nir_lower_bool);
 
+   if (JAY_NIR_PASS(intel_nir_lower_local_ids)) {
+      JAY_NIR_PASS(nir_opt_copy_prop);
+      JAY_NIR_PASS(nir_opt_dce);
+   }
+
    /* Run divergence analysis at the end */
    nir_sweep(nir);
    nir_divergence_analysis(nir);
