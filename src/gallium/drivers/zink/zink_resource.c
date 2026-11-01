@@ -3626,7 +3626,8 @@ zink_transfer_flush_region(struct pipe_context *pctx,
                   box->z * trans->depthPitch +
                   util_format_get_2d_size(m->base.b.format, trans->base.b.stride, box->y) +
                   util_format_get_stride(m->base.b.format, box->x);
-         assert(src_offset + size <= res->obj->size);
+         /* the source range is relative to whatever the copy reads from */
+         assert(m->obj == res->obj || src_offset + size <= m->obj->size);
       }
       if (!m->obj->coherent && (!m->base.b.clientptr_heap || p_atomic_read(&trans->clientptr_maps) || trans->short_lived)) {
          VkMappedMemoryRange range = zink_resource_init_mem_range(screen, m->obj, m->obj->offset, m->obj->size);
