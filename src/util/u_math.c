@@ -91,7 +91,7 @@ util_fpstate_get(void)
    if (util_get_cpu_caps()->has_neon) {
 #ifdef HAVE___BUILTIN_ARM_GET_FPSCR
       fpstate = __builtin_arm_get_fpscr();
-#else
+#elif defined(__ARM_FP)
       __asm__ volatile("vmrs %0, fpscr" : "=r"(fpstate));
 #endif
    }
@@ -102,7 +102,7 @@ util_fpstate_get(void)
       fpstate = (unsigned)__builtin_aarch64_get_fpcr();
 #elif DETECT_CC_MSVC
       fpstate = (unsigned)_ReadStatusReg(ARM64_FPCR);
-#else
+#elif defined(__ARM_FP)
       uint64_t fpcr;
       __asm__ volatile("mrs %0, fpcr" : "=r"(fpcr));
       fpstate = (unsigned)fpcr;
@@ -160,7 +160,7 @@ util_fpstate_set(unsigned fpstate)
    if (util_get_cpu_caps()->has_neon) {
 #ifdef HAVE___BUILTIN_ARM_SET_FPSCR
       __builtin_arm_set_fpscr(fpstate);
-#else
+#elif defined(__ARM_FP)
       __asm__ volatile("vmsr fpscr, %0" :: "r"(fpstate));
 #endif
    }
@@ -171,7 +171,7 @@ util_fpstate_set(unsigned fpstate)
       __builtin_aarch64_set_fpcr(fpstate);
 #elif DETECT_CC_MSVC
       _WriteStatusReg(ARM64_FPCR, fpstate);
-#else
+#elif defined(__ARM_FP)
       uint64_t fpcr = fpstate;
       __asm__ volatile("msr fpcr, %0" :: "r"(fpcr));
 #endif
