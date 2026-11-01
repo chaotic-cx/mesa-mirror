@@ -1154,11 +1154,15 @@ python_version_req = '>= 3.10'
 python_exec_list = ['python3.16', 'python3.15', 'python3.14', 'python3.13',
                     'python3.12', 'python3.11', 'python3.10', 'python3', 'python']
 
+any_python_found = false
+
 foreach p : python_exec_list
   prog_python = find_program(p, required : false, version : python_version_req)
   if not prog_python.found()
     continue
   endif
+
+  any_python_found = true
 
   has_mako = run_command(
     prog_python, '-c',
@@ -1193,7 +1197,7 @@ if Version(mako.__version__) < Version("0.8.0"):
   break
 endforeach
 
-if not prog_python.found()
+if not any_python_found
   error('Python ' + python_version_req + ' not found')
 endif
 
