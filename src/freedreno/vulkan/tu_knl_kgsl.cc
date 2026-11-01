@@ -1938,7 +1938,7 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
    /* kgsl unfortunately hardcodes some settings for certain GPUs and doesn't
     * expose them in the uAPI so hardcode them here to match.
     */
-   if (device->dev_id.gpu_id == 663 || device->dev_id.gpu_id == 680) {
+   if (device->dev_id.gpu_id == 635 || device->dev_id.gpu_id == 663 || device->dev_id.gpu_id == 680) {
       device->ubwc_config.macrotile_mode = FDL_MACROTILE_8_CHANNEL;
    }
    if (device->dev_id.gpu_id == 663) {
