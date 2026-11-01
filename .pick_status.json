@@ -7104,7 +7104,7 @@
         "description": "tu/kgsl: Force 8-channel macrotile mode on A635",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "66bdb50736f3e24518d1ff85299d0f882c7181ab",
         "notes": null
