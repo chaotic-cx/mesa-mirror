@@ -6704,7 +6704,7 @@
         "description": "v3d: don't drop the last row in the sand30 blit",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "653cf8c8d236745302197ece510be2036e03e942",
         "notes": null
