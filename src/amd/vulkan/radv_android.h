@@ -27,7 +27,7 @@
  * To actually enable the ext we also need
  * the necessary kernel support.
  */
-#if DETECT_OS_ANDROID && ANDROID_API_LEVEL >= 26
+#if defined(VK_USE_PLATFORM_ANDROID_KHR) && ANDROID_API_LEVEL >= 26
 #define RADV_SUPPORT_ANDROID_HARDWARE_BUFFER 1
 #include <vndk/hardware_buffer.h>
 #else

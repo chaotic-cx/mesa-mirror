@@ -1322,7 +1322,7 @@ radv_destroy_image(struct radv_device *device, const VkAllocationCallbacks *pAll
    if ((image->vk.create_flags & VK_IMAGE_CREATE_2_SPARSE_BINDING_BIT_KHR) && image->bindings[0].bo)
       radv_bo_destroy(device, &image->vk.base, image->bindings[0].bo);
 
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
    /* Bind-time ANB memory is allocated with the device allocator because
     * vkBindImageMemory2() has no allocation callbacks. Create-time ANB is
     * allocated with vkCreateImage()'s pAllocator and is freed by
@@ -1484,7 +1484,7 @@ radv_image_create(VkDevice _device, const struct radv_image_create_info *create_
 
    if ((image->vk.external_handle_types & VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) ||
        vk_image_is_android_native_buffer_alias(&image->vk)) {
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
       if (image->vk.external_handle_types & VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID)
          image->vk.ahb_format = radv_ahb_format_for_vk_format(image->vk.format);
 #endif
@@ -1782,7 +1782,7 @@ VKAPI_ATTR VkResult VKAPI_CALL
 radv_CreateImage(VkDevice _device, const VkImageCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator,
                  VkImage *pImage)
 {
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
    const VkNativeBufferANDROID *gralloc_info = vk_find_struct_const(pCreateInfo->pNext, NATIVE_BUFFER_ANDROID);
 
    if (gralloc_info)
@@ -1868,7 +1868,7 @@ radv_BindImageMemory2(VkDevice _device, uint32_t bindInfoCount, const VkBindImag
       }
 #endif
 
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
       if (!mem) {
          VkDeviceMemory memory_h = VK_NULL_HANDLE;
          VkResult result = radv_android_get_wsi_memory(_device, &pBindInfos[i], &memory_h);

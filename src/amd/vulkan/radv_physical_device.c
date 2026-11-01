@@ -680,9 +680,13 @@ radv_get_binning_settings(const struct radv_physical_device *pdev, struct radv_b
 static bool
 radv_msrtss_enabled(const struct radv_physical_device *pdev)
 {
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+   return true;
+#else
    const struct radv_instance *instance = radv_physical_device_instance(pdev);
 
-   return DETECT_OS_ANDROID || (instance->experimental_flags & RADV_EXPERIMENTAL_MSRTSS);
+   return instance->experimental_flags & RADV_EXPERIMENTAL_MSRTSS;
+#endif
 }
 
 static void
@@ -968,7 +972,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .AMD_shader_image_load_store_lod = true,
       .AMD_shader_trinary_minmax = true,
       .AMD_texture_gather_bias_lod = pdev->info.gfx_level < GFX11,
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
       .ANDROID_external_memory_android_hardware_buffer = RADV_SUPPORT_ANDROID_HARDWARE_BUFFER,
       .ANDROID_native_buffer = true,
 #endif
@@ -2771,7 +2775,7 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
    }
 #endif
 
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
    pdev->emulate_etc2 = !pdev->info.has_etc_support;
    pdev->emulate_astc = true;
 #else
