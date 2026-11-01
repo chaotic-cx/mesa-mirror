@@ -788,9 +788,7 @@ radv_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
    if (sync_info) {
       enum ac_barrier_flags bits =
          radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0, iview->image, &range) |
-         radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_SHADER_READ_BIT, 0,
-                               iview->image, &range);
+                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0, iview->image, &range);
       cmd_buffer->state.flush_bits |= bits & ~sync_info->pre_flush;
       sync_info->pre_flush |= cmd_buffer->state.flush_bits;
    }
