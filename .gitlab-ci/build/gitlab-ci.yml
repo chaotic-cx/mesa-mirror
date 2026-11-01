@@ -595,6 +595,7 @@ debian-arm64-build-test:
     EXTRA_OPTION: >
       -D tools=panfrost,imagination
       -D perfetto=true
+      -D apitrace=true
 
 debian-arm64-release:
   extends:
@@ -621,6 +622,7 @@ debian-no-libdrm:
       -D gbm=disabled
       -D egl=enabled
       -D perfetto=true
+      -D apitrace=true
       -D platforms=x11,wayland
 
 debian-clang:
@@ -673,6 +675,7 @@ debian-clang:
       -D imagination-srv=true
       -D teflon=true
       -D panfrost-disassemble=true
+      -D apitrace=true
     CC: clang-${LLVM_VERSION}
     CXX: clang++-${LLVM_VERSION}
 
@@ -752,6 +755,7 @@ debian-vulkan:
       -D intel-rt=disabled
       -D imagination-srv=true
       -D panfrost-disassemble=false
+      -D apitrace=true
 
 debian-x86_32:
   extends:
