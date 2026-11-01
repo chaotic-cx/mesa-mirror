@@ -2541,7 +2541,7 @@ resolve_ahb_image(struct anv_device *device,
                   struct anv_image *image,
                   struct anv_device_memory *mem)
 {
-#if DETECT_OS_ANDROID && ANDROID_API_LEVEL >= 26
+#if defined(VK_USE_PLATFORM_ANDROID_KHR) && ANDROID_API_LEVEL >= 26
    assert(mem->vk.ahardware_buffer);
    VkResult result;
 
@@ -2596,7 +2596,7 @@ resolve_anb_image(struct anv_device *device,
                   struct anv_image *image,
                   const VkNativeBufferANDROID *gralloc_info)
 {
-#if DETECT_OS_ANDROID && ANDROID_API_LEVEL >= 29
+#if defined(VK_USE_PLATFORM_ANDROID_KHR) && ANDROID_API_LEVEL >= 29
    VkResult result;
 
    /* Query DRM modifier. */

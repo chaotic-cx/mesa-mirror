@@ -68,7 +68,7 @@
 #include "util/set.h"
 #include "util/sparse_array.h"
 #include "util/u_atomic.h"
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "util/u_gralloc/u_gralloc.h"
 #endif
 #include "util/u_vector.h"

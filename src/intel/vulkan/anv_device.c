@@ -875,7 +875,7 @@ VkResult anv_CreateDevice(
                                                 true);
       override_initial_entrypoints = false;
    }
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
    vk_device_dispatch_table_from_entrypoints(&dispatch_table,
                                              &anv_android_device_entrypoints,
                                              true);
