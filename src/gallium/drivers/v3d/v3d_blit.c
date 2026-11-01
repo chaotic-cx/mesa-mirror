@@ -1177,7 +1177,7 @@ v3d_sand30_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
          */
         unsigned width, height;
         pipe_surface_size(&dst_surf, &width, &height);
-        height /= 2;
+        height = DIV_ROUND_UP(height, 2);
         width = align(width, 8);
         if (src->cpp == 2)
                 width /= 2;
