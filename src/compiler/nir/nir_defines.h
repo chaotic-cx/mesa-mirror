@@ -58,23 +58,55 @@ typedef struct nir_tcs_info nir_tcs_info;
 
 /* clang-format off */
 typedef enum {
+   /** System values */
    nir_var_system_value          = (1 << 0),
+
+   /** GL-style uniforms (not to be confused with nir_var_mem_ubo)
+    *
+    * This also includes textures and samplers.
+    */
    nir_var_uniform               = (1 << 1),
+
+   /** 3D pipeline shader (VS, FS, etc.) inputs.
+    *
+    * In vertex shaders, these are attributes.
+    */
    nir_var_shader_in             = (1 << 2),
+
+   /** 3D pipeline shader (VS, FS, etc.) outputs.
+    *
+    * In fragment shaders, these are render targets.
+    */
    nir_var_shader_out            = (1 << 3),
+
+   /** Storage images
+    *
+    * Textures and samplers go in nir_var_uniform.
+    */
    nir_var_image                 = (1 << 4),
+
    /** Incoming call or ray payload data for ray-tracing shaders */
    nir_var_shader_call_data_in   = (1 << 5),
    /** Outgoing call or ray payload data for ray-tracing shaders */
    nir_var_shader_call_data_out  = (1 << 6),
+
    /** Ray hit attributes */
    nir_var_ray_hit_attrib        = (1 << 7),
 
    /* Modes named nir_var_mem_* have explicit data layout */
+
+   /** UBOs */
    nir_var_mem_ubo               = (1 << 8),
+
+   /** Vulkan push constants */
    nir_var_mem_push_const        = (1 << 9),
+
+   /** SSBOs */
    nir_var_mem_ssbo              = (1 << 10),
+
+   /** OpenCL __constant data */
    nir_var_mem_constant          = (1 << 11),
+
    nir_var_mem_task_payload      = (1 << 12),
    nir_var_mem_node_payload      = (1 << 13),
    nir_var_mem_node_payload_in   = (1 << 14),
@@ -86,19 +118,34 @@ typedef enum {
    /* Generic modes intentionally come last. See encode_dref_modes() in
     * nir_serialize.c for more details.
     */
+
+   /** Shader per-invocationg global memory */
    nir_var_shader_temp           = (1 << 18),
+
+   /** Function variables */
    nir_var_function_temp         = (1 << 19),
+
+   /** OpenGL/Vulkan shared or OpenCL __local memory */
    nir_var_mem_shared            = (1 << 20),
+
+   /** Device-global memory
+    *
+    * This can live anywhere in GPU-visible memory and is accessed by 32 or
+    * 64-bit virtual address.
+    */
    nir_var_mem_global            = (1 << 21),
 
+   /** Modes which are allowed for OpenCL generic pointers */
    nir_var_mem_generic           = (nir_var_shader_temp |
                                     nir_var_function_temp |
                                     nir_var_mem_shared |
                                     nir_var_mem_global),
 
+   /** Modes which are inherently read-only */
    nir_var_read_only_modes       = nir_var_shader_in | nir_var_uniform |
                                    nir_var_system_value | nir_var_mem_constant |
                                    nir_var_mem_ubo,
+
    /* Modes where vector derefs can be indexed as arrays. nir_var_shader_out
     * is only for mesh stages. nir_var_system_value is only for kernel stages.
     */
