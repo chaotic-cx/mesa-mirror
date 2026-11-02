@@ -421,6 +421,11 @@ clone_tex(clone_state *state, const nir_tex_instr *tex)
    ntex->sampler_index = tex->sampler_index;
    ntex->can_speculate = tex->can_speculate;
 
+   ntex->texture_array_size = tex->texture_array_size;
+   ntex->input_attachment_index = tex->input_attachment_index;
+   ntex->input_attachment_depth = tex->input_attachment_depth;
+   ntex->input_attachment_stencil = tex->input_attachment_stencil;
+
    ntex->texture_non_uniform = tex->texture_non_uniform;
    ntex->sampler_non_uniform = tex->sampler_non_uniform;
    ntex->embedded_sampler = tex->embedded_sampler;
