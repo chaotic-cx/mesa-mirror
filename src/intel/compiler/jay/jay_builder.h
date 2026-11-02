@@ -640,7 +640,8 @@ jay_as_gpr(jay_builder *b, jay_def src)
    if (src.file == GPR || jay_is_null(src))
       return src;
 
-   jay_def def = jay_alloc_def(b, GPR, 32, jay_num_values(src));
+   jay_def def =
+      jay_alloc_def(b, GPR, jay_size_to_bits(src.size), jay_num_values(src));
    jay_copy(b, def, src);
    return def;
 }
