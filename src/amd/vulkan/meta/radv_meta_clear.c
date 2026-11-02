@@ -435,10 +435,11 @@ emit_render_color_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachm
    }
 }
 
-static bool radv_can_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
-                                      VkImageLayout image_layout, VkImageAspectFlags aspects,
-                                      const VkClearRect *clear_rect, const VkClearDepthStencilValue clear_value,
-                                      uint32_t view_mask);
+static enum radv_fast_clear_support
+radv_can_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
+                          VkImageLayout image_layout, VkImageAspectFlags aspects, const VkClearRect *clear_rect,
+                          const VkClearDepthStencilValue clear_value, uint32_t view_mask,
+                          VkImageAspectFlags *valid_aspect, unsigned *max_levels);
 
 struct radv_clear_ds_layout_key {
    enum radv_meta_object_key_type type;
@@ -891,46 +892,87 @@ radv_is_fast_clear_stencil_allowed(VkClearDepthStencilValue value)
    return value.stencil == 0;
 }
 
-static bool
+enum radv_fast_clear_support {
+   FAST_CLEAR_VALID,
+   FAST_CLEAR_INVALID_OTHER,
+   FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE,
+   FAST_CLEAR_INVALID_SPLIT_ZS_ASPECTS,
+};
+
+/* If FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE is returned, only "max_levels" number of levels can be fast-cleared.
+ * If FAST_CLEAR_INVALID_SPLIT_ZS_ASPECTS is returned, only "valid_aspect" can be fast-cleared.
+ */
+static enum radv_fast_clear_support
 radv_can_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
                           VkImageLayout image_layout, VkImageAspectFlags aspects, const VkClearRect *clear_rect,
-                          const VkClearDepthStencilValue clear_value, uint32_t view_mask)
+                          const VkClearDepthStencilValue clear_value, uint32_t view_mask,
+                          VkImageAspectFlags *valid_aspect, unsigned *max_levels)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
    if (pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FRAGMENT ||
        pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE)
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    if (!iview || !iview->support_fast_clear)
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    if (!radv_layout_is_htile_compressed(device, iview->image, iview->vk.base_mip_level, image_layout,
                                         radv_image_queue_family_mask(iview->image, cmd_buffer->qf)))
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    if (!radv_is_clear_rect_full(iview, clear_rect, view_mask, true))
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
-   if (device->vk.enabled_extensions.EXT_depth_range_unrestricted && (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) &&
-       (clear_value.depth < 0.0 || clear_value.depth > 1.0))
-      return false;
+   if (radv_tc_compat_htile_enabled(iview->image, iview->vk.base_mip_level)) {
+      const bool depth_valid = radv_is_fast_clear_depth_allowed(clear_value);
+      const bool stencil_valid = radv_is_fast_clear_stencil_allowed(clear_value);
 
-   if (radv_tc_compat_htile_enabled(iview->image, iview->vk.base_mip_level) &&
-       (((aspects & VK_IMAGE_ASPECT_DEPTH_BIT) && !radv_is_fast_clear_depth_allowed(clear_value)) ||
-        ((aspects & VK_IMAGE_ASPECT_STENCIL_BIT) && !radv_is_fast_clear_stencil_allowed(clear_value))))
-      return false;
-
-   if (iview->image->vk.mip_levels > 1) {
-      uint32_t last_level = iview->vk.base_mip_level + iview->vk.level_count - 1;
-      if (last_level >= iview->image->planes[0].surface.num_meta_levels) {
-         /* Do not fast clears if one level can't be fast cleared. */
-         return false;
+      if (aspects == VK_IMAGE_ASPECT_DEPTH_BIT) {
+         if (!depth_valid)
+            return FAST_CLEAR_INVALID_OTHER;
+      } else if (aspects == VK_IMAGE_ASPECT_STENCIL_BIT) {
+         if (!stencil_valid)
+            return FAST_CLEAR_INVALID_OTHER;
+      } else {
+         if (!depth_valid && !stencil_valid)
+            return FAST_CLEAR_INVALID_OTHER;
+         else if (depth_valid != stencil_valid) {
+            if (valid_aspect)
+               *valid_aspect = depth_valid ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_STENCIL_BIT;
+            return FAST_CLEAR_INVALID_SPLIT_ZS_ASPECTS;
+         }
+      }
+   } else {
+      if (device->vk.enabled_extensions.EXT_depth_range_unrestricted && (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) &&
+          (clear_value.depth < 0.0 || clear_value.depth > 1.0)) {
+         if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
+            if (valid_aspect)
+               *valid_aspect = VK_IMAGE_ASPECT_STENCIL_BIT;
+            return FAST_CLEAR_INVALID_SPLIT_ZS_ASPECTS;
+         } else {
+            return FAST_CLEAR_INVALID_OTHER;
+         }
       }
    }
 
-   return true;
+   if (iview->image->vk.mip_levels > 1) {
+      const unsigned last_level = iview->vk.base_mip_level + iview->vk.level_count - 1;
+      const unsigned num_meta_levels = iview->image->planes[0].surface.num_meta_levels;
+
+      if (last_level >= num_meta_levels) {
+         if (iview->vk.base_mip_level < num_meta_levels) {
+            if (max_levels)
+               *max_levels = num_meta_levels - iview->vk.base_mip_level;
+            return FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE;
+         } else {
+            return FAST_CLEAR_INVALID_OTHER;
+         }
+      }
+   }
+
+   return FAST_CLEAR_VALID;
 }
 
 static void
@@ -1550,10 +1592,11 @@ gfx11_get_fast_clear_parameters(struct radv_device *device, const struct radv_im
    return false;
 }
 
-static bool
+/* If FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE is returned, only "max_levels" number of levels can be fast-cleared. */
+static enum radv_fast_clear_support
 radv_can_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
                           VkImageLayout image_layout, const VkClearRect *clear_rect, VkClearColorValue clear_value,
-                          uint32_t view_mask)
+                          uint32_t view_mask, unsigned *max_levels)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -1561,27 +1604,27 @@ radv_can_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_
 
    if (pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FRAGMENT ||
        pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE)
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    if (!iview || !iview->support_fast_clear)
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    if (!radv_layout_can_fast_clear(device, iview->image, iview->vk.base_mip_level, image_layout,
                                    radv_image_queue_family_mask(iview->image, cmd_buffer->qf)))
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    if (!radv_is_clear_rect_full(iview, clear_rect, view_mask, !iview->image->support_comp_to_single))
-      return false;
+      return FAST_CLEAR_INVALID_OTHER;
 
    /* DCC */
 
    /* Images that support comp-to-single clears don't have clear values. */
    if (!iview->image->support_comp_to_single) {
       if (!radv_format_pack_clear_color(iview->vk.format, clear_color, &clear_value))
-         return false;
+         return FAST_CLEAR_INVALID_OTHER;
 
       if (!radv_image_has_clear_value(iview->image) && (clear_color[0] != 0 || clear_color[1] != 0))
-         return false;
+         return FAST_CLEAR_INVALID_OTHER;
    }
 
    if (radv_dcc_enabled(iview->image, iview->vk.base_mip_level)) {
@@ -1590,17 +1633,24 @@ radv_can_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_
 
       if (pdev->info.gfx_level >= GFX11) {
          if (!gfx11_get_fast_clear_parameters(device, iview, &clear_value, &reset_value))
-            return false;
+            return FAST_CLEAR_INVALID_OTHER;
       } else {
          gfx8_get_fast_clear_parameters(device, iview, &clear_value, &reset_value, &can_avoid_fast_clear_elim);
       }
 
       if (iview->image->vk.mip_levels > 1) {
          if (pdev->info.gfx_level >= GFX9) {
-            uint32_t last_level = iview->vk.base_mip_level + iview->vk.level_count - 1;
-            if (last_level >= iview->image->planes[0].surface.num_meta_levels) {
-               /* Do not fast clears if one level can't be fast cleard. */
-               return false;
+            const unsigned last_level = iview->vk.base_mip_level + iview->vk.level_count - 1;
+            const unsigned num_meta_levels = iview->image->planes[0].surface.num_meta_levels;
+
+            if (last_level >= num_meta_levels) {
+               if (iview->vk.base_mip_level < num_meta_levels) {
+                  if (max_levels)
+                     *max_levels = num_meta_levels - iview->vk.base_mip_level;
+                  return FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE;
+               } else {
+                  return FAST_CLEAR_INVALID_OTHER;
+               }
             }
          } else {
             for (uint32_t l = 0; l < iview->vk.level_count; l++) {
@@ -1611,14 +1661,21 @@ radv_can_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, const struct radv_
                /* Do not fast clears if one level can't be
                 * fast cleared.
                 */
-               if (!dcc_level->dcc_fast_clear_size)
-                  return false;
+               if (!dcc_level->dcc_fast_clear_size) {
+                  if (l > 0) {
+                     if (max_levels)
+                        *max_levels = l;
+                     return FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE;
+                  } else {
+                     return FAST_CLEAR_INVALID_OTHER;
+                  }
+               }
             }
          }
       }
    }
 
-   return true;
+   return FAST_CLEAR_VALID;
 }
 
 static void
@@ -1722,8 +1779,8 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_at
 
       VkClearColorValue clear_value = clear_att->clearValue.color;
 
-      if (radv_can_fast_clear_color(cmd_buffer, color_att->iview, color_att->layout, clear_rect, clear_value,
-                                    view_mask)) {
+      if (radv_can_fast_clear_color(cmd_buffer, color_att->iview, color_att->layout, clear_rect, clear_value, view_mask,
+                                    NULL) == FAST_CLEAR_VALID) {
          radv_fast_clear_color(cmd_buffer, color_att->iview, clear_att, clear_rect, view_mask, sync_info, att_id);
       } else {
          /* Wait for any previous compute and CP DMA clears accessing DCC/CMASK/FMASK or the color image. */
@@ -1758,16 +1815,17 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_at
       if (aspects == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT) &&
           ds_att->layout != ds_att->stencil_layout) {
          if (radv_can_fast_clear_depth(cmd_buffer, ds_att->iview, ds_att->layout, aspects, clear_rect, clear_value,
-                                       view_mask))
+                                       view_mask, NULL, NULL) == FAST_CLEAR_VALID)
             fast_clear_aspects |= VK_IMAGE_ASPECT_DEPTH_BIT;
 
          if (radv_can_fast_clear_depth(cmd_buffer, ds_att->iview, ds_att->stencil_layout, aspects, clear_rect,
-                                       clear_value, view_mask))
+                                       clear_value, view_mask, NULL, NULL) == FAST_CLEAR_VALID)
             fast_clear_aspects |= VK_IMAGE_ASPECT_STENCIL_BIT;
       } else {
          VkImageLayout layout = aspects & VK_IMAGE_ASPECT_DEPTH_BIT ? ds_att->layout : ds_att->stencil_layout;
 
-         if (radv_can_fast_clear_depth(cmd_buffer, ds_att->iview, layout, aspects, clear_rect, clear_value, view_mask))
+         if (radv_can_fast_clear_depth(cmd_buffer, ds_att->iview, layout, aspects, clear_rect, clear_value, view_mask,
+                                       NULL, NULL) == FAST_CLEAR_VALID)
             fast_clear_aspects = aspects;
       }
 
@@ -2044,13 +2102,14 @@ radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
    };
 
    if (vk_format_is_color(format)) {
-      if (radv_can_fast_clear_color(cmd_buffer, &iview, image_layout, &clear_rect, clear_att.clearValue.color, 0)) {
+      if (radv_can_fast_clear_color(cmd_buffer, &iview, image_layout, &clear_rect, clear_att.clearValue.color, 0,
+                                    NULL) == FAST_CLEAR_VALID) {
          radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL, ATT_COLOR0);
          fast_cleared = true;
       }
    } else {
       if (radv_can_fast_clear_depth(cmd_buffer, &iview, image_layout, range->aspectMask, &clear_rect,
-                                    clear_att.clearValue.depthStencil, 0)) {
+                                    clear_att.clearValue.depthStencil, 0, NULL, NULL) == FAST_CLEAR_VALID) {
          radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL,
                                ATT_ZS);
          fast_cleared = true;
