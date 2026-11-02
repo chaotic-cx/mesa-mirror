@@ -1580,7 +1580,17 @@ SPDX-License-Identifier: MIT
 	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
 </bitset>
 
-<!-- addlo -->
+<bitset name="addlo" extends="#instruction-alu-src0-src2">
+	<doc>
+		The low part of the sum a + b: a + b minus the sum rounded toward
+		zero. The hardware keeps the exact sum only to 48 bits below the
+		exponent of the larger source, so smaller bits are lost. The
+		rounding mode has no effect.
+	</doc>
+	<pattern low="0" high="5">101000</pattern> <!-- OPC -->
+	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
+
 <bitset name="mullo" extends="#instruction-alu-src0-src1">
 	<doc>
 		The low half of the exact product a * b. The significands multiply
