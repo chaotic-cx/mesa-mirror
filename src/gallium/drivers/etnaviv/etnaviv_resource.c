@@ -1182,13 +1182,8 @@ etna_resource_used(struct etna_context *ctx, struct pipe_resource *prsc,
    unsigned count = util_dynarray_num_elements(pending, uint8_t);
 
    if (unlikely(handle >= count)) {
-      unsigned grow = handle + 1 - count;
-      uint8_t *p = util_dynarray_grow(pending, uint8_t, grow);
-
-      if (!p)
+      if (!util_dynarray_grow_zero(pending, uint8_t, handle + 1 - count))
          return;
-
-      memset(p, 0, grow);
    }
 
    *util_dynarray_element(pending, uint8_t, handle) |= status;
