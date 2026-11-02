@@ -1402,10 +1402,6 @@ zink_screen_init_compiler(struct zink_screen *screen)
       if (screen->info.fma_feats.shaderFmaFloat64)
          screen->nir_options.float_mul_add64 |= nir_float_muladd_support_has_ffma;
    }
-   /* fuse mul and add in NIR like radeonsi */
-   if (zink_driverid(screen) == VK_DRIVER_ID_MESA_RADV &&
-       (screen->nir_options.float_mul_add32 & nir_float_muladd_support_has_ffma))
-      screen->nir_options.float_mul_add32 |= nir_float_muladd_support_fuse;
 }
 
 struct nir_shader *

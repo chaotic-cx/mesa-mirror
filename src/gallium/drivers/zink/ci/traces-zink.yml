@@ -11,9 +11,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 9dc55abb7806f0116770a5a1a389c342
     zink-radv-vangogh:
-      checksum: b4eb4f42c2f000e0c3eafb8ad1050169
+      checksum: e8b72709c317d19b5eaf58712f53dccd
     zink-radv-gfx1201:
-      checksum: b4eb4f42c2f000e0c3eafb8ad1050169
+      checksum: e8b72709c317d19b5eaf58712f53dccd
 
   behdad-glyphy/glyphy-v2.trace:
     gl-zink-anv-adl:
@@ -75,9 +75,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: fc9dcf473b7367efeec392d2d431855b
     zink-radv-vangogh:
-      checksum: 58a20bd389a05956dc2fbb16e16f3b4d
+      checksum: de37946af49e6d60f82480c71a8af550
     zink-radv-gfx1201:
-      checksum: 58a20bd389a05956dc2fbb16e16f3b4d
+      checksum: de37946af49e6d60f82480c71a8af550
 
   gputest/triangle-v2.trace:
     gl-zink-anv-adl:
@@ -99,9 +99,9 @@ traces:
       checksum: dbe1de4e2e812413f173ea6c423117ff
       text: "'egl_platform.cpp( 227) - Error   - Couldn't find a suitable EGL config' -- revisit when we can turn on X11?"
     zink-radv-vangogh:
-      checksum: 67068134aea66e0e80df1575eb5264e6
+      checksum: 764b8c91c715830f18956ddc55bae7f1
     zink-radv-gfx1201:
-      checksum: f111499ded95bf12376c8b7bf43c1a27
+      checksum: 96f714ce413ee4c58f2b82b80002fc65
 
   gputest/pixmark-julia-fp32-v2.trace:
     gl-zink-anv-adl:
@@ -109,9 +109,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 83a21aa3f856af2d38e8be8391f58611
     zink-radv-vangogh:
-      checksum: 9d0d1262fc11e7b7541246359b044f65
+      checksum: 7a880902514db1c8b51acde75f98876d
     zink-radv-gfx1201:
-      checksum: 9d0d1262fc11e7b7541246359b044f65
+      checksum: 7a880902514db1c8b51acde75f98876d
 
   gputest/pixmark-julia-fp64-v2.trace:
     gl-zink-anv-adl:
@@ -132,9 +132,9 @@ traces:
       checksum: c4ae80a143de76e137e5dd406586a459
       text: Different rendering from iris, but still looks correct (common result with this trace)
     zink-radv-vangogh:
-      checksum: 1cd3b21daf554c2fda601bed6e85f0a7
+      checksum: 5abbd6c7ddb0ccf6e6c836fc3f9f2340
     zink-radv-gfx1201:
-      checksum: 1cd3b21daf554c2fda601bed6e85f0a7
+      checksum: 5abbd6c7ddb0ccf6e6c836fc3f9f2340
 
   gputest/plot3d-v2.trace:
     gl-zink-anv-adl:
@@ -153,9 +153,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 1b80c021a7a80d9fb4d7bc23a564a8f6
     zink-radv-vangogh:
-      checksum: 7dda49f901ffd6fa3f48197e93dfa07b
+      checksum: 320fd720eef61b320bd0cc422d7b683e
     zink-radv-gfx1201:
-      checksum: 7dda49f901ffd6fa3f48197e93dfa07b
+      checksum: 320fd720eef61b320bd0cc422d7b683e
 
   humus/AmbientAperture-v2.trace:
     gl-zink-anv-adl:
@@ -230,9 +230,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 354a0046d81981a5227691fd8401d8ef
     zink-radv-vangogh:
-      checksum: 39f04071c421c7f3ac1919042f3f6e6d
+      checksum: 09e81708d8a1d8367ea4cd08f10dcbdc
     zink-radv-gfx1201:
-      checksum: 39f04071c421c7f3ac1919042f3f6e6d
+      checksum: 09e81708d8a1d8367ea4cd08f10dcbdc
 
   neverball/neverball-v2.trace:
     gl-zink-anv-adl:
@@ -339,9 +339,9 @@ traces:
       checksum: 0af2faa0d9183c1bc4dc7612befe1f0a
       text: "'egl_platform.cpp( 227) - Error   - Couldn't find a suitable EGL config' -- revisit when we can turn on X11?"
     zink-radv-vangogh:
-      checksum: 59c3bf44787e3c175a701fcadd607875
+      checksum: 084a8e003d6c1f872db33fa634d5bc77
     zink-radv-gfx1201:
-      checksum: 0573ff1a7627337e2a8c536ea515bd8e
+      checksum: 16b9cc9fe3993b95173c089fc4173525
 
   supertuxkart/supertuxkart-menu.rdc:
     gl-zink-anv-adl:
@@ -367,9 +367,9 @@ traces:
       checksum: ca0b64f1a62e01765146be8391eae636
       text: "'egl_platform.cpp( 227) - Error   - Couldn't find a suitable EGL config' -- revisit when we can turn on X11?"
     zink-radv-vangogh:
-      checksum: aa67e77ce7bcd0211d608ca0ebb3eb08
+      checksum: 95349736f16c729c1e6b19a911d026c3
     zink-radv-gfx1201:
-      checksum: da74252425d900812ebfd24cfabba2a9
+      checksum: 2a3af255911d622b5ec00c901dc85ea6
 
   unvanquished/unvanquished-lowest.trace:
     gl-zink-anv-adl:
@@ -387,9 +387,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 7791755c957b55bfc5d30befe1e1f20d
     zink-radv-vangogh:
-      checksum: 4abbfeb6f19d41f6ba14985b6348569f
+      checksum: e682e6dacea25f4813139f940e1c091d
     zink-radv-gfx1201:
-      checksum: 4abbfeb6f19d41f6ba14985b6348569f
+      checksum: e682e6dacea25f4813139f940e1c091d
 
   valve/counterstrike-v2.trace:
     gl-zink-anv-adl:
@@ -430,9 +430,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 54149c9a6560176436600bfe8fe2ae1f
     zink-radv-vangogh:
-      checksum: 2c8f0ac513b0287e4de7be7010d824f3
+      checksum: bff7ca08028a160531225f6c8ff1bc0f
     zink-radv-gfx1201:
-      checksum: d7c2924fe1300c894eac51742b707a90
+      checksum: 75523dc585035a89d272cce0b29e4bc4
 
   valve/portal-2-v2.trace:
     gl-zink-anv-adl:
@@ -442,9 +442,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: a10392dbca5b15cc76468a3a819b9d4d
     zink-radv-vangogh:
-      checksum: 157bc2f3f52257182746be0b32f56505
+      checksum: a5705312e346cec828fe26b1c19b4cfe
     zink-radv-gfx1201:
-      checksum: f244dbd23a157fdc763defe5df0320f8
+      checksum: 828e564c05cd126cffbef6779dd4cd84
 
   warzone2100/warzone2100-default.trace:
     gl-zink-anv-adl:

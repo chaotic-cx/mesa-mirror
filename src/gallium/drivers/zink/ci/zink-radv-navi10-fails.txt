@@ -23,6 +23,3 @@ program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float2,F
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float4,Fail
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float8,Fail
 program@execute@vector-conversion,Fail
-
-# Regression sice 36d208b2899 - zink: fuse mul and add into ffma on RADV
-KHR-GL46.gpu_shader5.fma_accuracy,Fail
