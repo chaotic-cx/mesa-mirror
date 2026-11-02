@@ -175,7 +175,11 @@ endif
 # TODO: Linking Rust executables (such as unit tests) doesn't play nicely
 # with the sanitizers because meson doesn't know to pass -fsanitize to the
 # Rust linker.  See also https://github.com/mesonbuild/meson/issues/15222
-if with_tests and get_option('b_sanitize') == 'none' and not with_platform_android
+# Cross-compiling for Android with older Meson versions also fails to find
+# the libdrm pkg-config dependency.
+if with_tests and \
+   get_option('b_sanitize') == 'none' and \
+   (not with_platform_android or meson.version().version_compare('>= 1.9.2'))
   subdir('hw_runner')
 
   rust.test(
