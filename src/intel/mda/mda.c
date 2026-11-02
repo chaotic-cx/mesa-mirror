@@ -865,7 +865,7 @@ cmd_print(context *ctx)
    }
 
    slice data = get_content_data(ctx, m.object->ma, m.content);
-   printf("%.*s", SLICE_FMT(data));
+   fwrite(data.data, 1, data.len, stdout);
 
    if (!raw)
       printf("\n");
