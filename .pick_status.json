@@ -694,7 +694,7 @@
         "description": "zink: bias mesh draws by their output primitive",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "c39123c74d2fede7a38ed308edc0c444c142fdc1",
         "notes": null
@@ -1944,7 +1944,7 @@
         "description": "zink: refresh bindless handles resident in other contexts",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "a7cd6c952d53159140fd6cda06c0e66b8674ee84",
         "notes": null
@@ -1954,7 +1954,7 @@
         "description": "zink: refresh resident bindless image handles on new storage",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -1964,7 +1964,7 @@
         "description": "zink: add a helper to write a resident bindless image handle",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -1994,7 +1994,7 @@
         "description": "zink: dirty mesh pipeline state when a feedback loop starts",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "c39123c74d2fede7a38ed308edc0c444c142fdc1",
         "notes": null
@@ -2004,7 +2004,7 @@
         "description": "zink: add a helper to set the feedback loop pipeline state",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "c39123c74d2fede7a38ed308edc0c444c142fdc1",
         "notes": null
@@ -2014,7 +2014,7 @@
         "description": "zink: refresh resident bindless texture views on new storage",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -2024,7 +2024,7 @@
         "description": "zink: add a helper to write a resident bindless texture handle",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -2034,7 +2034,7 @@
         "description": "zink: keep bindless texture ids below the buffer range",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -2044,7 +2044,7 @@
         "description": "zink: split bindless handle allocation out of add_bindless_descriptor",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -2054,7 +2054,7 @@
         "description": "zink: add a helper to destroy a bindless descriptor",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
@@ -2064,7 +2064,7 @@
         "description": "zink: track the bound bindless set per pipeline type",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "bc202553e9b7040a36eab2974b16115e6c3125cb",
         "notes": null
