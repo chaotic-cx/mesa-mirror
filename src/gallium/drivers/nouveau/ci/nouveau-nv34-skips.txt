@@ -1,0 +1,18 @@
+# nv30 can currently freeze OS with piglit tests (in single threaded run)
+# after freeze you see something like this in kernel logs
+# Aug 12 19:29:14 Hostname kernel: nouveau 0000:01:00.0: pbo-readpixels-[287235]: failed to idle channel 1 [pbo-readpixels-[287235]]
+# Aug 12 19:29:59 Hostname kernel: nouveau 0000:01:00.0: pbo-readpixels-[287260]: failed to idle channel 1 [pbo-readpixels-[287260]]
+# Aug 12 19:30:14 Hostname kernel: nouveau 0000:01:00.0: pbo-readpixels-[287260]: failed to idle channel 1 [pbo-readpixels-[287260]]
+# Aug 12 19:30:29 Hostname kernel: nouveau 0000:01:00.0: pbo-readpixels-[287260]: failed to idle channel 1 [pbo-readpixels-[287260]]
+# Aug 12 19:30:44 Hostname kernel: nouveau 0000:01:00.0: pbo-readpixels-[287260]: failed to idle channel 1 [pbo-readpixels-[287260]]
+#
+# in example pbo-readpixels is test causing problem (so needs to be added to skips)
+
+# to recover: (echo 1 | sudo tee /sys/bus/pci/devices/0000:01:00.0/remove) && (echo 1 | sudo tee /sys/bus/pci/rescan)
+
+# this one is really bad, kernel corruption that requires reboot
+spec@!opengl 1.1@ppgtt_memory_alignment
+
+spec@arb_draw_elements_base_vertex@arb_draw_elements_base_vertex-negative-index-user_varrays
+
+glx
