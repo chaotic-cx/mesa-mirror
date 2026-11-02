@@ -247,6 +247,12 @@ validate_inst(struct validate_state *validate, jay_inst *I)
       validate_ssa(validate, I);
    }
 
+   /* Check that the destination register is large enough to hold the
+    * destination type. This guards against silly things like "half = mov.u32"
+    */
+   CHECK(jay_is_null(I->dst) ||
+         (jay_type_size_bits(I->type) / 16) <= jay_num_regs(I->dst));
+
    CHECK(I->num_srcs <= JAY_MAX_SRCS);
 
    validate_flagness(validate, I->dst, I->type, "destination");
