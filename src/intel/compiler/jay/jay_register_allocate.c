@@ -133,19 +133,14 @@ phi_web_union(struct phi_web_node *web, unsigned x, unsigned y)
    x = phi_web_find(web, x);
    y = phi_web_find(web, y);
 
-   if (x == y)
-      return;
+   /* Union-by-rank, incrementing the rank if necessary */
+   if (x != y) {
+      if (web[x].rank < web[y].rank) {
+         SWAP(x, y);
+      }
 
-   /* Union-by-rank: ensure x.rank >= y.rank */
-   if (web[x].rank < web[y].rank) {
-      SWAP(x, y);
-   }
-
-   web[y].parent = x;
-
-   /* Increment rank if necessary */
-   if (web[x].rank == web[y].rank) {
-      web[x].rank++;
+      web[x].rank += (web[x].rank == web[y].rank);
+      web[y].parent = x;
    }
 }
 
