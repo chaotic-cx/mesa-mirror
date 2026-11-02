@@ -5009,8 +5009,8 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       return NULL;
    }
 
-   JAY_PASS(s, jay_lower_post_ra);
    JAY_PASS(s, jay_reg_unit_old_to_new);
+   JAY_PASS(s, jay_lower_post_ra);
 
    /* jay_opt_postra_vectorize works on back-to-back moves, which we get coming
     * out of RA but scheduling will reorder. Vectorize before scheduling.
