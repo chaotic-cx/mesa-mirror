@@ -107,24 +107,13 @@ static_assert(sizeof(struct phi_web_node) == 20, "packed");
 static unsigned
 phi_web_find(struct phi_web_node *web, unsigned x)
 {
-   if (web[x].parent == x) {
-      /* Root */
-      return x;
-   } else {
-      /* Search up the tree */
-      unsigned root = x;
-      while (web[root].parent != root)
-         root = web[root].parent;
-
-      /* Compress path. Second pass ensures O(1) memory usage. */
-      while (web[x].parent != x) {
-         unsigned temp = web[x].parent;
-         web[x].parent = root;
-         x = temp;
-      }
-
-      return root;
+   /* Path halving */
+   while (web[x].parent != x) {
+      web[x].parent = web[web[x].parent].parent;
+      x = web[x].parent;
    }
+
+   return x;
 }
 
 static void
