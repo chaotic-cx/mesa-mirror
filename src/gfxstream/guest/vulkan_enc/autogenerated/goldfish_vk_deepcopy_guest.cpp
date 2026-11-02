@@ -9197,11 +9197,27 @@ void deepcopy_extension_struct(Allocator* alloc, VkStructureType rootType,
                 reinterpret_cast<VkShaderModuleCreateInfo*>(structExtension_out));
             break;
         }
+        case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO: {
+            deepcopy_VkComputePipelineCreateInfo(
+                alloc, rootType,
+                reinterpret_cast<const VkComputePipelineCreateInfo*>(structExtension),
+                reinterpret_cast<VkComputePipelineCreateInfo*>(structExtension_out));
+            break;
+        }
         case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO: {
             deepcopy_VkPipelineLayoutCreateInfo(
                 alloc, rootType,
                 reinterpret_cast<const VkPipelineLayoutCreateInfo*>(structExtension),
                 reinterpret_cast<VkPipelineLayoutCreateInfo*>(structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_GRAPHICS_VERSION_1_0
+        case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO: {
+            deepcopy_VkGraphicsPipelineCreateInfo(
+                alloc, rootType,
+                reinterpret_cast<const VkGraphicsPipelineCreateInfo*>(structExtension),
+                reinterpret_cast<VkGraphicsPipelineCreateInfo*>(structExtension_out));
             break;
         }
 #endif

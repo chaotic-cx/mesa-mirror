@@ -778,8 +778,8 @@ custom_decodes = {
     "vkMapMemory2" : emit_global_state_wrapped_decoding,
     "vkMapMemory2KHR" : emit_global_state_wrapped_decoding,
     "vkUnmapMemory" : emit_global_state_wrapped_decoding,
-    "vkMapMemory2" : emit_global_state_wrapped_decoding,
-    "vkMapMemory2KHR" : emit_global_state_wrapped_decoding,
+    "vkUnmapMemory2" : emit_global_state_wrapped_decoding,
+    "vkUnmapMemory2KHR" : emit_global_state_wrapped_decoding,
     "vkFlushMappedMemoryRanges" : decode_vkFlushMappedMemoryRanges,
     "vkInvalidateMappedMemoryRanges" : decode_vkInvalidateMappedMemoryRanges,
 
@@ -815,7 +815,6 @@ custom_decodes = {
     "vkDestroyEvent" : emit_global_state_wrapped_decoding,
     "vkSetEvent" : emit_global_state_wrapped_decoding,
     "vkResetEvent" : emit_global_state_wrapped_decoding,
-    "vkDestroyFramebuffer" : emit_global_state_wrapped_decoding,
     "vkCmdBeginRenderPass" : emit_global_state_wrapped_decoding,
     "vkCmdBeginRenderPass2" : emit_global_state_wrapped_decoding,
     "vkCmdBeginRenderPass2KHR" : emit_global_state_wrapped_decoding,
@@ -880,8 +879,6 @@ custom_decodes = {
     "vkQueueCommitDescriptorSetUpdatesGOOGLE" : emit_global_state_wrapped_decoding,
     "vkCollectDescriptorPoolIdsGOOGLE" : emit_global_state_wrapped_decoding,
     "vkQueueSignalReleaseImageANDROIDAsyncGOOGLE" : emit_global_state_wrapped_decoding,
-
-    "vkQueueBindSparse" : emit_global_state_wrapped_decoding,
 
     # VK_KHR_xcb_surface
     "vkCreateXcbSurfaceKHR": decode_unsupported_api,

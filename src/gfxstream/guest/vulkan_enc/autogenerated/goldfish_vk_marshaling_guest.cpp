@@ -7203,10 +7203,24 @@ void unmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureType roo
                 reinterpret_cast<VkShaderModuleCreateInfo*>(structExtension_out));
             break;
         }
+        case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO: {
+            unmarshal_VkComputePipelineCreateInfo(
+                vkStream, rootType,
+                reinterpret_cast<VkComputePipelineCreateInfo*>(structExtension_out));
+            break;
+        }
         case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO: {
             unmarshal_VkPipelineLayoutCreateInfo(
                 vkStream, rootType,
                 reinterpret_cast<VkPipelineLayoutCreateInfo*>(structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_GRAPHICS_VERSION_1_0
+        case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO: {
+            unmarshal_VkGraphicsPipelineCreateInfo(
+                vkStream, rootType,
+                reinterpret_cast<VkGraphicsPipelineCreateInfo*>(structExtension_out));
             break;
         }
 #endif

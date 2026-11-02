@@ -7044,10 +7044,24 @@ void reservedmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureTy
                 reinterpret_cast<const VkShaderModuleCreateInfo*>(structExtension), ptr);
             break;
         }
+        case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO: {
+            reservedmarshal_VkComputePipelineCreateInfo(
+                vkStream, rootType,
+                reinterpret_cast<const VkComputePipelineCreateInfo*>(structExtension), ptr);
+            break;
+        }
         case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO: {
             reservedmarshal_VkPipelineLayoutCreateInfo(
                 vkStream, rootType,
                 reinterpret_cast<const VkPipelineLayoutCreateInfo*>(structExtension), ptr);
+            break;
+        }
+#endif
+#ifdef VK_GRAPHICS_VERSION_1_0
+        case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO: {
+            reservedmarshal_VkGraphicsPipelineCreateInfo(
+                vkStream, rootType,
+                reinterpret_cast<const VkGraphicsPipelineCreateInfo*>(structExtension), ptr);
             break;
         }
 #endif

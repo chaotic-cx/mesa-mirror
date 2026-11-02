@@ -6077,10 +6077,24 @@ void count_extension_struct(uint32_t featureBits, VkStructureType rootType,
                 reinterpret_cast<const VkShaderModuleCreateInfo*>(structExtension), count);
             break;
         }
+        case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO: {
+            count_VkComputePipelineCreateInfo(
+                featureBits, rootType,
+                reinterpret_cast<const VkComputePipelineCreateInfo*>(structExtension), count);
+            break;
+        }
         case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO: {
             count_VkPipelineLayoutCreateInfo(
                 featureBits, rootType,
                 reinterpret_cast<const VkPipelineLayoutCreateInfo*>(structExtension), count);
+            break;
+        }
+#endif
+#ifdef VK_GRAPHICS_VERSION_1_0
+        case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO: {
+            count_VkGraphicsPipelineCreateInfo(
+                featureBits, rootType,
+                reinterpret_cast<const VkGraphicsPipelineCreateInfo*>(structExtension), count);
             break;
         }
 #endif

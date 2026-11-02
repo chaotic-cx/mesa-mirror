@@ -102,9 +102,9 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkSetBufferCollectionBufferConstraintsFUCHSIA",
     "vkGetBufferCollectionPropertiesFUCHSIA",
     "vkSetPrivateData",
-    "vkSetPrivateDataKHR",
+    "vkSetPrivateDataEXT",
     "vkGetPrivateData",
-    "vkGetPrivateDataKHR",
+    "vkGetPrivateDataEXT",
     "vkCreatePrivateDataSlot",
     "vkCreatePrivateDataSlotEXT",
     "vkDestroyPrivateDataSlot",
@@ -139,7 +139,6 @@ NON_AUTOGEN_ENTRYPOINTS = [
     "vkAllocateCommandBuffers",
     "vkResetCommandPool",
     "vkFreeCommandBuffers",
-    "vkResetCommandPool",
     # Transform feedback
     "vkCmdBeginTransformFeedbackEXT",
     # Special cases to handle struct translations in the pNext chain

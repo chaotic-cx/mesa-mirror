@@ -2962,16 +2962,18 @@ VkResult gfxstream_vk_SetPrivateDataEXT(VkDevice device, VkObjectType objectType
     MESA_TRACE_SCOPE("vkSetPrivateDataEXT");
     VkResult vkSetPrivateDataEXT_VkResult_return = (VkResult)0;
     auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-    vkSetPrivateDataEXT_VkResult_return = vkEnc->vkSetPrivateDataEXT(
-        device, objectType, objectHandle, privateDataSlot, data, true /* do lock */);
+    auto resources = gfxstream::vk::ResourceTracker::get();
+    vkSetPrivateDataEXT_VkResult_return = resources->on_vkSetPrivateDataEXT(
+        vkEnc, VK_SUCCESS, device, objectType, objectHandle, privateDataSlot, data);
     return vkSetPrivateDataEXT_VkResult_return;
 }
 void gfxstream_vk_GetPrivateDataEXT(VkDevice device, VkObjectType objectType, uint64_t objectHandle,
                                     VkPrivateDataSlot privateDataSlot, uint64_t* pData) {
     MESA_TRACE_SCOPE("vkGetPrivateDataEXT");
     auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-    vkEnc->vkGetPrivateDataEXT(device, objectType, objectHandle, privateDataSlot, pData,
-                               true /* do lock */);
+    auto resources = gfxstream::vk::ResourceTracker::get();
+    resources->on_vkGetPrivateDataEXT(vkEnc, device, objectType, objectHandle, privateDataSlot,
+                                      pData);
 }
 #endif
 #ifdef VK_EXT_image_compression_control

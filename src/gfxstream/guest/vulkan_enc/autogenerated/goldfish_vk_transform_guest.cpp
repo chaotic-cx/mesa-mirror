@@ -6383,10 +6383,24 @@ void transform_tohost_extension_struct(ResourceTracker* resourceTracker,
                 resourceTracker, reinterpret_cast<VkShaderModuleCreateInfo*>(structExtension_out));
             break;
         }
+        case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO: {
+            transform_tohost_VkComputePipelineCreateInfo(
+                resourceTracker,
+                reinterpret_cast<VkComputePipelineCreateInfo*>(structExtension_out));
+            break;
+        }
         case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO: {
             transform_tohost_VkPipelineLayoutCreateInfo(
                 resourceTracker,
                 reinterpret_cast<VkPipelineLayoutCreateInfo*>(structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_GRAPHICS_VERSION_1_0
+        case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO: {
+            transform_tohost_VkGraphicsPipelineCreateInfo(
+                resourceTracker,
+                reinterpret_cast<VkGraphicsPipelineCreateInfo*>(structExtension_out));
             break;
         }
 #endif
@@ -7785,10 +7799,24 @@ void transform_fromhost_extension_struct(ResourceTracker* resourceTracker,
                 resourceTracker, reinterpret_cast<VkShaderModuleCreateInfo*>(structExtension_out));
             break;
         }
+        case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO: {
+            transform_fromhost_VkComputePipelineCreateInfo(
+                resourceTracker,
+                reinterpret_cast<VkComputePipelineCreateInfo*>(structExtension_out));
+            break;
+        }
         case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO: {
             transform_fromhost_VkPipelineLayoutCreateInfo(
                 resourceTracker,
                 reinterpret_cast<VkPipelineLayoutCreateInfo*>(structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_GRAPHICS_VERSION_1_0
+        case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO: {
+            transform_fromhost_VkGraphicsPipelineCreateInfo(
+                resourceTracker,
+                reinterpret_cast<VkGraphicsPipelineCreateInfo*>(structExtension_out));
             break;
         }
 #endif
