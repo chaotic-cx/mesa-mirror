@@ -547,6 +547,12 @@ jay_type_size_bits(enum jay_type t)
    return t & ~JAY_TYPE_BASE_MASK;
 }
 
+static inline unsigned
+jay_type_size_B(enum jay_type t)
+{
+   return jay_type_size_bits(t) / 8;
+}
+
 static inline enum jay_type
 jay_type_rebase(enum jay_type t, enum jay_type new_base)
 {

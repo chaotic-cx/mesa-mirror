@@ -122,11 +122,9 @@ to_gen_operand(jay_function *f,
       if (jay_num_values(d) > jay_type_vector_length(type) &&
           (I->uniform || I->op == JAY_OPCODE_MOV || I->op == JAY_OPCODE_CVT)) {
          unsigned simd_width = jay_simd_width_physical(f->shader, I);
-         uint32_t type_bits = jay_type_size_bits(type);
-         unsigned stride_bits = type_bits;
 
          R = gen_byte_offset(devinfo, R,
-                             simd_offs * simd_width * stride_bits / 8);
+                             simd_offs * simd_width * jay_type_size_B(type));
       }
 
       /* Some operations have special restrictions on the destination stride,
@@ -158,8 +156,8 @@ to_gen_operand(jay_function *f,
          }
       }
    } else if (d.file == GPR || d.file == ACCUM) {
-      uint32_t type_bits = jay_type_size_bits(type);
-      unsigned stride_bits = jay_stride_to_bits(block.stride);
+      uint32_t type_B = jay_type_size_B(type);
+      unsigned stride_B = jay_stride_to_bits(block.stride) / 8;
       unsigned simd_width_instr = jay_simd_width_physical(f->shader, I);
       unsigned simd_width_block = f->shader->dispatch_width >> block.split;
 
@@ -176,7 +174,7 @@ to_gen_operand(jay_function *f,
          offset_B = (reg_w & 1) * 2 * f->shader->dispatch_width;
       } else {
          /* Treat low bits as an offset in 2-byte words into the GRF */
-         unsigned mask = BITFIELD_MASK(stride_bits / 32);
+         unsigned mask = BITFIELD_MASK(stride_B / 4);
          grf += ((reg_w & ~mask) / 2) * subblock_grf;
          offset_B = (reg_w & mask) * 2;
       }
@@ -199,16 +197,16 @@ to_gen_operand(jay_function *f,
       unsigned grf_size_B = jay_grf_size_B(f->shader);
       unsigned subblock_B = (block.len_gpr / 2) * subblock_grf * grf_size_B;
       unsigned subblock_offs_B = subblock_idx * subblock_B;
-      unsigned local_offs_B = offs_in_subblock_lanes * (stride_bits / 8);
+      unsigned local_offs_B = offs_in_subblock_lanes * stride_B;
 
       R = gen_byte_offset(devinfo, R, subblock_offs_B + local_offs_B);
 
-      if (stride_bits == (type_bits * 4)) {
+      if (stride_B == (type_B * 4)) {
          R = gen_restride(R, 8, 2, 4);
-      } else if (stride_bits == (type_bits * 2)) {
+      } else if (stride_B == (type_B * 2)) {
          R = gen_restride(R, 4, 2, 2);
       } else {
-         assert(stride_bits == type_bits);
+         assert(stride_B == type_B);
       }
 
       /* Broadcast is equivalent to <8, 8, 1> for SIMD1 instructions. Use that

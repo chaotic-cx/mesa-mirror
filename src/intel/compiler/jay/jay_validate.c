@@ -109,7 +109,7 @@ get_src_words(struct validate_state *validate, jay_inst *I, unsigned s)
    if (I->op == JAY_OPCODE_DPAS) {
       const unsigned dpas_exec_size = 8 * reg_unit(shader->devinfo);
       const unsigned grf_size = shader->devinfo->grf_size;
-      const unsigned acc_size_B = jay_type_size_bits(jay_dpas_acc_type(I)) / 8;
+      const unsigned acc_size_B = jay_type_size_B(jay_dpas_acc_type(I));
 
       unsigned bytes;
       switch (s) {
