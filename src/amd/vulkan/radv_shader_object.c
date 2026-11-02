@@ -198,6 +198,8 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
    gfx_state.dynamic_rasterization_samples = true;
    gfx_state.dynamic_provoking_vtx_mode = true;
    gfx_state.smooth_lines_may_be_enabled = true;
+   gfx_state.vrs_may_be_enabled = device->compiler_info.ac->gfx_level >= GFX10_3;
+   gfx_state.adjust_frag_coord_z = device->compiler_info.ac->has_vrs_frag_pos_z_bug;
    gfx_state.rs.polygon_mode_unknown = true;
 
    for (uint32_t i = 0; i < MAX_RTS; i++)
@@ -464,6 +466,8 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
    gfx_state.dynamic_rasterization_samples = true;
    gfx_state.dynamic_provoking_vtx_mode = true;
    gfx_state.smooth_lines_may_be_enabled = true;
+   gfx_state.vrs_may_be_enabled = device->compiler_info.ac->gfx_level >= GFX10_3;
+   gfx_state.adjust_frag_coord_z = device->compiler_info.ac->has_vrs_frag_pos_z_bug;
    gfx_state.rs.polygon_mode_unknown = true;
 
    for (uint32_t i = 0; i < MAX_RTS; i++)
