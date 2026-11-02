@@ -512,7 +512,7 @@ pub mod v9 {
                 &DISASM_TABLE[instr_idx],
                 val,
                 arch,
-                &mut NullWriter,
+                &mut std::io::sink(),
                 &Default::default(),
             )
             .map_err(|e| e.into_invalid_instr())

@@ -548,17 +548,6 @@ impl InstrPrint<'_> {
 
     pub fn declare_types(ts: &mut TokenStream) {
         ts.extend(quote! {
-            struct NullWriter;
-
-            impl std::io::Write for NullWriter {
-                fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                    Ok(buf.len())
-                }
-                fn flush(&mut self) -> std::io::Result<()> {
-                    Ok(())
-                }
-            }
-
             #[derive(Default)]
             pub struct PrintCtx {
                 pub fau32: bool,
