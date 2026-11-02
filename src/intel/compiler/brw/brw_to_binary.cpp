@@ -2322,7 +2322,7 @@ brw_generator::generate_code(const brw_shader &s,
          FILE *bin_dump =
             debug_archiver_start_file(
                params->archiver,
-               ralloc_asprintf(mem_ctx, "GEN%d/0.bin", dispatch_width));
+               ralloc_asprintf(mem_ctx, "BIN%d/0", dispatch_width));
          fwrite(output, 1, output_size, bin_dump);
          debug_archiver_finish_file(params->archiver);
       }
