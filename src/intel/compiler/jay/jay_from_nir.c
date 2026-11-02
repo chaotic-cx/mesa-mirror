@@ -1343,7 +1343,8 @@ jay_src_as_strided(jay_builder *b,
       assert(jay_is_uniform(x) && "Uniform dests require uniform sources");
 
       if (x.file != UGPR) {
-         jay_def tmp = jay_alloc_def(b, UGPR, 32, jay_num_values(x));
+         jay_def tmp =
+            jay_alloc_def(b, UGPR, jay_size_to_bits(x.size), jay_num_values(x));
          jay_copy(b, tmp, x);
          x = tmp;
       }
@@ -1359,7 +1360,7 @@ jay_src_as_strided(jay_builder *b,
          }
       }
 
-      return jay_collect(b, UGPR, 32, indices, nr);
+      return jay_collect(b, UGPR, jay_size_to_bits(x.size), indices, nr);
    } else {
       /* Could be a GPR or UGPR source */
       assert(dst_file == GPR);
