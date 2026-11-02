@@ -80,10 +80,6 @@ typedef enum {
    nir_var_mem_pixel_local_out   = (1 << 15),
    nir_var_mem_pixel_local_inout = (1 << 16),
 
-   nir_var_function_in           = (1 << 17),
-   nir_var_function_out          = (1 << 18),
-   nir_var_function_inout        = (1 << 19),
-
    nir_var_resource_heap         = (1 << 20),
    nir_var_sampler_heap          = (1 << 21),
 

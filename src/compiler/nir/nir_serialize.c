@@ -2120,7 +2120,7 @@ write_function(write_ctx *ctx, const nir_function *fxn)
          blob_write_string(ctx->blob, fxn->params[i].name);
 
       encode_type_to_blob(ctx->blob, fxn->params[i].type);
-      blob_write_uint32(ctx->blob, encode_deref_modes(fxn->params[i].mode));
+      blob_write_uint32(ctx->blob, fxn->params[i].mode);
       blob_write_uint32(ctx->blob, fxn->params[i].driver_attributes);
    }
 
@@ -2171,7 +2171,7 @@ read_function(read_ctx *ctx)
       fxn->params[i].is_return = val & (1u << 17);
       fxn->params[i].is_uniform = val & (1u << 18);
       fxn->params[i].type = decode_type_from_blob(ctx->blob);
-      fxn->params[i].mode = decode_deref_modes(blob_read_uint32(ctx->blob));
+      fxn->params[i].mode = blob_read_uint32(ctx->blob);
       fxn->params[i].driver_attributes = blob_read_uint32(ctx->blob);
    }
 

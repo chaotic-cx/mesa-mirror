@@ -50,19 +50,19 @@
  * pass.
  */
 
-static nir_variable_mode
+static nir_parameter_mode
 get_param_mode(ir_variable *param)
 {
    switch ((enum ir_variable_mode)(param->data.mode)) {
    case ir_var_const_in:
    case ir_var_function_in:
-      return nir_var_function_in;
+      return nir_parameter_in;
 
    case ir_var_function_out:
-      return nir_var_function_out;
+      return nir_parameter_out;
 
    case ir_var_function_inout:
-      return nir_var_function_inout;
+      return nir_parameter_inout;
 
    case ir_var_auto:
    case ir_var_uniform:
@@ -717,7 +717,7 @@ nir_visitor::create_function(ir_function_signature *ir)
       func->params[np].bit_size = 32;
       func->params[np].type = ir->return_type;
       func->params[np].is_return = true;
-      func->params[np].mode = nir_var_function_out;
+      func->params[np].mode = nir_parameter_out;
       np++;
    }
 
