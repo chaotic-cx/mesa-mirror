@@ -5,7 +5,7 @@ use std::io::Write;
 
 use crate::isa::v9;
 
-pub use v9::decode::{Mnemonic, PrintCtx, Variant, print, try_decode};
+pub use v9::decode::{Mnemonic, PrintCtx, Variant, try_decode};
 
 use kraid_bindings::*;
 
@@ -105,8 +105,9 @@ pub fn disassemble<W: Write>(
             write!(f, "{:016x}    ", instr)?;
         }
         match v9::decode::try_decode(*instr, arch) {
-            Ok((m, v)) => {
-                v9::decode::print(*instr, m, v, arch, f, &print_ctx)?;
+            Ok(table_idx) => {
+                let entry = &v9::decode::DISASM_TABLE[table_idx];
+                v9::decode::print_instr(entry, *instr, arch, f, &print_ctx)?;
                 writeln!(f, "")?;
             }
             Err(err) => {
@@ -131,11 +132,13 @@ mod tests {
         arch: u8,
         ctx: PrintCtx,
     ) -> Result<String, InvalidInstrError> {
+        use v9::decode::*;
         let mut buffer = Vec::new();
 
         match try_decode(val, arch) {
-            Ok((mn, var)) => {
-                print(val, mn, var, arch, &mut buffer, &ctx).unwrap();
+            Ok(instr_idx) => {
+                let instr = &DISASM_TABLE[instr_idx];
+                print_instr(instr, val, arch, &mut buffer, &ctx).unwrap();
                 let result_string = String::from_utf8(buffer).unwrap();
                 Ok(result_string)
             }

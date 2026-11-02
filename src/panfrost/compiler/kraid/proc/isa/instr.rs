@@ -159,6 +159,7 @@ impl VirtualField {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FieldMod {
     None,
     Align(u8),

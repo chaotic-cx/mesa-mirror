@@ -451,9 +451,6 @@ pub mod v9 {
             fields: &'static [u32],
         }
 
-        // Temporary, will be generated later.
-        static FIELDS: [Field; 0] = [];
-
         impl Instr {
             /// Iterate over fields in the order they appear in the asm syntax.
             fn iter_fields(&self) -> impl Iterator<Item = &Field> {
