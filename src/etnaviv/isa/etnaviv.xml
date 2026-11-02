@@ -1581,7 +1581,17 @@ SPDX-License-Identifier: MIT
 </bitset>
 
 <!-- addlo -->
-<!-- mullo -->
+<bitset name="mullo" extends="#instruction-alu-src0-src1">
+	<doc>
+		The low half of the exact product a * b. The significands multiply
+		to 48 bits. mul.rtz returns the upper 24 bits and mullo.rtz the
+		lower 24 bits as a float, so the two add up to the exact product.
+		This holds as long as the low half is a normal float. Without RTZ,
+		mullo does not return the low half.
+	</doc>
+	<pattern low="0" high="5">101001</pattern> <!-- OPC -->
+	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
 
 <bitset name="barrier" extends="#instruction-alu-no-src">
 	<pattern low="0" high="5">101010</pattern> <!-- OPC -->
