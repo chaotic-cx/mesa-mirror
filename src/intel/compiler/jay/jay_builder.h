@@ -629,7 +629,8 @@ jay_copy(jay_builder *b, jay_def dst, jay_def src)
    uint32_t n = MIN2(jay_num_values(dst), jay_num_values(src));
 
    for (unsigned i = 0; i < n; ++i) {
-      jay_MOV(b, jay_extract(dst, i), jay_extract(src, i));
+      jay_MOV(b, jay_extract(dst, i), jay_extract(src, i))->type =
+         jay_type(JAY_TYPE_U, jay_size_to_bits(dst.size));
    }
 }
 
