@@ -604,15 +604,6 @@ anv_h264_emit_vdenc_avc_img_state(struct anv_cmd_buffer *cmd,
                                   const uint8_t *dpb_idx);
 #endif
 
-static struct anv_address
-anv_brc_mem_addr(struct anv_video_session *vid, uint32_t mem_idx)
-{
-   return (struct anv_address) {
-      vid->vid_mem[mem_idx].mem->bo,
-      vid->vid_mem[mem_idx].offset,
-   };
-}
-
 /* Build the SLBB input read buffer the HuC BRC Update kernel parses and
  * patches: the H.264 image-state group (MFX_AVC_IMG_STATE + VDENC image state
  * + MI_BATCH_BUFFER_END). The HuC copies it to the output SLBB while writing
@@ -701,7 +692,7 @@ anv_h264_brc_emit_huc_flush_and_status(struct anv_cmd_buffer *cmd)
 {
    struct anv_video_session *vid = cmd->video.vid;
    struct anv_address pak_mmio_addr =
-      anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_PAK_MMIO_SEM);
+      ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_MMIO_SEM);
 
    anv_batch_emit(&cmd->batch, GENX(VD_PIPELINE_FLUSH), flush) {
       flush.HEVCPipelineDone = true;
@@ -723,7 +714,7 @@ anv_h264_brc_emit_huc_flush_and_status(struct anv_cmd_buffer *cmd)
    }
 
    struct anv_address huc_err_addr =
-      anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_HUC_ERR_SEM);
+      ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_HUC_ERR_SEM);
 
    anv_batch_emit(&cmd->batch, GENX(MI_STORE_DATA_IMM), sdi) {
       sdi.Address = anv_address_add(huc_err_addr, 4);
@@ -797,7 +788,7 @@ anv_h264_brc_emit_huc_init(struct anv_cmd_buffer *cmd,
 
    anv_batch_emit(&cmd->batch, GENX(HUC_VIRTUAL_ADDR_STATE), va) {
       va.HUCVirtualAddressRegion[0] = (struct GENX(HUC_VIRTUAL_ADDR_REGION)) {
-         .Address = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_HISTORY),
+         .Address = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_HISTORY),
          .AddressAttributes = {
             .MOCS = anv_mocs(device, NULL, 0),
          },
@@ -850,7 +841,7 @@ anv_h264_brc_emit_huc_update(struct anv_cmd_buffer *cmd,
    struct anv_address dmem_addr =
       anv_cmd_buffer_temporary_state_address(cmd, dmem_state);
    struct anv_address pak_info =
-      anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_PAK_INFO);
+      ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_INFO);
    mi_memcpy(&b, anv_address_add(dmem_addr, ANV_H264_BRC_DMEM_FRAME_BYTE_COUNT_OFFSET),
              pak_info, 4);
    mi_memcpy(&b, anv_address_add(dmem_addr, ANV_H264_BRC_DMEM_IMAGE_STATUS_CTRL_OFFSET),
@@ -872,13 +863,13 @@ anv_h264_brc_emit_huc_update(struct anv_cmd_buffer *cmd,
    anv_batch_emit(&cmd->batch, GENX(HUC_VIRTUAL_ADDR_STATE), va) {
       struct anv_address regions[16] = { 0 };
 
-      regions[0] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_HISTORY);
-      regions[1] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_VDENC_STATS);
-      regions[2] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_PAK_STATS);
+      regions[0] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_HISTORY);
+      regions[1] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_VDENC_STATS);
+      regions[2] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_STATS);
       regions[3] = anv_cmd_buffer_temporary_state_address(cmd, input_slb_state);
       regions[5] = anv_cmd_buffer_temporary_state_address(cmd, cd_state);
-      regions[6] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_EXEC_SLB);
-      regions[15] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_DEBUG);
+      regions[6] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB);
+      regions[15] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_DEBUG);
 
       for (uint32_t i = 0; i < 16; i++) {
          va.HUCVirtualAddressRegion[i] = (struct GENX(HUC_VIRTUAL_ADDR_REGION)) {
@@ -1618,7 +1609,7 @@ anv_h265_brc_emit_huc_flush_and_status(struct anv_cmd_buffer *cmd)
 {
    struct anv_video_session *vid = cmd->video.vid;
    struct anv_address pak_mmio_addr =
-      anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_PAK_MMIO_SEM);
+      ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_MMIO_SEM);
 
    anv_batch_emit(&cmd->batch, GENX(VD_PIPELINE_FLUSH), flush) {
       flush.HEVCPipelineDone = true;
@@ -1641,7 +1632,7 @@ anv_h265_brc_emit_huc_flush_and_status(struct anv_cmd_buffer *cmd)
 
 #if GFX_VERx10 < 125
    struct anv_address huc_err_addr =
-      anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_HUC_ERR_SEM);
+      ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_HUC_ERR_SEM);
 
    anv_batch_emit(&cmd->batch, GENX(MI_STORE_DATA_IMM), sdi) {
       sdi.Address = anv_address_add(huc_err_addr, 4);
@@ -1741,7 +1732,7 @@ anv_h265_brc_emit_huc_init(struct anv_cmd_buffer *cmd,
 
    anv_batch_emit(&cmd->batch, GENX(HUC_VIRTUAL_ADDR_STATE), va) {
       va.HUCVirtualAddressRegion[0] = (struct GENX(HUC_VIRTUAL_ADDR_REGION)) {
-         .Address = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_HISTORY),
+         .Address = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_HISTORY),
          .AddressAttributes = {
             .MOCS = anv_mocs(device, NULL, 0),
          },
@@ -1774,16 +1765,16 @@ anv_h265_brc_emit_huc_update(struct anv_cmd_buffer *cmd,
    anv_batch_emit(&cmd->batch, GENX(HUC_VIRTUAL_ADDR_STATE), va) {
       struct anv_address regions[16] = { 0 };
 
-      regions[0] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_HISTORY);
-      regions[1] = anv_brc_mem_addr(vid, ANV_VID_MEM_H265_VDENC_STATS_STREAMOUT);
-      regions[2] = anv_brc_mem_addr(vid, ANV_VID_MEM_H265_FRAME_STATS_STREAMOUT);
+      regions[0] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_HISTORY);
+      regions[1] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_H265_VDENC_STATS_STREAMOUT);
+      regions[2] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_H265_FRAME_STATS_STREAMOUT);
       regions[3] = anv_cmd_buffer_temporary_state_address(cmd, input_slb_state);
       regions[4] = anv_cmd_buffer_temporary_state_address(cmd, const_data_state);
-      regions[5] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_EXEC_SLB);
-      regions[6] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_WP_DATA);
-      regions[7] = anv_brc_mem_addr(vid, ANV_VID_MEM_H265_LCU_BASE_ADDR);
-      regions[8] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_PAK_INFO);
-      regions[15] = anv_brc_mem_addr(vid, ANV_VID_MEM_BRC_DEBUG);
+      regions[5] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB);
+      regions[6] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_WP_DATA);
+      regions[7] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_H265_LCU_BASE_ADDR);
+      regions[8] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_INFO);
+      regions[15] = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_DEBUG);
 
       for (uint32_t i = 0; i < 16; i++) {
          va.HUCVirtualAddressRegion[i] = (struct GENX(HUC_VIRTUAL_ADDR_REGION)) {
