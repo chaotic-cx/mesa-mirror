@@ -6624,7 +6624,7 @@
         "description": "kraid/encode_v9: validate swizzle before src_info check",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f571c0a79f147120fa3332d8e7e9c1c7059f0b51",
         "notes": null

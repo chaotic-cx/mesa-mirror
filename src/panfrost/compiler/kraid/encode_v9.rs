@@ -2487,16 +2487,17 @@ pub fn v9_op_src_supports_swizzle(
         return false;
     };
 
+    let src_type = op.src_type(src);
+    let Some(asw) = AsmSwizzleWiden::from_swizzle(src_type, swizzle) else {
+        return false;
+    };
+
     let Some(src_info) = info.src_info(op.src_idx(src)) else {
         // Claim all swizzles are supported for sources we don't have.  They'll
         // never be used so it doesn't matter what the swizzle is.
         return true;
     };
 
-    let src_type = op.src_type(src);
-    let Some(asw) = AsmSwizzleWiden::from_swizzle(src_type, swizzle) else {
-        return false;
-    };
     src_info.allowed_swizzles.contains(asw.into())
 }
 
