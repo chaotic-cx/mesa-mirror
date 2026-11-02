@@ -243,6 +243,22 @@ jay_size_regs(enum jay_size size)
 }
 
 /**
+ * Convert bit size <--> jay_size
+ */
+static inline enum jay_size
+jay_size_from_bits(unsigned bits)
+{
+   assert(bits == 16 || bits == 32);
+   return bits == 32 ? JAY_SIZE_32 : JAY_SIZE_16;
+}
+
+static inline unsigned
+jay_size_to_bits(enum jay_size size)
+{
+   return jay_size_regs(size) * 16;
+}
+
+/**
  * Return the number of ISA registers referenced by a jay_def. ISA registers are
  * 16-bit in the new data model.
  */
@@ -315,7 +331,10 @@ jay_channel(jay_def d, unsigned c)
  * Build a contiguous jay_def.
  */
 static inline jay_def
-jay_contiguous_def(enum jay_file file, uint32_t index, unsigned count)
+jay_contiguous_def(enum jay_file file,
+                   unsigned size,
+                   uint32_t index,
+                   unsigned count)
 {
    assert(count > 0 && count <= (1 << 7) && "max def width");
 
@@ -323,7 +342,7 @@ jay_contiguous_def(enum jay_file file, uint32_t index, unsigned count)
       ._payload = index,
       .file = file,
       .num_values_m1 = count - 1,
-      .size = JAY_SIZE_32,
+      .size = jay_size_from_bits(size),
    };
 }
 
@@ -339,15 +358,15 @@ jay_replace_src(jay_def *old, jay_def replacement)
 }
 
 static inline jay_def
-jay_scalar(enum jay_file file, uint32_t index)
+jay_scalar(enum jay_file file, unsigned size, uint32_t index)
 {
-   return jay_contiguous_def(file, index, 1);
+   return jay_contiguous_def(file, size, index, 1);
 }
 
 static inline jay_def
 jay_null()
 {
-   return jay_scalar(J_ARF, 0);
+   return jay_scalar(J_ARF, 32, 0);
 }
 
 /**
@@ -361,7 +380,9 @@ jay_extract_range(jay_def def, unsigned chan, unsigned count)
    assert(chan + count <= jay_num_values(def));
 
    uint32_t base = jay_channel(def, chan);
-   jay_replace_src(&def, jay_contiguous_def(def.file, base, count));
+   jay_replace_src(&def,
+                   jay_contiguous_def(def.file, jay_size_to_bits(def.size),
+                                      base, count));
    return def;
 }
 

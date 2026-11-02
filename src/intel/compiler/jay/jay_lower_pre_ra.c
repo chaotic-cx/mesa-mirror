@@ -45,7 +45,9 @@ lower_contiguous_sources(jay_builder *b, jay_inst *I)
                seen[nr_seen++] = index;
             } else {
                /* Insert a copy to access a duplicated index */
-               jay_def copy = jay_alloc_def(b, I->src[s].file, 1);
+               jay_def copy =
+                  jay_alloc_def(b, I->src[s].file,
+                                jay_size_to_bits(I->src[s].size), 1);
                jay_def x = jay_extract(I->src[s], c);
                x.negate = x.abs = false; /* XXX: rework modifiers */
                jay_MOV(b, copy, x);
@@ -89,7 +91,7 @@ lower_imm_to_ugpr(jay_builder *b,
     * The spiller should rematerialize constants where necessary to ensure we
     * don't lose the wave, but we could still probably optimize this.
     */
-   jay_def x = jay_alloc_def(b, UGPR, is_64bit ? 2 : 1);
+   jay_def x = jay_alloc_def(b, UGPR, 32, is_64bit ? 2 : 1);
    _mesa_hash_table_u64_insert(constants, key, jay_MOV(b, x, imm));
    return x;
 }
@@ -199,7 +201,7 @@ lower_bf16_restrictions(jay_builder *b, jay_inst *I)
       bool is_broadcast = I->src[s].file == UGPR;
       if (is_bf16 && is_broadcast && I->dst.file != UGPR) {
          b->cursor = jay_before_inst(I);
-         jay_def tmp = jay_alloc_def(b, GPR, 1);
+         jay_def tmp = jay_alloc_def(b, GPR, 32, 1);
          jay_MOV(b, tmp, I->src[s]);
          jay_replace_src(&I->src[s], tmp);
       }
@@ -224,7 +226,8 @@ lower_repeated_phi_srcs(jay_function *f,
       unsigned idx = jay_index(phi->src[0]);
       if (u_sparse_bitset_test(seen, idx)) {
          jay_builder b = jay_init_builder(f, jay_after_block_logical(block));
-         jay_def repl = jay_alloc_def(&b, phi->src[0].file, 1);
+         jay_def repl = jay_alloc_def(&b, phi->src[0].file,
+                                      jay_size_to_bits(phi->src[0].size), 1);
          jay_inst *mov = jay_MOV(&b, repl, phi->src[0]);
          if (jay_is_flag(phi->src[0])) {
             mov->type = jay_flag_type(f);
@@ -256,7 +259,7 @@ lower_send_desc_address_registers(jay_builder *b, jay_inst *I)
       assert(jay_is_uniform(I->src[i]));
 
       b->cursor = jay_before_inst(I);
-      jay_def tmp = jay_alloc_def(b, J_ADDRESS, 1);
+      jay_def tmp = jay_alloc_def(b, J_ADDRESS, 32, 1);
 
       if (i == 0 || !jay_send_bindless(I)) {
          jay_PACK_MLEN(b, tmp, I->src[i], jay_null());
@@ -306,7 +309,7 @@ jay_lower_pre_ra(jay_shader *s)
              */
             if (I->predication > 1) {
                b.cursor = jay_before_inst(I);
-               jay_def copy = jay_alloc_def(&b, FLAG, 1);
+               jay_def copy = jay_alloc_def(&b, FLAG, 32, 1);
                jay_MOV(&b, copy, I->src[I->num_srcs - 1])->type =
                   jay_flag_type(f);
                assert(jay_defs_equivalent(I->src[I->num_srcs - 1],

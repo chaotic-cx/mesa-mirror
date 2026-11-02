@@ -145,7 +145,7 @@ pass(jay_function *f)
                b.cursor = jay_after_inst(I);
             }
 
-            jay_def def = jay_alloc_def(&b, UGPR, 1);
+            jay_def def = jay_alloc_def(&b, UGPR, 32, 1);
             jay_MOV(&b, def, dst)->type = jay_flag_type(f);
             as_ugpr[jay_index(dst)] = def;
          }
@@ -186,7 +186,7 @@ pass(jay_function *f)
          assert(I->op == JAY_OPCODE_CMP && I->uniform);
          I->dst = I->cond_flag;
          I->broadcast_flag = false;
-         I->cond_flag = jay_alloc_def(&b, FLAG, 1);
+         I->cond_flag = jay_alloc_def(&b, FLAG, 32, 1);
       }
 
       if (I->op == JAY_OPCODE_SEL && I->src[2].file == UGPR) {

@@ -193,7 +193,7 @@ jay_def_spilled(struct spill_ctx *ctx, unsigned index)
    return jay_scalar(ctx->file == FLAG ? UGPR :
                      ctx->file == UGPR ? GPR :
                                          MEM,
-                     index + ctx->n);
+                     32, index + ctx->n);
 }
 
 static bool
@@ -215,7 +215,8 @@ ensure_spilled(struct spill_ctx *ctx, unsigned node)
 
       if (!BITSET_TEST(ctx->remat, node)) {
          jay_builder b = jay_init_builder(ctx->func, cursor);
-         jay_MOV(&b, jay_def_spilled(ctx, node), jay_scalar(ctx->file, node));
+         jay_MOV(&b, jay_def_spilled(ctx, node),
+                 jay_scalar(ctx->file, 32, node));
       }
 
       ctx->spill_block[node] = NULL;
@@ -229,7 +230,7 @@ insert_reload(struct spill_ctx *ctx,
               unsigned node)
 {
    jay_builder b = jay_init_builder(ctx->func, cursor);
-   jay_def new_def = jay_alloc_def(&b, ctx->file, 1);
+   jay_def new_def = jay_alloc_def(&b, ctx->file, 32, 1);
 
    if (BITSET_TEST(ctx->remat, node)) {
       jay_inst *I = ctx->defs[node];
@@ -251,15 +252,15 @@ insert_reload(struct spill_ctx *ctx,
           */
          bool initialize = jay_is_null(sb->active_lane_x4);
          if (initialize)
-            sb->active_lane_x4 = jay_alloc_def(&b, UGPR, 1);
+            sb->active_lane_x4 = jay_alloc_def(&b, UGPR, 32, 1);
 
          jay_SHUFFLE(&b, JAY_TYPE_U32, new_def, spilled, sb->active_lane_x4);
 
          if (initialize) {
             jay_builder init =
                jay_init_builder(ctx->func, jay_before_block(block));
-            jay_def ballot = jay_alloc_def(&init, FLAG, 1);
-            jay_def lane = jay_alloc_def(&init, UGPR, 1);
+            jay_def ballot = jay_alloc_def(&init, FLAG, 32, 1);
+            jay_def lane = jay_alloc_def(&init, UGPR, 32, 1);
 
             jay_inst *mov = jay_MOV(&init, jay_null(), 1);
             jay_set_conditional_mod(&init, mov, ballot, GEN_CONDITION_NE);
@@ -774,7 +775,7 @@ add_phi(struct spill_ctx *ctx,
    if (!trivial) {
       /* If the value differs across predecessors, insert a phi for it. */
       jay_builder b = jay_init_builder(ctx->func, jay_before_block(succ));
-      jay_def def = jay_alloc_def(&b, ctx->file, 1);
+      jay_def def = jay_alloc_def(&b, ctx->file, 32, 1);
       jay_PHI_DST(&b, ctx->file == FLAG ? JAY_TYPE_U1 : JAY_TYPE_U32, def);
       remapped = jay_index(def);
 
@@ -782,7 +783,8 @@ add_phi(struct spill_ctx *ctx,
          b.cursor = jay_after_block_logical(*pred);
 
          uint32_t src = lookup_remap(ctx->blocks[(*pred)->index].remap, node);
-         jay_PHI_SRC_u32(&b, jay_scalar(ctx->file, src ? src : node), remapped);
+         jay_PHI_SRC_u32(&b, jay_scalar(ctx->file, 32, src ? src : node),
+                         remapped);
       }
    }
 

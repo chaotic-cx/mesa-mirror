@@ -174,11 +174,11 @@ jay_builder_insert(jay_builder *b, jay_inst *I)
 }
 
 static inline jay_def
-jay_alloc_def(jay_builder *b, enum jay_file file, unsigned size)
+jay_alloc_def(jay_builder *b, enum jay_file file, unsigned size, unsigned n)
 {
    unsigned idx = b->func->ssa_alloc;
-   b->func->ssa_alloc += size;
-   return jay_contiguous_def(file, idx, size);
+   b->func->ssa_alloc += n;
+   return jay_contiguous_def(file, size, idx, n);
 }
 
 /*
@@ -188,6 +188,7 @@ jay_alloc_def(jay_builder *b, enum jay_file file, unsigned size)
 static inline jay_def
 jay_collect(jay_builder *b,
             enum jay_file file,
+            unsigned size,
             const uint32_t *indices,
             unsigned nr)
 {
@@ -213,12 +214,12 @@ jay_collect(jay_builder *b,
             .file = file,
             .num_values_m1 = nr - 1,
             .collect = true,
-            .size = JAY_SIZE_32 /* TODO */,
+            .size = jay_size_from_bits(size),
          };
       }
    }
 
-   return jay_contiguous_def(file, indices[0], nr);
+   return jay_contiguous_def(file, size, indices[0], nr);
 }
 
 /*
@@ -240,7 +241,8 @@ jay_insert_channel_index(jay_builder *b, jay_def *d, unsigned c, uint32_t index)
    }
 
    indices[c] = index;
-   jay_replace_src(d, jay_collect(b, d->file, indices, count));
+   jay_replace_src(d, jay_collect(b, d->file, jay_size_to_bits(d->size),
+                                  indices, count));
 }
 
 static inline void
@@ -267,6 +269,7 @@ jay_collect_vectors(jay_builder *b, jay_def *vecs, uint32_t nr)
          indices[nr_indices++] = 0;
       } else {
          assert(vecs[i].file == vecs[0].file && jay_is_ssa(vecs[i]));
+         assert(vecs[i].size == vecs[0].size);
 
          jay_foreach_comp(vecs[i], c) {
             assert(nr_indices < ARRAY_SIZE(indices));
@@ -275,7 +278,8 @@ jay_collect_vectors(jay_builder *b, jay_def *vecs, uint32_t nr)
       }
    }
 
-   return jay_collect(b, vecs[0].file, indices, nr_indices);
+   return jay_collect(b, vecs[0].file, jay_size_to_bits(vecs[0].size), indices,
+                      nr_indices);
 }
 
 static inline jay_def
@@ -448,7 +452,7 @@ _jay_CMP(jay_builder *b,
     */
    if (!jay_is_flag(dst)) {
       I->dst = dst;
-      dst = jay_alloc_def(b, dst.file == UGPR ? UFLAG : FLAG, 1);
+      dst = jay_alloc_def(b, dst.file == UGPR ? UFLAG : FLAG, 32, 1);
    }
 
    jay_set_conditional_mod(b, I, dst, cmod);
@@ -545,7 +549,8 @@ _jay_SEND(jay_builder *b, const struct jayb_send_params p)
 
          if (p.srcs[i].file == UGPR) {
             uint32_t defs[16] = { jay_index(bfi) };
-            srcs[n++] = jay_collect(b, UGPR, defs, jay_ugpr_per_grf(b->shader));
+            srcs[n++] =
+               jay_collect(b, UGPR, 32, defs, jay_ugpr_per_grf(b->shader));
          } else {
             srcs[n++] = bfi;
          }
@@ -604,7 +609,7 @@ _jay_SEND(jay_builder *b, const struct jayb_send_params p)
        */
       unsigned stride = simd / 2;
       assert(stride % jay_ugpr_per_grf(b->shader) == 0);
-      I->dst = jay_alloc_def(b, UGPR, stride * jay_num_values(I->dst));
+      I->dst = jay_alloc_def(b, UGPR, 32, stride * jay_num_values(I->dst));
       for (unsigned i = 0; i < jay_num_values(p.dst); ++i) {
          jay_def src = jay_extract_range(I->dst, i * stride, stride);
          jay_MOV(b, jay_extract(p.dst, i), src)->type = JAY_TYPE_U16;
@@ -634,7 +639,7 @@ jay_as_gpr(jay_builder *b, jay_def src)
    if (src.file == GPR || jay_is_null(src))
       return src;
 
-   jay_def def = jay_alloc_def(b, GPR, jay_num_values(src));
+   jay_def def = jay_alloc_def(b, GPR, 32, jay_num_values(src));
    jay_copy(b, def, src);
    return def;
 }

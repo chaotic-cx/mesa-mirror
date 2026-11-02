@@ -55,7 +55,7 @@ jay_optimize_and_dce(jay_shader *shader)
 
 #define MOV(T, src0)                                                           \
    ({                                                                          \
-      jay_def dst = jay_alloc_def(b, GPR, 1);                                  \
+      jay_def dst = jay_alloc_def(b, GPR, 32, 1);                              \
       jay_MODIFIER(b, T, dst, src0);                                           \
       dst;                                                                     \
    })
@@ -66,10 +66,10 @@ class Optimizer : public testing::Test {
    {
       mem_ctx = ralloc_context(NULL);
 
-      out = jay_scalar(GPR, 8);
-      wx = jay_scalar(TEST_FILE, 1);
-      wy = jay_scalar(TEST_FILE, 1);
-      wz = jay_scalar(TEST_FILE, 1);
+      out = jay_scalar(GPR, 32, 8);
+      wx = jay_scalar(TEST_FILE, 32, 1);
+      wy = jay_scalar(TEST_FILE, 32, 1);
+      wz = jay_scalar(TEST_FILE, 32, 1);
    }
 
    ~Optimizer()
@@ -108,8 +108,8 @@ TEST_F(Optimizer, FusedNeg)
 TEST_F(Optimizer, SELToFloat)
 {
    CASEB({
-      jay_def flag = jay_alloc_def(b, FLAG, 1);
-      jay_def x = jay_alloc_def(b, GPR, 1);
+      jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+      jay_def x = jay_alloc_def(b, GPR, 32, 1);
       jay_ADD(b, JAY_TYPE_S32, x, wx, NEG(wy));
       jay_CMP(b, JAY_TYPE_S32, GEN_CONDITION_LT, flag, 3, x);
       jay_SEL(b, JAY_TYPE_F32, out, wx,
@@ -151,7 +151,7 @@ TEST_F(Optimizer, FusedSat)
 
       CASE(
          {
-            jay_def x = jay_alloc_def(b, GPR, 1);
+            jay_def x = jay_alloc_def(b, GPR, 32, 1);
             jay_ADD(b, T, x, wx, MOV(T, NEG(wy)));
             jay_MODIFIER(b, T, out, x)->saturate = true;
          },
@@ -159,7 +159,7 @@ TEST_F(Optimizer, FusedSat)
 
       CASE(
          {
-            jay_def x = jay_alloc_def(b, GPR, 1);
+            jay_def x = jay_alloc_def(b, GPR, 32, 1);
             jay_MUL(b, T, x, wx, MOV(T, NEG(wy)));
             jay_MODIFIER(b, T, out, x)->saturate = true;
          },
@@ -167,7 +167,7 @@ TEST_F(Optimizer, FusedSat)
 
       CASE(
          {
-            jay_def x = jay_alloc_def(b, GPR, 1);
+            jay_def x = jay_alloc_def(b, GPR, 32, 1);
             jay_MAX(b, T, x, wx, MOV(T, NEG(wy)))->saturate = true;
             jay_MODIFIER(b, T, out, x)->saturate = true;
          },
@@ -178,10 +178,10 @@ TEST_F(Optimizer, FusedSat)
 TEST_F(Optimizer, InverseBallotPropagate)
 {
    CASEB({
-      jay_def tx = jay_alloc_def(b, UGPR, 1);
-      jay_def ty = jay_alloc_def(b, UGPR, 1);
-      jay_def x = jay_alloc_def(b, UGPR, 1);
-      jay_def f = jay_alloc_def(b, FLAG, 1);
+      jay_def tx = jay_alloc_def(b, UGPR, 32, 1);
+      jay_def ty = jay_alloc_def(b, UGPR, 32, 1);
+      jay_def x = jay_alloc_def(b, UGPR, 32, 1);
+      jay_def f = jay_alloc_def(b, FLAG, 32, 1);
       jay_BROADCAST_IMM(b, tx, wx, 0);
       jay_BROADCAST_IMM(b, ty, wy, 0);
       jay_ADD(b, JAY_TYPE_U32, after ? f : x, tx, ty);
@@ -195,8 +195,8 @@ TEST_F(Optimizer, InverseBallotPropagate)
 TEST_F(Optimizer, GtZero)
 {
    CASEB({
-      jay_def flag = jay_alloc_def(b, FLAG, 1);
-      jay_def x = jay_alloc_def(b, GPR, 1);
+      jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+      jay_def x = jay_alloc_def(b, GPR, 32, 1);
       jay_inst *add = jay_ADD(b, JAY_TYPE_S32, x, wx, NEG(wy));
       if (after) {
          jay_set_conditional_mod(b, add, flag, GEN_CONDITION_GT);
@@ -210,9 +210,9 @@ TEST_F(Optimizer, GtZero)
 TEST_F(Optimizer, MultipleCmp)
 {
    CASEB({
-      jay_def flag = jay_alloc_def(b, FLAG, 1);
-      jay_def flag2 = jay_alloc_def(b, FLAG, 1);
-      jay_def x = jay_alloc_def(b, GPR, 1);
+      jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+      jay_def flag2 = jay_alloc_def(b, FLAG, 32, 1);
+      jay_def x = jay_alloc_def(b, GPR, 32, 1);
       jay_inst *add = jay_ADD(b, JAY_TYPE_S32, x, wx, NEG(wy));
       if (after) {
          jay_set_conditional_mod(b, add, flag, GEN_CONDITION_GT);
@@ -228,8 +228,8 @@ TEST_F(Optimizer, IfNot)
 {
    CASEB({
       check_out = false;
-      jay_def flag = jay_alloc_def(b, FLAG, 1);
-      jay_def flag2 = jay_alloc_def(b, FLAG, 1);
+      jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+      jay_def flag2 = jay_alloc_def(b, FLAG, 32, 1);
       jay_CMP(b, JAY_TYPE_S32, GEN_CONDITION_LT, flag, 0, wx);
 
       if (after) {
@@ -250,8 +250,8 @@ TEST_F(Optimizer, TypeNeutralConditionalMods)
 
    for (unsigned i = 0; i < 2; ++i) {
       CASEB({
-         jay_def flag = jay_alloc_def(b, FLAG, 1);
-         jay_def x = jay_alloc_def(b, GPR, 1);
+         jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def x = jay_alloc_def(b, GPR, 32, 1);
          jay_inst *bfn3 =
             jay_BFN(b, JAY_TYPE_U32, x, wx, wy, wz, UTIL_LUT3(a & b & c));
 
@@ -266,8 +266,8 @@ TEST_F(Optimizer, TypeNeutralConditionalMods)
       });
 
       CASEB({
-         jay_def flag = jay_alloc_def(b, FLAG, 1);
-         jay_def x = jay_alloc_def(b, GPR, 1);
+         jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def x = jay_alloc_def(b, GPR, 32, 1);
          jay_inst *an = jay_AND(b, JAY_TYPE_U32, x, wx, wy);
          if (after) {
             jay_set_conditional_mod(b, an, flag, mods[i]);
@@ -288,8 +288,8 @@ TEST_F(Optimizer, SignednessMismatchConditionalMods)
 
    for (unsigned i = 0; i < 2; ++i) {
       NEGCASE({
-         jay_def flag = jay_alloc_def(b, FLAG, 1);
-         jay_def x = jay_alloc_def(b, GPR, 1);
+         jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def x = jay_alloc_def(b, GPR, 32, 1);
          jay_BFN(b, JAY_TYPE_U32, x, wx, wy, wz, UTIL_LUT3(a & b & c));
          jay_CMP(b, JAY_TYPE_S32, mods[i], flag, x, 0);
          jay_SEL(b, JAY_TYPE_U32, out, x, 123, flag);
@@ -308,8 +308,8 @@ TEST_F(Optimizer, FloatMismatchConditionalMods)
 
    for (unsigned i = 0; i < 2; ++i) {
       NEGCASE({
-         jay_def flag = jay_alloc_def(b, FLAG, 1);
-         jay_def x = jay_alloc_def(b, GPR, 1);
+         jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def x = jay_alloc_def(b, GPR, 32, 1);
          jay_BFN(b, JAY_TYPE_U32, x, wx, wy, wz, UTIL_LUT3(a & b & c));
          jay_CMP(b, JAY_TYPE_F32, mods[i], flag, x, 0);
          jay_SEL(b, JAY_TYPE_U32, out, x, 123, flag);
@@ -321,10 +321,10 @@ TEST_F(Optimizer, PredicateLogic)
 {
    for (int and_ = 0; and_ < 2; ++and_) {
       CASEB({
-         jay_def flag = jay_alloc_def(b, FLAG, 1);
-         jay_def flag2 = jay_alloc_def(b, FLAG, 1);
-         jay_def flag3 = jay_alloc_def(b, FLAG, 1);
-         jay_def x = jay_alloc_def(b, GPR, 1);
+         jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def flag2 = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def flag3 = jay_alloc_def(b, FLAG, 32, 1);
+         jay_def x = jay_alloc_def(b, GPR, 32, 1);
          jay_ADD(b, JAY_TYPE_S32, x, wx, NEG(wy));
          jay_CMP(b, JAY_TYPE_S32, GEN_CONDITION_LT, flag, 7, x);
          jay_inst *cmp2 =
@@ -347,9 +347,9 @@ TEST_F(Optimizer, PredicateLogic)
 TEST_F(Optimizer, BogusCopyprop)
 {
    NEGCASE({
-      jay_def uflag = jay_alloc_def(b, UFLAG, 1);
-      jay_def ugpr = jay_alloc_def(b, UGPR, 1);
-      jay_def gpr = jay_alloc_def(b, GPR, 1);
+      jay_def uflag = jay_alloc_def(b, UFLAG, 32, 1);
+      jay_def ugpr = jay_alloc_def(b, UGPR, 32, 1);
+      jay_def gpr = jay_alloc_def(b, GPR, 32, 1);
       jay_inst *add = jay_ADD(b, JAY_TYPE_S32, ugpr, 1, 1);
       jay_set_conditional_mod(b, add, uflag, GEN_CONDITION_EQ);
       jay_MOV(b, gpr, ugpr);

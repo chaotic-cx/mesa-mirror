@@ -68,7 +68,7 @@ merge_to_one(jay_function *f, jay_inst **sends, jay_def *srcs, unsigned count)
    unsigned count_roundup = util_next_power_of_two(count);
 
    for (unsigned i = count; i < count_roundup; i++) {
-      srcs_copy[i] = jay_alloc_def(&b, UGPR, 1);
+      srcs_copy[i] = jay_alloc_def(&b, UGPR, 32, 1);
       jay_UNDEF(&b, srcs_copy[i]);
    }
 
@@ -76,7 +76,7 @@ merge_to_one(jay_function *f, jay_inst **sends, jay_def *srcs, unsigned count)
 
    unsigned values_per_send = 1;
 
-   jay_def dst = jay_alloc_def(&b, UGPR, count_roundup * values_per_send);
+   jay_def dst = jay_alloc_def(&b, UGPR, 32, count_roundup * values_per_send);
 
    jay_SEND(&b, .sfid = GEN_SFID_SAMPLER,
             .msg_desc = (uint64_t) jay_send_desc_imm(sends[0]) |
