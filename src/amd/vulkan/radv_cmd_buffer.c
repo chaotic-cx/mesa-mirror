@@ -11178,7 +11178,7 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
             const uint64_t htile_va = ds_image->bindings[0].addr + htile_offset;
 
             assert(render_area.offset.x + render_area.extent.width <= ds_image->vk.extent.width &&
-                   render_area.offset.x + render_area.extent.height <= ds_image->vk.extent.height);
+                   render_area.offset.y + render_area.extent.height <= ds_image->vk.extent.height);
 
             /* Copy the VRS rates to the HTILE buffer. */
             if (pRenderingInfo->viewMask) {
