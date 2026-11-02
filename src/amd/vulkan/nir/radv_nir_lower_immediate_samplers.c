@@ -30,11 +30,6 @@ lower_immediate_samplers(nir_builder *b, nir_tex_instr *tex, void *cb_data)
 
    b->cursor = nir_before_instr(&tex->instr);
 
-   const bool disable_tg4_trunc_coord =
-      !state->compiler_info->ac->conformant_trunc_coord && !state->compiler_info->key.disable_trunc_coord;
-   const uint32_t dword0_mask =
-      tex->op == nir_texop_tg4 && disable_tg4_trunc_coord ? C_008F30_TRUNC_COORD : 0xffffffffu;
-
    if (tex->embedded_sampler) {
       const struct vk_sampler_state_array *embedded_samplers = state->embedded_samplers;
       const uint32_t sampler_idx = tex->sampler_index;
@@ -45,8 +40,7 @@ lower_immediate_samplers(nir_builder *b, nir_tex_instr *tex, void *cb_data)
 
       radv_make_sampler_descriptor(state->compiler_info, sampler_state, desc);
 
-      nir_tex_instr_add_src(tex, nir_tex_src_sampler_handle,
-                            nir_imm_ivec4(b, desc[0] & dword0_mask, desc[1], desc[2], desc[3]));
+      nir_tex_instr_add_src(tex, nir_tex_src_sampler_handle, nir_imm_ivec4(b, desc[0], desc[1], desc[2], desc[3]));
    } else {
       nir_deref_instr *deref = nir_get_tex_deref(tex, nir_tex_src_sampler_deref);
       if (!deref)
@@ -77,9 +71,8 @@ lower_immediate_samplers(nir_builder *b, nir_tex_instr *tex, void *cb_data)
 
       const uint32_t *samplers = radv_immutable_samplers(layout, binding);
 
-      nir_def *sampler =
-         nir_imm_ivec4(b, samplers[constant_index * 4 + 0] & dword0_mask, samplers[constant_index * 4 + 1],
-                       samplers[constant_index * 4 + 2], samplers[constant_index * 4 + 3]);
+      nir_def *sampler = nir_imm_ivec4(b, samplers[constant_index * 4 + 0], samplers[constant_index * 4 + 1],
+                                       samplers[constant_index * 4 + 2], samplers[constant_index * 4 + 3]);
 
       const int i = nir_tex_instr_src_index(tex, nir_tex_src_sampler_deref);
       tex->src[i].src_type = nir_tex_src_sampler_handle;

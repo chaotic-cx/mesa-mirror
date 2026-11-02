@@ -386,9 +386,6 @@ get_sampler_desc(nir_builder *b, lower_descriptors_state *state, nir_deref_instr
       desc = nir_vector_insert_imm(b, desc, rsrc3, 3);
    }
 
-   if (desc_type == AC_DESC_SAMPLER)
-      desc = radv_fixup_sampler_desc(b, state, tex, desc);
-
    return desc;
 }
 
@@ -706,6 +703,9 @@ lower_descriptors_tex(nir_builder *b, lower_descriptors_state *state, nir_tex_in
       sampler = get_sampler_desc(b, state, sampler_deref_instr, sampler_heap_offset, AC_DESC_SAMPLER,
                                  tex->sampler_non_uniform, tex, false);
    }
+
+   if (sampler && !tex->sampler_non_uniform)
+      sampler = radv_fixup_sampler_desc(b, state, tex, sampler);
 
    if (sampler && state->disable_aniso_single_level && tex->sampler_dim < GLSL_SAMPLER_DIM_RECT) {
       /* Disable anisotropic filtering if BASE_LEVEL == LAST_LEVEL.
