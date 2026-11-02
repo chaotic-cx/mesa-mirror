@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <atomic>
 #include <errno.h>
 #include <string.h>
 
@@ -22,6 +23,7 @@
 
 uint32_t gSeqno = 0;
 uint32_t gNoRenderControlEnc = 0;
+static std::atomic<uint32_t> gAliveInstanceCount{0};
 
 static gfxstream::vk::VkEncoder* getVulkanEncoder(GfxStreamConnectionManager* mgr) {
     if (!gNoRenderControlEnc) {
@@ -403,6 +405,7 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     instance->base.physical_devices.enumerate = gfxstream_vk_enumerate_devices;
     instance->base.physical_devices.destroy = gfxstream_vk_destroy_physical_device;
 
+    gAliveInstanceCount.fetch_add(1, std::memory_order_relaxed);
     return VK_SUCCESS;
 }
 
@@ -422,9 +425,11 @@ void gfxstream_vk_DestroyInstance(VkInstance _instance, const VkAllocationCallba
     // To make End2EndTests happy, since now the host connection is statically linked to
     // libvulkan_ranchu.so [separate HostConnections now].
 #if defined(END2END_TESTS)
-    GfxStreamConnectionManager::resetThreadLocalInstance();
-    VirtGpuDevice::resetInstance();
-    gSeqno = 0;
+    if (gAliveInstanceCount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        GfxStreamConnectionManager::resetThreadLocalInstance();
+        VirtGpuDevice::resetInstance();
+        gSeqno = 0;
+    }
 #endif
 }
 
