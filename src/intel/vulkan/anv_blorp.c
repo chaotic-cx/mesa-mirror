@@ -1408,6 +1408,9 @@ void anv_CmdUpdateMemoryKHR(
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
 
+   if (pDstRange->size == 0)
+      return;
+
    anv_cmd_buffer_update_addr(cmd_buffer,
                               anv_address_from_range_flags(*pDstRange, dstFlags),
                               pDstRange->size, pData);
@@ -1483,6 +1486,9 @@ void anv_CmdFillMemoryKHR(
     uint32_t                                    data)
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
+
+   if (pDstRange->size == 0)
+      return;
 
    anv_cmd_buffer_fill_area(cmd_buffer,
                             anv_address_from_range_flags(*pDstRange, dstFlags),
