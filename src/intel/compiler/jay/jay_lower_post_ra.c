@@ -71,8 +71,12 @@ lower(jay_builder *b, jay_inst *I)
          if (stride_sz < type_sz) {
             assert(stride_sz == 16 && type_sz == 32 && "no other case hit");
             I->type = JAY_TYPE_U16;
+            I->dst.size = JAY_SIZE_16;
+            I->src[0].size = JAY_SIZE_16;
 
+            dst = I->dst;
             dst.hi = true;
+            src = I->src[0];
             src.hi = true;
             jay_MOV(b, dst, src)->type = JAY_TYPE_U16;
          }
