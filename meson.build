@@ -2282,7 +2282,7 @@ endif
 
 with_wayland_bind_display = with_platform_wayland and get_option('legacy-wayland').contains('bind-wayland-display')
 if with_platform_wayland
-  dep_wl_protocols = dependency('wayland-protocols', version : '>= 1.49', default_options: [ 'tests=false' ])
+  dep_wl_protocols = dependency('wayland-protocols', version : '>= 1.50', default_options: [ 'tests=false' ])
   dep_wayland_client = dependency('wayland-client', version : '>=1.18')
   dep_wayland_server = dependency('wayland-server', version : '>=1.18')
   if with_egl

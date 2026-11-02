@@ -1496,12 +1496,6 @@ static const struct wp_presentation_listener presentation_listener = {
 #define MESA_WL_FIXES_VERSION 1
 #endif
 
-#if defined(WP_PRESENTATION_FEEDBACK_KIND_FIXED_RATE_SINCE_VERSION)
-#define MESA_WP_PRESENTATION_VERSION 3
-#else
-#define MESA_WP_PRESENTATION_VERSION 2
-#endif
-
 static void
 registry_handle_global(void *data, struct wl_registry *registry,
                        uint32_t name, const char *interface, uint32_t version)
@@ -1534,7 +1528,7 @@ registry_handle_global(void *data, struct wl_registry *registry,
    if (strcmp(interface, wp_presentation_interface.name) == 0) {
       display->wp_presentation_notwrapped =
          wl_registry_bind(registry, name, &wp_presentation_interface,
-                          MIN2(version, MESA_WP_PRESENTATION_VERSION));
+                          MIN2(version, WP_PRESENTATION_FEEDBACK_KIND_FIXED_RATE_SINCE_VERSION));
       wp_presentation_add_listener(display->wp_presentation_notwrapped, &presentation_listener, display);
    } else if (strcmp(interface, wp_tearing_control_manager_v1_interface.name) == 0) {
       display->tearing_control_manager =
@@ -3118,7 +3112,6 @@ presentation_handle_presented(void *data,
    struct wsi_wl_swapchain *chain = id->chain;
    uint64_t target_time = id->target_time;
 
-#if MESA_WP_PRESENTATION_VERSION >= 3
    if (wp_presentation_get_version(chain->wsi_wl_surface->display->wp_presentation_notwrapped) >= 3) {
       if (flags & WP_PRESENTATION_FEEDBACK_KIND_FIXED_RATE) {
          wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, refresh, 1000);
@@ -3128,9 +3121,7 @@ presentation_handle_presented(void *data,
          /* Just report Unknown if compositor doesn't tell us what kind of refresh rate we're running at. */
          wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, 0, 0);
       }
-   } else
-#endif
-   {
+   } else {
       /* Prior to v3 of presentation time, we can't know if we're running VRR
        * or FRR so just report "Unknown" instead. */
       wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, 0, 0);
