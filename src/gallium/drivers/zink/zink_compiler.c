@@ -4106,8 +4106,11 @@ compile_module(struct zink_screen *screen, struct zink_shader *zs, nir_shader *n
    prune_io(nir);
 
    /* fuse mul and add into ffma_weak like radeonsi */
-   if (zink_driverid(screen) == VK_DRIVER_ID_MESA_RADV)
+   if (zink_driverid(screen) == VK_DRIVER_ID_MESA_RADV) {
       NIR_PASS(_, nir, zink_nir_fuse_ffma_weak);
+      NIR_PASS(_, nir, nir_opt_dce);
+      NIR_PASS(_, nir, nir_opt_cse);
+   }
 
    if (zink_debug & (ZINK_DEBUG_NIR | ZINK_DEBUG_SPIRV))
       nir_index_ssa_defs(nir_shader_get_entrypoint(nir));
