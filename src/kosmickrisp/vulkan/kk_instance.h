@@ -11,13 +11,15 @@
 #include "kk_private.h"
 
 #include "util/xmlconfig.h"
+#include "kk_drirc.h"
 #include "vk_instance.h"
 
 struct kk_instance {
    struct vk_instance vk;
 
+   struct kk_drirc drirc;
+
    uint8_t driver_build_sha[VK_UUID_SIZE];
-   uint32_t force_vk_vendor;
 };
 
 VK_DEFINE_HANDLE_CASTS(kk_instance, vk.base, VkInstance,

@@ -85,6 +85,20 @@ kk_EnumerateInstanceExtensionProperties(const char *pLayerName,
       &instance_extensions, pPropertyCount, pProperties);
 }
 
+static void
+kk_init_dri_options(struct kk_instance *instance)
+{
+   kk_parse_dri_options(
+      &instance->drirc,
+      &(driConfigFileParseParams){
+         .driverName = "kk",
+         .applicationName = instance->vk.app_info.app_name,
+         .applicationVersion = instance->vk.app_info.app_version,
+         .engineName = instance->vk.app_info.engine_name,
+         .engineVersion = instance->vk.app_info.engine_version,
+      });
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 kk_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                   const VkAllocationCallbacks *pAllocator,
@@ -111,6 +125,8 @@ kk_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                              &dispatch_table, pCreateInfo, pAllocator);
    if (result != VK_SUCCESS)
       goto fail_alloc;
+
+   kk_init_dri_options(instance);
 
    instance->vk.physical_devices.enumerate = kk_enumerate_physical_devices;
    instance->vk.physical_devices.destroy = kk_physical_device_destroy;
@@ -156,6 +172,9 @@ kk_DestroyInstance(VkInstance _instance,
 
    if (!instance)
       return;
+
+   driDestroyOptionCache(&instance->drirc.options);
+   driDestroyOptionInfo(&instance->drirc.available_options);
 
    vk_instance_finish(&instance->vk);
    vk_free(&instance->vk.alloc, instance);

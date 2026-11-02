@@ -114,6 +114,19 @@ kk_files = files(
   'kk_wsi.c',
 )
 
+kk_drirc = custom_target(
+  'kk_drirc',
+  input  : [files('kk_drirc_gen.py'), drirc_gen, '00-kk-defaults.conf'],
+  output : ['kk_drirc.c', 'kk_drirc.h'],
+  command : [
+    prog_python, '@INPUT0@',
+    '--import-path', join_paths(dir_source_root, 'src/util'),
+    '--drirc-src', '@OUTPUT0@',
+    '--drirc-hdr', '@OUTPUT1@',
+    '--validate', '@INPUT2@',
+  ],
+)
+
 kk_entrypoints = custom_target(
   'kk_entrypoints',
   input : [vk_entrypoints_gen, vk_api_xml],
@@ -148,6 +161,7 @@ libkk = static_library(
   [
     kk_files,
     kk_entrypoints,
+    kk_drirc,
     sha1_h,
   ],
   include_directories : [

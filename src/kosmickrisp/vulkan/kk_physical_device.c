@@ -546,8 +546,9 @@ kk_get_device_properties(
    *properties = (struct vk_properties){
       .apiVersion = kk_get_vk_version(),
       .driverVersion = vk_get_driver_version(),
-      .vendorID =
-         instance->force_vk_vendor != 0 ? instance->force_vk_vendor : 0x106b,
+      .vendorID = instance->drirc.debug.force_vk_vendor != 0
+                     ? instance->drirc.debug.force_vk_vendor
+                     : 0x106b,
       .deviceID = 100,
       .deviceType = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
 
