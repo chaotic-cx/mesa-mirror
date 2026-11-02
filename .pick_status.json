@@ -234,7 +234,7 @@
         "description": "nir/clone: preserve input attachment info of texture instructions",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "1dc711c4074d260da031b6d456c4b0c46b82069e",
         "notes": null
