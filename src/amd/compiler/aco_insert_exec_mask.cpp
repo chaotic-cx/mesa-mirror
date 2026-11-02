@@ -393,14 +393,13 @@ process_instructions(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instructio
             info.exec[1].type &= ~mask_type_global;
          }
 
-         Temp cond;
-         if (instr->operands[0].isConstant()) {
-            assert(instr->operands[0].constantValue() == -1u);
+         Operand cond;
+         if (instr->operands[0] == Operand::c32(-1u)) {
             /* save condition and set exec to zero */
             cond = bld.sop1(Builder::s_and_saveexec, bld.def(bld.lm), bld.def(s1, scc),
                             Definition(exec, bld.lm), Operand::zero(), Operand(exec, bld.lm));
          } else {
-            cond = instr->operands[0].getTemp();
+            cond = instr->operands[0];
             /* discard from current exec */
             bld.sop2(Builder::s_andn2, Definition(exec, bld.lm), bld.def(s1, scc), current_exec,
                      cond);
@@ -456,7 +455,8 @@ process_instructions(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instructio
          }
 
          /* Remove invocations from global exact mask. */
-         Operand src = instr->operands[0].isConstant() ? Operand(exec, bld.lm) : instr->operands[0];
+         Operand src = instr->operands[0] == Operand::c32(-1u) ? Operand(exec, bld.lm)
+                                                               : instr->operands[0];
          Operand exit_cond = Operand(exec, bld.lm);
 
          if (state == Exact) {
