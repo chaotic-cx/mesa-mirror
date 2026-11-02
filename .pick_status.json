@@ -734,7 +734,7 @@
         "description": "kraid/hw_tests: use wrapping_sub instead of plain -1",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9a18efb87eeffe052389c25b38c214bdf975856e",
         "notes": null
