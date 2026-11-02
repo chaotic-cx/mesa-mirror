@@ -332,7 +332,7 @@ fn test_copy_warp() {
     // only copies the first half
     const HALF_READ_SIZE: usize = READ_SIZE / 2;
     for i in 0..data.len() {
-        data[i] = (i as u8) * 4 + 1;
+        data[i] = (i * 4 + 1) as u8;
     }
     data[READ_SIZE..].fill(0);
     let case = bin.with_args_raw(FAU_ONLY_ARGS, &mut data, 4, WARP_SIZE / 2);
@@ -358,7 +358,7 @@ fn test_copy_large() {
     const READ_SIZE: usize = 4 * (2 * WARP_SIZE) as usize;
     let mut data = [0u8; READ_SIZE * 2];
     for i in 0..READ_SIZE {
-        data[i] = (i as u8) * 4 + 1;
+        data[i] = (i * 4 + 1) as u8;
     }
     let case = bin.with_args_raw(FAU_ONLY_ARGS, &mut data, 4, 2 * WARP_SIZE);
 
