@@ -519,12 +519,17 @@ panfrost_create_shader_state(struct pipe_context *pctx,
    /* PLS lowering is not taken care of by glsl_to_nir(), so do it here. */
    if (nir->info.stage == MESA_SHADER_FRAGMENT &&
        nir->info.fs.accesses_pixel_local_storage) {
-      /* Try to optimize the case where inout PLS vars are never
-       * read/written to. Needs to be called before
-       * nir_lower_io_vars_to_temporaries() because the copy_derefs
-       * inserted there prevent us from detecting PLS usage.
+      /* Delete any unaccessed PLS vars.  If we never read or write it, we
+       * don't need it anymore.  The data will sit in tile memory untouched.
+       * This prevents us from inserting unnecessary loads and stores for
+       * untouched inout PLS vars.  For untouched out PLS vars, the garbage
+       * that's sitting there now is just as good as the garbage we'd write.
+       *
+       * This prevents nir_lower_io_vars_to_temporaries() from adding
+       * redundant copies to/from unused inout vars.
        */
-      NIR_PASS(_, nir, nir_downgrade_pls_vars);
+      NIR_PASS(_, nir, nir_remove_dead_variables,
+               nir_var_any_pixel_local, NULL);
 
       /* Lower PLS vars to temporaries before we lower IOs. */
       NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries,

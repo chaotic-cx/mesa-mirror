@@ -2234,7 +2234,7 @@
         "description": "panfrost,nir: Get rid of nir_downgrade_pls_vars()",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "98bd0850da075503502bbe9e0f421872ecf3d3bd",
         "notes": null
