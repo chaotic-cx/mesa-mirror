@@ -664,6 +664,4 @@ jay_reg_unit_old_to_new(jay_shader *s)
 
       s->num_regs[file] *= factor;
    }
-
-   s->partition.new_units = true;
 }

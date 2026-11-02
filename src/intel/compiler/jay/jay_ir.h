@@ -819,8 +819,6 @@ struct jay_partition {
     * UGPRs). 8 encodes SIMD32 32-bit GPRs on Xe2 (2 GRF = 1 GPR).
     */
    unsigned units_x16[JAY_NUM_RA_FILES];
-
-   bool new_units;
 };
 
 static inline struct jay_register_block
@@ -1681,39 +1679,20 @@ jay_def_to_footprint(jay_function *func,
                      enum jay_type type)
 {
    struct jay_footprint r = { 0 };
-   bool nu = func->shader->partition.new_units;
 
    if (x.file == GPR || x.file == UGPR || x.file == ACCUM || x.file == FLAG) {
-      r.base = jay_footprint_base(func->shader, x.file);
-      r.base +=
-         (x.file == ACCUM && !nu) ? (x.reg / 2) :
-         (x.file == GPR && !nu)   ? (x.reg * jay_grf_per_gpr(func->shader)) :
-                                    x.reg;
+      r.base = jay_footprint_base(func->shader, x.file) + x.reg;
+      r.count = 1;
+      r.width = jay_num_regs(x);
 
-      if (nu) {
-         r.count = 1;
-         r.width = jay_num_regs(x);
-      } else {
-         r.width = 1;
-         r.stride = 1;
-         r.count = jay_num_values(x);
-      }
-
-      if (x.file == FLAG && nu) {
+      if (x.file == FLAG) {
          assert(jay_num_values(x) == 1 && "no flag vectors");
          r.width = jay_phys_flag_per_virt(func->shader);
       }
 
       if (x.file == ACCUM && !jay_type_is_any_float(type)) {
-         if (nu) {
-            assert(
-               x.reg == 0 && r.width == 2 && "only acc0 used with integers");
-            r.width = (func->shader->dispatch_width < 32) ? 4 : 2;
-         } else {
-            assert(
-               x.reg == 0 && r.width == 1 && "only acc0 used with integers");
-            r.count = (func->shader->dispatch_width < 32) ? 2 : 1;
-         }
+         assert(x.reg == 0 && r.width == 2 && "only acc0 used with integers");
+         r.width = (func->shader->dispatch_width < 32) ? 4 : 2;
       }
 
       if (x.file == GPR) {
@@ -1725,23 +1704,14 @@ jay_def_to_footprint(jay_function *func,
             offs = 0;
          }
 
-         unsigned grf_per_gpr = jay_grf_per_gpr(func->shader);
-
-         /* With "new" registers, model the GPR block logically from the
-          * perspective of a single lane, with the entire block duplicated for
-          * each modelled SIMD. This could be optimized later but it's simple
-          * and obviously correct.
+         /* Model the GPR block logically from the perspective of a single lane,
+          * with the entire block duplicated for each modelled SIMD. This could
+          * be optimized later but it's simple and obviously correct.
           */
-         if (nu) {
-            r.stride = func->shader->num_regs[GPR];
-            r.count = MAX2(grf_per_gpr >> split, 1);
-            r.base += (r.stride * r.count * offs);
-            r.width = jay_num_regs(x);
-         } else {
-            r.stride = grf_per_gpr;
-            r.width = MAX2(r.stride >> split, 1);
-            r.base += (r.stride * offs) >> split;
-         }
+         r.stride = func->shader->num_regs[GPR];
+         r.count = MAX2(jay_grf_per_gpr(func->shader) >> split, 1);
+         r.base += (r.stride * r.count * offs);
+         r.width = jay_num_regs(x);
       }
    }
 
