@@ -529,7 +529,7 @@ typedef struct nir_variable {
        *
        * :c:struct:`nir_variable_mode`
        */
-      unsigned mode : 26;
+      unsigned mode : 22;
 
       /* A temporary for passes to store information. Used, for example, to
        * replace an unordered set with an ordered util_dynarray.
