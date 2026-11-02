@@ -4464,7 +4464,7 @@
         "description": "anv: pDstRange->size in vkCmdFillMemoryKHR can be 0",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f123030dcd736e6378af31ff167d29df51d4df30",
         "notes": null
