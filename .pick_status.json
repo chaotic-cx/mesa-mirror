@@ -744,7 +744,7 @@
         "description": "kraid/hw_tests: fix multiply overflow errors",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "15d6595a6259bd6e60e2c22fccac3b4963f4c9e5",
         "notes": null
