@@ -4061,6 +4061,13 @@ static bool gfx12_compute_hiz_info(struct ac_addrlib *addrlib, const struct rade
    hiz->swizzle_mode = in.swizzleMode;
    hiz->alignment_log2 = out.baseAlign;
 
+   const unsigned log_bpe = util_logbase2(in.bpp / 8);
+   const unsigned log_samples = util_logbase2(in.numSamples);
+   assert(in.swizzleMode >= ADDR3_256B_2D && in.swizzleMode <= ADDR3_256KB_2D);
+   hiz->block256B_extent.width = gfx9_gfx12_block_size_256B_2D[log_samples][log_bpe].width;
+   hiz->block256B_extent.height = gfx9_gfx12_block_size_256B_2D[log_samples][log_bpe].height;
+   hiz->block256B_extent.depth = 1;
+
    for (unsigned i = 0; i < in.numMipLevels; i++) {
       if (i >= out.firstMipIdInTail) {
          /* Levels inside the mip tail share only one block and they can't be
