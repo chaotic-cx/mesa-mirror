@@ -64,13 +64,11 @@ emit_copies(nir_builder *b, struct exec_list *dest_vars,
           !src->data.fb_fetch_output)
          continue;
 
-      /* No need to copy the contents of a pixel-local output variable
-       * to the temporary allocated for it, since its initial value is
-       * undefined. Similarly, no need to copy data to a pixel-local
-       * input variable since it's supposed to be read-only.
+      /* Access modes are used for pixel-local storage.  We can't copy from
+       * something non-readable or copy to something non-writeable.
        */
-      if (src->data.mode == nir_var_mem_pixel_local_out ||
-          dest->data.mode == nir_var_mem_pixel_local_in)
+      if ((src->data.access & ACCESS_NON_READABLE) ||
+          (dest->data.access & ACCESS_NON_WRITEABLE))
          continue;
 
       /* Don't copy those variables before emit_vertex that are not emitted
@@ -331,14 +329,10 @@ static const char *mode_str(nir_variable_mode mode)
    switch (mode) {
    case nir_var_shader_in:
       return "in";
-   case nir_var_mem_pixel_local_in:
-      return "pls_in";
    case nir_var_shader_out:
       return "out";
-   case nir_var_mem_pixel_local_out:
-      return "pls_out";
-   case nir_var_mem_pixel_local_inout:
-      return "pls_inout";
+   case nir_var_mem_pixel_local:
+      return "pls";
    default:
       UNREACHABLE("Invalid mode");
    }
@@ -390,7 +384,7 @@ nir_lower_io_vars_to_temporaries(nir_shader *shader, nir_function_impl *entrypoi
                                  nir_variable_mode modes)
 {
    ASSERTED const nir_variable_mode supported_modes =
-      nir_var_shader_in | nir_var_shader_out | nir_var_any_pixel_local;
+      nir_var_shader_in | nir_var_shader_out | nir_var_mem_pixel_local;
    struct lower_io_state state;
 
    assert(!(modes & ~supported_modes));
@@ -417,14 +411,8 @@ nir_lower_io_vars_to_temporaries(nir_shader *shader, nir_function_impl *entrypoi
    /* All PLS vars are fragment shader outputs by nature, even if they
     * are flagged _in (AKA read-only).
     */
-   if (modes & nir_var_mem_pixel_local_in)
-      move_variables_to_list(shader, nir_var_mem_pixel_local_in,
-                             &state.old_outputs);
-   if (modes & nir_var_mem_pixel_local_out)
-      move_variables_to_list(shader, nir_var_mem_pixel_local_out,
-                             &state.old_outputs);
-   if (modes & nir_var_mem_pixel_local_inout)
-      move_variables_to_list(shader, nir_var_mem_pixel_local_inout,
+   if (modes & nir_var_mem_pixel_local)
+      move_variables_to_list(shader, nir_var_mem_pixel_local,
                              &state.old_outputs);
 
    exec_list_make_empty(&state.new_inputs);
@@ -449,7 +437,7 @@ nir_lower_io_vars_to_temporaries(nir_shader *shader, nir_function_impl *entrypoi
       if (modes & nir_var_shader_in)
          emit_input_copies_impl(&state, impl);
 
-      if (modes & (nir_var_shader_out | nir_var_any_pixel_local))
+      if (modes & (nir_var_shader_out | nir_var_mem_pixel_local))
          emit_output_copies_impl(&state, impl);
 
       nir_progress(true, impl, nir_metadata_control_flow);

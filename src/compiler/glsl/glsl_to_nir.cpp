@@ -478,6 +478,7 @@ nir_visitor::visit(ir_variable *ir)
    var->data.per_primitive = ir->data.per_primitive;
    var->data.yuv = ir->data.yuv;
 
+   unsigned mem_access = 0;
    switch(ir->data.mode) {
    case ir_var_auto:
       if (is_global) {
@@ -536,15 +537,15 @@ nir_visitor::visit(ir_variable *ir)
       break;
 
    case ir_var_shader_pixel_local_storage:
+      var->data.mode = nir_var_mem_pixel_local;
       switch (ir->data.pixel_local_storage) {
       case GLSL_PIXEL_LOCAL_STORAGE_IN:
-         var->data.mode = nir_var_mem_pixel_local_in;
+         mem_access |= ACCESS_NON_WRITEABLE;
          break;
       case GLSL_PIXEL_LOCAL_STORAGE_OUT:
-         var->data.mode = nir_var_mem_pixel_local_out;
+         mem_access |= ACCESS_NON_READABLE;
          break;
       case GLSL_PIXEL_LOCAL_STORAGE_INOUT:
-         var->data.mode = nir_var_mem_pixel_local_inout;
          break;
       default:
          UNREACHABLE("bad pixel local storage field");
@@ -556,7 +557,6 @@ nir_visitor::visit(ir_variable *ir)
       UNREACHABLE("not reached");
    }
 
-   unsigned mem_access = 0;
    if (ir->data.memory_read_only)
       mem_access |= ACCESS_NON_WRITEABLE;
    if (ir->data.memory_write_only)
@@ -643,7 +643,7 @@ nir_visitor::visit(ir_variable *ir)
    } else if (var->data.mode == nir_var_shader_out) {
       var->data.xfb.buffer = ir->data.xfb_buffer;
       var->data.xfb.stride = ir->data.xfb_stride;
-   } else if (var->data.mode & nir_var_any_pixel_local) {
+   } else if (var->data.mode == nir_var_mem_pixel_local) {
       var->data.image.format = ir->data.image_format;
    }
 

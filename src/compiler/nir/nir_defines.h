@@ -78,9 +78,7 @@ typedef enum {
    nir_var_mem_task_payload      = (1 << 12),
    nir_var_mem_node_payload      = (1 << 13),
    nir_var_mem_node_payload_in   = (1 << 14),
-   nir_var_mem_pixel_local_in    = (1 << 15),
-   nir_var_mem_pixel_local_out   = (1 << 16),
-   nir_var_mem_pixel_local_inout = (1 << 17),
+   nir_var_mem_pixel_local       = (1 << 15),
 
    nir_var_resource_heap         = (1 << 20),
    nir_var_sampler_heap          = (1 << 21),
@@ -109,11 +107,6 @@ typedef enum {
                                  nir_var_mem_shared | nir_var_mem_global |
                                  nir_var_mem_push_const | nir_var_mem_task_payload |
                                  nir_var_shader_out | nir_var_system_value,
-
-   /* modes that can serve as fragment shader outputs */
-   nir_var_any_pixel_local   = nir_var_mem_pixel_local_in |
-                               nir_var_mem_pixel_local_out |
-                               nir_var_mem_pixel_local_inout,
 
    nir_num_variable_modes        = 26,
    nir_var_all                   = (1 << nir_num_variable_modes) - 1,

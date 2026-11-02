@@ -527,11 +527,11 @@ panfrost_create_shader_state(struct pipe_context *pctx,
        * redundant copies to/from unused inout vars.
        */
       NIR_PASS(_, nir, nir_remove_dead_variables,
-               nir_var_any_pixel_local, NULL);
+               nir_var_mem_pixel_local, NULL);
 
       /* Lower PLS vars to temporaries before we lower IOs. */
       NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries,
-               nir_shader_get_entrypoint(nir), nir_var_any_pixel_local);
+               nir_shader_get_entrypoint(nir), nir_var_mem_pixel_local);
 
       /* We need to lower all the copy_deref's introduced by lower_io_to-
        * _temporaries before calling nir_lower_io.
@@ -541,7 +541,7 @@ panfrost_create_shader_state(struct pipe_context *pctx,
       NIR_PASS(_, nir, nir_lower_global_vars_to_local);
 
       /* Lower all PLS IOs. */
-      NIR_PASS(_, nir, nir_lower_io, nir_var_any_pixel_local, glsl_type_size,
+      NIR_PASS(_, nir, nir_lower_io, nir_var_mem_pixel_local, glsl_type_size,
                0);
 
       /* Lower and remove dead derefs and variables to clean up the IR. */

@@ -148,7 +148,7 @@ flatten_named_interface_deref(void *mem_ctx, nir_builder *b,
                               bool is_src0)
 {
    nir_variable_mode mask = nir_var_shader_in | nir_var_shader_out |
-                            nir_var_any_pixel_local;
+                            nir_var_mem_pixel_local;
 
    if (!nir_deref_mode_is_one_of(deref, mask))
       return false;
@@ -254,7 +254,7 @@ lower_named_interface_blocks(struct gl_linked_shader *sh)
     */
    nir_foreach_variable_with_modes_safe(var, sh->Program->nir,
                                         nir_var_shader_in | nir_var_shader_out |
-                                        nir_var_any_pixel_local) {
+                                        nir_var_mem_pixel_local) {
       const struct glsl_type * iface_t = glsl_without_array(var->type);
       if (iface_t != var->interface_type)
          continue;
@@ -295,7 +295,7 @@ lower_named_interface_blocks(struct gl_linked_shader *sh)
             new_var->data.how_declared = var->data.how_declared;
             new_var->data.from_named_ifc_block = 1;
 
-            if (new_var->data.mode & nir_var_any_pixel_local)
+            if (new_var->data.mode == nir_var_mem_pixel_local)
                new_var->data.image.format = field_data->image_format;
             else
                new_var->data.xfb.buffer = field_data->xfb_buffer;
@@ -322,7 +322,7 @@ lower_named_interface_blocks(struct gl_linked_shader *sh)
     */
    nir_foreach_variable_with_modes(var, sh->Program->nir,
                                    nir_var_shader_in | nir_var_shader_out |
-                                   nir_var_any_pixel_local) {
+                                   nir_var_mem_pixel_local) {
 
       if (var->data.mode == nir_var_shader_in) {
          if (sh->Program->nir->info.stage == MESA_SHADER_TESS_EVAL &&

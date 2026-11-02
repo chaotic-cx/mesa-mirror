@@ -574,9 +574,7 @@ gl_nir_validate_intrastage_interface_blocks(struct gl_shader_program *prog,
          case nir_var_mem_ssbo:
             definitions = buffer_interfaces;
             break;
-         case nir_var_mem_pixel_local_in:
-         case nir_var_mem_pixel_local_out:
-         case nir_var_mem_pixel_local_inout:
+         case nir_var_mem_pixel_local:
             /* These aren't intrastage, they're fragment shader
              * only, so they don't need to be checked here.
              */

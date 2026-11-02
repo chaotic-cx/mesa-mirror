@@ -800,11 +800,7 @@ get_variable_mode_str(nir_variable_mode mode, bool want_local_global_mode)
       return "push_const";
    case nir_var_mem_constant:
       return "constant";
-   case nir_var_mem_pixel_local_in:
-      return "pixel_local_in";
-   case nir_var_mem_pixel_local_out:
-      return "pixel_local_out";
-   case nir_var_mem_pixel_local_inout:
+   case nir_var_mem_pixel_local:
       return "pixel_local";
    case nir_var_image:
       return "image";
@@ -1589,7 +1585,7 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
 
          case nir_intrinsic_load_pixel_local:
          case nir_intrinsic_store_pixel_local:
-            mode = nir_var_mem_pixel_local_inout;
+            mode = nir_var_mem_pixel_local;
             break;
 
          default:

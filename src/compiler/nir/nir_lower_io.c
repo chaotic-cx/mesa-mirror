@@ -406,8 +406,7 @@ emit_load(struct lower_io_state *state,
    case nir_var_uniform:
       op = nir_intrinsic_load_uniform;
       break;
-   case nir_var_mem_pixel_local_in:
-   case nir_var_mem_pixel_local_inout:
+   case nir_var_mem_pixel_local:
       assert(!array_index);
       op = nir_intrinsic_load_pixel_local;
       break;
@@ -566,8 +565,7 @@ emit_store(struct lower_io_state *state, nir_def *data,
    nir_builder *b = &state->builder;
 
    nir_intrinsic_op op;
-   if (var->data.mode == nir_var_mem_pixel_local_out ||
-       var->data.mode == nir_var_mem_pixel_local_inout)
+   if (var->data.mode == nir_var_mem_pixel_local)
       op = nir_intrinsic_store_pixel_local;
    else if (!array_index)
       op = nir_intrinsic_store_output;
@@ -953,7 +951,7 @@ nir_lower_io_impl(nir_function_impl *impl,
 
    ASSERTED nir_variable_mode supported_modes =
       nir_var_shader_in | nir_var_shader_out | nir_var_uniform |
-      nir_var_any_pixel_local;
+      nir_var_mem_pixel_local;
    assert(!(modes & ~supported_modes));
 
    nir_foreach_block(block, impl) {
