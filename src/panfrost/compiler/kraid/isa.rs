@@ -273,6 +273,7 @@ pub mod v9 {
     pub mod decode {
         use super::*;
         use crate::isa::*;
+        use rustc_hash::FxHashMap;
 
         enum SourceEncodingX<const IS64: bool> {
             Register {
@@ -418,6 +419,116 @@ pub mod v9 {
 
         type SourceEncoding = SourceEncodingX<false>;
         type SourceEncoding64 = SourceEncodingX<true>;
+
+        type DecodeResult<T> = Result<Option<Box<T>>, InvalidInstrError>;
+        type DecodeFn = fn(
+            u32,
+            &FxHashMap<&'static str, u32>,
+            u8,
+            &PrintCtx,
+        ) -> DecodeResult<dyn std::fmt::Display>;
+
+        enum LoadFn {
+            Physical(fn(u64) -> u32),
+            Virtual(
+                fn(
+                    &FxHashMap<&'static str, u32>,
+                    u8,
+                ) -> Result<u32, EncodeError>,
+            ),
+        }
+
+        struct Field {
+            name: &'static str,
+            is_mod: bool,
+            load: LoadFn,
+            decode: DecodeFn,
+        }
+
+        pub struct Instr {
+            name: &'static str,
+            variant: Option<&'static str>,
+            fields: &'static [u32],
+        }
+
+        // Temporary, will be generated later.
+        static FIELDS: [Field; 0] = [];
+
+        impl Instr {
+            /// Iterate over fields in the order they appear in the asm syntax.
+            fn iter_fields(&self) -> impl Iterator<Item = &Field> {
+                self.fields.iter().map(|idx| &FIELDS[*idx as usize])
+            }
+        }
+
+        pub fn print_instr(
+            instr: &Instr,
+            val: u64,
+            arch: u8,
+            f: &mut dyn std::io::Write,
+            ctx: &PrintCtx,
+        ) -> std::io::Result<()> {
+            let res = print_instr_int(instr, val, arch, f, ctx);
+            match res {
+                Err(PrintError::InvalidInstr(e)) => write!(f, "{}", e),
+                Err(PrintError::Fmt(_)) => write!(f, "<format error>"),
+                Err(PrintError::Io(e)) => Err(e),
+                Ok(()) => Ok(()),
+            }
+        }
+
+        fn print_instr_int(
+            instr: &Instr,
+            val: u64,
+            arch: u8,
+            f: &mut dyn std::io::Write,
+            ctx: &PrintCtx,
+        ) -> Result<(), PrintError> {
+            let mut values: FxHashMap<&'static str, u32> = Default::default();
+
+            for field in instr.iter_fields() {
+                let LoadFn::Physical(load) = &field.load else {
+                    continue;
+                };
+                values.insert(field.name, load(val));
+            }
+
+            for field in instr.iter_fields() {
+                let LoadFn::Virtual(load) = &field.load else {
+                    continue;
+                };
+                values.insert(field.name, load(&values, arch)?);
+            }
+
+            write!(f, "{}", instr.name)?;
+            if let Some(variant) = instr.variant {
+                write!(f, ".{}", variant)?;
+            }
+
+            let mut had_non_mod = false;
+
+            for field in instr.iter_fields() {
+                if let Some(val) = (field.decode)(
+                    *values.get(field.name).unwrap(),
+                    &values,
+                    arch,
+                    ctx,
+                )? {
+                    if field.is_mod {
+                        write!(f, ".")?;
+                    } else if had_non_mod {
+                        write!(f, ", ")?;
+                    } else {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{val}")?;
+
+                    had_non_mod |= !field.is_mod;
+                }
+            }
+
+            Ok(())
+        }
 
         gen_isa_decode!(9..=14);
     }
