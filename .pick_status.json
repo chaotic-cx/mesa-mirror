@@ -674,7 +674,7 @@
         "description": "intel/mda: Preserve binary data in printraw",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "44f39eea555777e2b352933ed03efb9d42e5a47a",
         "notes": null
