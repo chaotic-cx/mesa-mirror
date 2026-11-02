@@ -1893,7 +1893,7 @@ fn test_op_icmp_multi() {
                 };
                 // Accum should be 0, 1, or -1
                 let rng = |i, dt| match i {
-                    2 => (a.get_u32() % 3) - 1,
+                    2 => (a.get_u32() % 3).wrapping_sub(1),
                     _ => sample_datatype(&mut a, dt),
                 };
                 test_foldable_op_with(op, Precision::Exact, rng);
