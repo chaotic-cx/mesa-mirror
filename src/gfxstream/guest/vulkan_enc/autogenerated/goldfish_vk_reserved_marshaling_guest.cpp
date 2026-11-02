@@ -6977,6 +6977,25 @@ void reservedmarshal_VkGuestCapabilitiesGOOGLE(VulkanStreamGuest* vkStream,
     writeStreamBytes(ptr, &forMarshaling->capabilities, sizeof(VkGuestCapabilityFlagsGOOGLE));
 }
 
+void reservedmarshal_VkHostPointerResolveGOOGLE(VulkanStreamGuest* vkStream,
+                                                VkStructureType rootType,
+                                                const VkHostPointerResolveGOOGLE* forMarshaling,
+                                                uint8_t** ptr) {
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forMarshaling->sType;
+    }
+    reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
+    writeStreamBytes(ptr, &forMarshaling->pointerSize, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pHostPointer);
+    if (forMarshaling->pHostPointer) {
+        if (forMarshaling->pointerSize > 0) {
+            writeStreamBytes(ptr, forMarshaling->pHostPointer,
+                             forMarshaling->pointerSize * sizeof(uint8_t));
+        }
+    }
+}
+
 void reservedmarshal_VkDebugMetadataGOOGLE(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkDebugMetadataGOOGLE* forMarshaling,
                                            uint8_t** ptr) {
@@ -8709,6 +8728,12 @@ void reservedmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureTy
             reservedmarshal_VkGuestCapabilitiesGOOGLE(
                 vkStream, rootType,
                 reinterpret_cast<const VkGuestCapabilitiesGOOGLE*>(structExtension), ptr);
+            break;
+        }
+        case VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE: {
+            reservedmarshal_VkHostPointerResolveGOOGLE(
+                vkStream, rootType,
+                reinterpret_cast<const VkHostPointerResolveGOOGLE*>(structExtension), ptr);
             break;
         }
 #endif

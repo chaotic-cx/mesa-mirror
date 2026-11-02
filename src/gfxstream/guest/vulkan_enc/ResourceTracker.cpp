@@ -1995,6 +1995,10 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_GOOGLE_display_timing",
     };
 
+    if (supportsGuestCapabilities()) {
+        allowedExtensionNames.push_back("VK_EXT_host_image_copy");
+    }
+
     VkEncoder* enc = (VkEncoder*)context;
 
     if (mHostDeviceExtensions.empty()) {
@@ -2277,6 +2281,19 @@ void ResourceTracker::on_vkGetPhysicalDeviceFeatures2(void*, VkPhysicalDevice,
             vk_find_struct(pFeatures, PHYSICAL_DEVICE_DEVICE_MEMORY_REPORT_FEATURES_EXT);
         if (memoryReportFeaturesEXT) {
             memoryReportFeaturesEXT->deviceMemoryReport = VK_TRUE;
+        }
+
+        if (!supportsGuestCapabilities()) {
+            VkPhysicalDeviceHostImageCopyFeatures* hostImageCopyFeatures =
+                vk_find_struct(pFeatures, PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES);
+            if (hostImageCopyFeatures) {
+                hostImageCopyFeatures->hostImageCopy = VK_FALSE;
+            }
+            VkPhysicalDeviceVulkan14Features* vulkan14Features =
+                vk_find_struct(pFeatures, PHYSICAL_DEVICE_VULKAN_1_4_FEATURES);
+            if (vulkan14Features) {
+                vulkan14Features->hostImageCopy = VK_FALSE;
+            }
         }
     }
 }
@@ -8846,6 +8863,231 @@ void ResourceTracker::transformImpl_VkExternalMemoryProperties_tohost(VkExternal
 void ResourceTracker::transformImpl_VkImageCreateInfo_fromhost(const VkImageCreateInfo*, uint32_t) {
 }
 void ResourceTracker::transformImpl_VkImageCreateInfo_tohost(const VkImageCreateInfo*, uint32_t) {}
+
+void ResourceTracker::transformImpl_VkMemoryToImageCopy_fromhost(const VkMemoryToImageCopy*,
+                                                                 uint32_t) {}
+void ResourceTracker::transformImpl_VkMemoryToImageCopy_tohost(const VkMemoryToImageCopy*,
+                                                               uint32_t) {}
+
+void ResourceTracker::transformImpl_VkImageToMemoryCopy_fromhost(const VkImageToMemoryCopy* regions,
+                                                                 uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) {
+        const VkImageToMemoryCopy& region = regions[i];
+        const auto* hostPtrResolve =
+            static_cast<const VkHostPointerResolveGOOGLE*>(__vk_find_struct(
+                const_cast<void*>(region.pNext), VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE));
+
+        // The copy is not needed when both pointers point to the same buffer.
+        if (hostPtrResolve && region.pHostPointer && hostPtrResolve->pHostPointer &&
+            region.pHostPointer != hostPtrResolve->pHostPointer &&
+            hostPtrResolve->pointerSize > 0) {
+            memcpy(region.pHostPointer, hostPtrResolve->pHostPointer, hostPtrResolve->pointerSize);
+        }
+    }
+}
+void ResourceTracker::transformImpl_VkImageToMemoryCopy_tohost(const VkImageToMemoryCopy*,
+                                                               uint32_t) {}
+
+uint32_t ResourceTracker::getHostImageCopySize(VkEncoder* enc, bool isExt, VkDevice device,
+                                               VkImage image, VkHostImageCopyFlags flags,
+                                               const VkImageSubresourceLayers& subresource,
+                                               uint32_t memoryRowLength, uint32_t memoryImageHeight,
+                                               const VkExtent3D& imageExtent) {
+    VkImageCreateInfo imageCreateInfo = {};
+    {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        auto it = info_VkImage.find(image);
+        if (it == info_VkImage.end()) {
+            return 0;
+        }
+        imageCreateInfo = it->second.createInfo;
+    }
+
+    const uint32_t layerCount = (subresource.layerCount == VK_REMAINING_ARRAY_LAYERS)
+                                    ? (imageCreateInfo.arrayLayers - subresource.baseArrayLayer)
+                                    : subresource.layerCount;
+    if (layerCount == 0) {
+        return 0;
+    }
+
+    if (flags & VK_HOST_IMAGE_COPY_MEMCPY_BIT) {
+        uint32_t totalSize = 0;
+        for (uint32_t i = 0; i < layerCount; ++i) {
+            VkImageSubresource2 subres = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_SUBRESOURCE_2,
+                .pNext = nullptr,
+                .imageSubresource =
+                    {
+                        .aspectMask = subresource.aspectMask,
+                        .mipLevel = subresource.mipLevel,
+                        .arrayLayer = subresource.baseArrayLayer + i,
+                    },
+            };
+            VkSubresourceHostMemcpySize copySize = {
+                .sType = VK_STRUCTURE_TYPE_SUBRESOURCE_HOST_MEMCPY_SIZE,
+                .pNext = nullptr,
+                .size = 0,
+            };
+            VkSubresourceLayout2 layout = {
+                .sType = VK_STRUCTURE_TYPE_SUBRESOURCE_LAYOUT_2,
+                .pNext = &copySize,
+                .subresourceLayout = {},
+            };
+            if (isExt) {
+                enc->vkGetImageSubresourceLayout2EXT(device, image, &subres, &layout,
+                                                     true /* do lock */);
+            } else {
+                enc->vkGetImageSubresourceLayout2(device, image, &subres, &layout,
+                                                  true /* do lock */);
+            }
+            totalSize += static_cast<uint32_t>(copySize.size);
+        }
+        return totalSize;
+    }
+
+    VkFormat format = imageCreateInfo.format;
+    if (subresource.aspectMask &
+        (VK_IMAGE_ASPECT_PLANE_0_BIT | VK_IMAGE_ASPECT_PLANE_1_BIT | VK_IMAGE_ASPECT_PLANE_2_BIT)) {
+        format = vk_format_get_plane_aspect_format(format, subresource.aspectMask);
+    } else {
+        const bool copyDepth = (subresource.aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) != 0;
+        const bool copyStencil = (subresource.aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT) != 0;
+        if (copyDepth && !copyStencil) {
+            format = vk_format_depth_only(format);
+        } else if (!copyDepth && copyStencil) {
+            format = vk_format_stencil_only(format);
+        }
+    }
+
+    if (imageExtent.width == 0 || imageExtent.height == 0 || imageExtent.depth == 0) {
+        return 0;
+    }
+
+    const uint32_t width = memoryRowLength ? memoryRowLength : imageExtent.width;
+    const uint32_t height = memoryImageHeight ? memoryImageHeight : imageExtent.height;
+    const uint32_t bw = vk_format_get_blockwidth(format);
+    const uint32_t bh = vk_format_get_blockheight(format);
+    const uint32_t bs = vk_format_get_blocksize(format);
+
+    const size_t rowExtent = static_cast<size_t>(DIV_ROUND_UP(width, bw)) * bs;
+    const size_t sliceExtent = static_cast<size_t>(DIV_ROUND_UP(height, bh)) * rowExtent;
+    const size_t layerExtent = static_cast<size_t>(imageExtent.depth) * sliceExtent;
+
+    const size_t lastLayerOffset = static_cast<size_t>(layerCount - 1) * layerExtent;
+    const size_t lastSliceOffset =
+        static_cast<size_t>(imageExtent.depth - 1) * sliceExtent + lastLayerOffset;
+    const size_t lastRowOffset =
+        static_cast<size_t>(DIV_ROUND_UP(imageExtent.height, bh) - 1) * rowExtent + lastSliceOffset;
+    const size_t lastRowSize = static_cast<size_t>(DIV_ROUND_UP(imageExtent.width, bw)) * bs;
+
+    return static_cast<uint32_t>(lastRowSize + lastRowOffset);
+}
+
+VkResult ResourceTracker::on_vkCopyMemoryToImage_common(
+    bool isExt, void* context, VkResult input_result, VkDevice device,
+    const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo) {
+    (void)input_result;
+    VkEncoder* enc = (VkEncoder*)context;
+
+    VkCopyMemoryToImageInfo localInfo = *pCopyMemoryToImageInfo;
+    std::vector<VkMemoryToImageCopy> localRegions(
+        pCopyMemoryToImageInfo->pRegions,
+        pCopyMemoryToImageInfo->pRegions + pCopyMemoryToImageInfo->regionCount);
+    std::vector<VkHostPointerResolveGOOGLE> hostPointerResolves(
+        pCopyMemoryToImageInfo->regionCount);
+
+    for (uint32_t i = 0; i < pCopyMemoryToImageInfo->regionCount; ++i) {
+        VkMemoryToImageCopy& region = localRegions[i];
+        const uint32_t copySize = getHostImageCopySize(
+            enc, isExt, device, pCopyMemoryToImageInfo->dstImage, pCopyMemoryToImageInfo->flags,
+            region.imageSubresource, region.memoryRowLength, region.memoryImageHeight,
+            region.imageExtent);
+        // Set the same host pointer for the resolve to avoid copying memory at
+        // transformImpl_VkImageToMemoryCopy_fromhost
+        const bool hasData = region.pHostPointer && copySize > 0;
+        hostPointerResolves[i] = {
+            .sType = VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE,
+            .pNext = region.pNext,
+            .pointerSize = hasData ? copySize : 0u,
+            .pHostPointer =
+                hasData ? const_cast<uint8_t*>(static_cast<const uint8_t*>(region.pHostPointer))
+                        : nullptr,
+        };
+        region.pNext = &hostPointerResolves[i];
+    }
+    localInfo.pRegions = localRegions.data();
+
+    if (isExt) {
+        return enc->vkCopyMemoryToImageEXT(device, &localInfo, true /* do lock */);
+    } else {
+        return enc->vkCopyMemoryToImage(device, &localInfo, true /* do lock */);
+    }
+}
+
+VkResult ResourceTracker::on_vkCopyImageToMemory_common(
+    bool isExt, void* context, VkResult input_result, VkDevice device,
+    const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo) {
+    (void)input_result;
+    VkEncoder* enc = (VkEncoder*)context;
+
+    VkCopyImageToMemoryInfo localInfo = *pCopyImageToMemoryInfo;
+    std::vector<VkImageToMemoryCopy> localRegions(
+        pCopyImageToMemoryInfo->pRegions,
+        pCopyImageToMemoryInfo->pRegions + pCopyImageToMemoryInfo->regionCount);
+    std::vector<VkHostPointerResolveGOOGLE> hostPointerResolves(
+        pCopyImageToMemoryInfo->regionCount);
+
+    for (uint32_t i = 0; i < pCopyImageToMemoryInfo->regionCount; ++i) {
+        VkImageToMemoryCopy& region = localRegions[i];
+        const uint32_t copySize = getHostImageCopySize(
+            enc, isExt, device, pCopyImageToMemoryInfo->srcImage, pCopyImageToMemoryInfo->flags,
+            region.imageSubresource, region.memoryRowLength, region.memoryImageHeight,
+            region.imageExtent);
+        const bool hasData = region.pHostPointer && copySize > 0;
+        hostPointerResolves[i] = {
+            .sType = VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE,
+            .pNext = region.pNext,
+            .pointerSize = hasData ? copySize : 0u,
+            .pHostPointer = hasData ? static_cast<uint8_t*>(region.pHostPointer) : nullptr,
+        };
+        region.pNext = &hostPointerResolves[i];
+    }
+    localInfo.pRegions = localRegions.data();
+
+    if (isExt) {
+        return enc->vkCopyImageToMemoryEXT(device, &localInfo, true /* do lock */);
+    } else {
+        return enc->vkCopyImageToMemory(device, &localInfo, true /* do lock */);
+    }
+}
+
+VkResult ResourceTracker::on_vkCopyMemoryToImage(
+    void* context, VkResult input_result, VkDevice device,
+    const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo) {
+    return on_vkCopyMemoryToImage_common(false, context, input_result, device,
+                                         pCopyMemoryToImageInfo);
+}
+
+VkResult ResourceTracker::on_vkCopyMemoryToImageEXT(
+    void* context, VkResult input_result, VkDevice device,
+    const VkCopyMemoryToImageInfoEXT* pCopyMemoryToImageInfo) {
+    return on_vkCopyMemoryToImage_common(true, context, input_result, device,
+                                         pCopyMemoryToImageInfo);
+}
+
+VkResult ResourceTracker::on_vkCopyImageToMemory(
+    void* context, VkResult input_result, VkDevice device,
+    const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo) {
+    return on_vkCopyImageToMemory_common(false, context, input_result, device,
+                                         pCopyImageToMemoryInfo);
+}
+
+VkResult ResourceTracker::on_vkCopyImageToMemoryEXT(
+    void* context, VkResult input_result, VkDevice device,
+    const VkCopyImageToMemoryInfoEXT* pCopyImageToMemoryInfo) {
+    return on_vkCopyImageToMemory_common(true, context, input_result, device,
+                                         pCopyImageToMemoryInfo);
+}
 
 #define DEFINE_TRANSFORMED_TYPE_IMPL(type)                                  \
     void ResourceTracker::transformImpl_##type##_tohost(type*, uint32_t) {} \

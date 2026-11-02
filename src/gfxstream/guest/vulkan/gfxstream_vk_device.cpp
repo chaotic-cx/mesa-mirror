@@ -364,9 +364,15 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
         VkGuestCapabilitiesGOOGLE guestCapabilities = {
             .sType = VK_STRUCTURE_TYPE_GUEST_CAPABILITIES_GOOGLE,
             .pNext = localCreateInfo.pNext,
-            // The guest can support inline uniform block descriptors after
-            // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45069.
-            .capabilities = VK_GUEST_CAPABILITY_BATCHED_INLINE_UNIFORM_BLOCK_BIT_GOOGLE,
+            .capabilities =
+                // The guest can support inline uniform block descriptors after
+                // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/45069.
+                VK_GUEST_CAPABILITY_BATCHED_INLINE_UNIFORM_BLOCK_BIT_GOOGLE |
+                // The guest can support host image copies after
+                // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/46092
+                // where `VkHostPointerResolveGOOGLE` contains the memory contents
+                // instead of just a guest pointer.
+                VK_GUEST_CAPABILITY_HOST_POINTER_RESOLVE_BIT_GOOGLE,
         };
         if (gfxstream::vk::ResourceTracker::get()->supportsGuestCapabilities()) {
             localCreateInfo.pNext = &guestCapabilities;
@@ -624,6 +630,21 @@ static void adjust_entrypoints_by_api_version(struct gfxstream_vk_device* gfxstr
             gfxstream_device->base.dispatch_table.CmdSetLineStippleEXT =
                 gfxstream_vk_device_entrypoints.CmdSetLineStippleEXT;
         }
+
+        if (gfxstream_device->base.enabled_extensions.EXT_host_image_copy) {
+            gfxstream_device->base.dispatch_table.CopyMemoryToImageEXT =
+                gfxstream_vk_device_entrypoints.CopyMemoryToImageEXT;
+            gfxstream_device->base.dispatch_table.CopyImageToMemoryEXT =
+                gfxstream_vk_device_entrypoints.CopyImageToMemoryEXT;
+            gfxstream_device->base.dispatch_table.CopyImageToImageEXT =
+                gfxstream_vk_device_entrypoints.CopyImageToImageEXT;
+            gfxstream_device->base.dispatch_table.TransitionImageLayoutEXT =
+                gfxstream_vk_device_entrypoints.TransitionImageLayoutEXT;
+            if (!gfxstream_device->base.enabled_extensions.KHR_maintenance5) {
+                gfxstream_device->base.dispatch_table.GetImageSubresourceLayout2EXT =
+                    gfxstream_vk_device_entrypoints.GetImageSubresourceLayout2EXT;
+            }
+        }
     }
 }
 
@@ -648,6 +669,17 @@ VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
                        PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT);
     if (mutableSwapchainMaintenance1Features) {
         mutableSwapchainMaintenance1Features->swapchainMaintenance1 = VK_FALSE;
+    }
+
+    if (!gfxstream::vk::ResourceTracker::get()->supportsGuestCapabilities()) {
+        const VkPhysicalDeviceHostImageCopyFeatures* hostImageCopyFeatures =
+            vk_find_struct_const(pCreateInfo, PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES);
+        const VkPhysicalDeviceVulkan14Features* vulkan14Features =
+            vk_find_struct_const(pCreateInfo, PHYSICAL_DEVICE_VULKAN_1_4_FEATURES);
+        if ((hostImageCopyFeatures && hostImageCopyFeatures->hostImageCopy) ||
+            (vulkan14Features && vulkan14Features->hostImageCopy)) {
+            return vk_error(gfxstream_physicalDevice, VK_ERROR_FEATURE_NOT_PRESENT);
+        }
     }
 
     const VkAllocationCallbacks* pMesaAllocator =

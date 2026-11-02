@@ -572,6 +572,15 @@ class ResourceTracker {
                                           const VkAllocationCallbacks* pAllocator,
                                           VkPipeline* pPipelines);
 
+    VkResult on_vkCopyMemoryToImage(void* context, VkResult input_result, VkDevice device,
+                                    const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo);
+    VkResult on_vkCopyMemoryToImageEXT(void* context, VkResult input_result, VkDevice device,
+                                       const VkCopyMemoryToImageInfoEXT* pCopyMemoryToImageInfo);
+    VkResult on_vkCopyImageToMemory(void* context, VkResult input_result, VkDevice device,
+                                    const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo);
+    VkResult on_vkCopyImageToMemoryEXT(void* context, VkResult input_result, VkDevice device,
+                                       const VkCopyImageToMemoryInfoEXT* pCopyImageToMemoryInfo);
+
     VkDeviceSize getNonCoherentExtendedSize(VkDevice device, VkDeviceSize basicSize) const;
     bool isValidMemoryRange(const VkMappedMemoryRange& range);
 
@@ -627,6 +636,10 @@ class ResourceTracker {
                                                          uint32_t);
     void transformImpl_VkImageCreateInfo_fromhost(const VkImageCreateInfo*, uint32_t);
     void transformImpl_VkImageCreateInfo_tohost(const VkImageCreateInfo*, uint32_t);
+    void transformImpl_VkMemoryToImageCopy_fromhost(const VkMemoryToImageCopy*, uint32_t);
+    void transformImpl_VkMemoryToImageCopy_tohost(const VkMemoryToImageCopy*, uint32_t);
+    void transformImpl_VkImageToMemoryCopy_fromhost(const VkImageToMemoryCopy*, uint32_t);
+    void transformImpl_VkImageToMemoryCopy_tohost(const VkImageToMemoryCopy*, uint32_t);
 
 #define DEFINE_TRANSFORMED_TYPE_PROTOTYPE(type)          \
     void transformImpl_##type##_tohost(type*, uint32_t); \
@@ -635,6 +648,18 @@ class ResourceTracker {
     LIST_TRIVIAL_TRANSFORMED_TYPES(DEFINE_TRANSFORMED_TYPE_PROTOTYPE)
 
    private:
+    uint32_t getHostImageCopySize(VkEncoder* enc, bool isExt, VkDevice device, VkImage image,
+                                  VkHostImageCopyFlags flags,
+                                  const VkImageSubresourceLayers& subresource,
+                                  uint32_t memoryRowLength, uint32_t memoryImageHeight,
+                                  const VkExtent3D& imageExtent);
+    VkResult on_vkCopyMemoryToImage_common(bool isExt, void* context, VkResult input_result,
+                                           VkDevice device,
+                                           const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo);
+    VkResult on_vkCopyImageToMemory_common(bool isExt, void* context, VkResult input_result,
+                                           VkDevice device,
+                                           const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo);
+
     uint32_t getColorBufferMemoryIndex(void* context, VkDevice device);
     const VkPhysicalDeviceMemoryProperties& getPhysicalDeviceMemoryProperties(
         void* context, VkDevice device, VkPhysicalDevice physicalDevice);

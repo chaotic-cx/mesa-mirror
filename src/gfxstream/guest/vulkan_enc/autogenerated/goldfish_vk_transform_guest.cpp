@@ -4522,6 +4522,8 @@ void transform_tohost_VkCopyMemoryToImageInfo(ResourceTracker* resourceTracker,
     }
     if (toTransform) {
         if (toTransform->pRegions) {
+            resourceTracker->transformImpl_VkMemoryToImageCopy_tohost(toTransform->pRegions,
+                                                                      toTransform->regionCount);
             for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
                 transform_tohost_VkMemoryToImageCopy(
                     resourceTracker, (VkMemoryToImageCopy*)(toTransform->pRegions + i));
@@ -4537,6 +4539,8 @@ void transform_fromhost_VkCopyMemoryToImageInfo(ResourceTracker* resourceTracker
     }
     if (toTransform) {
         if (toTransform->pRegions) {
+            resourceTracker->transformImpl_VkMemoryToImageCopy_fromhost(toTransform->pRegions,
+                                                                        toTransform->regionCount);
             for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
                 transform_fromhost_VkMemoryToImageCopy(
                     resourceTracker, (VkMemoryToImageCopy*)(toTransform->pRegions + i));
@@ -4552,6 +4556,8 @@ void transform_tohost_VkCopyImageToMemoryInfo(ResourceTracker* resourceTracker,
     }
     if (toTransform) {
         if (toTransform->pRegions) {
+            resourceTracker->transformImpl_VkImageToMemoryCopy_tohost(toTransform->pRegions,
+                                                                      toTransform->regionCount);
             for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
                 transform_tohost_VkImageToMemoryCopy(
                     resourceTracker, (VkImageToMemoryCopy*)(toTransform->pRegions + i));
@@ -4567,6 +4573,8 @@ void transform_fromhost_VkCopyImageToMemoryInfo(ResourceTracker* resourceTracker
     }
     if (toTransform) {
         if (toTransform->pRegions) {
+            resourceTracker->transformImpl_VkImageToMemoryCopy_fromhost(toTransform->pRegions,
+                                                                        toTransform->regionCount);
             for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
                 transform_fromhost_VkImageToMemoryCopy(
                     resourceTracker, (VkImageToMemoryCopy*)(toTransform->pRegions + i));
@@ -6321,6 +6329,20 @@ void transform_fromhost_VkGuestCapabilitiesGOOGLE(ResourceTracker* resourceTrack
     }
 }
 
+void transform_tohost_VkHostPointerResolveGOOGLE(ResourceTracker* resourceTracker,
+                                                 VkHostPointerResolveGOOGLE* toTransform) {
+    if (toTransform->pNext) {
+        transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
+    }
+}
+
+void transform_fromhost_VkHostPointerResolveGOOGLE(ResourceTracker* resourceTracker,
+                                                   VkHostPointerResolveGOOGLE* toTransform) {
+    if (toTransform->pNext) {
+        transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
+    }
+}
+
 void transform_tohost_VkDebugMetadataGOOGLE(ResourceTracker* resourceTracker,
                                             VkDebugMetadataGOOGLE* toTransform) {
     if (toTransform->pNext) {
@@ -7779,6 +7801,12 @@ void transform_tohost_extension_struct(ResourceTracker* resourceTracker,
                 resourceTracker, reinterpret_cast<VkGuestCapabilitiesGOOGLE*>(structExtension_out));
             break;
         }
+        case VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE: {
+            transform_tohost_VkHostPointerResolveGOOGLE(
+                resourceTracker,
+                reinterpret_cast<VkHostPointerResolveGOOGLE*>(structExtension_out));
+            break;
+        }
 #endif
 #ifdef VK_EXT_border_color_swizzle
         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BORDER_COLOR_SWIZZLE_FEATURES_EXT: {
@@ -9201,6 +9229,12 @@ void transform_fromhost_extension_struct(ResourceTracker* resourceTracker,
         case VK_STRUCTURE_TYPE_GUEST_CAPABILITIES_GOOGLE: {
             transform_fromhost_VkGuestCapabilitiesGOOGLE(
                 resourceTracker, reinterpret_cast<VkGuestCapabilitiesGOOGLE*>(structExtension_out));
+            break;
+        }
+        case VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE: {
+            transform_fromhost_VkHostPointerResolveGOOGLE(
+                resourceTracker,
+                reinterpret_cast<VkHostPointerResolveGOOGLE*>(structExtension_out));
             break;
         }
 #endif

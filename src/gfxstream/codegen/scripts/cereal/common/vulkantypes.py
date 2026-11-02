@@ -183,6 +183,8 @@ TRIVIAL_TRANSFORMED_TYPES = [
 NON_TRIVIAL_TRANSFORMED_TYPES = [
     "VkExternalMemoryProperties",
     "VkImageCreateInfo",
+    "VkMemoryToImageCopy",
+    "VkImageToMemoryCopy",
 ]
 
 TRANSFORMED_TYPES = TRIVIAL_TRANSFORMED_TYPES + NON_TRIVIAL_TRANSFORMED_TYPES
@@ -390,7 +392,10 @@ class VulkanType(object):
     # Good for inferring which things need to be marshaled in
     # versus marshaled out for Vulkan API calls
     def possiblyOutput(self,):
-        return self.pointerIndirectionLevels > 0 and (not self.isConst)
+        return self.pointerIndirectionLevels > 0 and (
+            (not self.isConst)
+            or (self.typeName in ["VkCopyImageToMemoryInfo", "VkCopyImageToMemoryInfoEXT"])
+        )
 
     def isVoidWithNoSize(self,):
         return self.typeName == "void" and self.pointerIndirectionLevels == 0

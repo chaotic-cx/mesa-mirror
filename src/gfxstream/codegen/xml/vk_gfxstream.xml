@@ -82,10 +82,18 @@ specific entries.
             <member><type>void</type>*               <name>pUserData</name></member>
         </type>
 
+        <type category="struct" name="VkHostPointerResolveGOOGLE" structextends="VkMemoryToImageCopy,VkImageToMemoryCopy">
+            <member values="VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE"><type>VkStructureType</type> <name>sType</name></member>
+            <member optional="true">const <type>void</type>* <name>pNext</name></member>
+            <member><type>uint32_t</type> <name>pointerSize</name></member>
+            <member len="pointerSize" optional="true"><type>uint8_t</type>* <name>pHostPointer</name></member>
+        </type>
+
     </types>
 
     <enums name="VkGuestCapabilityFlagBitsGOOGLE" type="bitmask">
         <enum bitpos="0" name="VK_GUEST_CAPABILITY_BATCHED_INLINE_UNIFORM_BLOCK_BIT_GOOGLE"/>
+        <enum bitpos="1" name="VK_GUEST_CAPABILITY_HOST_POINTER_RESOLVE_BIT_GOOGLE"/>
     </enums>
 
     <commands comment="Vulkan command definitions">
@@ -315,6 +323,7 @@ specific entries.
                 <enum offset="6" extends="VkStructureType"                  name="VK_STRUCTURE_TYPE_DEBUG_METADATA_GUEST_THREAD_NAME_GOOGLE"/>
                 <enum offset="7" extends="VkStructureType"                  name="VK_STRUCTURE_TYPE_DEBUG_METADATA_GUEST_THREAD_ID_GOOGLE"/>
                 <enum offset="8" extends="VkStructureType"                  name="VK_STRUCTURE_TYPE_GUEST_CAPABILITIES_GOOGLE"/>
+                <enum offset="9" extends="VkStructureType"                  name="VK_STRUCTURE_TYPE_HOST_POINTER_RESOLVE_GOOGLE"/>
                 <type name="VkImportColorBufferGOOGLE"/>
                 <type name="VkImportBufferGOOGLE"/>
                 <type name="VkCreateBlobGOOGLE"/>
@@ -326,6 +335,7 @@ specific entries.
                 <type name="VkGuestCapabilityFlagBitsGOOGLE"/>
                 <type name="VkGuestCapabilityFlagsGOOGLE"/>
                 <type name="VkGuestCapabilitiesGOOGLE"/>
+                <type name="VkHostPointerResolveGOOGLE"/>
                 <command name="vkMapMemoryIntoAddressSpaceGOOGLE"/>
                 <command name="vkUpdateDescriptorSetWithTemplateSizedGOOGLE"/>
                 <command name="vkBeginCommandBufferAsyncGOOGLE"/>

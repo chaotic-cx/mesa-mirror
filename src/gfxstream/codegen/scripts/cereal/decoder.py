@@ -748,6 +748,9 @@ custom_decodes = {
     "vkGetImageMemoryRequirements2" : emit_global_state_wrapped_decoding,
     "vkGetImageMemoryRequirements2KHR" : emit_global_state_wrapped_decoding,
     "vkGetImageSubresourceLayout" : emit_global_state_wrapped_decoding,
+    "vkGetImageSubresourceLayout2" : emit_global_state_wrapped_decoding,
+    "vkGetImageSubresourceLayout2KHR" : emit_global_state_wrapped_decoding,
+    "vkGetImageSubresourceLayout2EXT" : emit_global_state_wrapped_decoding,
     "vkGetBufferMemoryRequirements" : emit_global_state_wrapped_decoding,
     "vkGetBufferMemoryRequirements2": emit_global_state_wrapped_decoding,
     "vkGetBufferMemoryRequirements2KHR": emit_global_state_wrapped_decoding,
@@ -928,6 +931,16 @@ custom_decodes = {
     # VK_EXT_debug_utils
     "vkSetDebugUtilsObjectNameEXT" : emit_global_state_wrapped_decoding,
     "vkSetDebugUtilsObjectTagEXT" : emit_global_state_wrapped_decoding,
+
+    # VK_EXT_host_image_copy / VK_VERSION_1_4
+    "vkCopyMemoryToImage" : emit_global_state_wrapped_decoding,
+    "vkCopyMemoryToImageEXT" : emit_global_state_wrapped_decoding,
+    "vkCopyImageToMemory" : emit_global_state_wrapped_decoding,
+    "vkCopyImageToMemoryEXT" : emit_global_state_wrapped_decoding,
+    "vkCopyImageToImage" : emit_global_state_wrapped_decoding,
+    "vkCopyImageToImageEXT" : emit_global_state_wrapped_decoding,
+    "vkTransitionImageLayout" : emit_global_state_wrapped_decoding,
+    "vkTransitionImageLayoutEXT" : emit_global_state_wrapped_decoding,
 }
 
 class VulkanDecoder(VulkanWrapperGenerator):

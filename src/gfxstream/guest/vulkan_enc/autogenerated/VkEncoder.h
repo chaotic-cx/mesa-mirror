@@ -1062,6 +1062,23 @@ class VkEncoder {
                               VkStencilOp failOp, VkStencilOp passOp, VkStencilOp depthFailOp,
                               VkCompareOp compareOp, uint32_t doLock);
 #endif
+#ifdef VK_EXT_host_image_copy
+    VkResult vkCopyMemoryToImageEXT(VkDevice device,
+                                    const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo,
+                                    uint32_t doLock);
+    VkResult vkCopyImageToMemoryEXT(VkDevice device,
+                                    const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo,
+                                    uint32_t doLock);
+    VkResult vkCopyImageToImageEXT(VkDevice device,
+                                   const VkCopyImageToImageInfo* pCopyImageToImageInfo,
+                                   uint32_t doLock);
+    VkResult vkTransitionImageLayoutEXT(VkDevice device, uint32_t transitionCount,
+                                        const VkHostImageLayoutTransitionInfo* pTransitions,
+                                        uint32_t doLock);
+    void vkGetImageSubresourceLayout2EXT(VkDevice device, VkImage image,
+                                         const VkImageSubresource2* pSubresource,
+                                         VkSubresourceLayout2* pLayout, uint32_t doLock);
+#endif
 #ifdef VK_EXT_private_data
     VkResult vkCreatePrivateDataSlotEXT(VkDevice device,
                                         const VkPrivateDataSlotCreateInfo* pCreateInfo,
@@ -1073,11 +1090,6 @@ class VkEncoder {
                                  VkPrivateDataSlot privateDataSlot, uint64_t data, uint32_t doLock);
     void vkGetPrivateDataEXT(VkDevice device, VkObjectType objectType, uint64_t objectHandle,
                              VkPrivateDataSlot privateDataSlot, uint64_t* pData, uint32_t doLock);
-#endif
-#ifdef VK_EXT_image_compression_control
-    void vkGetImageSubresourceLayout2EXT(VkDevice device, VkImage image,
-                                         const VkImageSubresource2* pSubresource,
-                                         VkSubresourceLayout2* pLayout, uint32_t doLock);
 #endif
 #ifdef VK_EXT_extended_dynamic_state2
     void vkCmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer, uint32_t patchControlPoints,

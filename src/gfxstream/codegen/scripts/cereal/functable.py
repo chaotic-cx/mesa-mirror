@@ -109,6 +109,10 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkCreatePrivateDataSlotEXT",
     "vkDestroyPrivateDataSlot",
     "vkDestroyPrivateDataSlotEXT",
+    "vkCopyMemoryToImage",
+    "vkCopyMemoryToImageEXT",
+    "vkCopyImageToMemory",
+    "vkCopyImageToMemoryEXT",
 ]
 
 SUCCESS_VAL = {

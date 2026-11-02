@@ -2392,6 +2392,40 @@ void reservedmarshal_VkPhysicalDeviceExtendedDynamicStateFeaturesEXT(
     const VkPhysicalDeviceExtendedDynamicStateFeaturesEXT* forMarshaling, uint8_t** ptr);
 
 #endif
+#ifdef VK_EXT_host_image_copy
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceHostImageCopyFeatures,
+                      reservedmarshal_VkPhysicalDeviceHostImageCopyFeaturesEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceHostImageCopyProperties,
+                      reservedmarshal_VkPhysicalDeviceHostImageCopyPropertiesEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkMemoryToImageCopy, reservedmarshal_VkMemoryToImageCopyEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkImageToMemoryCopy, reservedmarshal_VkImageToMemoryCopyEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkCopyMemoryToImageInfo,
+                      reservedmarshal_VkCopyMemoryToImageInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkCopyImageToMemoryInfo,
+                      reservedmarshal_VkCopyImageToMemoryInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkCopyImageToImageInfo,
+                      reservedmarshal_VkCopyImageToImageInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkHostImageLayoutTransitionInfo,
+                      reservedmarshal_VkHostImageLayoutTransitionInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkSubresourceHostMemcpySize,
+                      reservedmarshal_VkSubresourceHostMemcpySizeEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkHostImageCopyDevicePerformanceQuery,
+                      reservedmarshal_VkHostImageCopyDevicePerformanceQueryEXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkSubresourceLayout2, reservedmarshal_VkSubresourceLayout2EXT)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkImageSubresource2, reservedmarshal_VkImageSubresource2EXT)
+
+#endif
 #ifdef VK_EXT_shader_demote_to_helper_invocation
 DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures,
                       reservedmarshal_VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT)
@@ -2501,10 +2535,6 @@ void reservedmarshal_VkImageCompressionControlEXT(VulkanStreamGuest* vkStream,
                                                   const VkImageCompressionControlEXT* forMarshaling,
                                                   uint8_t** ptr);
 
-DEFINE_ALIAS_FUNCTION(reservedmarshal_VkSubresourceLayout2, reservedmarshal_VkSubresourceLayout2EXT)
-
-DEFINE_ALIAS_FUNCTION(reservedmarshal_VkImageSubresource2, reservedmarshal_VkImageSubresource2EXT)
-
 void reservedmarshal_VkImageCompressionPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageCompressionPropertiesEXT* forMarshaling, uint8_t** ptr);
@@ -2585,6 +2615,11 @@ void reservedmarshal_VkGuestCapabilitiesGOOGLE(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkGuestCapabilitiesGOOGLE* forMarshaling,
                                                uint8_t** ptr);
+
+void reservedmarshal_VkHostPointerResolveGOOGLE(VulkanStreamGuest* vkStream,
+                                                VkStructureType rootType,
+                                                const VkHostPointerResolveGOOGLE* forMarshaling,
+                                                uint8_t** ptr);
 
 void reservedmarshal_VkDebugMetadataGOOGLE(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkDebugMetadataGOOGLE* forMarshaling,

@@ -50,7 +50,9 @@ class ResourceTracker;
 
 #define LIST_NON_TRIVIAL_TRANSFORMED_TYPES(f) \
     f(VkExternalMemoryProperties)             \
-    f(VkImageCreateInfo)
+    f(VkImageCreateInfo)                      \
+    f(VkMemoryToImageCopy)                    \
+    f(VkImageToMemoryCopy)
 
 #define LIST_TRANSFORMED_TYPES(f)     \
     LIST_TRIVIAL_TRANSFORMED_TYPES(f) \
@@ -3774,6 +3776,77 @@ void transform_fromhost_VkPhysicalDeviceExtendedDynamicStateFeaturesEXT(
     ResourceTracker* resourceTracker, VkPhysicalDeviceExtendedDynamicStateFeaturesEXT* toTransform);
 
 #endif
+#ifdef VK_EXT_host_image_copy
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceHostImageCopyFeatures,
+                      transform_tohost_VkPhysicalDeviceHostImageCopyFeaturesEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceHostImageCopyFeatures,
+                      transform_fromhost_VkPhysicalDeviceHostImageCopyFeaturesEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceHostImageCopyProperties,
+                      transform_tohost_VkPhysicalDeviceHostImageCopyPropertiesEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceHostImageCopyProperties,
+                      transform_fromhost_VkPhysicalDeviceHostImageCopyPropertiesEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkMemoryToImageCopy, transform_tohost_VkMemoryToImageCopyEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkMemoryToImageCopy,
+                      transform_fromhost_VkMemoryToImageCopyEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkImageToMemoryCopy, transform_tohost_VkImageToMemoryCopyEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkImageToMemoryCopy,
+                      transform_fromhost_VkImageToMemoryCopyEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkCopyMemoryToImageInfo,
+                      transform_tohost_VkCopyMemoryToImageInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkCopyMemoryToImageInfo,
+                      transform_fromhost_VkCopyMemoryToImageInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkCopyImageToMemoryInfo,
+                      transform_tohost_VkCopyImageToMemoryInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkCopyImageToMemoryInfo,
+                      transform_fromhost_VkCopyImageToMemoryInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkCopyImageToImageInfo,
+                      transform_tohost_VkCopyImageToImageInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkCopyImageToImageInfo,
+                      transform_fromhost_VkCopyImageToImageInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkHostImageLayoutTransitionInfo,
+                      transform_tohost_VkHostImageLayoutTransitionInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkHostImageLayoutTransitionInfo,
+                      transform_fromhost_VkHostImageLayoutTransitionInfoEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkSubresourceHostMemcpySize,
+                      transform_tohost_VkSubresourceHostMemcpySizeEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkSubresourceHostMemcpySize,
+                      transform_fromhost_VkSubresourceHostMemcpySizeEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkHostImageCopyDevicePerformanceQuery,
+                      transform_tohost_VkHostImageCopyDevicePerformanceQueryEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkHostImageCopyDevicePerformanceQuery,
+                      transform_fromhost_VkHostImageCopyDevicePerformanceQueryEXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkSubresourceLayout2,
+                      transform_tohost_VkSubresourceLayout2EXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkSubresourceLayout2,
+                      transform_fromhost_VkSubresourceLayout2EXT)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkImageSubresource2, transform_tohost_VkImageSubresource2EXT)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkImageSubresource2,
+                      transform_fromhost_VkImageSubresource2EXT)
+
+#endif
 #ifdef VK_EXT_shader_demote_to_helper_invocation
 DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures,
                       transform_tohost_VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT)
@@ -3947,17 +4020,6 @@ void transform_tohost_VkImageCompressionControlEXT(ResourceTracker* resourceTrac
 void transform_fromhost_VkImageCompressionControlEXT(ResourceTracker* resourceTracker,
                                                      VkImageCompressionControlEXT* toTransform);
 
-DEFINE_ALIAS_FUNCTION(transform_tohost_VkSubresourceLayout2,
-                      transform_tohost_VkSubresourceLayout2EXT)
-
-DEFINE_ALIAS_FUNCTION(transform_fromhost_VkSubresourceLayout2,
-                      transform_fromhost_VkSubresourceLayout2EXT)
-
-DEFINE_ALIAS_FUNCTION(transform_tohost_VkImageSubresource2, transform_tohost_VkImageSubresource2EXT)
-
-DEFINE_ALIAS_FUNCTION(transform_fromhost_VkImageSubresource2,
-                      transform_fromhost_VkImageSubresource2EXT)
-
 void transform_tohost_VkImageCompressionPropertiesEXT(ResourceTracker* resourceTracker,
                                                       VkImageCompressionPropertiesEXT* toTransform);
 
@@ -4079,6 +4141,12 @@ void transform_tohost_VkGuestCapabilitiesGOOGLE(ResourceTracker* resourceTracker
 
 void transform_fromhost_VkGuestCapabilitiesGOOGLE(ResourceTracker* resourceTracker,
                                                   VkGuestCapabilitiesGOOGLE* toTransform);
+
+void transform_tohost_VkHostPointerResolveGOOGLE(ResourceTracker* resourceTracker,
+                                                 VkHostPointerResolveGOOGLE* toTransform);
+
+void transform_fromhost_VkHostPointerResolveGOOGLE(ResourceTracker* resourceTracker,
+                                                   VkHostPointerResolveGOOGLE* toTransform);
 
 void transform_tohost_VkDebugMetadataGOOGLE(ResourceTracker* resourceTracker,
                                             VkDebugMetadataGOOGLE* toTransform);

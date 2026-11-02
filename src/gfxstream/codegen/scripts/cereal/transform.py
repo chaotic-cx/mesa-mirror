@@ -179,6 +179,9 @@ class TransformCodegen(VulkanTypeIterator):
         if isPtr:
             self.cgen.beginIf(access)
 
+        if vulkanType.isTransformed:
+            directTransform(self.resourceTrackerVarName, vulkanType, self.exprAccessor, self.lenAccessor, self.cgen, variant=self.variant)
+
         if lenAccess is not None:
 
             loopVar = "i"
@@ -190,9 +193,6 @@ class TransformCodegen(VulkanTypeIterator):
             self.cgen.beginFor(forInit, forCond, forIncr)
 
         accessCasted = self.asNonConstCast(access, vulkanType)
-
-        if vulkanType.isTransformed:
-            directTransform(self.resourceTrackerVarName, vulkanType, self.exprAccessor, self.lenAccessor, self.cgen, variant=self.variant)
 
         self.cgen.funcCall(None, self.prefix + vulkanType.typeName,
                            [self.resourceTrackerVarName, accessCasted])
