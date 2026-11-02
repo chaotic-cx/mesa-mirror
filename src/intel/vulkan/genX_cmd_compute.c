@@ -1665,6 +1665,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
             .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
             .ThreadGroupDispatchSize           = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
             .BTDmode                           = true,
+            /* GFX35+: Bspec 73592 (r77799) HSD 14023364992 */
+            .ThreadPreemption                  = false,
             .PSAsyncThreadLimit                = cmd_buffer->state.compute.pixel_async_compute_thread_limit,
             .ZPassAsyncComputeThreadLimit      = cmd_buffer->state.compute.z_pass_async_compute_thread_limit,
             .NP_ZAsyncThrottlesettings         = cmd_buffer->state.compute.np_z_async_throttle_settings,
@@ -1709,7 +1711,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
             .ThreadGroupDispatchSize =
                intel_compute_threads_group_dispatch_size(threads_per_group),
             .BTDMode = true,
-#if INTEL_NEEDS_WA_14017794102 || INTEL_NEEDS_WA_14023061436
+#if INTEL_NEEDS_WA_14017794102 || INTEL_NEEDS_WA_14023061436 || GFX_VER >= 35
+            /* GFX35+: Bspec 73592 (r77799) HSD 14023364992 */
             .ThreadPreemption = false,
 #endif
 #if GFX_VER >= 30
