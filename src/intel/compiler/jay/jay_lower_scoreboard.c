@@ -633,6 +633,7 @@ lower_regdist(jay_function *func, jay_inst *I, struct swsb_regdist_state *ctx)
     * inferred pipe, so if it depends on something else, add an extra SYNC.nop.
     */
    if (I->op != JAY_OPCODE_SEND &&
+       jay_inst_is_unordered(func->shader->devinfo, I) &&
        wait_pipes &&
        (!single_wait ||
         last_pipe != jay_inferred_sync_pipe(func->shader->devinfo, I))) {
