@@ -6384,7 +6384,7 @@
         "description": "aco: demote exec if condition is all-ones",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "33a73203b0bc854c25a1983a3ea90dc65da5da84",
         "notes": null
