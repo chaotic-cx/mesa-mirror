@@ -1341,7 +1341,7 @@ emit_intrinsic_ssbo_size(struct ir3_context *ctx, nir_intrinsic_instr *intr,
    struct ir3_instruction *ibo = ir3_ssbo_to_ibo(ctx, intr->src[0]);
    struct ir3_instruction *resinfo = ir3_RESINFO(b, ibo, 0);
    resinfo->cat6.iim_val = 1;
-   resinfo->cat6.d = ctx->compiler->gen >= 6 ? 1 : 2;
+   resinfo->cat6.d = ctx->compiler->gen >= 6 ? 1 : 4;
    resinfo->cat6.type = TYPE_U32;
    resinfo->cat6.typed = false;
    /* resinfo has no writemask and always writes out 3 components */
@@ -1349,14 +1349,7 @@ emit_intrinsic_ssbo_size(struct ir3_context *ctx, nir_intrinsic_instr *intr,
    ir3_handle_bindless_cat6(resinfo, intr->src[0]);
    ir3_handle_nonuniform(resinfo, intr);
 
-   if (ctx->compiler->gen >= 6) {
-      ir3_split_dest(b, dst, resinfo, 0, 1);
-   } else {
-      /* On a5xx, resinfo returns the low 16 bits of ssbo size in .x and the high 16 bits in .y */
-      struct ir3_instruction *resinfo_dst[2];
-      ir3_split_dest(b, resinfo_dst, resinfo, 0, 2);
-      *dst = ir3_ADD_U(b, ir3_SHL_B(b, resinfo_dst[1], 0, create_immed(b, 16), 0), 0, resinfo_dst[0], 0);
-   }
+   ir3_split_dest(b, dst, resinfo, 0, 1);
 }
 
 /* src[] = { offset }. const_index[] = { base } */

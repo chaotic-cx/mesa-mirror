@@ -504,7 +504,7 @@
         "description": "ir3: read a5xx SSBO sizes with the 4d resinfo",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "547a2aa051a513caa3d382e2db1a4550ea732834",
         "notes": null
