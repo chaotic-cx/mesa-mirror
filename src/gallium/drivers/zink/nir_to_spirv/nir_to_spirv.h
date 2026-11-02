@@ -127,4 +127,7 @@ zink_image_type(const struct glsl_type *type)
 bool
 zink_nir_lower_b2b(struct nir_shader *shader);
 
+bool
+zink_nir_fuse_ffma_weak(struct nir_shader *shader);
+
 #endif

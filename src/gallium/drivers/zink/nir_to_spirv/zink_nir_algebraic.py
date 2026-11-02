@@ -28,6 +28,18 @@ lower_b2b = [
    (('b2b1', 'a'), ('ine', 'a', 0)),
 ]
 
+# fuse mul and add into ffma_weak, only for fmuls that feed fadds
+fuse_ffma_weak = [
+   (('fadd@32(contract)', ('fmul(is_only_used_by_fadd)', 'a', 'b'), 'c'),
+    ('ffma_weak', 'a', 'b', 'c')),
+   (('fadd@32(contract)', ('fneg(is_only_used_by_fadd)', ('fmul(is_only_used_by_fadd)', 'a', 'b')), 'c'),
+    ('ffma_weak', ('fneg', 'a'), 'b', 'c')),
+   (('fadd@32(contract)', ('fabs(is_only_used_by_fadd)', ('fmul(is_only_used_by_fadd)', 'a', 'b')), 'c'),
+    ('ffma_weak', ('fabs', 'a'), ('fabs', 'b'), 'c')),
+   (('fadd@32(contract)', ('fneg(is_only_used_by_fadd)', ('fabs(is_only_used_by_fadd)', ('fmul(is_only_used_by_fadd)', 'a', 'b'))), 'c'),
+    ('ffma_weak', ('fneg', ('fabs', 'a')), ('fabs', 'b'), 'c')),
+]
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--import-path', required=True)
@@ -43,6 +55,8 @@ def run():
 
     print(nir_algebraic.AlgebraicPass("zink_nir_lower_b2b",
                                       lower_b2b).render())
+    print(nir_algebraic.AlgebraicPass("zink_nir_fuse_ffma_weak",
+                                      fuse_ffma_weak).render())
 
 if __name__ == '__main__':
     main()
