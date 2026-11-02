@@ -1439,7 +1439,8 @@ cmd_buffer_flush_rt_state(struct anv_cmd_buffer *cmd_buffer,
                                                               scratch_size,
                                                               false);
       }
-#if INTEL_NEEDS_WA_14017794102 || INTEL_NEEDS_WA_14023061436
+#if INTEL_NEEDS_WA_14017794102 || INTEL_NEEDS_WA_14023061436 || GFX_VER >= 35
+      /* GFX35+: Bspec 73592 (r77799) HSD 14023364992 */
       btd.BTDMidthreadpreemption = false;
 #endif
 
