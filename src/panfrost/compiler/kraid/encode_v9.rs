@@ -1828,6 +1828,7 @@ impl V9Instr for OpICmpMulti {
             src_map! {
                 src0: srcs[0],
                 src1: srcs[1],
+                src2: accum,
             },
         )
     }

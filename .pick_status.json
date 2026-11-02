@@ -764,7 +764,7 @@
         "description": "kraid/encode_v9: amend missing accum in OpICmpMulti::get_info",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9a18efb87eeffe052389c25b38c214bdf975856e",
         "notes": null
