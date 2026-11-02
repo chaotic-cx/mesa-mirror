@@ -25,6 +25,7 @@ struct validate_state {
    jay_function *func;
    BITSET_WORD *defs;
    enum jay_file *files;
+   enum jay_size *sizes;
    enum validate_block_state block_state;
 };
 
@@ -157,12 +158,15 @@ validate_ssa(struct validate_state *validate, jay_inst *I)
       CHECK(BITSET_TEST(validate->defs, ssa_index) && "defs dominate uses");
       CHECK(validate->files[ssa_index] == I->src[src_index].file &&
             "consistent files");
+      CHECK(validate->sizes[ssa_index] == I->src[src_index].size &&
+            "consistent sizes");
    }
 
    jay_foreach_dst_index(I, d, ssa_index) {
       CHECK(!BITSET_TEST(validate->defs, ssa_index) && "single definition");
       BITSET_SET(validate->defs, ssa_index);
       validate->files[ssa_index] = d.file;
+      validate->sizes[ssa_index] = d.size;
    }
 }
 
@@ -364,6 +368,8 @@ jay_validate_function(struct validate_state *validate)
    validate->defs = BITSET_CALLOC(validate->func->ssa_alloc);
    validate->files =
       calloc(validate->func->ssa_alloc, sizeof(validate->files[0]));
+   validate->sizes =
+      calloc(validate->func->ssa_alloc, sizeof(validate->sizes[0]));
 
    BITSET_WORD *blocks = BITSET_CALLOC(validate->func->num_blocks);
    unsigned min_block = 0;
@@ -448,6 +454,7 @@ jay_validate_function(struct validate_state *validate)
 
    free(validate->defs);
    free(validate->files);
+   free(validate->sizes);
    free(blocks);
 }
 
