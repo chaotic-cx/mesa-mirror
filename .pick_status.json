@@ -474,7 +474,7 @@
         "description": "jay/lower_scoreboard: fix excess SYNCs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "fe0a78dbc24cd442b3a09b8e5f2180dc4bb246d3",
         "notes": null
