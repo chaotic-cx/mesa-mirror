@@ -22,25 +22,21 @@ struct radv_shader_object {
 
    /* Main shader */
    struct radv_shader *shader;
-   struct radv_shader_binary *binary;
 
    /* Shader variants */
    /* VS before TCS */
    struct {
       struct radv_shader *shader;
-      struct radv_shader_binary *binary;
    } as_ls;
 
    /* VS/TES before GS */
    struct {
       struct radv_shader *shader;
-      struct radv_shader_binary *binary;
    } as_es;
 
    /* GS copy shader */
    struct {
       struct radv_shader *copy_shader;
-      struct radv_shader_binary *copy_binary;
    } gs;
 
    uint32_t dynamic_offset_count;
