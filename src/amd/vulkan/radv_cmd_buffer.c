@@ -2691,6 +2691,7 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
 
    const unsigned total_samples = cmd_buffer->state.num_rast_samples;
    const unsigned samples_log = util_logbase2_ceil(total_samples);
+   const unsigned ps_iter_samples = radv_get_ps_iter_samples(cmd_buffer);
 
    unsigned color_bytes_per_pixel = 0;
    unsigned fmask_bytes_per_pixel = 0;
@@ -2704,7 +2705,8 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       if (!((d->color_write_mask >> (4 * i)) & 0xfu))
          continue;
 
-      color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format);
+      const unsigned mmrt = ps_iter_samples > 1 ? total_samples : MIN2(total_samples, 2);
+      color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format) * mmrt;
 
       if (total_samples > 1) {
          assert(samples_log <= 3);
@@ -2713,7 +2715,6 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       }
    }
 
-   color_bytes_per_pixel *= total_samples;
    color_bytes_per_pixel = MAX2(color_bytes_per_pixel, 1);
 
    const unsigned color_pixel_count_log = util_logbase2(color_tag_part / color_bytes_per_pixel);
@@ -2724,7 +2725,7 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       const unsigned fmask_pixel_count_log = util_logbase2(fmask_tag_part / fmask_bytes_per_pixel);
 
       const VkExtent2D fmask_extent = (VkExtent2D){.width = 1ull << ((fmask_pixel_count_log + 1) / 2),
-                                                   .height = 1ull << (color_pixel_count_log / 2)};
+                                                   .height = 1ull << (fmask_pixel_count_log / 2)};
 
       if (fmask_extent.width * fmask_extent.height < extent.width * extent.height)
          extent = fmask_extent;
@@ -2732,14 +2733,14 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
 
    if (render->ds_att.iview) {
       /* Coefficients taken from AMDVLK */
-      unsigned depth_coeff = vk_format_has_depth(render->ds_att.format) ? 5 : 0;
-      unsigned stencil_coeff = vk_format_has_stencil(render->ds_att.format) ? 1 : 0;
+      unsigned depth_coeff = d->vk.ds.depth.test_enable && vk_format_has_depth(render->ds_att.format) ? 5 : 0;
+      unsigned stencil_coeff = d->vk.ds.stencil.test_enable && vk_format_has_stencil(render->ds_att.format) ? 1 : 0;
       unsigned db_bytes_per_pixel = (depth_coeff + stencil_coeff) * total_samples;
 
-      const unsigned db_pixel_count_log = util_logbase2(db_tag_part / db_bytes_per_pixel);
+      const unsigned db_pixel_count_log = util_logbase2(db_tag_part / MAX2(db_bytes_per_pixel, 1));
 
       const VkExtent2D db_extent =
-         (VkExtent2D){.width = 1ull << ((db_pixel_count_log + 1) / 2), .height = 1ull << (color_pixel_count_log / 2)};
+         (VkExtent2D){.width = 1ull << ((db_pixel_count_log + 1) / 2), .height = 1ull << (db_pixel_count_log / 2)};
 
       if (db_extent.width * db_extent.height < extent.width * extent.height)
          extent = db_extent;
@@ -2985,7 +2986,6 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
 
    unsigned total_samples = cmd_buffer->state.num_rast_samples;
    unsigned ps_iter_samples = radv_get_ps_iter_samples(cmd_buffer);
-   unsigned effective_samples = total_samples;
    unsigned color_bytes_per_pixel = 0;
 
    for (unsigned i = 0; i < render->color_att_count; ++i) {
@@ -2997,13 +2997,9 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       if (!((d->color_write_mask >> (4 * i)) & 0xfu))
          continue;
 
-      color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format);
+      const unsigned mmrt = ps_iter_samples > 1 ? total_samples : MIN2(total_samples, 2);
+      color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format) * mmrt;
    }
-
-   /* MSAA images typically don't use all samples all the time. */
-   if (effective_samples >= 2 && ps_iter_samples <= 1)
-      effective_samples = 2;
-   color_bytes_per_pixel *= effective_samples;
 
    const struct radv_bin_size_entry *color_entry = color_size_table[log_num_rb_per_se][log_num_se];
    while (color_entry[1].bpp <= color_bytes_per_pixel)
@@ -3013,8 +3009,8 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
 
    if (render->ds_att.iview) {
       /* Coefficients taken from AMDVLK */
-      unsigned depth_coeff = vk_format_has_depth(render->ds_att.format) ? 5 : 0;
-      unsigned stencil_coeff = vk_format_has_stencil(render->ds_att.format) ? 1 : 0;
+      unsigned depth_coeff = d->vk.ds.depth.test_enable && vk_format_has_depth(render->ds_att.format) ? 5 : 0;
+      unsigned stencil_coeff = d->vk.ds.stencil.test_enable && vk_format_has_stencil(render->ds_att.format) ? 1 : 0;
       unsigned ds_bytes_per_pixel = 4 * (depth_coeff + stencil_coeff) * total_samples;
 
       const struct radv_bin_size_entry *ds_entry = ds_size_table[log_num_rb_per_se][log_num_se];
@@ -9019,7 +9015,7 @@ radv_bind_multisample_state(struct radv_cmd_buffer *cmd_buffer, const struct rad
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAST_SAMPLES_STATE | RADV_CMD_DIRTY_MSAA_STATE;
       if (pdev->info.gfx_level >= GFX10_3)
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_FSR_STATE;
-      if (pdev->info.gfx_level == GFX9)
+      if (pdev->info.gfx_level >= GFX9)
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
    }
 
@@ -9027,7 +9023,7 @@ radv_bind_multisample_state(struct radv_cmd_buffer *cmd_buffer, const struct rad
       if (cmd_buffer->state.ms.min_sample_shading != ms->min_sample_shading) {
          cmd_buffer->state.ms.min_sample_shading = ms->min_sample_shading;
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAST_SAMPLES_STATE | RADV_CMD_DIRTY_MSAA_STATE;
-         if (pdev->info.gfx_level == GFX9)
+         if (pdev->info.gfx_level >= GFX9)
             cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
       }
    }
@@ -9368,7 +9364,7 @@ radv_bind_fragment_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAST_SAMPLES_STATE | RADV_CMD_DIRTY_MSAA_STATE;
       if (gfx_level >= GFX10_3)
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_FSR_STATE;
-      if (gfx_level == GFX9)
+      if (gfx_level >= GFX9)
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
    }
 
@@ -9476,7 +9472,7 @@ radv_bind_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader *shader,
             RADV_CMD_DIRTY_DB_SHADER_CONTROL | RADV_CMD_DIRTY_MSAA_STATE | RADV_CMD_DIRTY_RAST_SAMPLES_STATE;
          if (pdev->info.gfx_level >= GFX10_3)
             cmd_buffer->state.dirty |= RADV_CMD_DIRTY_FSR_STATE;
-         if (pdev->info.gfx_level == GFX9)
+         if (pdev->info.gfx_level >= GFX9)
             cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
          break;
       default:
@@ -13973,7 +13969,8 @@ radv_validate_dynamic_states(struct radv_cmd_buffer *cmd_buffer, uint64_t dynami
        (RADV_DYNAMIC_VIEWPORT | RADV_DYNAMIC_VIEWPORT_WITH_COUNT | RADV_DYNAMIC_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE))
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_VIEWPORT_STATE;
 
-   if (dynamic_states & RADV_DYNAMIC_COLOR_WRITE_MASK)
+   if (dynamic_states &
+       (RADV_DYNAMIC_COLOR_WRITE_MASK | RADV_DYNAMIC_DEPTH_TEST_ENABLE | RADV_DYNAMIC_STENCIL_TEST_ENABLE))
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
 
    if (dynamic_states &
