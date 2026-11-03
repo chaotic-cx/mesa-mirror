@@ -8024,7 +8024,7 @@
         "description": "util: avoid Windows memstream temp file leaks",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "af8d488ea5e13219c67c132a3edfa2e7a698746d",
         "notes": null
