@@ -169,6 +169,10 @@ validate_block(jay_function *func, jay_block *block, struct regfile *blocks)
          jay_foreach_comp(I->dst, c) {
             *def_reg(rf, I->dst, c) = *def_reg(rf, I->src[0], c);
          }
+      } else if (I->op == JAY_OPCODE_SWAP) {
+         jay_foreach_comp(I->src[0], c) {
+            SWAP(*def_reg(rf, I->src[0], c), *def_reg(rf, I->src[1], c));
+         }
       }
 
       if (!ok) {

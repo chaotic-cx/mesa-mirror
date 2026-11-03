@@ -266,6 +266,9 @@ op('demote', 2, 'u1 u16 u32 u64 s16 s32 s64 f16 f32 f64', Props.NEGATE | Props.N
 # Copy the is_helper flag.
 op('is_helper', 0, 'u1 u32')
 
+# Swap two registers. Pseudo-instruction during RA.
+op('swap', 2, 'u32', Props.NO_DEST)
+
 OPCODES = _opcodes
 
 ENUMS: 'Mapping[str, tuple[str, list[str]]]' = {

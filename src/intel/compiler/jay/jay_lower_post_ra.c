@@ -107,6 +107,12 @@ lower(jay_builder *b, jay_inst *I)
       jay_WHILE(b);
       return true;
 
+   case JAY_OPCODE_SWAP:
+      jay_XOR(b, I->type, I->src[0], I->src[0], I->src[1]);
+      jay_XOR(b, I->type, I->src[1], I->src[0], I->src[1]);
+      jay_XOR(b, I->type, I->src[0], I->src[0], I->src[1]);
+      return true;
+
    case JAY_OPCODE_SEL_ACTIVE: {
       if (I->type == JAY_TYPE_U64) {
          jay_MOV_IMM64(b, I->dst, jay_sel_active_value(I))->type = JAY_TYPE_U64;
