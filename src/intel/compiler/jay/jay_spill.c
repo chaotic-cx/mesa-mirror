@@ -121,8 +121,10 @@ struct spill_block {
 struct spill_ctx {
    jay_function *func;
 
-   /* Register file being spilled and its associated control flow graph */
-   enum jay_file file, cfg;
+   /* Register file being spilled, its associated control flow graph and the
+    * register file we spill to.
+    */
+   enum jay_file file, cfg, target;
 
    /* Set of values whose file equals file */
    BITSET_WORD *in_file;
@@ -190,10 +192,7 @@ remap_inst(struct spill_ctx *ctx, struct hash_table_u64 *remap, jay_inst *I)
 static inline jay_def
 jay_def_spilled(struct spill_ctx *ctx, unsigned index)
 {
-   return jay_scalar(ctx->file == FLAG ? UGPR :
-                     ctx->file == UGPR ? GPR :
-                                         MEM,
-                     32, index + ctx->n);
+   return jay_scalar(ctx->target, 32, index + ctx->n);
 }
 
 static bool
@@ -795,16 +794,16 @@ add_phi(struct spill_ctx *ctx,
 }
 
 void
-jay_spill(jay_function *func, enum jay_file file, unsigned k)
+jay_spill(jay_function *f, enum jay_file file, enum jay_file target, unsigned k)
 {
    /* insert_reload needs a UGPR temporary */
    k -= (file == UGPR) ? 1 : 0;
 
    void *memctx = ralloc_context(NULL);
    void *linctx = linear_context(memctx);
-   struct spill_ctx ctx = { .func = func, .k = k };
+   struct spill_ctx ctx = { .func = f, .k = k, .target = target };
 
-   ctx.n = func->ssa_alloc;
+   ctx.n = f->ssa_alloc;
    ctx.file = file;
    ctx.cfg = file == GPR ? GPR : UGPR;
    ctx.in_file = BITSET_LINEAR_ZALLOC(linctx, ctx.n);
@@ -813,10 +812,9 @@ jay_spill(jay_function *func, enum jay_file file, unsigned k)
    ctx.spill_block = linear_zalloc_array(linctx, jay_block *, ctx.n);
    ctx.next_uses = linear_alloc_array(linctx, dist_t, ctx.n);
    ctx.candidates = linear_alloc_array(linctx, struct next_use, ctx.n);
-   ctx.blocks =
-      linear_zalloc_array(linctx, struct spill_block, func->num_blocks);
+   ctx.blocks = linear_zalloc_array(linctx, struct spill_block, f->num_blocks);
 
-   jay_foreach_inst_in_func(func, block, I) {
+   jay_foreach_inst_in_func(f, block, I) {
       jay_foreach_dst_index(I, dst, idx) {
          ctx.defs[idx] = I;
          ctx.spill_block[idx] = block;
@@ -832,7 +830,7 @@ jay_spill(jay_function *func, enum jay_file file, unsigned k)
    }
 
    /* Don't remat phi sources since it ends up worse in practice */
-   jay_foreach_block(func, block) {
+   jay_foreach_block(f, block) {
       jay_foreach_phi_src_in_block(block, phi) {
          BITSET_CLEAR(ctx.remat, jay_index(phi->src[0]));
       }
@@ -848,9 +846,9 @@ jay_spill(jay_function *func, enum jay_file file, unsigned k)
    global_next_use_distances(&ctx, memctx);
 
    /* Reserve a memory variable for every regular variable */
-   func->ssa_alloc *= 2;
+   f->ssa_alloc *= 2;
 
-   jay_foreach_block(func, block) {
+   jay_foreach_block(f, block) {
       ctx.nW = 0;
       ctx.ip = 0;
 
@@ -905,7 +903,7 @@ jay_spill(jay_function *func, enum jay_file file, unsigned k)
             }
          }
 
-         jay_foreach_block_from(func, loop_head, inside) {
+         jay_foreach_block_from(f, loop_head, inside) {
             bool is_break_block = true;
             jay_foreach_successor(inside, succ, file) {
                is_break_block &= (*succ)->index > block->index;
@@ -937,6 +935,6 @@ jay_spill(jay_function *func, enum jay_file file, unsigned k)
    ralloc_free(memctx);
 
    /* We've inserted invalid dead phis, clean them up. */
-   jay_opt_dead_code(func->shader);
-   jay_validate(func->shader, "spill");
+   jay_opt_dead_code(f->shader);
+   jay_validate(f->shader, "spill");
 }

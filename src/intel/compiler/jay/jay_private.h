@@ -50,7 +50,10 @@ void jay_compute_liveness(jay_function *f);
 void jay_calculate_last_use(jay_function *func);
 void jay_calculate_register_demands(jay_function *f);
 
-void jay_spill(jay_function *func, enum jay_file file, unsigned limit);
+void jay_spill(jay_function *func,
+               enum jay_file file,
+               enum jay_file target,
+               unsigned limit);
 void jay_partition_grf(jay_shader *shader);
 void jay_print_partition(FILE *fp, jay_shader *s);
 void jay_register_allocate(jay_shader *s);

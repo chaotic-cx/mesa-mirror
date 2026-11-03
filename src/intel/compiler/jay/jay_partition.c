@@ -351,14 +351,14 @@ jay_partition_grf(jay_shader *shader)
       jay_calculate_register_demands(f);
 
       if (f->demand[FLAG] > flag_limit) {
-         jay_spill(f, FLAG, flag_limit);
+         jay_spill(f, FLAG, UGPR, flag_limit);
          jay_compute_liveness(f);
          jay_calculate_last_use(f);
          jay_calculate_register_demands(f);
       }
 
       if (f->demand[UGPR] > ugpr_limit) {
-         jay_spill(f, UGPR, ugpr_limit);
+         jay_spill(f, UGPR, GPR, ugpr_limit);
          jay_compute_liveness(f);
          jay_calculate_last_use(f);
          jay_calculate_register_demands(f);
@@ -566,7 +566,7 @@ jay_partition_grf(jay_shader *shader)
       bool spilled = f->demand[GPR] > limit;
 
       if (spilled) {
-         jay_spill(f, GPR, limit);
+         jay_spill(f, GPR, MEM, limit);
          jay_validate(f->shader, "spilling");
          jay_compute_liveness(f);
          jay_calculate_last_use(f);
