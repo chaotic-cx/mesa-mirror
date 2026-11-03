@@ -1970,9 +1970,9 @@ radv_fill_shader_info(const struct radv_compiler_info *compiler_info, const enum
 }
 
 static void
-radv_declare_pipeline_args(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *stages,
-                           const struct radv_graphics_state_key *gfx_state, VkShaderStageFlagBits active_nir_stages,
-                           struct radv_shader_debug_info *debug)
+radv_declare_graphics_shaders_args(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *stages,
+                                   const struct radv_graphics_state_key *gfx_state,
+                                   VkShaderStageFlagBits active_nir_stages, struct radv_shader_debug_info *debug)
 {
    enum amd_gfx_level gfx_level = compiler_info->ac->gfx_level;
 
@@ -2754,7 +2754,7 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       break;
    }
 
-   radv_declare_pipeline_args(compiler_info, stages, gfx_state, active_nir_stages, debug);
+   radv_declare_graphics_shaders_args(compiler_info, stages, gfx_state, active_nir_stages, debug);
 
    radv_foreach_stage (i, active_nir_stages) {
       int64_t stage_start = os_time_get_nano();

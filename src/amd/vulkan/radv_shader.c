@@ -1616,7 +1616,7 @@ radv_destroy_shader_upload_queue(struct radv_device *device)
    struct vk_device_dispatch_table *disp = &device->vk.dispatch_table;
    struct radeon_winsys *ws = device->ws;
 
-   /* Upload queue should be idle assuming that pipelines are not leaked */
+   /* Upload queue should be idle assuming that shaders are not leaked */
    if (device->shader_upload_sem)
       disp->DestroySemaphore(radv_device_to_handle(device), device->shader_upload_sem, NULL);
 
@@ -1770,7 +1770,7 @@ radv_precompute_registers_hw_vs(struct radv_device *device, struct radv_shader *
 
          regs->ge_pc_alloc = S_030980_OVERSUB_EN(oversub_pc_lines > 0) | S_030980_NUM_PC_LINES(oversub_pc_lines - 1);
 
-         /* Required programming for tessellation (legacy pipeline only). */
+         /* Required programming for tessellation (legacy GS only). */
          if (shader->info.stage == MESA_SHADER_TESS_EVAL) {
             regs->vgt_gs_onchip_cntl = S_028A44_ES_VERTS_PER_SUBGRP(250) | S_028A44_GS_PRIMS_PER_SUBGRP(126) |
                                        S_028A44_GS_INST_PRIMS_IN_SUBGRP(126);
@@ -3600,7 +3600,7 @@ radv_fill_llvm_compiler_options(struct radv_llvm_compiler_options *options,
    options->compiler_info = compiler_info->ac;
    options->family = compiler_info->key.family;
    options->address32_hi = compiler_info->hw.address32_hi;
-   /* robust_buffer_access_llvm here used by LLVM only, pipeline robustness is not exposed there. */
+   /* robust_buffer_access_llvm here used by LLVM only, robustness features are not exposed there. */
    options->robust_buffer_access = compiler_info->key.robust_buffer_access;
    options->wgp_mode = should_use_wgp;
    options->dump_shader = can_dump_shader;

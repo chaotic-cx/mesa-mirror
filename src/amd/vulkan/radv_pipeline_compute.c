@@ -46,7 +46,7 @@ radv_get_compute_resource_limits(const struct radv_physical_device *pdev, const 
 
 void
 radv_get_compute_shader_metadata(const struct radv_device *device, const struct radv_shader *cs,
-                                 struct radv_compute_pipeline_metadata *metadata)
+                                 struct radv_compute_shader_metadata *metadata)
 {
    const struct radv_userdata_locations *locs = &cs->info.user_sgprs_locs;
    uint32_t upload_sgpr = 0, inline_sgpr = 0;

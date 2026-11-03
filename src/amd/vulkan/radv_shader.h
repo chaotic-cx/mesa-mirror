@@ -96,7 +96,7 @@ struct radv_shader_stage_key {
    /* Whether the mesh shader is used with a task shader. */
    uint8_t has_task_shader : 1;
 
-   /* Whether the shader is used with indirect pipeline binds. */
+   /* Whether the shader can be bound by an indirect execution set (DGC). */
    uint8_t indirect_bindable : 1;
 
    uint32_t reserved : 13;
@@ -648,7 +648,7 @@ struct radv_compiler_info {
    uint32_t buffer_descriptor_size;
    uint32_t buffer_descriptor_alignment;
 
-   /* Shader features, included as part of the pipeline key */
+   /* Shader features, included as part of the shader keys */
    struct vk_pipeline_robustness_state device_robustness_state;
    bool smooth_lines;
    bool force_vrs_enabled;
