@@ -4516,7 +4516,6 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
                      "MakeTexelVisible requires NonPrivateTexel to also be set.");
          uint32_t arg = image_operand_arg(b, w, count, 5,
                                           SpvImageOperandsMakeTexelVisibleMask);
-         semantics = SpvMemorySemanticsMakeVisibleMask;
          scope = vtn_constant_uint(b, w[arg]);
       }
 
@@ -4559,7 +4558,6 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
                      "MakeTexelAvailable requires NonPrivateTexel to also be set.");
          uint32_t arg = image_operand_arg(b, w, count, 4,
                                           SpvImageOperandsMakeTexelAvailableMask);
-         semantics = SpvMemorySemanticsMakeAvailableMask;
          scope = vtn_constant_uint(b, w[arg]);
       }
 
@@ -4747,6 +4745,17 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    SpvMemorySemanticsMask before_semantics;
    SpvMemorySemanticsMask after_semantics;
    vtn_split_barrier_semantics(b, semantics, &before_semantics, &after_semantics);
+
+   /* Unlike memory semantics of barriers, MakeTexelVisible/Available apply to
+    * this access, so visibility happens before the read and availability after
+    * the write.
+    */
+   if (operands & SpvImageOperandsMakeTexelVisibleMask)
+      before_semantics |= SpvMemorySemanticsMakeVisibleMask |
+                          SpvMemorySemanticsImageMemoryMask;
+   if (operands & SpvImageOperandsMakeTexelAvailableMask)
+      after_semantics |= SpvMemorySemanticsMakeAvailableMask |
+                         SpvMemorySemanticsImageMemoryMask;
 
    if (before_semantics)
       vtn_emit_memory_barrier(b, scope, before_semantics);
