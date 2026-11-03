@@ -2,12 +2,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <dlfcn.h>
 #include <new>
 #include "perf/intel_perf_metrics_library.h"
 #include "metrics_library/metrics_library_api_1_0.h"
 
 #include "perf/intel_perf.h"
+#include "util/u_dl.h"
 
 using namespace MetricsLibraryApi;
 
@@ -54,16 +54,16 @@ static uint32_t intel_metrics_library_get_query_report_size(struct intel_perf_co
 bool intel_perf_init_metrics_library(struct intel_perf_config *perf, int fd)
 {
    const char *libstr = "libigdml.so.1";
-   void *metrics_library = dlopen(libstr, RTLD_NOW | RTLD_LOCAL);
+   struct util_dl_library *metrics_library = util_dl_open(libstr);
 
    if (!metrics_library)
       return false;
 
-   ContextCreateFunction_1_0 create_context = (ContextCreateFunction_1_0)dlsym(metrics_library, METRICS_LIBRARY_CONTEXT_CREATE_1_0);
-   ContextDeleteFunction_1_0 destroy_context = (ContextDeleteFunction_1_0)dlsym(metrics_library, METRICS_LIBRARY_CONTEXT_DELETE_1_0);
+   ContextCreateFunction_1_0 create_context = (ContextCreateFunction_1_0)util_dl_get_proc_address(metrics_library, METRICS_LIBRARY_CONTEXT_CREATE_1_0);
+   ContextDeleteFunction_1_0 destroy_context = (ContextDeleteFunction_1_0)util_dl_get_proc_address(metrics_library, METRICS_LIBRARY_CONTEXT_DELETE_1_0);
 
    if (!create_context || !destroy_context) {
-      dlclose(metrics_library);
+      util_dl_close(metrics_library);
       return false;
    }
 
@@ -104,7 +104,7 @@ bool intel_perf_init_metrics_library(struct intel_perf_config *perf, int fd)
       perf->metrics_library.api = nullptr;
       delete (ClientCallbacks_1_0*)perf->metrics_library.callbacks;
       perf->metrics_library.callbacks = nullptr;
-      dlclose(metrics_library);
+      util_dl_close(metrics_library);
       return false;
    }
 
@@ -134,7 +134,7 @@ bool intel_perf_deinit_metrics_library(struct intel_perf_config *perf)
    perf->metrics_library.api = nullptr;
    delete (ClientCallbacks_1_0*)perf->metrics_library.callbacks;
    perf->metrics_library.callbacks = nullptr;
-   dlclose(perf->metrics_library.lib);
+   util_dl_close((struct util_dl_library *)perf->metrics_library.lib);
    perf->metrics_library.lib = nullptr;
    perf->metrics_library.context = nullptr;
    perf->metrics_library.destroy_context_func = nullptr;
