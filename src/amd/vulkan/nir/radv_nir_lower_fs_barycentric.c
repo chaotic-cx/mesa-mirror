@@ -7,7 +7,6 @@
 #include "nir/nir.h"
 #include "nir/nir_builder.h"
 #include "radv_nir.h"
-#include "radv_pipeline.h"
 #include "radv_shader.h"
 
 #include "amdgfxregs.h"

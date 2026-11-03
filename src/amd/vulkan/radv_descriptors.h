@@ -16,8 +16,6 @@
 #include "radv_device.h"
 #include "radv_image_view.h"
 #include "radv_physical_device.h"
-#include "radv_pipeline.h"
-#include "radv_pipeline_layout.h"
 #include "radv_sampler.h"
 #include "radv_shader.h"
 #include "radv_video.h"

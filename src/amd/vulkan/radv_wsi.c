@@ -13,8 +13,6 @@
 #include "radv_device_memory.h"
 #include "radv_entrypoints.h"
 #include "radv_physical_device.h"
-#include "radv_pipeline.h"
-#include "radv_pipeline_compute.h"
 #include "radv_queue.h"
 #include "radv_shader.h"
 
