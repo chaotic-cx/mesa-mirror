@@ -826,7 +826,7 @@ try_reassign_split_vector(pr_opt_ctx& ctx, aco_ptr<Instruction>& instr)
 
          /* Use the p_split_vector operand register directly.
           *
-          * Note: this might violate register assignment rules to some extend
+          * Note: this might violate register assignment rules to some extent
           *       in case the definition does not get recolored, eventually.
           */
          instr->operands[i].setFixed(reg);
