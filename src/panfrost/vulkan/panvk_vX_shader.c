@@ -223,78 +223,50 @@ panvk_lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
 
 #if PAN_ARCH < 9
 static bool
-lower_gl_pos_layer_writes(nir_builder *b, nir_instr *instr, void *data)
-{
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-
-   if (intr->intrinsic != nir_intrinsic_copy_deref)
-      return false;
-
-   nir_variable *dst_var = nir_intrinsic_get_var(intr, 0);
-   nir_variable *src_var = nir_intrinsic_get_var(intr, 1);
-
-   if (!dst_var || dst_var->data.mode != nir_var_shader_out || !src_var ||
-       src_var->data.mode != nir_var_shader_temp)
-      return false;
-
-   if (dst_var->data.location == VARYING_SLOT_LAYER) {
-      /* We don't really write the layer, we just make sure primitives are
-       * discarded if gl_Layer doesn't match the layer passed to the draw.
-       */
-      b->cursor = nir_instr_remove(instr);
-      return true;
-   }
-
-   if (dst_var->data.location == VARYING_SLOT_POS) {
-      nir_variable *temp_layer_var = data;
-      nir_variable *temp_pos_var = src_var;
-
-      b->cursor = nir_before_instr(instr);
-      nir_def *layer = nir_load_var(b, temp_layer_var);
-      nir_def *pos = nir_load_var(b, temp_pos_var);
-      nir_def *inf_pos = nir_imm_vec4(b, INFINITY, INFINITY, INFINITY, 1.0f);
-      nir_def *ref_layer = load_sysval(b, graphics, 32, layer_id);
-
-      nir_store_var(b, temp_pos_var,
-                    nir_bcsel(b, nir_ieq(b, layer, ref_layer), pos, inf_pos),
-                    0xf);
-      return true;
-   }
-
-   return false;
-}
-
-static bool
 lower_layer_writes(nir_shader *nir)
 {
    if (nir->info.stage == MESA_SHADER_FRAGMENT)
       return false;
 
-   nir_variable *temp_layer_var = NULL;
-   bool has_layer_var = false;
+   nir_variable *layer_var = NULL;
+   nir_variable *pos_var = NULL;
 
-   nir_foreach_variable_with_modes(var, nir,
-                                   nir_var_shader_out | nir_var_shader_temp) {
-      if (var->data.mode == nir_var_shader_out &&
-          var->data.location == VARYING_SLOT_LAYER)
-         has_layer_var = true;
+   nir_foreach_variable_with_modes(var, nir, nir_var_shader_out) {
+      if (var->data.location == VARYING_SLOT_LAYER)
+         layer_var = var;
 
-      if (var->data.mode == nir_var_shader_temp &&
-          var->data.location == VARYING_SLOT_LAYER)
-         temp_layer_var = var;
+      if (var->data.location == VARYING_SLOT_POS)
+         pos_var = var;
    }
 
-   if (!has_layer_var)
-      return false;
+   nir_function_impl *impl = nir_shader_get_entrypoint(nir);
+   if (!layer_var || !pos_var)
+      return nir_no_progress(impl);
 
-   assert(temp_layer_var);
+   /* Clear nir_variable_data and make it a temporary */
+   layer_var->data = (nir_variable_data) {
+      .mode = nir_var_shader_temp,
+   };
 
-   return nir_shader_instructions_pass(nir, lower_gl_pos_layer_writes,
-                                       nir_metadata_control_flow,
-                                       temp_layer_var);
+   nir_builder b = nir_builder_create(impl);
+   nir_foreach_pred(block, impl->end_block) {
+      b.cursor = nir_after_block_before_jump(block);
+
+      nir_def *layer = nir_load_var(&b, layer_var);
+      nir_def *ref_layer = load_sysval(&b, graphics, 32, layer_id);
+
+      nir_push_if(&b, nir_ine(&b, layer, ref_layer));
+      nir_def *inf_pos = nir_imm_vec4(&b, INFINITY, INFINITY, INFINITY, 1.0f);
+      nir_store_var(&b, pos_var, inf_pos, 0xf);
+      nir_pop_if(&b, NULL);
+   }
+
+   nir_progress(true, impl, nir_metadata_none);
+
+   /* Finally, fix up any references to layer, which is now a temporary */
+   nir_fixup_deref_modes(nir);
+
+   return true;
 }
 #endif
 
@@ -450,15 +422,16 @@ panvk_preprocess_nir(struct vk_physical_device *vk_pdev,
    if (nir->info.stage == MESA_SHADER_FRAGMENT)
       NIR_PASS(_, nir, nir_opt_vectorize_io_vars, nir_var_shader_out);
 
-   NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries,
-            nir_shader_get_entrypoint(nir), nir_var_shader_out);
-
 #if PAN_ARCH < 9
-   /* This needs to be done just after the io_to_temporaries pass, because we
-    * rely on out temporaries to collect the final layer_id value.
+   /* This needs to be done before lower_io_vars_to_temporaries, because we
+    * generate additional writes to gl_Position and we want those to be
+    * collected into one by lower_io_vars_to_temporaries.
     */
    NIR_PASS(_, nir, lower_layer_writes);
 #endif
+
+   NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries,
+            nir_shader_get_entrypoint(nir), nir_var_shader_out);
 
    NIR_PASS(_, nir, nir_lower_global_vars_to_local);
    NIR_PASS(_, nir, nir_split_var_copies);
