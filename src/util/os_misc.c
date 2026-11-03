@@ -56,10 +56,12 @@
 
 
 #if DETECT_OS_ANDROID
-#  define LOG_TAG "MESA"
 #  include <unistd.h>
-#  include <android/log.h>
 #  include <sys/system_properties.h>
+#  ifdef HAVE_ANDROID_PLATFORM
+#    define LOG_TAG "MESA"
+#    include <android/log.h>
+#  endif
 #elif DETECT_OS_LINUX || DETECT_OS_CYGWIN || DETECT_OS_SOLARIS || DETECT_OS_HURD || DETECT_OS_MANAGARM
 #  include <unistd.h>
 #elif DETECT_OS_OPENBSD || DETECT_OS_FREEBSD
@@ -135,7 +137,8 @@ os_log_message(const char *message)
    fflush(stdout);
    fputs(message, fout);
    fflush(fout);
-#  if DETECT_OS_ANDROID
+#  if DETECT_OS_ANDROID && defined(HAVE_ANDROID_PLATFORM)
+   /* also log to logcat when building for Android platform build */
    __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, message);
 #  endif
 #endif

@@ -36,7 +36,7 @@
 #include "util/u_process.h"
 #endif
 
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
 #include <android/log.h>
 #endif
 
@@ -118,7 +118,7 @@ mesa_log_init_once(void)
 
    if (!(mesa_log_control & MESA_LOG_CONTROL_LOGGER_MASK)) {
       /* pick the default loggers */
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
       mesa_log_control |= MESA_LOG_CONTROL_ANDROID;
 #else
       mesa_log_control |= MESA_LOG_CONTROL_FILE;
@@ -351,7 +351,7 @@ logger_syslog(enum mesa_log_level level,
 
 #endif /* DETECT_OS_POSIX */
 
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
 
 static inline android_LogPriority
 level_to_android(enum mesa_log_level l)
@@ -395,7 +395,7 @@ logger_android(enum mesa_log_level level,
       thrd_yield();
 }
 
-#endif /* DETECT_OS_ANDROID */
+#endif /* HAVE_ANDROID_PLATFORM */
 
 #if DETECT_OS_WINDOWS
 
@@ -455,7 +455,7 @@ mesa_log_v(enum mesa_log_level level, const char *tag, const char *format,
 #if DETECT_OS_POSIX
       { MESA_LOG_CONTROL_SYSLOG, logger_syslog },
 #endif
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
       { MESA_LOG_CONTROL_ANDROID, logger_android },
 #endif
 #if DETECT_OS_WINDOWS

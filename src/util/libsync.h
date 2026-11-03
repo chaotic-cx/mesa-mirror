@@ -40,14 +40,13 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "util/detect_os.h"
 #include "util/os_file.h"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
 /* On Android, rely on the system's libsync instead of rolling our own
  * sync_wait() and sync_merge().  This gives us compatibility with pre-4.7
  * Android kernels.
@@ -204,7 +203,7 @@ static inline struct sync_file_info* sync_file_info(int32_t fd)
     return info;
 }
 
-#endif /* DETECT_OS_ANDROID */
+#endif /* HAVE_ANDROID_PLATFORM */
 
 /* accumulate fd2 into fd1.  If *fd1 is not a valid fd then dup fd2,
  * otherwise sync_merge() and close the old *fd1.  This can be used
