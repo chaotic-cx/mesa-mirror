@@ -102,6 +102,7 @@ panfrost-g52-vk:arm64:
     PAN_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
     PANVK_DEBUG: "sync"
     DEQP_SUITE: panfrost-g52-vk
+    DEQP_FRACTION: 2
     HWCI_START_WESTON: 1
 
 panfrost-g52-piglit:arm64:
