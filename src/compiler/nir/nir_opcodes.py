@@ -1508,6 +1508,14 @@ triop_shift_pan("lrot", tuint, "(src0 << shift) |\
 triop_shift_pan("rrot", tuint, "(src0 >> shift) |\
                                 (src0 << ((-shift) & shift_mask))")
 
+# Fused multiply-add followed by a power-of-two scale, rounded to nearest even.
+# The hardware has some precision issues around subnormal inputs/outputs
+# so it should only be used for trascendentals and specficic cases not
+# requiring absolute precision.
+opcode("fma_rscale_pan", 0, tfloat32, [0, 0, 0, 0],
+       [tfloat32, tfloat32, tfloat32, tint32], False, _2src_commutative,
+       "ldexp(fma(src0, src1, src2), src3)")
+
 # r600/gcn specific instruction that evaluates unnormalized cube texture coordinates
 # and face index
 # The actual texture coordinates are evaluated from this according to

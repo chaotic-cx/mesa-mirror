@@ -883,6 +883,16 @@ impl<'a> ShaderFromNir<'a> {
                     srcs: [srcs(0), srcs(1), srcs(2)],
                 });
             }
+            nir_op_fma_rscale_pan => {
+                assert!(alu.get_src(0).bit_size() == 32);
+                b.push_op(OpFmaRScale {
+                    dst: dst.into(),
+                    round: self.fround(alu.def.bit_size),
+                    clamp: FClamp::None,
+                    srcs: [srcs(0), srcs(1), srcs(2)],
+                    scale: srcs(3),
+                });
+            }
             nir_op_fmul => {
                 b.push_op(OpFma {
                     dst: dst.into(),
