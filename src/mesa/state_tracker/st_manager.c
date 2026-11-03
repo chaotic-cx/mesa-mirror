@@ -900,7 +900,7 @@ st_context_teximage(struct st_context *st, GLenum target,
     * textures without computing this.
     */
    texObj->needs_yuv_plane_views = tex &&
-      (pipe_format != tex->format || util_format_is_yuv(pipe_format));
+      st_needs_yuv_plane_views(st->screen, pipe_format, tex);
 
    texObj->needs_validation = true;
 
