@@ -78,7 +78,7 @@ bool zink_tracing = false;
 #if DETECT_OS_APPLE
 /* See the vulkan-loader-rpath meson option for how to specify rpath at build time. */
 #define VK_LIBNAME "@rpath/libvulkan.1.dylib"
-#elif DETECT_OS_ANDROID
+#elif defined(HAVE_ANDROID_PLATFORM)
 #define VK_LIBNAME "libvulkan.so"
 #else
 #define VK_LIBNAME "libvulkan.so.1"
@@ -2495,7 +2495,7 @@ setup_renderdoc(struct zink_screen *screen)
    const char *capture_id = debug_get_option("ZINK_RENDERDOC", NULL);
    if (!capture_id)
       return;
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
    const char *libstr = "libVkLayer_GLES_RenderDoc.so";
 #else
    const char *libstr = "librenderdoc.so";

@@ -1866,7 +1866,7 @@ struct pipe_context *virgl_context_create(struct pipe_screen *pscreen,
     * config procedurally right before context creation, we must check the
     * envvar again.
     */
-#if DETECT_OS_ANDROID
+#ifdef HAVE_ANDROID_PLATFORM
    if (!rs->shader_sync) {
       uint64_t debug_options = debug_get_flags_option("VIRGL_DEBUG",
                                                       virgl_debug_options, 0);
