@@ -418,9 +418,9 @@ _anv_measure_submit(struct anv_cmd_buffer *cmd_buffer)
    base->timestamps[base->index - 1] = 0;
 
    /* add to the list of submitted snapshots */
-   pthread_mutex_lock(&measure_device->mutex);
+   simple_mtx_lock(&measure_device->mutex);
    list_addtail(&measure->base.link, &measure_device->queued_snapshots);
-   pthread_mutex_unlock(&measure_device->mutex);
+   simple_mtx_unlock(&measure_device->mutex);
 }
 
 /**

@@ -220,7 +220,7 @@ intel_measure_init(struct intel_measure_device *device)
    device->frame = 0;
    device->render_pass_count = 0;
    device->release_batch = NULL;
-   pthread_mutex_init(&device->mutex, NULL);
+   simple_mtx_init(&device->mutex, mtx_plain);
    list_inithead(&device->queued_snapshots);
 
    if (env)
@@ -701,7 +701,7 @@ void
 intel_measure_gather(struct intel_measure_device *measure_device,
                      const struct intel_device_info *info)
 {
-   pthread_mutex_lock(&measure_device->mutex);
+   simple_mtx_lock(&measure_device->mutex);
 
    /* Iterate snapshots and collect if ready.  Each snapshot queue will be
     * in-order, but we must determine which queue has the oldest batch.
@@ -731,5 +731,5 @@ intel_measure_gather(struct intel_measure_device *measure_device,
    }
 
    intel_measure_print(measure_device, info);
-   pthread_mutex_unlock(&measure_device->mutex);
+   simple_mtx_unlock(&measure_device->mutex);
 }

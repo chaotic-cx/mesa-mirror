@@ -7,6 +7,7 @@
 #include "util/u_debug.h"
 #include "util/list.h"
 #include "util/crc32.h"
+#include "util/simple_mtx.h"
 #include "iris_context.h"
 #include "iris_defines.h"
 #include "compiler/shader_info.h"
@@ -385,10 +386,10 @@ iris_measure_batch_end(struct iris_context *ice, struct iris_batch *batch)
                                iris_batch_bytes_used(batch);
 
    /* enqueue snapshot for gathering */
-   pthread_mutex_lock(&measure_device->mutex);
+   simple_mtx_lock(&measure_device->mutex);
    list_addtail(&iris_measure_batch->base.link, &measure_device->queued_snapshots);
    batch->measure = NULL;
-   pthread_mutex_unlock(&measure_device->mutex);
+   simple_mtx_unlock(&measure_device->mutex);
    /* init new measure_batch */
    iris_init_batch_measure(ice, batch);
 
