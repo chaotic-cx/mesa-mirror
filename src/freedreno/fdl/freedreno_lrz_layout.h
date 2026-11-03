@@ -26,10 +26,12 @@ struct fdl_lrz_layout {
     * blocks past it have to be cleared by other means.
     */
    uint32_t lrz_fc_full_size;
-   /* Per-layer fast-clear stride. Needed to work out which LRZ tiles a
+   /* Per-layer fast-clear pitch. Needed to work out which LRZ tiles a
     * partially-covering flag RAM leaves behind.
     */
-   uint32_t lrz_fc_layer_stride;
+   uint32_t lrz_fc_layer_pitch;
+   /* Per-slice fast-clear pitch (gen8+). */
+   uint32_t lrz_fc_slice_pitch;
    uint32_t lrz_total_size;
 };
 
@@ -38,18 +40,30 @@ struct fdl_lrz_layout {
  *
  * The flag buffer is addressed as a flat byte range and the hardware only reads
  * the first lrz_fc_size bytes of it, with each layer's bits starting at a
- * 64-byte aligned stride. One fast-clear block covers 64 LRZ tiles (or 128
+ * 64-byte aligned pitch. One fast-clear block covers 64 LRZ tiles (or 128
  * bytes in the LRZ image).
  */
 static inline uint32_t
 fdl6_lrz_fc_first_uncovered_offset(const struct fdl_lrz_layout *lrz, uint32_t layer)
 {
-   uint32_t layer_start = layer * lrz->lrz_fc_layer_stride;
+   uint32_t layer_start = layer * lrz->lrz_fc_layer_pitch;
 
    if (layer_start >= lrz->lrz_fc_size)
       return 0; /* nothing of this layer is covered */
 
    uint32_t covered_bytes = lrz->lrz_fc_size - layer_start;
+
+   /* On A8XX each LRZ slice has its own flags buffer, starting at
+    * lrz_fc_slice_pitch within the layer, the hardware only fast-clears (and
+    * checks) the slices whose flags fit in the flag RAM completely; a slice that
+    * would only partly fit doesn't use the flags. So the covered part of a layer
+    * ends on a slice boundary.
+    */
+   if (lrz->lrz_fc_slice_pitch) {
+      uint32_t covered_slices = covered_bytes / lrz->lrz_fc_slice_pitch;
+      return MIN2(covered_slices * lrz->lrz_slice_pitch, lrz->lrz_layer_size);
+   }
+
    return MIN2(covered_bytes * 8 /* bits/byte */ *
       128 /* bytes/fast clear block */, lrz->lrz_layer_size);
 }
@@ -81,29 +95,51 @@ fdl6_lrz_get_super_sampled_size(uint32_t *width, uint32_t *height,
    }
 }
 
-static uint32_t
-fdl6_lrz_get_fc_layer_pitch(uint32_t lrz_layer_pitch)
+template <chip CHIP>
+static inline uint32_t
+fdl6_lrz_get_fc_slice_pitch(uint32_t lrz_slice_pitch)
 {
-   return align(lrz_layer_pitch >> 7, 512) / 8;
+   if constexpr (CHIP >= A8XX)
+      /* 2 fast-clear bits per 8x16-tile LRZ block (256 bytes). */
+      return align(lrz_slice_pitch * 2 / 256, 256) / 8;
+   else
+      return 0;
+}
+
+template <chip CHIP>
+static inline uint32_t
+fdl6_lrz_get_fc_layer_pitch(uint32_t lrz_layer_size, uint32_t lrz_slice_pitch,
+                            uint32_t num_slices)
+{
+   if constexpr (CHIP >= A8XX) {
+      /* Each slice padded to 256 bits, the layer to 64 bytes. */
+      return align(fdl6_lrz_get_fc_slice_pitch<CHIP>(lrz_slice_pitch) *
+                   num_slices, 64);
+   } else {
+      return align(lrz_layer_size >> 7, 512) / 8;
+   }
 }
 
 /* Size the fast-clear buffer would need to cover the whole LRZ image, before
  * the flag-RAM limit is applied.
  */
+template <chip CHIP>
 static inline uint32_t
-fdl6_lrz_get_full_fc_size(uint32_t lrz_layer_pitch, uint32_t array_layers)
+fdl6_lrz_get_full_fc_size(uint32_t lrz_layer_size, uint32_t lrz_slice_pitch,
+                          uint32_t num_slices, uint32_t array_layers)
 {
-   unsigned fc_layer_byte_pitch = fdl6_lrz_get_fc_layer_pitch(lrz_layer_pitch);
-
-   return fc_layer_byte_pitch * array_layers;
+   return fdl6_lrz_get_fc_layer_pitch<CHIP>(lrz_layer_size, lrz_slice_pitch,
+                                            num_slices) * array_layers;
 }
 
 template <chip CHIP>
 static inline uint32_t
-fdl6_lrz_get_fc_size(uint32_t lrz_layer_pitch, uint32_t array_layers)
+fdl6_lrz_get_fc_size(uint32_t lrz_layer_size, uint32_t lrz_slice_pitch,
+                     uint32_t num_slices, uint32_t array_layers)
 {
    uint32_t lrz_fc_size =
-      fdl6_lrz_get_full_fc_size(lrz_layer_pitch, array_layers);
+      fdl6_lrz_get_full_fc_size<CHIP>(lrz_layer_size, lrz_slice_pitch,
+                                      num_slices, array_layers);
 
    /* The flag RAM holds at most 512 bytes on A6XX, 1024 on A7XX and 2048 on
     * A8XX. Past that only a prefix of the LRZ image can be fast-cleared; the
@@ -201,12 +237,17 @@ fdl6_lrz_layout_init(struct fdl_lrz_layout *lrz_layout,
    lrz_layout->lrz_buffer_size = lrz_layout->lrz_layer_size * array_layers;
 
    /* Fast-clear buffer is 1bit/block */
-   lrz_layout->lrz_fc_size =
-      fdl6_lrz_get_fc_size<CHIP>(lrz_layout->lrz_layer_size, array_layers);
-   lrz_layout->lrz_fc_full_size =
-      fdl6_lrz_get_full_fc_size(lrz_layout->lrz_layer_size, array_layers);
-   lrz_layout->lrz_fc_layer_stride =
-      fdl6_lrz_get_fc_layer_pitch(lrz_layout->lrz_layer_size);
+   lrz_layout->lrz_fc_size = fdl6_lrz_get_fc_size<CHIP>(
+      lrz_layout->lrz_layer_size, lrz_layout->lrz_slice_pitch,
+      dev_info->num_slices, array_layers);
+   lrz_layout->lrz_fc_full_size = fdl6_lrz_get_full_fc_size<CHIP>(
+      lrz_layout->lrz_layer_size, lrz_layout->lrz_slice_pitch,
+      dev_info->num_slices, array_layers);
+   lrz_layout->lrz_fc_layer_pitch = fdl6_lrz_get_fc_layer_pitch<CHIP>(
+      lrz_layout->lrz_layer_size, lrz_layout->lrz_slice_pitch,
+      dev_info->num_slices);
+   lrz_layout->lrz_fc_slice_pitch =
+      fdl6_lrz_get_fc_slice_pitch<CHIP>(lrz_layout->lrz_slice_pitch);
 
    if (!dev_info->props.enable_lrz_fast_clear) {
       lrz_layout->lrz_fc_size = 0;

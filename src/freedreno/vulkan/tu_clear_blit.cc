@@ -2564,10 +2564,12 @@ tu6_clear_lrz_partial(struct tu_cmd_buffer *cmd,
             continue;
 
          const uint32_t clear_block_bytes = 2048;
-         /* LRZ FC layer stride alignment is 64 bytes, or 512 bits. Each bit
-          * is a FC block that covers 128 bytes.
-          */
-         assert(first % (512 * 128) == 0);
+         if constexpr (CHIP < A8XX) {
+            /* LRZ FC layer stride alignment is 64 bytes, or 512 bits. Each bit
+             * is a FC block that covers 128 bytes.
+             */
+            assert(first % (512 * 128) == 0);
+         }
          /* LRZ layer stride is a multiple of 2048 bytes on all gens currently.
           */
          assert(lrz->lrz_layer_size % clear_block_bytes == 0);
