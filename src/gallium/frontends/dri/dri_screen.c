@@ -268,6 +268,17 @@ driCreateConfigs(enum pipe_format format,
     return configs;
 }
 
+void
+driDestroyConfigs(const struct dri_config **configs)
+{
+   if (!configs)
+      return;
+
+   for (unsigned i = 0; configs[i]; i++)
+      free((struct dri_config *)configs[i]);
+   free(configs);
+}
+
 static struct dri_config **
 driConcatConfigs(struct dri_config **a, struct dri_config **b)
 {

@@ -1172,15 +1172,12 @@ static void
 dri_destroy(struct gbm_device *gbm)
 {
    struct gbm_dri_device *dri = gbm_dri_device(gbm);
-   unsigned i;
 
    if (dri->context)
       driDestroyContext(dri->context);
 
    driDestroyScreen(dri->screen);
-   for (i = 0; dri->driver_configs[i]; i++)
-      free((struct dri_config *) dri->driver_configs[i]);
-   free(dri->driver_configs);
+   driDestroyConfigs(dri->driver_configs);
    free(dri->driver_name);
 
    free(dri);

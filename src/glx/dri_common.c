@@ -231,16 +231,6 @@ driConvertConfigs(struct glx_config *configs, const struct dri_config **driConfi
    return head.next;
 }
 
-void
-driDestroyConfigs(const struct dri_config **configs)
-{
-   int i;
-
-   for (i = 0; configs[i]; i++)
-      free((struct dri_config *) configs[i]);
-   free(configs);
-}
-
 static struct glx_config *
 driInferDrawableConfig(struct glx_screen *psc, GLXDrawable draw)
 {
