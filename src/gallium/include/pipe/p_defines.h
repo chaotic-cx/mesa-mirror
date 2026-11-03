@@ -1103,6 +1103,7 @@ struct pipe_caps {
    bool glsl_bindless_handles_are_32bit;
    bool polygon_stipple;
    bool disable_custom_border_color_caching;
+   bool needs_split_planar_samplers;
 
    int accelerated;
    int min_texel_offset;
