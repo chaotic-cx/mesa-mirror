@@ -815,6 +815,9 @@ v3d_transform_feedback_enabled(struct v3d_context *v3d)
 }
 
 void v3d_set_shader_uniform_dirty_flags(struct v3d_compiled_shader *shader);
+void v3d_upload_shader_code(struct v3d_context *v3d,
+                            struct v3d_compiled_shader *shader,
+                            const uint64_t *qpu_insts, uint32_t qpu_size);
 struct v3d_cl_reloc v3d_write_uniforms(struct v3d_context *v3d,
                                        struct v3d_job *job,
                                        struct v3d_compiled_shader *shader,
