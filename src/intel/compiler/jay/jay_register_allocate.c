@@ -343,6 +343,13 @@ mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
    }
 }
 
+static int
+sort_copy_by_dst(const void *a_, const void *b_)
+{
+   const struct jay_parallel_copy *a = a_, *b = b_;
+   return (a->dst > b->dst) - (a->dst < b->dst);
+}
+
 /*
  * Sequentialize a parallel copy. temps are registers free *before* the
  * parallel copy. A temporary might be the destination of a copy, but it
@@ -369,6 +376,9 @@ jay_emit_parallel_copies(jay_builder *b,
    num_copies = new_num_copies;
    if (num_copies == 0)
       return;
+
+   /* Sort copies by destination to improve vectorization */
+   qsort(pcopies, num_copies, sizeof(*pcopies), sort_copy_by_dst);
 
    assert(num_copies < UINT16_MAX);
    BITSET_WORD *done = BITSET_CALLOC(num_copies);
