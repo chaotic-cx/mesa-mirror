@@ -292,9 +292,11 @@ get_compatible_tlb_format(VkFormat format)
       return VK_FORMAT_R8G8B8A8_UINT;
 
    case VK_FORMAT_R8G8_SNORM:
+   case VK_FORMAT_R8G8_SRGB:
       return VK_FORMAT_R8G8_UINT;
 
    case VK_FORMAT_R8_SNORM:
+   case VK_FORMAT_R8_SRGB:
       return VK_FORMAT_R8_UINT;
 
    case VK_FORMAT_A8B8G8R8_SNORM_PACK32:

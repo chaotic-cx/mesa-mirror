@@ -150,6 +150,7 @@ static const struct v3dv_format format_table[] = {
 
    /* Color, 2 channels */
    FORMAT(R8G8_UNORM,              RG8,          RG8,           SWIZ_XY01, 16, true),
+   FORMAT(R8G8_SRGB,               NO,           RG8,           SWIZ_XY01, 16, true),
    FORMAT(R8G8_SNORM,              NO,           RG8_SNORM,     SWIZ_XY01, 16, true),
    FORMAT(R8G8_SINT,               RG8I,         RG8I,          SWIZ_XY01, 16, false),
    FORMAT(R8G8_UINT,               RG8UI,        RG8UI,         SWIZ_XY01, 16, false),
@@ -166,6 +167,7 @@ static const struct v3dv_format format_table[] = {
 
    /* Color, 1 channel */
    FORMAT(R8_UNORM,                R8,           R8,            SWIZ_X001, 16, true),
+   FORMAT(R8_SRGB,                 NO,           R8,            SWIZ_X001, 16, true),
    FORMAT(R8_SNORM,                NO,           R8_SNORM,      SWIZ_X001, 16, true),
    FORMAT(R8_SINT,                 R8I,          R8I,           SWIZ_X001, 16, false),
    FORMAT(R8_UINT,                 R8UI,         R8UI,          SWIZ_X001, 16, false),
