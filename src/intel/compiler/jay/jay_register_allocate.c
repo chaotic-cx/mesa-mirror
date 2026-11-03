@@ -328,23 +328,37 @@ mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
    /* Split copies as an optimization, not for correctness */
    bool split_copy =
       (dst.file == MEM && src.file == MEM && temps.gpr != NO_REG);
+   struct jay_register_block D, S;
 
    if (dst.file == GPR && src.file == GPR) {
       struct jay_partition *p = &b->shader->partition;
-      struct jay_register_block D = jay_lookup_block(p, dst.reg, GPR);
-      struct jay_register_block S = jay_lookup_block(p, src.reg, GPR);
+      D = jay_lookup_block(p, dst.reg, GPR);
+      S = jay_lookup_block(p, src.reg, GPR);
 
       split_copy |= D.stride != S.stride &&
                     D.stride != JAY_STRIDE_4 &&
                     S.stride != JAY_STRIDE_4;
    }
 
-   if (split_copy) {
-      jay_def temp = jay_null(), backing = jay_null();
-      temp = push_temp(b, temps, GPR, false, &backing, jay_null(), jay_null());
-      jay_MOV(b, temp, src);
-      jay_MOV(b, dst, temp);
-      pop_temp(b, temp, backing);
+   if (split_copy && temps.gpr != NO_REG) {
+      jay_MOV(b, def_from_reg(temps.gpr), src);
+      jay_MOV(b, dst, def_from_reg(temps.gpr));
+   } else if (split_copy) {
+      jay_def t = jay_bare_reg(GPR, 0);
+
+      /* This is terrible, but it's really uncommon. Use 4<-->8 swaps which
+       * don't require further splitting to reduce the pain slightly.
+       */
+      if (S.stride == JAY_STRIDE_8) {
+         jay_SWAP(b, t, src);
+         jay_MOV(b, dst, t);
+         jay_SWAP(b, t, src);
+      } else {
+         assert(D.stride == JAY_STRIDE_8);
+         jay_SWAP(b, t, dst);
+         jay_MOV(b, t, src);
+         jay_SWAP(b, t, dst);
+      }
    } else {
       jay_MOV(b, dst, src)->type =
          dst.file == FLAG ? jay_flag_type(b->func) : JAY_TYPE_U32;
