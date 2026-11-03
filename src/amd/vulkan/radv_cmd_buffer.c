@@ -2702,7 +2702,7 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       const unsigned mmrt = ps_iter_samples > 1 ? total_samples : MIN2(total_samples, 2);
       color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format) * mmrt;
 
-      if (total_samples > 1) {
+      if (total_samples > 1 && radv_image_has_fmask(iview->image)) {
          assert(samples_log <= 3);
          const unsigned fmask_array[] = {0, 1, 1, 4};
          fmask_bytes_per_pixel += fmask_array[samples_log];
