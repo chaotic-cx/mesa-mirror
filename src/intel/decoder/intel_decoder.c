@@ -44,9 +44,16 @@
 #define XML_BUFFER_SIZE 4096
 #define MAX_VALUE_ITEMS 128
 
+#if XML_MAJOR_VERSION == 2 && XML_MINOR_VERSION < 9
+/* Expat 2.9 added the *64 variants and deprecated the previous ones */
+#  define XML_GetCurrentLineNumber64(p) (uint64_t) XML_GetCurrentLineNumber(p)
+#  define XML_GetCurrentColumnNumber64(p) (uint64_t) XML_GetCurrentColumnNumber(p)
+#  define XML_GetCurrentByteIndex64(p) (int64_t) XML_GetCurrentByteIndex(p)
+#endif
+
 struct location {
    const char *filename;
-   int line_number;
+   uint64_t line_number;
 };
 
 struct genxml_import_exclusion {
@@ -135,7 +142,7 @@ fail(struct location *loc, const char *msg, ...)
    va_list ap;
 
    va_start(ap, msg);
-   fprintf(stderr, "%s:%d: error: ",
+   fprintf(stderr, "%s:%" PRIu64 ": error: ",
            loc->filename, loc->line_number);
    vfprintf(stderr, msg, ap);
    fprintf(stderr, "\n");
@@ -606,7 +613,7 @@ start_element(void *data, const char *element_name, const char **atts)
    const char *name = NULL;
    const char *gen = NULL;
 
-   ctx->loc.line_number = XML_GetCurrentLineNumber(ctx->parser);
+   ctx->loc.line_number = XML_GetCurrentLineNumber64(ctx->parser);
 
    for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "name") == 0)
@@ -949,10 +956,10 @@ intel_spec_load_common(int verx10, const char *dirname, const char *filename)
 
    if (XML_ParseBuffer(ctx.parser, data_len, true) == 0) {
       fprintf(stderr,
-              "Error parsing XML at line %ld col %ld byte %ld/%zu: %s\n",
-              XML_GetCurrentLineNumber(ctx.parser),
-              XML_GetCurrentColumnNumber(ctx.parser),
-              XML_GetCurrentByteIndex(ctx.parser), data_len,
+              "Error parsing XML at line %" PRIu64 " col %" PRIu64 " byte %" PRIi64 "/%zu: %s\n",
+              XML_GetCurrentLineNumber64(ctx.parser),
+              XML_GetCurrentColumnNumber64(ctx.parser),
+              XML_GetCurrentByteIndex64(ctx.parser), data_len,
               XML_ErrorString(XML_GetErrorCode(ctx.parser)));
       XML_ParserFree(ctx.parser);
       return NULL;
