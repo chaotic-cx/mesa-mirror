@@ -79,6 +79,7 @@
 #include "loader_dri_helper.h"
 #include "util/u_debug.h"
 #include "dri_util.h"
+#include "dri_screen.h"
 
 static struct dri3_drawable *
 loader_drawable_to_dri3_drawable(struct loader_dri3_drawable *draw) {
@@ -461,7 +462,7 @@ struct glx_screen *
 dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred, bool *return_zink)
 {
    xcb_connection_t *c = XGetXCBConnection(priv->dpy);
-   const struct dri_config **driver_configs;
+   const struct dri_config **driver_configs = NULL;
    struct dri3_screen *psc;
    __GLXDRIscreen *psp;
    char *driverName, *driverNameDisplayGPU;
@@ -516,6 +517,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
                                                            DRI_SCREEN_DRI3,
                                                            &driver_configs, driver_name_is_inferred,
                                                            priv->has_multibuffer, psc);
+            driDestroyConfigs(driver_configs);
          }
 
          free(driverNameDisplayGPU);
