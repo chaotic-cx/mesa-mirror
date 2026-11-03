@@ -3214,7 +3214,7 @@
         "description": "v3d: pad shader uploads for the QPU instruction prefetch",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b38e4d313fc27a225a36c42f84b2bee9933e62e6",
         "notes": null
