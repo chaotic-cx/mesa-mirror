@@ -271,7 +271,6 @@ static jay_def
 push_temp(jay_builder *b,
           struct jay_temp_regs t,
           enum jay_file file,
-          bool outer,
           jay_def *backing,
           jay_def avoid1,
           jay_def avoid2)
@@ -302,7 +301,7 @@ push_temp(jay_builder *b,
    jay_def new = def_from_reg(make_reg(file, r));
 
    /* Put accumulators down the float pipe - it's still a raw move. */
-   *backing = jay_bare_reg(ACCUM, outer);
+   *backing = jay_bare_reg(ACCUM, 0);
    jay_inst *mov = jay_MOV(b, *backing, new);
    mov->type = JAY_TYPE_F32;
    mov->uniform = file == UGPR;
@@ -506,7 +505,7 @@ jay_emit_parallel_copies(jay_builder *b,
             jay_def temp_backing = jay_null();
             jay_def temp =
                push_temp(b, temps, file == GPR || file == MEM ? GPR : UGPR,
-                         true /* outer */, &temp_backing, dst, src);
+                         &temp_backing, dst, src);
             mov(b, temp, dst, t);
             mov(b, dst, src, t);
             mov(b, src, temp, t);
