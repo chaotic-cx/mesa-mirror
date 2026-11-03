@@ -684,6 +684,9 @@ Capability about the features and limits of the driver/GPU.
 * ``pipe_caps.prefer_persp``: Whether the driver prefers perspective correct
   or linear interpolation. This is a performance hint.
 * ``pipe_caps.blit_3d``: Whether pipe_context::blit can have depth > 1.
+* ``pipe_caps.needs_split_planar_samplers``: Whether sampling a natively stored
+  planar YUV format needs one sampler view per plane. The state tracker then
+  adds the plane views and converts to RGB in the shader.
 
 
 .. _pipe_shader_caps:
