@@ -1155,8 +1155,9 @@ TODO rename UAV src to "UAV" so disasm_field_cb can find it easily?
 	<doc>
 		Base for new instruction encoding that started being used
 		with a6xx for instructions supporting bindless mode.
+		getspid and getwid already use it on a5xx.
 	</doc>
-	<gen min="600"/>
+	<gen min="500"/>
 
 	<derived name="TYPE_SIZE" expr="#cat6-type-size" type="uint"/>
 
@@ -1182,6 +1183,7 @@ TODO rename UAV src to "UAV" so disasm_field_cb can find it easily?
 </bitset>
 
 <bitset name="#cat6-ldc-common" extends="#instruction-cat6-a6xx">
+	<gen min="600"/>
 	<pattern pos="0"           >x</pattern>
 	<pattern low="14" high="19">011110</pattern>   <!-- OPC -->
 	<pattern pos="20">x</pattern>
@@ -1326,6 +1328,7 @@ TODO rename UAV src to "UAV" so disasm_field_cb can find it easily?
 	<doc>
 		RESourceINFO - returns image/ssbo dimensions (3 components)
 	</doc>
+	<gen min="600"/>
 	<display>
 		{SY}{JP}{NAME}.{TYPED}.{D}d.{TYPE}.{TYPE_SIZE}.{MODE}{BASE} {DST}, {UAV}
 	</display>
@@ -1372,6 +1375,7 @@ TODO rename UAV src to "UAV" so disasm_field_cb can find it easily?
 	<doc>
 		UAV (ie. Image/SSBO) instructions
 	</doc>
+	<gen min="600"/>
 	<display>
 		{SY}{JP}{NAME}.{TYPED}.{D}d.{TYPE}{RCK}.{TYPE_SIZE}.{MODE}{BASE} {TYPE_HALF}{SRC1}, {SRC2}{OFFSET}, {UAV}
 	</display>

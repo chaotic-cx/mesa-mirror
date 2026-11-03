@@ -559,6 +559,8 @@ static const struct test {
    /* Custom test since we've never seen the blob emit these. */
    INSTR_6XX(c0260004_00490000, "getspid.u32 r1.x"),
    INSTR_6XX(c0260005_00494000, "getwid.u32 r1.y"),
+   INSTR_5XX(c0260004_00490000, "getspid.u32 r1.x"),
+   INSTR_5XX(c0260005_00494000, "getwid.u32 r1.y"),
 
    /* cat7 */
 
