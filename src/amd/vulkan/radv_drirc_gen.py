@@ -97,9 +97,6 @@ def declare_options():
         B("radv_gfx10_descriptor_alias_robust", False,
           "Shader based workaround to make reading storage/uniform/texel buffers as images robust.",
           c_name="gfx10_descriptor_alias_robust"),
-        B("radv_disable_binning_gfx11", False,
-          "Disable primitive binning on GFX11 to workaround a hw bug.",
-          c_name="disable_binning_gfx11"),
         B("radv_gfx11_full_size_cp_dma", False,
           ("Don't limit CP DMA to 32K sizes per packet on GFX11+. " +
            "Please test this and document which GFX11+ chips have broken CP DMA with sizes > 32K."),
