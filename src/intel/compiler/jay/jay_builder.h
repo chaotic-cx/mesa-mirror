@@ -497,8 +497,9 @@ _jay_SEND(jay_builder *b, const struct jayb_send_params p)
    I->type = p.type;
    I->uniform = p.uniform;
 
-   I->src[0] = p.desc;
-   I->src[1] = p.ex_desc;
+   /* Canonicalize nulls in case the parameters are left zeroed */
+   I->src[0] = jay_is_null(p.desc) ? jay_null() : p.desc;
+   I->src[1] = jay_is_null(p.ex_desc) ? jay_null() : p.ex_desc;
 
    assert(I->type);
    info->type_0 = p.src_type[0] ? p.src_type[0] : I->type;
