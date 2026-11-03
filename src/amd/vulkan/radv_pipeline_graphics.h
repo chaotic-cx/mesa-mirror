@@ -707,6 +707,12 @@ void radv_destroy_graphics_pipeline(struct radv_device *device, struct radv_grap
 
 void radv_destroy_graphics_lib_pipeline(struct radv_device *device, struct radv_graphics_lib_pipeline *pipeline);
 
+struct radv_graphics_pipeline_key {
+   struct radv_graphics_state_key gfx_state;
+
+   struct radv_shader_stage_key stage_info[MESA_VULKAN_SHADER_STAGES];
+};
+
 struct radv_graphics_pipeline_state {
    struct vk_graphics_pipeline_state vk;
    void *vk_data;

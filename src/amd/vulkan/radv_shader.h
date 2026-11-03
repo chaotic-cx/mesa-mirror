@@ -32,8 +32,6 @@
 
 struct radv_physical_device;
 struct radv_device;
-struct radv_pipeline;
-struct radv_ray_tracing_pipeline;
 struct radv_shader_abort_data;
 struct radv_shader_args;
 struct radv_shader_args;
@@ -197,12 +195,6 @@ struct radv_graphics_state_key {
       bool sample_mask_output_needs_epilog;
       bool mrt0_alpha_is_dead;
    } ps;
-};
-
-struct radv_graphics_pipeline_key {
-   struct radv_graphics_state_key gfx_state;
-
-   struct radv_shader_stage_key stage_info[MESA_VULKAN_SHADER_STAGES];
 };
 
 #define SET_SGPR_FIELD(field, value) (((unsigned)(value) & field##__MASK) << field##__SHIFT)
@@ -692,6 +684,11 @@ VkResult radv_shader_create_uncached(struct radv_device *device, const struct ra
                                      bool replayable, struct radv_serialized_shader_arena_block *replay_block,
                                      struct radv_shader_debug_info *dbg, struct radv_shader **out_shader);
 
+void radv_postprocess_nir(const struct radv_compiler_info *compiler_info,
+                          const struct radv_graphics_state_key *gfx_state, struct radv_shader_stage *stage);
+
+bool radv_shader_should_clear_lds(const struct radv_compiler_info *compiler_info, const nir_shader *shader);
+
 struct radv_shader_binary *radv_shader_nir_to_asm(const struct radv_compiler_info *compiler_info,
                                                   struct radv_shader_stage *pl_stage, struct nir_shader *const *shaders,
                                                   int shader_count, const struct radv_graphics_state_key *gfx_state);
@@ -762,9 +759,6 @@ bool radv_is_traversal_shader(nir_shader *nir);
 bool radv_can_dump_shader(const struct radv_compiler_info *compiler_info, nir_shader *nir);
 
 bool radv_can_dump_shader_stats(const struct radv_compiler_info *compiler_info, nir_shader *nir);
-
-VkResult radv_dump_shader_stats(struct radv_device *device, struct radv_pipeline *pipeline, struct radv_shader *shader,
-                                FILE *output);
 
 /* Returns true on success and false on failure */
 bool radv_shader_get_code(struct radv_device *device, const struct radv_shader *shader, void *dest_ptr);
@@ -896,8 +890,5 @@ void radv_precompute_registers_hw_gs(struct radv_device *device, const struct ra
                                      struct radv_shader *shader);
 
 void radv_precompute_registers_hw_ngg(struct radv_device *device, struct radv_shader *shader);
-
-void radv_set_stage_key_robustness(const struct vk_pipeline_robustness_state *rs, mesa_shader_stage stage,
-                                   struct radv_shader_stage_key *key);
 
 #endif /* RADV_SHADER_H */
