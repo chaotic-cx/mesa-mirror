@@ -487,15 +487,6 @@ jay_emit_parallel_copies(jay_builder *b,
             jay_MOV(b, dst, def_from_reg(temps.gpr2));
          } else if (file == MEM) {
             jay_SWAP(b, dst, src);
-         } else if (file == GPR &&
-                    jay_def_stride(b->shader, dst) == JAY_STRIDE_4 &&
-                    jay_def_stride(b->shader, src) == JAY_STRIDE_4) {
-
-            /* If everything is stride=4, swapping is easy */
-            jay_def acc = jay_bare_reg(ACCUM, 1);
-            jay_MOV(b, acc, dst)->type = JAY_TYPE_F32;
-            jay_MOV(b, dst, src)->type = JAY_TYPE_F32;
-            jay_MOV(b, src, acc)->type = JAY_TYPE_F32;
          } else {
             struct jay_temp_regs t = { .gpr = temps.gpr2, .ugpr = temps.ugpr };
             jay_def temp_backing = jay_null();
