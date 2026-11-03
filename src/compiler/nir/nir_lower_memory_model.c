@@ -145,7 +145,7 @@ visit_instr(nir_instr *instr, uint32_t *cur_modes, unsigned vis_avail_sem)
 
    unsigned access = nir_intrinsic_access(intrin);
 
-   if (access & (ACCESS_NON_READABLE | ACCESS_NON_WRITEABLE | ACCESS_CAN_REORDER | ACCESS_COHERENT))
+   if (access & (ACCESS_CAN_REORDER | ACCESS_COHERENT))
       return false;
 
    if (*cur_modes & modes) {
