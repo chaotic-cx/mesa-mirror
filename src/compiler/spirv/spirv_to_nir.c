@@ -17,7 +17,7 @@
 #include "util/u_string.h"
 #include "util/u_debug.h"
 #include "util/u_printf.h"
-#include "util/memstream.h"
+#include "util/string_buffer.h"
 #include "util/mesa-blake3.h"
 
 #include <stdio.h>
@@ -7150,41 +7150,38 @@ can_remove(nir_variable *var, void *data)
 static void
 create_shader_name(struct vtn_builder *b)
 {
-   struct nir_spirv_specialization *spec = b->specialization;
-   char *stream_data = NULL;
-   size_t stream_size = 0;
-   struct u_memstream mem;
-   if (spec && u_memstream_open(&mem, &stream_data, &stream_size)) {
-      FILE *const stream = u_memstream_get(&mem);
-      for (unsigned i = 0; i < spec->num_entries; i++) {
-         struct nir_spirv_specialization_entry *entry = &spec->entries[i];
-         fprintf(stream, "spec[%u] =", entry->id);
-         for (unsigned j = 0; j < entry->size;) {
-            if (entry->size - j >= 4) {
-               uint32_t v;
-               memcpy(&v, entry->data + j, 4);
-               fprintf(stream, " 0x%.8"PRIx32, v);
-               j += 4;
-            } else if (entry->size - j >= 2) {
-               uint16_t v;
-               memcpy(&v, entry->data + j, 2);
-               fprintf(stream, " 0x%.4"PRIx16, v);
-               j += 2;
-            } else {
-               fprintf(stream, " 0x%"PRIx8, entry->data[j]);
-               j++;
-            }
-         }
-         fprintf(stream, "\n");
-      }
-      fputc(0, stream);
-      u_memstream_close(&mem);
+   b->shader->info.name = ralloc_strdup(b->shader, b->source_file);
 
-      b->shader->info.spec = ralloc_strdup(b->shader, stream_data);
-      free(stream_data);
+   struct nir_spirv_specialization *spec = b->specialization;
+   if (!spec || spec->num_entries == 0)
+      return;
+
+   struct _mesa_string_buffer *buf = _mesa_string_buffer_create(b, 0);
+   for (unsigned i = 0; i < spec->num_entries; i++) {
+      struct nir_spirv_specialization_entry *entry = &spec->entries[i];
+      _mesa_string_buffer_printf(buf, "spec[%u] =", entry->id);
+      for (unsigned j = 0; j < entry->size;) {
+         if (entry->size - j >= 4) {
+            uint32_t v;
+            memcpy(&v, entry->data + j, 4);
+            _mesa_string_buffer_printf(buf, " 0x%.8"PRIx32, v);
+            j += 4;
+         } else if (entry->size - j >= 2) {
+            uint16_t v;
+            memcpy(&v, entry->data + j, 2);
+            _mesa_string_buffer_printf(buf, " 0x%.4"PRIx16, v);
+            j += 2;
+         } else {
+            _mesa_string_buffer_printf(buf, " 0x%"PRIx8, entry->data[j]);
+            j++;
+         }
+      }
+      _mesa_string_buffer_append_char(buf, '\n');
    }
 
-   b->shader->info.name = ralloc_strdup(b->shader, b->source_file);
+   ralloc_steal(b->shader, buf->buf);
+   b->shader->info.spec = buf->buf;
+   _mesa_string_buffer_destroy(buf);
 }
 
 /* DXC has a bug which can cause it to create Function variables and store
