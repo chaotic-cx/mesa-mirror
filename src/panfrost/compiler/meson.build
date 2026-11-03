@@ -19,6 +19,7 @@ libpanfrost_compiler_files = files(
   'pan_nir_lower_noperspective.c',
   'pan_nir_lower_sample_position.c',
   'pan_nir_lower_tex.c',
+  'pan_nir_lower_trig.c',
   'pan_nir_lower_var_special.c',
   'pan_nir_lower_vertex_id.c',
   'pan_nir_lower_vs_inputs.c',

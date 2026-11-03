@@ -252,6 +252,7 @@ bool pan_nir_lower_fs_inputs(nir_shader *shader, unsigned arch,
                              const struct pan_varying_layout *varying_layout,
                              struct pan_shader_info *info);
 
+bool pan_nir_lower_trig(nir_shader *shader);
 bool pan_nir_lower_helper_invocation(nir_shader *shader);
 bool pan_nir_lower_sample_pos(nir_shader *shader);
 bool pan_nir_remove_xfb(nir_shader *nir);
