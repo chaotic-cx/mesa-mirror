@@ -112,11 +112,11 @@ AddressSpaceStream* createVirtioGpuAddressSpaceStream(enum VirtGpuCapset capset)
 
     exec.command = static_cast<void*>(&contextCreate);
     exec.command_size = sizeof(contextCreate);
+    exec.flags = kRingIdx;
 
     ret = instance->execBuffer(exec, blob.get());
     if (ret) return nullptr;
 
-    // Wait occurs on global timeline -- should we use context specific one?
     ret = blob->wait();
     if (ret) return nullptr;
 
