@@ -90,8 +90,8 @@ radv_compile_cs(const struct radv_compiler_info *compiler_info, struct radv_shad
 
    /* Run the shader info pass. */
    radv_nir_shader_info_init(cs_stage->stage, MESA_SHADER_NONE, &cs_stage->info);
-   radv_nir_shader_info_pass(compiler_info, cs_stage->nir, &cs_stage->layout, &cs_stage->key, NULL,
-                             RADV_PIPELINE_COMPUTE, false, &cs_stage->info);
+   radv_nir_shader_info_pass(compiler_info, cs_stage->nir, &cs_stage->layout, &cs_stage->key, NULL, false,
+                             &cs_stage->info);
 
    radv_declare_shader_args(compiler_info, NULL, cs_stage, MESA_SHADER_NONE, dbg);
 

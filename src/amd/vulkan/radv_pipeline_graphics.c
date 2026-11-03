@@ -1948,9 +1948,8 @@ radv_get_next_stage(mesa_shader_stage stage, VkShaderStageFlagBits active_nir_st
 }
 
 static void
-radv_fill_shader_info(const struct radv_compiler_info *compiler_info, const enum radv_pipeline_type pipeline_type,
-                      const struct radv_graphics_state_key *gfx_state, struct radv_shader_stage *stages,
-                      VkShaderStageFlagBits active_nir_stages)
+radv_fill_shader_info(const struct radv_compiler_info *compiler_info, const struct radv_graphics_state_key *gfx_state,
+                      struct radv_shader_stage *stages, VkShaderStageFlagBits active_nir_stages)
 {
    radv_foreach_stage (i, active_nir_stages) {
       bool consider_force_vrs = false;
@@ -1963,7 +1962,7 @@ radv_fill_shader_info(const struct radv_compiler_info *compiler_info, const enum
          NIR_PASS(_, stages[i].nir, ac_nir_assign_fs_input_locations);
 
       radv_nir_shader_info_pass(compiler_info, stages[i].nir, &stages[i].layout, &stages[i].key, gfx_state,
-                                pipeline_type, consider_force_vrs, &stages[i].info);
+                                consider_force_vrs, &stages[i].info);
    }
 
    radv_nir_shader_info_link(compiler_info, gfx_state, stages);
@@ -2037,8 +2036,8 @@ radv_create_gs_copy_shader(const struct radv_compiler_info *compiler_info, struc
          },
    };
    radv_nir_shader_info_init(gs_copy_stage.stage, MESA_SHADER_FRAGMENT, &gs_copy_stage.info);
-   radv_nir_shader_info_pass(compiler_info, nir, &gs_stage->layout, &gs_stage->key, gfx_state, RADV_PIPELINE_GRAPHICS,
-                             false, &gs_copy_stage.info);
+   radv_nir_shader_info_pass(compiler_info, nir, &gs_stage->layout, &gs_stage->key, gfx_state, false,
+                             &gs_copy_stage.info);
    gs_copy_stage.info.wave_size = 64;      /* Wave32 not supported. */
    gs_copy_stage.info.workgroup_size = 64; /* HW VS: separate waves, no workgroups */
    gs_copy_stage.info.so = gs_info->so;
@@ -2722,7 +2721,7 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       stages[i].feedback.duration += os_time_get_nano() - stage_start;
    }
 
-   radv_fill_shader_info(compiler_info, RADV_PIPELINE_GRAPHICS, gfx_state, stages, active_nir_stages);
+   radv_fill_shader_info(compiler_info, gfx_state, stages, active_nir_stages);
 
    /* Remove the primitive shading rate output if VRS flat shading overrides it. */
    radv_foreach_stage (i, active_nir_stages) {

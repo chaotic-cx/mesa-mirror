@@ -1095,8 +1095,8 @@ radv_nir_shader_info_init(mesa_shader_stage stage, mesa_shader_stage next_stage,
 void
 radv_nir_shader_info_pass(const struct radv_compiler_info *compiler_info, const struct nir_shader *nir,
                           const struct radv_shader_layout *layout, const struct radv_shader_stage_key *stage_key,
-                          const struct radv_graphics_state_key *gfx_state, const enum radv_pipeline_type pipeline_type,
-                          bool consider_force_vrs, struct radv_shader_info *info)
+                          const struct radv_graphics_state_key *gfx_state, bool consider_force_vrs,
+                          struct radv_shader_info *info)
 {
    struct nir_function *func = (struct nir_function *)exec_list_get_head_const(&nir->functions);
 
@@ -1216,11 +1216,10 @@ radv_nir_shader_info_pass(const struct radv_compiler_info *compiler_info, const 
 
       /* Allow the compiler to assume that the shader always has full subgroups,
        * meaning that the initial EXEC mask is -1 in all waves (all lanes enabled).
-       * This assumption is incorrect for ray tracing and internal (meta) shaders
-       * because they can use unaligned dispatch.
+       * This assumption is incorrect for internal (meta) shaders because they can use unaligned
+       * dispatch.
        */
-      info->cs.uses_full_subgroups = pipeline_type != RADV_PIPELINE_RAY_TRACING && !nir->info.internal &&
-                                     (info->workgroup_size % info->wave_size) == 0;
+      info->cs.uses_full_subgroups = !nir->info.internal && (info->workgroup_size % info->wave_size) == 0;
       break;
    case MESA_SHADER_VERTEX:
       if (info->vs.as_ls || info->vs.as_es || info->is_ngg) {

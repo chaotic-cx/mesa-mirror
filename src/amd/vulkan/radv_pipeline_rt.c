@@ -403,8 +403,7 @@ radv_rt_nir_to_asm(const struct radv_compiler_info *compiler_info, struct radv_r
    /* Gather shader info. */
    nir_shader_gather_info(stage->nir, nir_shader_get_entrypoint(stage->nir));
    radv_nir_shader_info_init(stage->stage, MESA_SHADER_NONE, &stage->info);
-   radv_nir_shader_info_pass(compiler_info, stage->nir, &stage->layout, &stage->key, NULL, RADV_PIPELINE_RAY_TRACING,
-                             false, &stage->info);
+   radv_nir_shader_info_pass(compiler_info, stage->nir, &stage->layout, &stage->key, NULL, false, &stage->info);
 
    /* Declare shader arguments. */
    radv_declare_shader_args(compiler_info, NULL, stage, MESA_SHADER_NONE, debug);
@@ -469,8 +468,7 @@ radv_rt_nir_to_asm(const struct radv_compiler_info *compiler_info, struct radv_r
       /* Info might be out-of-date after inlining in radv_nir_lower_rt_abi(). */
       nir_shader_gather_info(temp_stage.nir, radv_get_rt_shader_entrypoint(temp_stage.nir));
 
-      radv_nir_shader_info_pass(compiler_info, temp_stage.nir, &stage->layout, &stage->key, NULL,
-                                RADV_PIPELINE_RAY_TRACING, false, &stage->info);
+      radv_nir_shader_info_pass(compiler_info, temp_stage.nir, &stage->layout, &stage->key, NULL, false, &stage->info);
 
       radv_optimize_nir(temp_stage.nir, temp_stage.key.optimisations_disabled);
       radv_postprocess_nir(compiler_info, NULL, &temp_stage);

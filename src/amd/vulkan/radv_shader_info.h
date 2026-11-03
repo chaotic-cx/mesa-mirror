@@ -23,7 +23,6 @@ struct nir_shader;
 typedef struct nir_shader nir_shader;
 struct radv_shader_layout;
 struct radv_shader_stage_key;
-enum radv_pipeline_type;
 struct radv_shader_stage;
 
 enum radv_shader_type {
@@ -371,8 +370,7 @@ void radv_nir_shader_info_init(mesa_shader_stage stage, mesa_shader_stage next_s
 
 void radv_nir_shader_info_pass(const struct radv_compiler_info *compiler_info, const struct nir_shader *nir,
                                const struct radv_shader_layout *layout, const struct radv_shader_stage_key *stage_key,
-                               const struct radv_graphics_state_key *gfx_state,
-                               const enum radv_pipeline_type pipeline_type, bool consider_force_vrs,
+                               const struct radv_graphics_state_key *gfx_state, bool consider_force_vrs,
                                struct radv_shader_info *info);
 
 bool radv_force_disable_vrs(enum amd_gfx_level gfx_level, const struct nir_shader *nir,
