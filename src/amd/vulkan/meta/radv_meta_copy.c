@@ -214,13 +214,10 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       if (!radv_layout_dcc_compressed(device, image, subresource->mipLevel, layout, queue_mask))
          return;
 
-      bool sign_reinterpret = false;
-
       /* Nothing to do when compressed DCC writes are supported and the view format is compatible. */
       if (radv_image_compress_dcc_on_image_stores(device, image) &&
-          radv_dcc_formats_compatible(pdev->info.gfx_level, radv_get_aspect_format(image, subresource->aspectMask),
-                                      view_format, &sign_reinterpret) &&
-          !sign_reinterpret)
+          radv_dcc_formats_sign_compatible(pdev->info.gfx_level, radv_get_aspect_format(image, subresource->aspectMask),
+                                      view_format))
          return;
 
       if (before) {
@@ -881,26 +878,40 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    const uint32_t src_queue_mask = radv_image_queue_family_mask(src_image, cmd_buffer->qf);
    const bool src_compressed =
       radv_layout_dcc_compressed(device, src_image, region->srcSubresource.mipLevel, src_image_layout, src_queue_mask);
-   bool need_dcc_sign_reinterpret = false;
    bool dst_needs_dcc_decompress = false;
+   bool src_needs_dcc_decompress = false;
 
-   if (!src_compressed ||
-       (radv_dcc_formats_compatible(pdev->info.gfx_level, src_format, dst_format, &need_dcc_sign_reinterpret) &&
-        !need_dcc_sign_reinterpret)) {
+   if (!src_compressed || radv_dcc_formats_sign_compatible(pdev->info.gfx_level, src_format, dst_format)) {
       src_format = dst_format;
-   } else if (!dst_compressed) {
-      dst_format = src_format;
    } else {
-      dst_needs_dcc_decompress = true;
+      /* If the formats are DCC-incompatible, prefer to make dst incompatible, so that src can stay compressed. */
       dst_format = src_format;
    }
 
    /* Select a compatible color format for color<->depth/stencil copies. */
-   /* TODO: This ignores DCC format compatibility for the color image. */
    if (vk_format_is_color(src_image->vk.format) && vk_format_is_depth_or_stencil(dst_image->vk.format)) {
       src_format = radv_get_compat_color_ds_format(src_image->vk.format);
    } else if (vk_format_is_depth_or_stencil(src_image->vk.format) && vk_format_is_color(dst_image->vk.format)) {
       dst_format = radv_get_compat_color_ds_format(dst_image->vk.format);
+   }
+
+   if (dst_compressed && !radv_dcc_formats_sign_compatible(pdev->info.gfx_level, dst_image->vk.format, dst_format))
+      dst_needs_dcc_decompress = true;
+
+   /* This is only needed for color->Z/S copies where src must use a Z/S-compatible format. */
+   if (src_compressed && !radv_dcc_formats_sign_compatible(pdev->info.gfx_level, src_image->vk.format, src_format)) {
+      radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
+      radv_decompress_dcc(cmd_buffer, src_image,
+                          &(VkImageSubresourceRange){
+                             .aspectMask = region->srcSubresource.aspectMask,
+                             .baseMipLevel = region->srcSubresource.mipLevel,
+                             .levelCount = 1,
+                             .baseArrayLayer = src_layer,
+                             .layerCount = layer_count,
+                          });
+      radv_describe_barrier_end(cmd_buffer);
+
+      src_needs_dcc_decompress = true;
    }
 
    /* DCC decompression is done by radv_meta_fixup_dst_metadata for compute when image stores with DCC
@@ -937,6 +948,7 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    b_src.format = src_format;
    b_dst.format = dst_format;
 
+   b_src.disable_compression = src_needs_dcc_decompress;
    b_dst.disable_compression = dst_needs_dcc_decompress;
 
    for (unsigned layer = 0; layer < layer_count; layer++) {

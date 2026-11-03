@@ -1661,3 +1661,11 @@ radv_dcc_formats_compatible(enum amd_gfx_level gfx_level, VkFormat format1, VkFo
 
    return true;
 }
+
+bool
+radv_dcc_formats_sign_compatible(enum amd_gfx_level gfx_level, VkFormat format1, VkFormat format2)
+{
+   bool sign_reinterpret = false;
+
+   return radv_dcc_formats_compatible(gfx_level, format1, format2, &sign_reinterpret) && !sign_reinterpret;
+}

@@ -158,4 +158,6 @@ bool radv_format_pack_clear_color(VkFormat format, uint32_t clear_vals[2], VkCle
 bool radv_dcc_formats_compatible(enum amd_gfx_level gfx_level, VkFormat format1, VkFormat format2,
                                  bool *sign_reinterpret);
 
+bool radv_dcc_formats_sign_compatible(enum amd_gfx_level gfx_level, VkFormat format1, VkFormat format2);
+
 #endif /* RADV_FORMATS_H */
