@@ -80,6 +80,64 @@
  * - If clearing, each invocation shuffles dwords of the clear value to get the corresponding
  *   4-byte, 8-byte, or 16-byte clear value that the invocation needs.
  * - Scaled blits are unsupported for 96-bit formats.
+ *
+ * Shader variant statistics for GFX12 (full single-process/thread VKCTS run, November/03/2026):
+ * - The shader key currently uses 49 bits at the time of writing this, however, many fields and
+ *   values are mutually exclusive or constrain each other (e.g. log_lane_width + log_lane_height +
+ *   log_lane_depth <= 3 for GFX12), so 2^49 is not the number of possible shader variants.
+ * - Memory stats:
+ *    - All unique shader variants (all VK devices): 2255
+ *    - Max CPU memory usage per VK device: 6 MB (malloc'd memory)
+ *    - Max GPU memory usage per VK device: 1.5 MB (shader binaries)
+ * - Shader key stats for unique variants:
+ *   (Note: Some fields are not relevant for GFX12, VK, or are not exercised by CTS.)
+ *   - wg_dim:                      1: 29%; 2: 49%; 3: 23%
+ *   - has_start_xyz:               16%
+ *   - format_is_96bit:             0.27%
+ *   - addr_math_64bit:             always zero
+ *   - 2^log_lane_width x 2^log_lane_height x 2^log_lane_depth:
+ *     - 1 × 1 × 1:  32.68%
+ *     - 1 × 2 × 1:  18.40%
+ *     - 2 × 2 × 1:  14.41%
+ *     - 2 × 1 × 1:  8.78%
+ *     - 2 × 4 × 1:  7.41%
+ *     - 4 × 1 × 1:  5.10%
+ *     - 8 × 1 × 1:  3.86%
+ *     - 1 × 4 × 1:  3.33%
+ *     - 2 × 2 × 2:  2.53%
+ *     - 1 × 2 × 2:  2.48%
+ *     - 1 × 1 × 2:  1.02%
+ *   - is_clear:                    28%
+ *   - src_is_sampler:              20%
+ *   - src_is_1d:                   3.4%
+ *   - dst_is_1d:                   6.9%
+ *   - src_is_msaa:                 17%
+ *   - dst_is_msaa:                 8.6%
+ *   - src_has_z:                   22%
+ *   - dst_has_z:                   37%
+ *   - src_has_non_identity_fmask:  always zero
+ *   - dst_store_fmask:             always zero
+ *   - copy_physical_samples:       always zero
+ *   - dst_is_rgb5:                 13%
+ *   - a16:                         99%
+ *   - d16:                         52%
+ *   - force_f2f16_rtz:             34%
+ *   - log_samples:                 0: 78%; 1: 9.3%; 2: 7.8%; 3: 4.4%
+ *   - clear_sample0_only:          always zero
+ *   - resolve_mode:                0: 94%; 1: 2.6%; 2: 0.62%; 3: 0.93%; 4: 0%; 5: 0%; 6: 0.53%; 7: 0.89%
+ *   - num_scaled_coords:           0: 57%; 1: 1.9%; 2: 35%; 3: 6.4%
+ *   - x_clamp_to_edge:             always zero
+ *   - y_clamp_to_edge:             always zero
+ *   - z_clamp_to_edge:             always zero
+ *   - flip_x:                      0.35%
+ *   - flip_y:                      0.35%
+ *   - flip_z:                      0.089%
+ *   - sint_to_uint:                always zero
+ *   - uint_to_sint:                always zero
+ *   - dst_is_srgb:                 8.4%
+ *   - use_integer_one:             1.3%
+ *   - last_src_channel:            0: 57%; 1: 19%; 2: 8.1%; 3: 16%
+ *   - last_dst_channel:            0: 26%; 1: 24%; 2: 11%; 3: 39%
  */
 
 #include "ac_nir_meta.h"
