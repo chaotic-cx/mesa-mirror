@@ -131,6 +131,9 @@ struct dri_image {
    struct dri_screen *screen;
 };
 
+PUBLIC void
+driDestroyConfigs(const struct dri_config **configs);
+
 void
 dri_fill_st_visual(struct st_visual *stvis,
                    const struct dri_screen *screen,
