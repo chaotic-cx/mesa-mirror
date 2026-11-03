@@ -2426,7 +2426,7 @@ radv_get_vgt_outprim_type(const struct radv_cmd_buffer *cmd_buffer)
    return radv_conv_prim_to_gs_out(pdev->info.gfx_level, d->vk.ia.primitive_topology, last_vgt_shader->info.is_ngg);
 }
 
-static ALWAYS_INLINE VkLineRasterizationModeEXT
+static ALWAYS_INLINE VkLineRasterizationMode
 radv_get_line_mode(const struct radv_cmd_buffer *cmd_buffer)
 {
    const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
@@ -2439,7 +2439,7 @@ radv_get_rasterization_samples(struct radv_cmd_buffer *cmd_buffer)
 {
    const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
 
-   const VkLineRasterizationModeEXT line_mode = cmd_buffer->state.line_rast_mode;
+   const VkLineRasterizationMode line_mode = cmd_buffer->state.line_rast_mode;
 
    if (line_mode == VK_LINE_RASTERIZATION_MODE_BRESENHAM) {
       /* From the Vulkan spec 1.3.221:
@@ -8787,7 +8787,7 @@ radv_init_push_descriptor_set(struct radv_cmd_buffer *cmd_buffer, struct radv_de
 }
 
 static void
-radv_push_descriptor_set(struct radv_cmd_buffer *cmd_buffer, const VkPushDescriptorSetInfoKHR *pPushDescriptorSetInfo,
+radv_push_descriptor_set(struct radv_cmd_buffer *cmd_buffer, const VkPushDescriptorSetInfo *pPushDescriptorSetInfo,
                          VkPipelineBindPoint bind_point)
 {
    VK_FROM_HANDLE(radv_pipeline_layout, layout, pPushDescriptorSetInfo->layout);
@@ -8819,7 +8819,7 @@ radv_push_descriptor_set(struct radv_cmd_buffer *cmd_buffer, const VkPushDescrip
 }
 
 VKAPI_ATTR void VKAPI_CALL
-radv_CmdPushDescriptorSet2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetInfoKHR *pPushDescriptorSetInfo)
+radv_CmdPushDescriptorSet2(VkCommandBuffer commandBuffer, const VkPushDescriptorSetInfo *pPushDescriptorSetInfo)
 {
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
@@ -8837,8 +8837,8 @@ radv_CmdPushDescriptorSet2KHR(VkCommandBuffer commandBuffer, const VkPushDescrip
 }
 
 VKAPI_ATTR void VKAPI_CALL
-radv_CmdPushDescriptorSetWithTemplate2KHR(
-   VkCommandBuffer commandBuffer, const VkPushDescriptorSetWithTemplateInfoKHR *pPushDescriptorSetWithTemplateInfo)
+radv_CmdPushDescriptorSetWithTemplate2(VkCommandBuffer commandBuffer,
+                                       const VkPushDescriptorSetWithTemplateInfo *pPushDescriptorSetWithTemplateInfo)
 {
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    VK_FROM_HANDLE(radv_pipeline_layout, layout, pPushDescriptorSetWithTemplateInfo->layout);
@@ -13167,7 +13167,7 @@ radv_should_enable_late_z(struct radv_cmd_buffer *cmd_buffer)
    const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
    const struct radv_rendering_state *render = &cmd_buffer->state.render;
    const struct radv_shader *ps = cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT];
-   const VkLineRasterizationModeEXT line_rast_mode = cmd_buffer->state.line_rast_mode;
+   const VkLineRasterizationMode line_rast_mode = cmd_buffer->state.line_rast_mode;
 
    /* Enable late-Z when a depth/stencil attachment is used inside feedback loops to make sure
     * shader invocations read the correct value.
@@ -13458,7 +13458,7 @@ radv_emit_raster_state(struct radv_cmd_buffer *cmd_buffer)
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
    const bool depth_clip_enable = cmd_buffer->state.depth_clip_enable;
-   const VkLineRasterizationModeEXT line_rast_mode = cmd_buffer->state.line_rast_mode;
+   const VkLineRasterizationMode line_rast_mode = cmd_buffer->state.line_rast_mode;
 
    /* GFX9 chips fail linestrip CTS tests unless this is set to 0 = no reset */
    uint32_t auto_reset_cntl = (pdev->info.gfx_level == GFX9) ? 0 : 2;
@@ -13669,7 +13669,7 @@ radv_emit_msaa_state(struct radv_cmd_buffer *cmd_buffer)
    const uint32_t sample_mask = d->vk.ms.sample_mask | ((uint32_t)d->vk.ms.sample_mask << 16);
    const bool enable_1x_user_sample_locs =
       d->vk.ms.sample_locations_enable && d->sample_location.count > 0 && d->sample_location.per_pixel == 1;
-   const VkLineRasterizationModeEXT line_rast_mode = cmd_buffer->state.line_rast_mode;
+   const VkLineRasterizationMode line_rast_mode = cmd_buffer->state.line_rast_mode;
    const bool msaa_enable = rasterization_samples > 1 || enable_1x_user_sample_locs;
    unsigned log_samples = util_logbase2(rasterization_samples);
    unsigned pa_sc_conservative_rast = 0;
@@ -14103,7 +14103,7 @@ radv_emit_all_graphics_states(struct radv_cmd_buffer *cmd_buffer, bool indexed_d
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_GUARDBAND;
       }
 
-      const VkLineRasterizationModeEXT line_rast_mode = radv_get_line_mode(cmd_buffer);
+      const VkLineRasterizationMode line_rast_mode = radv_get_line_mode(cmd_buffer);
 
       if (cmd_buffer->state.line_rast_mode != line_rast_mode) {
          cmd_buffer->state.line_rast_mode = line_rast_mode;
@@ -15147,7 +15147,7 @@ radv_CmdExecuteGeneratedCommandsEXT(VkCommandBuffer commandBuffer, VkBool32 isPr
     * starts.
     */
    if (radv_dgc_get_shader(pipeline_info, eso_info, MESA_SHADER_TASK)) {
-      radv_gang_barrier(cmd_buffer, VK_PIPELINE_STAGE_2_COMMAND_PREPROCESS_BIT_NV,
+      radv_gang_barrier(cmd_buffer, VK_PIPELINE_STAGE_2_COMMAND_PREPROCESS_BIT_EXT,
                         VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT);
    }
 

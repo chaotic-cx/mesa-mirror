@@ -241,7 +241,7 @@ radv_WriteResourceDescriptorsEXT(VkDevice _device, uint32_t resourceCount,
       }
       case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
       case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: {
-         const VkDeviceAddressRangeEXT *addr_range = resource->data.pAddressRange;
+         const VkDeviceAddressRangeKHR *addr_range = resource->data.pAddressRange;
 
          radv_write_buffer_descriptor(device, resource->type, host_addr_range->address,
                                       addr_range ? addr_range->address : 0, addr_range ? addr_range->size : 0);
@@ -260,7 +260,7 @@ radv_WriteResourceDescriptorsEXT(VkDevice _device, uint32_t resourceCount,
          break;
       }
       case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: {
-         const VkDeviceAddressRangeEXT *addr_range = resource->data.pAddressRange;
+         const VkDeviceAddressRangeKHR *addr_range = resource->data.pAddressRange;
 
          radv_write_accel_struct_descriptor(device, host_addr_range->address, addr_range ? addr_range->address : 0);
          break;

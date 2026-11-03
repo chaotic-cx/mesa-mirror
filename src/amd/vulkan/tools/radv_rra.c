@@ -267,19 +267,19 @@ rra_dump_acceleration_structure(const struct radv_physical_device *pdev,
 
    if (should_validate) {
       if (rra_validate_header(accel_struct, header)) {
-         return VK_ERROR_VALIDATION_FAILED_EXT;
+         return VK_ERROR_VALIDATION_FAILED;
       }
       if (radv_use_bvh8(pdev)) {
          if (rra_validate_node_gfx12(accel_struct_vas, data + header->bvh_offset,
                                      data + header->bvh_offset + src_root_offset, header->geometry_count,
                                      accel_struct->size, !is_tlas, 0)) {
-            return VK_ERROR_VALIDATION_FAILED_EXT;
+            return VK_ERROR_VALIDATION_FAILED;
          }
       } else {
          if (rra_validate_node_gfx10_3(accel_struct_vas, data + header->bvh_offset,
                                        data + header->bvh_offset + src_root_offset, header->geometry_count,
                                        accel_struct->size, !is_tlas, 0)) {
-            return VK_ERROR_VALIDATION_FAILED_EXT;
+            return VK_ERROR_VALIDATION_FAILED;
          }
       }
    }

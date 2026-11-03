@@ -515,10 +515,10 @@ radv_physical_device_get_format_properties(struct radv_physical_device *pdev, Vk
 
    if (radv_host_image_copy_enabled(pdev)) {
       if (linear & VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT)
-         linear |= VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT_EXT;
+         linear |= VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT;
 
       if (tiled & VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT)
-         tiled |= VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT_EXT;
+         tiled |= VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT;
    }
 
    if (pdev->video_encode_enabled) {
@@ -663,7 +663,7 @@ radv_get_modifier_flags(struct radv_physical_device *pdev, VkFormat format, uint
    features &= ~VK_FORMAT_FEATURE_2_DISJOINT_BIT;
 
    /* Unconditionally disable HOST_TRANSFER support for modifiers for now */
-   features &= ~VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT_EXT;
+   features &= ~VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT;
 
    /* Unconditionally disable COPY_IMAGE_INDIRECT_DST support for modifiers for now */
    features &= ~VK_FORMAT_FEATURE_2_COPY_IMAGE_INDIRECT_DST_BIT_KHR;
@@ -1099,7 +1099,7 @@ radv_get_image_format_properties(struct radv_physical_device *pdev, const VkPhys
    }
 
    if (image_usage & VK_IMAGE_USAGE_2_HOST_TRANSFER_BIT_KHR) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT_EXT))
+      if (!(format_feature_flags & VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT))
          goto unsupported;
    }
 
@@ -1248,7 +1248,7 @@ radv_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
    VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = NULL;
    VkTextureLODGatherFormatPropertiesAMD *texture_lod_props = NULL;
    VkImageCompressionPropertiesEXT *image_compression_props = NULL;
-   VkHostImageCopyDevicePerformanceQueryEXT *host_perf_props = NULL;
+   VkHostImageCopyDevicePerformanceQuery *host_perf_props = NULL;
    VkResult result;
    VkFormat format = radv_select_android_external_format(base_info->pNext, base_info->format);
 
@@ -1288,7 +1288,7 @@ radv_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
       case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT:
          image_compression_props = s;
          break;
-      case VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY_EXT:
+      case VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY:
          host_perf_props = s;
          break;
       default:

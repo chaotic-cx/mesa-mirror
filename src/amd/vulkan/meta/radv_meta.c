@@ -247,8 +247,8 @@ radv_meta_end(struct radv_cmd_buffer *cmd_buffer)
 
       assert(stage_flags);
 
-      const VkPushConstantsInfoKHR pc_info = {
-         .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO_KHR,
+      const VkPushConstantsInfo pc_info = {
+         .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO,
          .layout = VK_NULL_HANDLE,
          .stageFlags = stage_flags,
          .offset = 0,

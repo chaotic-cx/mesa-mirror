@@ -382,7 +382,7 @@ struct radv_cmd_state {
    /* Custom blend mode for internal operations. */
    unsigned custom_blend_mode;
 
-   VkLineRasterizationModeEXT line_rast_mode;
+   VkLineRasterizationMode line_rast_mode;
    unsigned vgt_outprim_type;
 
    float guardband_clip_discard_distance_watermark;

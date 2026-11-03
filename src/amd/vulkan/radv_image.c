@@ -2018,7 +2018,7 @@ radv_GetImageSubresourceLayout2(VkDevice _device, VkImage _image, const VkImageS
       }
    }
 
-   VkSubresourceHostMemcpySizeEXT *host_memcpy_size = vk_find_struct(pLayout->pNext, SUBRESOURCE_HOST_MEMCPY_SIZE_EXT);
+   VkSubresourceHostMemcpySize *host_memcpy_size = vk_find_struct(pLayout->pNext, SUBRESOURCE_HOST_MEMCPY_SIZE);
    if (host_memcpy_size)
       host_memcpy_size->size = pLayout->subresourceLayout.size;
 }

@@ -67,7 +67,7 @@ radv_get_surface_copy_region(struct radv_device *device, const struct radv_image
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-radv_CopyImageToMemoryEXT(VkDevice _device, const VkCopyImageToMemoryInfo *pCopyImageToMemoryInfo)
+radv_CopyImageToMemory(VkDevice _device, const VkCopyImageToMemoryInfo *pCopyImageToMemoryInfo)
 {
    VK_FROM_HANDLE(radv_device, device, _device);
    VK_FROM_HANDLE(radv_image, image, pCopyImageToMemoryInfo->srcImage);
@@ -94,7 +94,7 @@ radv_CopyImageToMemoryEXT(VkDevice _device, const VkCopyImageToMemoryInfo *pCopy
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-radv_CopyMemoryToImageEXT(VkDevice _device, const VkCopyMemoryToImageInfo *pCopyMemoryToImageInfo)
+radv_CopyMemoryToImage(VkDevice _device, const VkCopyMemoryToImageInfo *pCopyMemoryToImageInfo)
 {
    VK_FROM_HANDLE(radv_device, device, _device);
    VK_FROM_HANDLE(radv_image, image, pCopyMemoryToImageInfo->dstImage);
@@ -121,7 +121,7 @@ radv_CopyMemoryToImageEXT(VkDevice _device, const VkCopyMemoryToImageInfo *pCopy
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-radv_CopyImageToImageEXT(VkDevice _device, const VkCopyImageToImageInfo *pCopyImageToImageInfo)
+radv_CopyImageToImage(VkDevice _device, const VkCopyImageToImageInfo *pCopyImageToImageInfo)
 {
    VkResult result = VK_SUCCESS;
 
@@ -159,7 +159,7 @@ radv_CopyImageToImageEXT(VkDevice _device, const VkCopyImageToImageInfo *pCopyIm
                },
          };
 
-         result = radv_CopyImageToMemoryEXT(_device, &image_to_memory);
+         result = radv_CopyImageToMemory(_device, &image_to_memory);
          if (result == VK_SUCCESS) {
             const VkCopyMemoryToImageInfo memory_to_image = {
                .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
@@ -179,7 +179,7 @@ radv_CopyImageToImageEXT(VkDevice _device, const VkCopyImageToImageInfo *pCopyIm
                   },
             };
 
-            result = radv_CopyMemoryToImageEXT(_device, &memory_to_image);
+            result = radv_CopyMemoryToImage(_device, &memory_to_image);
          }
 
          free(host_ptr);

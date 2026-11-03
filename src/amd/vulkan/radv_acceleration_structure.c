@@ -295,11 +295,11 @@ radv_get_build_config(VkDevice _device, struct vk_acceleration_structure_build_s
        *       VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR case when the application queries the
        *       acceleration structure size.
        */
-      if ((state->build_info->flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR) ||
+      if ((state->build_info->flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_BIT_KHR) ||
           state->build_info->type != VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR)
          state->config.build_flags |= RADV_BUILD_FLAG_WRITE_LEAF_NODE_OFFSETS;
 
-      if (!(state->build_info->flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR) &&
+      if (!(state->build_info->flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_BIT_KHR) &&
           geometry_type == VK_GEOMETRY_TYPE_TRIANGLES_KHR) {
          if (state->build_info->flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR)
             state->config.build_flags |= RADV_BUILD_FLAG_PAIR_COMPRESS_TRIANGLES;
@@ -348,8 +348,8 @@ radv_bvh_build_set_args(VkCommandBuffer commandBuffer, const void *args, uint32_
    VkPipelineLayout layout;
    vk_get_bvh_build_pipeline_layout(&device->vk, &device->meta_state.device, size, &layout);
 
-   const VkPushConstantsInfoKHR pc_info = {
-      .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO_KHR,
+   const VkPushConstantsInfo pc_info = {
+      .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO,
       .layout = layout,
       .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
       .offset = 0,

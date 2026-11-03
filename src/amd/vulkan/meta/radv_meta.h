@@ -247,7 +247,7 @@ radv_meta_push_constants(struct radv_cmd_buffer *cmd_buffer, VkPipelineLayout la
 {
    radv_meta_save(cmd_buffer, RADV_META_SAVE_CONSTANTS);
 
-   const VkPushConstantsInfoKHR push_constants_info = {
+   const VkPushConstantsInfo push_constants_info = {
       .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO,
       .layout = layout,
       .stageFlags = stage,
