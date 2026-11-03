@@ -84,6 +84,7 @@ static void print_token(FILE *file, int type, YYSTYPE value)
 %token <tok> T_A_LOCALMEM
 %token <tok> T_A_CONSTLEN
 %token <tok> T_A_EARLYPREAMBLE
+%token <tok> T_A_WAVESIZE
 %token <tok> T_A_FULLNOPSTART
 %token <tok> T_A_FULLNOPEND
 %token <tok> T_A_FULLSYNCSTART
@@ -511,6 +512,7 @@ header:            localsize_header
 |                  localmem_header
 |                  earlypreamble_header
 |                  constlen_header
+|                  wavesize_header
 
 const_val:         T_FLOAT   { $$ = fui($1); }
 |                  T_INT     { $$ = $1;      }
@@ -591,6 +593,17 @@ localmem_header: T_A_LOCALMEM const_val { variant->shared_size = $2; }
 earlypreamble_header: T_A_EARLYPREAMBLE { variant->early_preamble = 1; }
 
 constlen_header: T_A_CONSTLEN const_val { variant->constlen = $2; }
+
+wavesize_header: T_A_WAVESIZE T_IDENTIFIER {
+                       if (!strcmp($2, "single"))
+                          variant->shader_options.real_wavesize = IR3_SINGLE_ONLY;
+                       else if (!strcmp($2, "double"))
+                          variant->shader_options.real_wavesize = IR3_DOUBLE_ONLY;
+                       else {
+                          yyerror("@wavesize must be single or double");
+                          YYERROR;
+                       }
+}
 
 /* Stubs for now */
 in_header:         T_A_IN '(' T_REGISTER ')' T_IDENTIFIER '(' T_IDENTIFIER '=' integer ')' { }
