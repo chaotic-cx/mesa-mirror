@@ -807,10 +807,10 @@ try_reassign_split_vector(pr_opt_ctx& ctx, aco_ptr<Instruction>& instr)
             continue;
          }
 
-         /* Don't propagate misaligned SGPRs.
-          * Note: No ALU instruction can take a variable larger than 64bit.
-          */
+         /* Don't propagate misaligned SGPRs. */
          if (op.regClass() == s2 && reg.reg() % 2 != 0)
+            break;
+         if (op.regClass().type() == RegType::sgpr && op.size() >= 3 && reg.reg() % 4 != 0)
             break;
 
          /* Sub dword operands might need updates to SDWA/opsel,
