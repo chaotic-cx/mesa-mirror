@@ -101,6 +101,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -147,6 +148,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -173,9 +175,9 @@
       This counter increments for every position shading request in the tiler
       geometry flow. Position shading runs the first part of the vertex shader,
       computing the position required to perform clipping and culling. A vertex
-      that has been evicted from the post-transform cache must be reshaded if
-      used again, so your index buffers must have good spatial locality of
-      index reuse.
+      that is evicted from the post-transform cache must be reshaded if used
+      again, so your index buffers must have good spatial locality of index
+      reuse.
 
       Each request contains {{C::MaliGPUGeomTaskSize.equation}} vertices.
 
@@ -196,6 +198,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -220,7 +223,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments for every partial position shading request from
-      the tiler geometry flow. Partial tasks cannot fill a shader core warp,
+      the tiler geometry flow. Partial tasks can not fill a shader core warp,
       and can result in lost efficiency.
 
       Each request contains fewer than {{C::MaliGPUGeomTaskSize.equation}}
@@ -229,6 +232,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -269,6 +273,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -293,7 +298,7 @@
       This expression defines the number of position shader threads per input
       primitive.
 
-      Efficient meshes with a good vertex reuse have average less than 1.5
+      Efficient meshes with good vertex reuse have an average of less than 1.5
       vertices shaded per triangle, as vertex computation is shared by multiple
       primitives. Minimize this number by reusing vertices for nearby
       primitives, improving temporal locality of index reuse, and avoiding
@@ -316,6 +321,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -342,9 +348,9 @@
       This counter increments for every varying shading request in the tiler
       geometry flow. Varying shading runs the second part of the vertex shader,
       for any primitive that survives clipping and culling. The same vertex is
-      shaded multiple times if it has been evicted from the post-transform
-      cache before reuse occurs. Keep good spatial locality of index reuse in
-      your index buffers.
+      shaded multiple times if it is evicted from the post-transform cache
+      before reuse occurs. Keep good spatial locality of index reuse in your
+      index buffers.
 
       Each request contains {{C::MaliGPUGeomTaskSize.equation}} vertices.
 
@@ -388,9 +394,9 @@
       This counter increments for every varying shading request in the tiler
       geometry flow. Varying shading runs the second part of the vertex shader,
       for any primitive that survives clipping and culling. The same vertex is
-      shaded multiple times if it has been evicted from the post-transform
-      cache before reuse occurs. Keep good spatial locality of index reuse in
-      your index buffers.
+      shaded multiple times if it is evicted from the post-transform cache
+      before reuse occurs. Keep good spatial locality of index reuse in your
+      index buffers.
 
       Each request contains {{C::MaliGPUGeomTaskSize.equation}} vertices.
 
@@ -401,6 +407,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -425,7 +432,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments for every partial varying shading request from
-      the tiler geometry flow. Partial tasks cannot fill a shader core warp,
+      the tiler geometry flow. Partial tasks can not fill a shader core warp,
       and can result in lost efficiency.
 
       Each request contains fewer than {{C::MaliGPUGeomTaskSize.equation}}
@@ -434,6 +441,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -505,6 +513,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -529,7 +538,7 @@
       This expression defines the number of varying shader invocations per
       visible primitive.
 
-      Efficient meshes with a good vertex reuse have average less than 1.5
+      Efficient meshes with good vertex reuse have an average of less than 1.5
       vertices shaded per triangle, as vertex computation is shared by multiple
       primitives. Minimize this number by reusing vertices for nearby
       primitives, improving temporal locality of index reuse, and avoiding
@@ -590,6 +599,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -708,6 +718,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -748,6 +759,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -868,6 +880,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -949,6 +962,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

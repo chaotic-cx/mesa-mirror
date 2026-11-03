@@ -61,6 +61,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -103,6 +104,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -145,6 +147,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -187,6 +190,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -229,6 +233,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -271,6 +276,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -313,6 +319,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -353,6 +360,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -393,6 +401,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -424,6 +433,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -456,6 +466,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -496,6 +507,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -536,6 +548,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -576,6 +589,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -616,6 +630,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -662,6 +677,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -705,6 +721,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -745,6 +762,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -764,8 +782,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of coherency snoop lookups performed that were triggered by an
-      external requester.
+      The number of coherency snoop lookups triggered by an external requester.
     </ShortDescription>
     <LongDescription>
       This counter increments for every coherency snoop lookup performed that
@@ -803,7 +820,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of coherency snoops triggered by external requesters.
+      The number of coherency snoops triggered by an external requester.
     </ShortDescription>
     <LongDescription>
       This counter increments for every coherency snoop transaction received
@@ -841,7 +858,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles when a coherency snoop triggered by external
+      The number of cycles when a coherency snoop triggered by an external
       requester is stalled.
     </ShortDescription>
     <LongDescription>
@@ -900,6 +917,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -919,7 +937,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles spent flushing GPU L2 caches.
+      The number of cycles when a GPU L2 flush is active.
     </ShortDescription>
     <LongDescription>
       This counter increments for every clock cycle when the GPU is flushing
@@ -931,6 +949,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

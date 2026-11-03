@@ -31,9 +31,9 @@
     <SourceName>EXEC_CORE_ACTIVE</SourceName>
     <SourceAlias>TRIPIPE_ACTIVE</SourceAlias>
     <StableID>230</StableID>
-    <HumanName>Execution core active cycles</HumanName>
+    <HumanName>Programmable core active cycles</HumanName>
     <GroupName>Shader Core Cycles</GroupName>
-    <GroupHumanName>Execution core active</GroupHumanName>
+    <GroupHumanName>Programmable core active</GroupHumanName>
     <Units>cycles</Units>
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
@@ -45,7 +45,7 @@
       This counter increments every clock cycle when the shader core is
       processing at least one warp. Note that this counter does not provide
       detailed information about how the functional units are utilized inside
-      the shader core, but simply gives an indication that something was
+      the shader core, but simply gives an indication that something is
       running.
     </LongDescription>
     <SupportedGPUs>
@@ -66,6 +66,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -77,9 +78,9 @@
   <CounterInfo>
     <MachineName>MaliCoreUtil</MachineName>
     <StableID>65579</StableID>
-    <HumanName>Execution core utilization</HumanName>
+    <HumanName>Programmable core utilization</HumanName>
     <GroupName>Shader Core Utilization</GroupName>
-    <GroupHumanName>Execution core utilization</GroupHumanName>
+    <GroupHumanName>Programmable core utilization</GroupHumanName>
     <Units>percent</Units>
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
@@ -127,9 +128,9 @@
   <CounterInfo>
     <MachineName>MaliCoreUtil</MachineName>
     <StableID>65579</StableID>
-    <HumanName>Execution core utilization</HumanName>
+    <HumanName>Programmable core utilization</HumanName>
     <GroupName>Shader Core Utilization</GroupName>
-    <GroupHumanName>Execution core utilization</GroupHumanName>
+    <GroupHumanName>Programmable core utilization</GroupHumanName>
     <Units>percent</Units>
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
@@ -161,6 +162,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -204,6 +206,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -307,6 +310,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -336,6 +340,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -381,6 +386,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -409,6 +415,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -427,7 +434,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of warps being processed by the fragment prepass.
+      The percentage of warps processed by the fragment prepass.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of warps that are processed by the
@@ -445,6 +452,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -630,8 +638,8 @@
     </ShortDescription>
     <LongDescription>
       This expression defines the number of fragment threads started. This
-      expressions an approximation, based on the assumption that all warps are
-      fully populated with threads. The {{C::MaliFragRastPartQd}} and
+      expression is an approximation, based on the assumption that all warps
+      are fully populated with threads. The {{C::MaliFragRastPartQd}} and
       {{C::MaliCoreFullWarp}} counters can give some indication of how close
       this approximation is.
     </LongDescription>
@@ -702,6 +710,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -732,6 +741,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -762,6 +772,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -855,6 +866,224 @@
   </CounterInfo>
   <!-- ==================================================================== -->
   <CounterInfo>
+    <MachineName>MaliCoreWarpsRegs32</MachineName>
+    <SourceName>EXEC_WARP_REG_BLOCKS_1_2</SourceName>
+    <StableID>550</StableID>
+    <HumanName>Warps using 0-32 registers</HumanName>
+    <GroupName>Shader Register Use</GroupName>
+    <GroupHumanName>0-32 registers</GroupHumanName>
+    <Units>warps</Units>
+    <Trend>Higher better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of warps that require 0-32 registers.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every warp that requires 0-32 registers.
+
+      If the core is filled with warps using 32 registers it can run at 100%
+      occupancy. Aim to minimize the number of threads requiring more than 32
+      registers to maximize occupancy.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliCoreWarpsRegs80</MachineName>
+    <SourceName>EXEC_WARP_REG_BLOCKS_3_5</SourceName>
+    <StableID>551</StableID>
+    <HumanName>Warps using 33-80 registers</HumanName>
+    <GroupName>Shader Register Use</GroupName>
+    <GroupHumanName>33-80 registers</GroupHumanName>
+    <Units>warps</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of warps that require 33-80 registers.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every warp that requires 33-80 registers.
+
+      If the core is filled with warps using 80 registers it can run at 50%
+      occupancy. Aim to minimize the number of threads requiring more than 32
+      registers to maximize occupancy.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliCoreWarpsRegs128</MachineName>
+    <StableID>552</StableID>
+    <HumanName>Warps using 81-128 registers</HumanName>
+    <GroupName>Shader Register Use</GroupName>
+    <GroupHumanName>81-128 registers</GroupHumanName>
+    <Units>warps</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of warps that require 81-128 registers.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every warp that requires 81-128 registers.
+
+      If the core is filled with warps using 128 registers it can run at 25%
+      occupancy. Aim to minimize the number of threads requiring more than 32
+      registers to maximize occupancy.
+    </LongDescription>
+    <Equation>
+      (MaliNonFragWarp + MaliFragWarp) - MaliCoreWarpsRegs32 - MaliCoreWarpsRegs80
+    </Equation>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliCoreThreadOccupancyQ1Cy</MachineName>
+    <SourceName>EXEC_CORE_OCCUPANCY_25</SourceName>
+    <StableID>546</StableID>
+    <HumanName>Core cycles with 0-25% thread occupancy</HumanName>
+    <GroupName>Shader Core Occupancy</GroupName>
+    <GroupHumanName>0-25% occupancy</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of cycles with 0-25% thread occupancy.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every active shader core cycle where core
+      thread occupancy is between 0 and 25%.
+
+      Increasing thread occupancy improves the ability of the core to hide the
+      latency of data fetches on cache misses, but can increase cache pressure
+      for some data access patterns.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliCoreThreadOccupancyQ2Cy</MachineName>
+    <SourceName>EXEC_CORE_OCCUPANCY_50</SourceName>
+    <StableID>547</StableID>
+    <HumanName>Core cycles with 25-50% thread occupancy</HumanName>
+    <GroupName>Shader Core Occupancy</GroupName>
+    <GroupHumanName>25-50% occupancy</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of cycles with 25-50% thread occupancy.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every active shader core cycle where core
+      thread occupancy is between 25% and 50%.
+
+      Increasing thread occupancy improves the ability of the core to hide the
+      latency of data fetches on cache misses, but can increase cache pressure
+      for some data access patterns.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliCoreThreadOccupancyQ3Cy</MachineName>
+    <SourceName>EXEC_CORE_OCCUPANCY_75</SourceName>
+    <StableID>548</StableID>
+    <HumanName>Core cycles with 50-75% thread occupancy</HumanName>
+    <GroupName>Shader Core Occupancy</GroupName>
+    <GroupHumanName>50-75% occupancy</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of cycles with 50-75% thread occupancy.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every active shader core cycle where core
+      thread occupancy is between 50% and 75%.
+
+      Increasing thread occupancy improves the ability of the core to hide the
+      latency of data fetches on cache misses, but can increase cache pressure
+      for some data access patterns.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliCoreThreadOccupancyQ4Cy</MachineName>
+    <StableID>549</StableID>
+    <HumanName>Core cycles with 75-100% thread occupancy</HumanName>
+    <GroupName>Shader Core Occupancy</GroupName>
+    <GroupHumanName>75-100% occupancy</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of cycles with 75-100% thread occupancy.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every active shader core cycle where core
+      thread occupancy is between 75% and 100%.
+
+      Increasing thread occupancy improves the ability of the core to hide the
+      latency of data fetches on cache misses, but can increase cache pressure
+      for some data access patterns.
+    </LongDescription>
+    <Equation>
+      MaliAnyActiveCy - MaliCoreThreadOccupancyQ1Cy - MaliCoreThreadOccupancyQ2Cy - MaliCoreThreadOccupancyQ3Cy
+    </Equation>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
     <MachineName>MaliCoreFragWarpOcc</MachineName>
     <StableID>320</StableID>
     <HumanName>Fragment warp occupancy</HumanName>
@@ -879,6 +1108,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -904,7 +1134,7 @@
     <LongDescription>
       This counter increments for every warp that has a full thread slot
       allocation. Note that allocated thread slots might not contain a running
-      thread if the workload cannot fill the whole allocation.
+      thread if the workload can not fill the whole allocation.
 
       If many warps are not fully allocated then performance is reduced. Fully
       allocated warps are more likely if:
@@ -923,6 +1153,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -946,7 +1177,7 @@
     <LongDescription>
       This expression defines the percentage of warps that have a full thread
       slot allocation. Note that allocated thread slots might not contain a
-      running thread if the workload cannot fill the whole allocation.
+      running thread if the workload can not fill the whole allocation.
 
       If a high percentage of warps are not fully allocated then performance is
       reduced. Fully allocated warps are more likely if:
@@ -968,6 +1199,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1038,6 +1270,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1137,6 +1370,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1169,6 +1403,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1265,6 +1500,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1298,6 +1534,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1363,6 +1600,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1374,7 +1612,7 @@
   <CounterInfo>
     <MachineName>MaliEngArithInstr</MachineName>
     <StableID>65668</StableID>
-    <HumanName>Arithmetic instruction issue cycles</HumanName>
+    <HumanName>Arithmetic instructions</HumanName>
     <GroupName>ALU Instructions</GroupName>
     <GroupHumanName>Executed instructions</GroupHumanName>
     <Units>instructions</Units>
@@ -1398,6 +1636,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1422,11 +1661,11 @@
     </ShortDescription>
     <LongDescription>
       This counter increments for every instruction the programmable core
-      processes per warp where there is control flow divergence across the
-      warp. Control flow divergence erodes arithmetic processing efficiency
-      because it implies some threads in the warp are idle because they did not
-      take the current control path through the code. Aim to minimize control
-      flow divergence when designing shader effects.
+      processes per warp when there is control flow divergence across the warp.
+      Control flow divergence erodes arithmetic processing efficiency because
+      it implies some threads in the warp are idle because they do not take the
+      current control path through the code. Aim to minimize control flow
+      divergence when designing shader effects.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -1442,6 +1681,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1517,6 +1757,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1552,6 +1793,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1579,7 +1821,7 @@
       equations, which the fixed-function blend path does not support.
 
       Vulkan shaders that use software blending do not show up in this data,
-      because the blend is inlined in to the main body of the shader program.
+      because the blend is inlined into the main body of the shader program.
     </LongDescription>
     <Equation>
       ((MaliEngSWBlendInstr * 2) / MaliFragWarp) * 100
@@ -1614,7 +1856,7 @@
       equations, which the fixed-function blend path does not support.
 
       Vulkan shaders that use software blending do not show up in this data,
-      because the blend is inlined in to the main body of the shader program.
+      because the blend is inlined into the main body of the shader program.
     </LongDescription>
     <Equation>
       ((MaliEngSWBlendInstr * 4) / MaliFragWarp) * 100
@@ -1625,6 +1867,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1655,6 +1898,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1676,8 +1920,8 @@
       The number of arithmetic issue cycles to slot 0.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle when issues an instruction
-      to issue slot 0.
+      This counter increments for every clock cycle when an instruction is
+      issued to issue slot 0.
     </LongDescription>
     <Equation>
       (MaliEngFMAInstr + MaliEngCVTInstr + MaliEngSFUInstr) - MaliEngSlot1IssueCy
@@ -1707,8 +1951,8 @@
       The number of arithmetic issue cycles to slot 1.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle when issues an instruction
-      to issue slot 1.
+      This counter increments for every clock cycle when an instruction is
+      issued to issue slot 1.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
@@ -1735,12 +1979,127 @@
       The number of arithmetic issue cycles that issue to either issue slot.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle when issues an instruction
-      to either arithmetic issue slot.
+      This counter increments for every clock cycle when an instruction is
+      issued to either arithmetic issue slot.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliEngSlot0IssueTotalCy</MachineName>
+    <SourceName>EXEC_ISSUE_SLOT_0</SourceName>
+    <StableID>807</StableID>
+    <HumanName>Total arithmetic issue slot 0 cycles</HumanName>
+    <GroupName>ALU Issues</GroupName>
+    <GroupHumanName>Total slot 0 issues</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced application</Visibility>
+    <ShortDescription>
+      The total number of per-pipe arithmetic issue cycles to slot 0.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every clock cycle when an instruction is
+      issued to a pipeline issue slot 0. This counter can increment multiple
+      times per clock for pipelines that run in parallel.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliEngSlot1IssueTotalCy</MachineName>
+    <SourceName>EXEC_ISSUE_SLOT_1</SourceName>
+    <StableID>808</StableID>
+    <HumanName>Total arithmetic issue slot 1 cycles</HumanName>
+    <GroupName>ALU Issues</GroupName>
+    <GroupHumanName>Total slot 1 issues</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced application</Visibility>
+    <ShortDescription>
+      The total number of per-pipe arithmetic issue cycles to slot 1.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every clock cycle when an instruction is
+      issued to a pipeline issue slot 1. This counter can increment multiple
+      times per clock for pipelines that run in parallel.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliEngSlot0IssueCy</MachineName>
+    <StableID>391</StableID>
+    <HumanName>Slot 0 arithmetic issue cycles</HumanName>
+    <GroupName>ALU Issues</GroupName>
+    <GroupHumanName>Slot 0 issues</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced application</Visibility>
+    <ShortDescription>
+      The average number of arithmetic issue cycles to slot 0.
+    </ShortDescription>
+    <LongDescription>
+      This expression defines the average number of cycles that each pipeline
+      issues to slot 0.
+    </LongDescription>
+    <Equation>
+      MaliEngSlot0IssueTotalCy / MaliALUSlotIssuePerCy
+    </Equation>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>System</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliEngSlot1IssueCy</MachineName>
+    <StableID>374</StableID>
+    <HumanName>Slot 1 arithmetic issue cycles</HumanName>
+    <GroupName>ALU Issues</GroupName>
+    <GroupHumanName>Slot 1 issues</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced application</Visibility>
+    <ShortDescription>
+      The average number of arithmetic issue cycles to slot 1.
+    </ShortDescription>
+    <LongDescription>
+      This expression defines the average number of cycles that each pipeline
+      issues to slot 1.
+    </LongDescription>
+    <Equation>
+      MaliEngSlot1IssueTotalCy / MaliALUSlotIssuePerCy
+    </Equation>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1774,6 +2133,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1786,22 +2146,22 @@
     <MachineName>MaliEngStarveCy</MachineName>
     <SourceName>EXEC_INSTR_STARVING</SourceName>
     <StableID>236</StableID>
-    <HumanName>Execution engine starvation cycles</HumanName>
+    <HumanName>Instruction issue starvation cycles</HumanName>
     <GroupName>Shader Core Stall Cycles</GroupName>
-    <GroupHumanName>Execution engine starvation</GroupHumanName>
+    <GroupHumanName>Instruction issue starvation</GroupHumanName>
     <Units>cycles</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles when no new threads are available to run.
+      The number of cycles when no new instructions are available to run.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the programmable core
       contains threads to run, and is ready to accept a new instruction, but no
-      new thread is available to run. This typically occurs when all threads
-      are blocked waiting for the result from an asynchronous processing
-      operation, such as a texture filtering operation or a data fetch from
-      memory.
+      new instructions is available to run. This typically occurs when all
+      threads are blocked waiting for the result from an asynchronous
+      processing operation, such as a texture filtering operation or a data
+      fetch from memory.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -1822,9 +2182,9 @@
     <MachineName>MaliEngStarveCy</MachineName>
     <SourceName>EXEC_STARVE_ARITH</SourceName>
     <StableID>236</StableID>
-    <HumanName>Processing unit starvation cycles</HumanName>
+    <HumanName>Instruction issue starvation cycles</HumanName>
     <GroupName>Shader Core Stall Cycles</GroupName>
-    <GroupHumanName>Execution engine starvation</GroupHumanName>
+    <GroupHumanName>Instruction issue starvation</GroupHumanName>
     <Units>cycles</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
@@ -1847,6 +2207,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1859,25 +2220,26 @@
     <MachineName>MaliEngStarveICacheCy</MachineName>
     <SourceName>EXEC_STARVE_ICACHE</SourceName>
     <StableID>419</StableID>
-    <HumanName>Processing unit I-cache starvation cycles</HumanName>
+    <HumanName>Shader core instruction cache starvation cycles</HumanName>
     <GroupName>Shader Core Stall Cycles</GroupName>
-    <GroupHumanName>Execution engine I-cache starvation</GroupHumanName>
+    <GroupHumanName>Instruction cache starvation</GroupHumanName>
     <Units>cycles</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
       The number of cycles when the processing unit is starved of work due to
-      I-cache misses.
+      instruction cache misses.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when a fetch unit is starved of
-      work because of instruction cache misses.
+      work due to instruction cache misses.
 
       This counter increments per fetch unit, and so can increase by up to 4 in
       a clock cycle.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1890,9 +2252,9 @@
     <MachineName>MaliEngICacheMiss</MachineName>
     <SourceName>EXEC_ICACHE_MISS</SourceName>
     <StableID>245</StableID>
-    <HumanName>Instruction cache misses</HumanName>
+    <HumanName>Shader core instruction cache misses</HumanName>
     <GroupName>Instruction Cache</GroupName>
-    <GroupHumanName>I-cache misses</GroupHumanName>
+    <GroupHumanName>Instruction cache misses</GroupHumanName>
     <Units>requests</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
@@ -1931,10 +2293,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles the arithmetic unit was busy.
+      The number of cycles when the arithmetic unit is busy.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of cycles that the arithmetic unit was
+      This expression defines the number of cycles that the arithmetic unit is
       busy processing work.
     </LongDescription>
     <Equation>
@@ -1969,10 +2331,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles the arithmetic unit was busy.
+      The number of cycles when the arithmetic unit is busy.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of cycles that the arithmetic unit was
+      This expression defines the number of cycles that the arithmetic unit is
       busy processing work.
     </LongDescription>
     <Equation>
@@ -1999,10 +2361,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles the arithmetic unit was busy.
+      The number of cycles when the arithmetic unit is busy.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of cycles that the arithmetic unit was
+      This expression defines the number of cycles that the arithmetic unit is
       busy processing work.
     </LongDescription>
     <Equation>
@@ -2028,10 +2390,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles the arithmetic unit was busy.
+      The number of cycles when the arithmetic unit is busy.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of cycles that the arithmetic unit was
+      This expression defines the number of cycles that the arithmetic unit is
       busy processing work.
     </LongDescription>
     <Equation>
@@ -2058,10 +2420,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles the arithmetic unit was busy.
+      The number of cycles when the arithmetic unit is busy.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of cycles that the arithmetic unit was
+      This expression defines the number of cycles that the arithmetic unit is
       busy processing work.
     </LongDescription>
     <Equation>
@@ -2070,6 +2432,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -2120,6 +2483,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

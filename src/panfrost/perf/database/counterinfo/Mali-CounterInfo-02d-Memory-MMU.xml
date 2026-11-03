@@ -60,6 +60,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -100,6 +101,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -144,6 +146,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -184,6 +187,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -228,6 +232,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -269,6 +274,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -310,6 +316,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -340,6 +347,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

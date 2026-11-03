@@ -50,6 +50,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -68,7 +69,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The CSF MCU utilization compared against the GPU active cycles.
+      The CSF MCU utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the microcontroller utilization compared against
@@ -87,6 +88,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -106,7 +108,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the load-store unit is processing commands.
+      The number of cycles when the load-store unit is processing commands.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the GPU command load/store
@@ -118,6 +120,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -136,8 +139,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The CSF load/store unit utilization compared against the GPU active
-      cycles.
+      The CSF load/store unit utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the front-end load/store unit utilization
@@ -152,6 +154,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -171,7 +174,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the CEU is processing commands.
+      The number of cycles when the CEU is processing commands.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the GPU command execution
@@ -183,6 +186,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -201,8 +205,8 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The CSF command execution unit utilization compared against the GPU
-      active cycles.
+      The CSF command execution unit utilization relative to the GPU active
+      cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the front-end command execution unit utilization
@@ -217,6 +221,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -236,13 +241,13 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 0 contained an enabled
+      The number of cycles when command stream interface 0 contains an enabled
       command stream.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 0
-      contained a command stream. This does not necessarily indicate that the
-      command stream was actively being processed by the main GPU.
+      contains a command stream. This does not necessarily indicate that the
+      command stream is actively being processed by the main GPU.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -250,6 +255,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -269,12 +275,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 0 was blocked because
+      The number of cycles when command stream interface 0 is blocked because
       of a scheduling dependency.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 0
-      was blocked due an outstanding scheduling dependency.
+      is blocked due to an outstanding scheduling dependency.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -282,6 +288,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -301,13 +308,13 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 1 contained an enabled
+      The number of cycles when command stream interface 1 contains an enabled
       command stream.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 1
-      contained a command stream. This does not necessarily indicate that the
-      command stream was actively being processed by the main GPU.
+      contains a command stream. This does not necessarily indicate that the
+      command stream is actively being processed by the main GPU.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -315,6 +322,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -334,12 +342,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 1 was blocked because
+      The number of cycles when command stream interface 1 is blocked because
       of a scheduling dependency.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 1
-      was blocked due an outstanding scheduling dependency.
+      is blocked due to an outstanding scheduling dependency.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -347,6 +355,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -366,13 +375,13 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 2 contained an enabled
+      The number of cycles when command stream interface 2 contains an enabled
       command stream.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 2
-      contained a command stream. This does not necessarily indicate that the
-      command stream was actively being processed by the main GPU.
+      contains a command stream. This does not necessarily indicate that the
+      command stream is actively being processed by the main GPU.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -380,6 +389,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -399,12 +409,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 2 was blocked because
+      The number of cycles when command stream interface 2 is blocked because
       of a scheduling dependency.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 2
-      was blocked due an outstanding scheduling dependency.
+      is blocked due to an outstanding scheduling dependency.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -412,6 +422,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -431,13 +442,13 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 3 contained an enabled
+      The number of cycles when command stream interface 3 contains an enabled
       command stream.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 3
-      contained a command stream. This does not necessarily indicate that the
-      command stream was actively being processed by the main GPU.
+      contains a command stream. This does not necessarily indicate that the
+      command stream is actively being processed by the main GPU.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -445,6 +456,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -464,12 +476,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 3 was blocked because
+      The number of cycles when command stream interface 3 is blocked because
       of a scheduling dependency.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 3
-      was blocked due an outstanding scheduling dependency.
+      is blocked due to an outstanding scheduling dependency.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -477,6 +489,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -496,17 +509,18 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 4 contained an enabled
+      The number of cycles when command stream interface 4 contains an enabled
       command stream.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 4
-      contained a command stream. This does not necessarily indicate that the
-      command stream was actively being processed by the main GPU.
+      contains a command stream. This does not necessarily indicate that the
+      command stream is actively being processed by the main GPU.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -526,16 +540,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 4 was blocked because
+      The number of cycles when command stream interface 4 is blocked because
       of a scheduling dependency.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 4
-      was blocked due an outstanding scheduling dependency.
+      is blocked due to an outstanding scheduling dependency.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -555,17 +570,18 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 5 contained an enabled
+      The number of cycles when command stream interface 5 contains an enabled
       command stream.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 5
-      contained a command stream. This does not necessarily indicate that the
-      command stream was actively being processed by the main GPU.
+      contains a command stream. This does not necessarily indicate that the
+      command stream is actively being processed by the main GPU.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -585,16 +601,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream interface 5 was blocked because
+      The number of cycles when command stream interface 5 is blocked because
       of a scheduling dependency.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when command stream interface 5
-      was blocked due an outstanding scheduling dependency.
+      is blocked due to an outstanding scheduling dependency.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

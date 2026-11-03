@@ -66,6 +66,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -97,9 +98,9 @@
       queue, even if the GPU is stalled waiting for external memory. These
       cycles are counted as active time even though no progress is being made.
 
-      On Mali-G715 the GPU_ACTIVE hardware counter has an errata which means it
-      erroneously includes cycles for idle CSF asynchronous operations. We
-      recommend use of the {{C::MaliGPUActiveCy}} counter instead of this one.
+      On Mali-G715, the GPU_ACTIVE hardware counter has an erratum that means
+      it erroneously includes cycles for idle CSF asynchronous operations. We
+      recommend using the {{C::MaliGPUActiveCy}} counter instead of this one.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G715</GPU>
@@ -169,6 +170,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -188,7 +190,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that command stream doorbell has an IRQ pending.
+      The number of cycles when command stream doorbell has an IRQ pending.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream
@@ -198,6 +200,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -228,6 +231,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -259,7 +263,7 @@
       However, if {{C::MaliGPUIRQActiveCy}} are a high percentage of
       {{C::MaliGPUActiveCy}}, an underlying problem might be preventing the CPU
       from efficiently handling interrupts. This problem is normally a system
-      integration issue, which an application developer cannot work around.
+      integration issue, which an application developer can not work around.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T720</GPU>
@@ -279,6 +283,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -297,7 +302,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The IRQ pending utilization compared against the GPU active cycles.
+      The IRQ pending utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the IRQ pending utilization compared against the
@@ -327,6 +332,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -351,8 +357,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has non-fragment
-      work queued that can not run or retire because of a pending L2 cache
-      flush.
+      work queued that can not run or retire due to a pending L2 cache flush.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -382,12 +387,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number number of cycles when queued non-fragment work is waiting for
-      a descriptor load.
+      The number of cycles when queued non-fragment work is waiting for a
+      descriptor load.
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has non-fragment
-      work queued that can not run because of a pending descriptor load from
+      work queued that can not run due to a pending descriptor load from
       memory.
     </LongDescription>
     <SupportedGPUs>
@@ -464,7 +469,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has non-fragment
-      work queued that can not run until dependent work has completed.
+      work queued that can not run until dependent work completes.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T760</GPU>
@@ -586,8 +591,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The non-fragment queue utilization compared against the GPU active
-      cycles.
+      The non-fragment queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the non-fragment queue utilization compared
@@ -633,12 +637,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles that the compute queue has work queued.
+      The number of cycles when the compute queue has work queued.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream compute
       queue has work queued. The count includes cycles when the queue is
-      stalled because of endpoint contention.
+      stalled due to endpoint contention.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -646,6 +650,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -666,12 +671,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles the compute queue is waiting for endpoints to be
-      assigned.
+      The number of cycles when the compute queue is waiting for endpoints to
+      be assigned.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when compute work is queued but
-      cannot start because no endpoints have been assigned.
+      can not start because no endpoints are assigned.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -679,6 +684,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -699,11 +705,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles the compute queue is waiting for endpoints to drain.
+      The number of cycles when the compute queue is waiting for endpoints to
+      drain.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when compute work is queued but
-      cannot start because IDVS work is still active on the shared endpoints.
+      can not start because IDVS work is still active on the shared endpoints.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -711,6 +718,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -729,7 +737,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles that the compute queue is processing work.
+      The number of cycles when the compute queue is processing work.
     </ShortDescription>
     <LongDescription>
       This expression increments every clock cycle when the command stream
@@ -744,6 +752,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -763,7 +772,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The compute queue utilization compared against the GPU active cycles.
+      The compute queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the compute queue utilization compared against
@@ -784,6 +793,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -804,7 +814,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the compute queue IRQ was pending.
+      The number of cycles when the compute queue IRQ is pending.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream compute
@@ -816,6 +826,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -835,12 +846,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles that the vertex shading queue has work queued.
+      The number of cycles when the vertex shading queue has work queued.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream vertex
       shading queue has work queued. The count includes cycles when the queue
-      is stalled because of endpoint contention.
+      is stalled due to endpoint contention.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -864,12 +875,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles the vertex queue is waiting for endpoints to be
+      The number of cycles when the vertex queue is waiting for endpoints to be
       assigned.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when vertex work is queued but
-      cannot start because no endpoints have been assigned.
+      can not start because no endpoints are assigned.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -893,11 +904,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles the vertex queue is waiting for endpoints to drain.
+      The number of cycles when the vertex queue is waiting for endpoints to
+      drain.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when vertex work is queued but
-      cannot start because compute work is still active on the shared
+      can not start because compute work is still active on the shared
       endpoints.
     </LongDescription>
     <SupportedGPUs>
@@ -922,18 +934,19 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles the binning phase queue is waiting for endpoints to
-      drain.
+      The number of cycles when the binning phase queue is waiting for
+      endpoints to drain.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when binning phase work is
-      queued but cannot start because compute work is still active on the
+      queued but can not start because compute work is still active on the
       shared endpoints.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -952,7 +965,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles that the vertex queue is processing work.
+      The number of cycles when the vertex queue is processing work.
     </ShortDescription>
     <LongDescription>
       This expression increments every clock cycle when the command stream
@@ -982,7 +995,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The vertex queue utilization compared against the GPU active cycles.
+      The vertex queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the vertex queue utilization compared against the
@@ -1019,7 +1032,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the vertex queue IRQ was pending.
+      The number of cycles when the vertex queue IRQ is pending.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream vertex
@@ -1048,19 +1061,20 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles that the binning phase queue has work queued. The
+      The number of cycles when the binning phase queue has work queued. The
       binning phase includes position shading, culling, and binning.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream binning
       phase queue has work queued. The binning phase includes vertex position
       shading, culling, and primitive binning, and includes cycles when the
-      queue is stalled because of endpoint contention.
+      queue is stalled due to endpoint contention.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1081,18 +1095,19 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles the binning phase queue is waiting for endpoints to
-      be assigned.
+      The number of cycles when the binning phase queue is waiting for
+      endpoints to be assigned.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when binning phase work is
-      queued but cannot start because no endpoints have been assigned. The
-      binning phase includes vertex position shading and primitive binning.
+      queued but can not start because no endpoints are assigned. The binning
+      phase includes vertex position shading and primitive binning.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1111,7 +1126,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles that the binning phase queue is processing work. The
+      The number of cycles when the binning phase queue is processing work. The
       binning phase includes position shading, culling, and binning.
     </ShortDescription>
     <LongDescription>
@@ -1126,6 +1141,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1144,9 +1160,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The binning phase queue utilization compared against the GPU active
-      cycles. The binning phase includes position shading, culling, and
-      binning.
+      The binning phase queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the binning phase queue utilization compared
@@ -1166,6 +1180,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1186,7 +1201,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the binning phase queue IRQ was pending.
+      The number of cycles when the binning phase queue IRQ is pending.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream binning
@@ -1196,6 +1211,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1220,7 +1236,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has fragment work
-      queued that can not run or retire because of a pending L2 cache flush.
+      queued that can not run or retire due to a pending L2 cache flush.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -1255,7 +1271,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has fragment work
-      queued that can not run because of a pending descriptor load from memory.
+      queued that can not run due to a pending descriptor load from memory.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T760</GPU>
@@ -1331,7 +1347,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has fragment work
-      queued that can not run until dependent work has completed.
+      queued that can not run until dependent work completes.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T760</GPU>
@@ -1402,12 +1418,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles that the fragment queue has work queued.
+      The number of cycles when the fragment queue has work queued.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream
       fragment queue has work queued. The count includes cycles when the queue
-      is stalled because of endpoint contention.
+      is stalled due to endpoint contention.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -1431,12 +1447,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles the fragment queue is waiting for endpoints to be
-      assigned.
+      The number of cycles when the fragment queue is waiting for endpoints to
+      be assigned.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when fragment work is queued
-      but cannot start because no endpoints have been assigned.
+      but can not start because no endpoints are assigned.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G710</GPU>
@@ -1506,7 +1522,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles that the fragment queue is processing work.
+      The number of cycles when the fragment queue is processing work.
     </ShortDescription>
     <LongDescription>
       This expression increments every clock cycle when the command stream
@@ -1536,7 +1552,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The fragment queue utilization compared against the GPU active cycles.
+      The fragment queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the fragment queue utilization compared against
@@ -1580,7 +1596,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The fragment queue utilization compared against the GPU active cycles.
+      The fragment queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the fragment queue utilization compared against
@@ -1615,7 +1631,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the fragment queue IRQ was pending.
+      The number of cycles when the fragment queue IRQ is pending.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream
@@ -1643,19 +1659,20 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles that the main phase queue has work queued. The main
+      The number of cycles when the main phase queue has work queued. The main
       phase includes deferred vertex shading and all fragment shading.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream main
       phase queue has work queued. The main phase includes any deferred vertex
       processing and all fragment shading, and can include cycles when the
-      queue is stalled because of endpoint contention.
+      queue is stalled due to endpoint contention.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1675,18 +1692,19 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles the main phase queue is waiting for endpoints to be
-      assigned.
+      The number of cycles when the main phase queue is waiting for endpoints
+      to be assigned.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when main phase work is queued
-      but cannot start because no endpoints have been assigned. The main phase
+      but can not start because no endpoints are assigned. The main phase
       includes any deferred vertex processing and all fragment shading.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1705,7 +1723,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of cycles that the main phase queue is processing work. The
+      The number of cycles when the main phase queue is processing work. The
       main phase includes deferred vertex shading and all fragment shading.
     </ShortDescription>
     <LongDescription>
@@ -1720,6 +1738,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1738,8 +1757,7 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The main phase queue utilization compared against the GPU active cycles.
-      The main phase includes deferred vertex shading and all fragment shading.
+      The main phase queue utilization relative to the GPU active cycles.
     </ShortDescription>
     <LongDescription>
       This expression defines the main phase queue utilization compared against
@@ -1759,6 +1777,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1778,7 +1797,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of cycles that the main phase queue IRQ was pending.
+      The number of cycles when the main phase queue IRQ is pending.
     </ShortDescription>
     <LongDescription>
       This counter increments every clock cycle when the command stream main
@@ -1788,6 +1807,159 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>Unclassified</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliNeuralQueuedCy</MachineName>
+    <SourceName>ITER_NEURAL_ACTIVE</SourceName>
+    <StableID>420</StableID>
+    <HumanName>Neural work queued cycles</HumanName>
+    <GroupName>GPU Queued Cycles</GroupName>
+    <GroupHumanName>Neural queued</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced application</Visibility>
+    <ShortDescription>
+      The number of cycles when the neural queue has work queued.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments every clock cycle when the command stream neural
+      queue has work queued. The count includes cycles when the queue is
+      stalled due to endpoint contention.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>Unclassified</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliNeuralQueueAssignStallCy</MachineName>
+    <SourceName>ITER_NEURAL_READY_BLOCKED</SourceName>
+    <StableID>421</StableID>
+    <HumanName>Neural queue endpoint stall cycles</HumanName>
+    <GroupName>GPU Wait Cycles</GroupName>
+    <GroupHumanName>Neural queue endpoint stalls</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced application</Visibility>
+    <ShortDescription>
+      The number of cycles when the neural queue is waiting for endpoints to be
+      assigned.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments every clock cycle when neural work is queued but
+      can not start because no endpoints are assigned.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>Unclassified</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliNeuralQueueActiveCy</MachineName>
+    <StableID>557</StableID>
+    <HumanName>Neural queue active cycles</HumanName>
+    <GroupName>GPU Cycles</GroupName>
+    <GroupHumanName>Neural queue active</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of cycles when the neural queue is processing work.
+    </ShortDescription>
+    <LongDescription>
+      This expression increments every clock cycle when the command stream
+      neural queue has at least one task issued for processing.
+    </LongDescription>
+    <Equation>
+      MaliNeuralQueuedCy - MaliNeuralQueueAssignStallCy
+    </Equation>
+    <SupportedGPUs>
+      <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>Unclassified</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliNeuralQueueUtil</MachineName>
+    <StableID>558</StableID>
+    <HumanName>Neural queue utilization</HumanName>
+    <GroupName>GPU Utilization</GroupName>
+    <GroupHumanName>Neural queue utilization</GroupHumanName>
+    <Units>percent</Units>
+    <Trend>Higher better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The neural queue utilization relative to the GPU active cycles.
+    </ShortDescription>
+    <LongDescription>
+      This expression defines the neural queue utilization compared against the
+      GPU active cycles.
+
+      For GPU bound content, it is expected that the GPU queues process work in
+      parallel. The dominant queue must be close to 100% utilized to get the
+      best performance. If no queue is dominant, but the GPU is fully utilized,
+      then a serialization or dependency problem might be preventing queue
+      overlap.
+    </LongDescription>
+    <Equation>
+      (MaliNeuralQueueActiveCy / MaliGPUActiveCy) * 100
+    </Equation>
+    <SupportedGPUs>
+      <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>Unclassified</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliNeuralQueueIRQActiveCy</MachineName>
+    <SourceName>ITER_NEURAL_IRQ_ACTIVE</SourceName>
+    <StableID>423</StableID>
+    <HumanName>Neural queue interrupt pending cycles</HumanName>
+    <GroupName>CSF Queue Interrupt Cycles</GroupName>
+    <GroupHumanName>Neural queue interrupt active</GroupHumanName>
+    <Units>cycles</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Advanced system</Visibility>
+    <ShortDescription>
+      The number of cycles when the neural queue IRQ is pending.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments every clock cycle when the command stream neural
+      queue has an IRQ pending.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1812,7 +1984,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has reserved work
-      queued that can not run or retire because of a pending L2 cache flush.
+      queued that can not run or retire due to a pending L2 cache flush.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -1847,7 +2019,7 @@
     </ShortDescription>
     <LongDescription>
       This counter increments any clock cycle that the GPU has reserved work
-      queued that can not run because of a pending descriptor load from memory.
+      queued that can not run due to a pending descriptor load from memory.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T760</GPU>

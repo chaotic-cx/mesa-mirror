@@ -58,6 +58,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -100,6 +101,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -120,13 +122,12 @@
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
       The number of read beats received by the fixed-function fragment
-      front-end that required an external memory access because of an L2 cache
-      miss.
+      front-end that require an external memory access due to an L2 cache miss.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read beat received by the
-      fixed-function fragment front-end that required an external memory access
-      because of an L2 cache miss.
+      fixed-function fragment front-end that requires an external memory access
+      due to an L2 cache miss.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -142,6 +143,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -184,6 +186,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -223,6 +226,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -265,6 +269,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -313,6 +318,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -332,12 +338,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of read beats received by the load/store unit that required an
-      external memory access because of an L2 cache miss.
+      The number of read beats received by the load/store unit that require an
+      external memory access due to an L2 cache miss.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read beat received by the load/store
-      unit that required an external memory access because of an L2 cache miss.
+      unit that requires an external memory access due to an L2 cache miss.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -353,6 +359,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -395,6 +402,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -442,6 +450,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -480,6 +489,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -522,6 +532,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -577,6 +588,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -596,12 +608,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of read beats received by the texture unit that required an
-      external memory access because of an L2 cache miss.
+      The number of read beats received by the texture unit that require an
+      external memory access due to an L2 cache miss.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read beat received by the texture unit
-      that required an external memory access because of an L2 cache miss.
+      that requires an external memory access due to an L2 cache miss.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -617,6 +629,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -659,6 +672,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -714,6 +728,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -733,8 +748,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of read beats received by a unit that is not specifically
-      identified.
+      The number of read beats received by a unit not specifically identified.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read beat received by any unit that is
@@ -754,6 +768,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -768,12 +783,11 @@
     <HumanName>Other shader core read bytes from L2 cache</HumanName>
     <GroupName>Shader Core L2 Read Bytes</GroupName>
     <GroupHumanName>Other unit bytes</GroupHumanName>
-    <Units>beats</Units>
+    <Units>bytes</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of read bytes received by a unit that is not specifically
-      identified.
+      The number of read bytes received by a unit not specifically identified.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read byte received by any unit that is
@@ -796,6 +810,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -824,6 +839,7 @@
       <GPU>Mali-G71</GPU>
       <GPU>Mali-G72</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -880,12 +896,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of write beats by the load/store unit that are because of
+      The number of write beats by the load/store unit that are caused by
       write-back.
     </ShortDescription>
     <LongDescription>
       This counter increments for every write beat by the load/store unit that
-      are because of write-back.
+      is caused by write-back.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -917,12 +933,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of write beats by the load/store unit that are because of any
-      reason other than write-back.
+      The number of write beats by the load/store unit that are not caused by
+      write-back.
     </ShortDescription>
     <LongDescription>
       This counter increments for every write beat by the load/store unit that
-      are because of any reason other than write-back.
+      is not caused by write-back.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G31</GPU>
@@ -935,6 +951,34 @@
       <GPU>Mali-G715</GPU>
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
+    </SupportedGPUs>
+    <Perfetto>
+      <Groups>
+        <GroupName>Memory</GroupName>
+      </Groups>
+    </Perfetto>
+  </CounterInfo>
+  <!-- ==================================================================== -->
+  <CounterInfo>
+    <MachineName>MaliSCBusLSRTUWrBt</MachineName>
+    <SourceName>BEATS_WR_RTU_LSC</SourceName>
+    <StableID>535</StableID>
+    <HumanName>Ray tracing unit load/store cache write beats</HumanName>
+    <GroupName>Load/Store Unit Requests</GroupName>
+    <GroupHumanName>RTU writes</GroupHumanName>
+    <Units>beats</Units>
+    <Trend>Lower better</Trend>
+    <Visibility>Novice</Visibility>
+    <ShortDescription>
+      The number of write beats written into the load/store cache by the ray
+      tracing unit.
+    </ShortDescription>
+    <LongDescription>
+      This counter increments for every write beat by the ray tracing unit that
+      is stored into the load/store cache.
+    </LongDescription>
+    <SupportedGPUs>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -977,6 +1021,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1023,6 +1068,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1050,6 +1096,7 @@
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1080,6 +1127,7 @@
     </Equation>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1099,15 +1147,16 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of read beats received by the ray tracing unit that required
-      an external memory access because of an L2 cache miss.
+      The number of read beats received by the ray tracing unit that require an
+      external memory access due to an L2 cache miss.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read beat received by the ray tracing
-      unit that required an external memory access because of an L2 cache miss.
+      unit that requires an external memory access due to an L2 cache miss.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1138,6 +1187,7 @@
     </Equation>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1177,6 +1227,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1219,6 +1270,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1269,6 +1321,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1288,8 +1341,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of write beats sent by any unit that is not specifically
-      identified.
+      The number of write beats sent by any unit not specifically identified.
     </ShortDescription>
     <LongDescription>
       This counter increments for every write beat sent by any shader core unit
@@ -1299,6 +1351,7 @@
       <GPU>Mali-G71</GPU>
       <GPU>Mali-G72</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1317,8 +1370,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of write bytes sent by any unit that is not specifically
-      identified.
+      The number of write bytes sent by any unit not specifically identified.
     </ShortDescription>
     <LongDescription>
       This expression defines the number of write beats sent by any shader core
@@ -1331,6 +1383,7 @@
       <GPU>Mali-G71</GPU>
       <GPU>Mali-G72</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1343,14 +1396,14 @@
     <MachineName>MaliTilerRdBt</MachineName>
     <SourceName>BUS_READ</SourceName>
     <StableID>154</StableID>
-    <HumanName>Tiler read beats from L2 memory system</HumanName>
+    <HumanName>Tiler read beats from the L2 memory system</HumanName>
     <GroupName>Tiler L2 Reads</GroupName>
     <GroupHumanName>Read beats</GroupHumanName>
     <Units>beats</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of internal bus data read cycles made by the tiler.
+      The number of tiler internal bus data read beats.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data read cycle the tiler uses on the
@@ -1370,6 +1423,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1381,14 +1435,14 @@
   <CounterInfo>
     <MachineName>MaliTilerRdBy</MachineName>
     <StableID>411</StableID>
-    <HumanName>Tiler read bytes from L2 memory system</HumanName>
+    <HumanName>Tiler read bytes from the L2 memory system</HumanName>
     <GroupName>Tiler L2 Read Bytes</GroupName>
     <GroupHumanName>Read bytes</GroupHumanName>
     <Units>bytes</Units>
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of internal bus data bytes read by the tiler.
+      The number of tiler internal bus data read bytes.
     </ShortDescription>
     <LongDescription>
       This expression defines the number of bytes that the tiler reads from the
@@ -1411,6 +1465,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1430,7 +1485,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of internal bus data write cycles made by the tiler on port 0.
+      The number of internal bus data write beats made by the tiler on port 0.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data write cycle the tiler uses on port
@@ -1444,6 +1499,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1463,7 +1519,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of internal bus data write cycles made by the tiler on port 1.
+      The number of internal bus data write beats made by the tiler on port 1.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data write cycle the tiler uses on port
@@ -1477,6 +1533,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1496,7 +1553,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of internal bus data write cycles made by the tiler.
+      The number of internal bus data write beats made by the tiler.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data write cycle the tiler uses on the
@@ -1527,7 +1584,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of internal bus data write cycles made by the tiler.
+      The number of internal bus data write beats made by the tiler.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data write cycle the tiler uses on the
@@ -1544,6 +1601,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1585,6 +1643,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

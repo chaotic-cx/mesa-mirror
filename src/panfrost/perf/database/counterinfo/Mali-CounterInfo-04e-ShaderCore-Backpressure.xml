@@ -37,16 +37,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the attribute unit.
+      The number of cycles when new work can not be sent to the attribute unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the attribute unit. This indicates that the unit is overloaded and
-      might be a bottleneck.
+      This counter increments for every clock cycle new work can not be sent to
+      the attribute unit. This indicates that the unit is overloaded and might
+      be a bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -65,12 +66,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the attribute
+      The percentage of cycles when new work can not be sent to the attribute
       unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the attribute unit. A high percentage indicates
+      work can not be sent to the attribute unit. A high percentage indicates
       that the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
@@ -79,6 +80,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -98,16 +100,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the blend unit.
+      The number of cycles when new work can not be sent to the blend unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the blend unit. This indicates that the unit is overloaded and might
-      be a bottleneck.
+      This counter increments for every clock cycle new work can not be sent to
+      the blend unit. This indicates that the unit is overloaded and might be a
+      bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -126,12 +129,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the blend unit.
+      The percentage of cycles when new work can not be sent to the blend unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the blend unit. A high percentage indicates
-      that the unit is overloaded and might be a bottleneck.
+      work can not be sent to the blend unit. A high percentage indicates that
+      the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
       (MaliEngBlendBackpressureCy / MaliCoreActiveCy) * 100
@@ -139,6 +142,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -158,16 +162,18 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the load/store unit.
+      The number of cycles when new work can not be sent to the load/store
+      unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the load/store unit. This indicates that the unit is overloaded and
-      might be a bottleneck.
+      This counter increments for every clock cycle new work can not be sent to
+      the load/store unit. This indicates that the unit is overloaded and might
+      be a bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -186,13 +192,13 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the load/store
+      The percentage of cycles when new work can not be sent to the load/store
       unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the load/store unit. A high percentage
-      indicates that the unit is overloaded and might be a bottleneck.
+      work can not be sent to the load/store unit. A high percentage indicates
+      that the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
       (MaliEngLSBackpressureCy / MaliCoreActiveCy) * 100
@@ -200,6 +206,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -219,16 +226,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the texture unit.
+      The number of cycles when new work can not be sent to the texture unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the texture unit. This indicates that the unit is overloaded and might
-      be a bottleneck.
+      This counter increments for every clock cycle new work can not be sent to
+      the texture unit. This indicates that the unit is overloaded and might be
+      a bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -247,11 +255,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the texture unit.
+      The percentage of cycles when new work can not be sent to the texture
+      unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the texture unit. A high percentage indicates
+      work can not be sent to the texture unit. A high percentage indicates
       that the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
@@ -260,6 +269,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -279,16 +289,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the varying unit.
+      The number of cycles when new work can not be sent to the varying unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the varying unit. This indicates that the unit is overloaded and might
-      be a bottleneck.
+      This counter increments for every clock cycle new work can not be sent to
+      the varying unit. This indicates that the unit is overloaded and might be
+      a bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -307,11 +318,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the varying unit.
+      The percentage of cycles when new work can not be sent to the varying
+      unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the varying unit. A high percentage indicates
+      work can not be sent to the varying unit. A high percentage indicates
       that the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
@@ -320,6 +332,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -339,17 +352,18 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the depth/stencil test
-      unit.
+      The number of cycles when new work can not be sent to the depth/stencil
+      test unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the depth/stencil test unit. This indicates that the unit is
-      overloaded and might be a bottleneck.
+      This counter increments for every clock cycle new work can not be sent to
+      the depth/stencil test unit. This indicates that the unit is overloaded
+      and might be a bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -368,12 +382,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the depth/stencil
-      test unit.
+      The percentage of cycles when new work can not be sent to the
+      depth/stencil test unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the depth/stencil test unit. A high percentage
+      work can not be sent to the depth/stencil test unit. A high percentage
       indicates that the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
@@ -382,6 +396,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -401,15 +416,17 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of cycles new work could not be sent to the ray tracing unit.
+      The number of cycles when new work can not be sent to the ray tracing
+      unit.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle new work could not be sent
-      to the ray tracing unit. This indicates that the unit is overloaded and
+      This counter increments for every clock cycle new work can not be sent to
+      the ray tracing unit. This indicates that the unit is overloaded and
       might be a bottleneck.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -428,19 +445,20 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of cycles new work could not be sent to the ray tracing
+      The percentage of cycles when new work can not be sent to the ray tracing
       unit.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of shader core cycles when new
-      work could not be sent to the ray tracing unit. A high percentage
-      indicates that the unit is overloaded and might be a bottleneck.
+      work can not be sent to the ray tracing unit. A high percentage indicates
+      that the unit is overloaded and might be a bottleneck.
     </LongDescription>
     <Equation>
       (MaliEngRTUBackpressureCy / MaliCoreActiveCy) * 100
     </Equation>
     <SupportedGPUs>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

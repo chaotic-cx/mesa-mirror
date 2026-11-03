@@ -68,6 +68,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -79,6 +80,7 @@
   <CounterInfo>
     <MachineName>MaliGeomTrianglePrim</MachineName>
     <SourceName>TRIANGLES</SourceName>
+    <SourceAlias>IP_TRIANGLES</SourceAlias>
     <StableID>143</StableID>
     <HumanName>Triangle primitives</HumanName>
     <GroupName>Input Primitives</GroupName>
@@ -115,6 +117,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -126,6 +129,7 @@
   <CounterInfo>
     <MachineName>MaliGeomLinePrim</MachineName>
     <SourceName>LINES</SourceName>
+    <SourceAlias>IP_LINES</SourceAlias>
     <StableID>144</StableID>
     <HumanName>Line primitives</HumanName>
     <GroupName>Input Primitives</GroupName>
@@ -162,6 +166,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -173,6 +178,7 @@
   <CounterInfo>
     <MachineName>MaliGeomPointPrim</MachineName>
     <SourceName>POINTS</SourceName>
+    <SourceAlias>IP_POINTS</SourceAlias>
     <StableID>145</StableID>
     <HumanName>Point primitives</HumanName>
     <GroupName>Input Primitives</GroupName>
@@ -205,6 +211,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -223,11 +230,11 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of primitives that were culled during the rendering process.
+      The number of primitives culled during the rendering process.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of primitives that were culled during
-      the rendering process, for any reason.
+      This expression defines the number of primitives that are culled during
+      the rendering process.
 
       For efficient 3D content, it is expected that only 50% of primitives are
       visible because back-face culling is used to remove half of each model.
@@ -258,11 +265,11 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of primitives that were culled during the rendering process.
+      The number of primitives culled during the rendering process.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of primitives that were culled during
-      the rendering process, for any reason.
+      This expression defines the number of primitives that are culled during
+      the rendering process.
 
       For efficient 3D content, it is expected that only 50% of primitives are
       visible because back-face culling is used to remove half of each model.
@@ -298,11 +305,11 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of primitives that were culled during the rendering process.
+      The number of primitives culled during the rendering process.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of primitives that were culled during
-      the rendering process, for any reason.
+      This expression defines the number of primitives that are culled during
+      the rendering process.
 
       For efficient 3D content, it is expected that only 50% of primitives are
       visible because back-face culling is used to remove half of each model.
@@ -330,11 +337,11 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of primitives that were culled during the rendering process.
+      The number of primitives culled during the rendering process.
     </ShortDescription>
     <LongDescription>
-      This expression defines the number of primitives that were culled during
-      the rendering process, for any reason.
+      This expression defines the number of primitives that are culled during
+      the rendering process.
 
       For efficient 3D content, it is expected that only 50% of primitives are
       visible because back-face culling is used to remove half of each model.
@@ -346,6 +353,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -577,6 +585,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -647,6 +656,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -684,6 +694,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -758,6 +769,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -787,6 +799,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -819,6 +832,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -846,10 +860,9 @@
       This counter increments for every primitive culled by the sample coverage
       test. It is expected that a few primitives are small and fail the sample
       coverage test, as application mesh level-of-detail selection can never be
-      perfect. If the number of primitives counted is more than than 5-10% of
-      the total number, this might indicate that the application has a large
-      number of very small triangles, which are very expensive for a GPU to
-      process.
+      perfect. If the number of primitives counted is more than 5-10% of the
+      total number, this might indicate that the application has a large number
+      of very small triangles, which are very expensive for a GPU to process.
 
       Aim to keep triangle screen area above 10 pixels. Use schemes such as
       mesh level-of-detail to select simplified meshes as objects move further
@@ -869,6 +882,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -984,6 +998,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1028,6 +1043,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1078,6 +1094,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1121,6 +1138,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1164,6 +1182,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1195,6 +1214,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1233,6 +1253,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

@@ -62,6 +62,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -106,6 +107,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -125,10 +127,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of external bus data read cycles.
+      The number of external bus data read beats.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle when a data beat was read
+      This counter increments for every clock cycle when a data beat is read
       from the external memory bus.
     </LongDescription>
     <SupportedGPUs>
@@ -149,6 +151,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -168,11 +171,11 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced application</Visibility>
     <ShortDescription>
-      The number of external bus data write cycles.
+      The number of external bus data write beats.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every clock cycle when a data beat was
-      written to the external memory bus.
+      This counter increments for every clock cycle when a data beat is written
+      to the external memory bus.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T720</GPU>
@@ -192,6 +195,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -210,10 +214,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The total output read bandwidth for the GPU.
+      The total output read bytes for the GPU.
     </ShortDescription>
     <LongDescription>
-      This expression defines the total output read bandwidth for the GPU.
+      This expression defines the total output read bytes for the GPU.
     </LongDescription>
     <Equation>
       MaliExtBusRdBt * MaliConfigExtBusBeatSize
@@ -236,6 +240,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -254,10 +259,10 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The total output write bandwidth for the GPU.
+      The total output write bytes for the GPU.
     </ShortDescription>
     <LongDescription>
-      This expression defines the total output write bandwidth for the GPU.
+      This expression defines the total output write bytes for the GPU.
     </LongDescription>
     <Equation>
       MaliExtBusWrBt * MaliConfigExtBusBeatSize
@@ -280,6 +285,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -325,6 +331,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -370,6 +377,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -392,9 +400,9 @@
       The number of cycles when a read is stalled waiting for the external bus.
     </ShortDescription>
     <LongDescription>
-      This counter increments for every stall cycle on the AXI bus where the
-      GPU has a valid read transaction to send, but is awaiting a ready signal
-      from the bus.
+      This counter increments for every stall cycle on the AXI bus when the GPU
+      has a valid read transaction to send, but is awaiting a ready signal from
+      the bus.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T720</GPU>
@@ -414,6 +422,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -459,6 +468,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -507,6 +517,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -555,6 +566,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -574,11 +586,11 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of data beats returned 0-127 cycles after the read request.
+      The number of data beats that return 0-127 cycles after the read request.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data beat that is returned between 0
-      and 127 cycles after the read transaction started. This latency is
+      and 127 cycles after the read transaction starts. This latency is
       considered a fast access response speed.
     </LongDescription>
     <SupportedGPUs>
@@ -595,6 +607,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -614,11 +627,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of data beats returned 128-191 cycles after the read request.
+      The number of data beats that return 128-191 cycles after the read
+      request.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data beat that is returned between 128
-      and 191 cycles after the read transaction started. This latency is
+      and 191 cycles after the read transaction starts. This latency is
       considered a normal access response speed.
     </LongDescription>
     <SupportedGPUs>
@@ -635,6 +649,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -654,11 +669,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of data beats returned 192-255 cycles after the read request.
+      The number of data beats that return 192-255 cycles after the read
+      request.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data beat that is returned between 192
-      and 255 cycles after the read transaction started. This latency is
+      and 255 cycles after the read transaction starts. This latency is
       considered a normal access response speed.
     </LongDescription>
     <SupportedGPUs>
@@ -675,6 +691,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -694,11 +711,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of data beats returned 256-319 cycles after the read request.
+      The number of data beats that return 256-319 cycles after the read
+      request.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data beat that is returned between 256
-      and 319 cycles after the read transaction started. This latency is
+      and 319 cycles after the read transaction starts. This latency is
       considered a slow access response speed.
     </LongDescription>
     <SupportedGPUs>
@@ -715,6 +733,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -734,11 +753,12 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of data beats returned 320-383 cycles after the read request.
+      The number of data beats that return 320-383 cycles after the read
+      request.
     </ShortDescription>
     <LongDescription>
       This counter increments for every data beat that is returned between 320
-      and 383 cycles after the read transaction started. This latency is
+      and 383 cycles after the read transaction starts. This latency is
       considered a slow access response speed.
     </LongDescription>
     <SupportedGPUs>
@@ -755,6 +775,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -773,13 +794,13 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of read beats that are returned at least 384 cycles after the
-      transaction started.
+      The number of read beats that return more than 383 cycles after the read
+      request.
     </ShortDescription>
     <LongDescription>
-      This expression increments for every read beat that is returned at least
-      384 cycles after the transaction started. This latency is considered a
-      very slow access response speed.
+      This expression increments for every read beat that is returned more than
+      383 cycles after the read transaction starts. This latency is considered
+      a very slow access response speed.
     </LongDescription>
     <Equation>
       MaliExtBusRdBt - MaliExtBusRdLat0 - MaliExtBusRdLat128 - MaliExtBusRdLat192 - MaliExtBusRdLat256 - MaliExtBusRdLat320
@@ -798,6 +819,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -817,8 +839,8 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of read transactions initiated when 0-25% of the maximum are
-      in use.
+      The number of read transactions initiated when 0-25% of the ID pool is in
+      use.
     </ShortDescription>
     <LongDescription>
       This counter increments for every read transaction initiated when 0-25%
@@ -838,6 +860,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -857,7 +880,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of read transactions initiated when 25-50% of the maximum are
+      The number of read transactions initiated when 25-50% of the ID pool is
       in use.
     </ShortDescription>
     <LongDescription>
@@ -878,6 +901,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -897,7 +921,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of read transactions initiated when 50-75% of the maximum are
+      The number of read transactions initiated when 50-75% of the ID pool is
       in use.
     </ShortDescription>
     <LongDescription>
@@ -918,6 +942,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -936,8 +961,8 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of read transactions initiated when 75-100% of transaction IDs
-      are in use.
+      The number of read transactions initiated when 75-100% of ID pool is in
+      use.
     </ShortDescription>
     <LongDescription>
       This expression increments for every read transaction initiated when
@@ -960,6 +985,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -979,7 +1005,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of write transactions initiated when 0-25% of the maximum are
+      The number of write transactions initiated when 0-25% of the ID pool is
       in use.
     </ShortDescription>
     <LongDescription>
@@ -1000,6 +1026,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1019,7 +1046,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of write transactions initiated when 25-50% of the maximum are
+      The number of write transactions initiated when 25-50% of the ID pool is
       in use.
     </ShortDescription>
     <LongDescription>
@@ -1040,6 +1067,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1059,7 +1087,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of write transactions initiated when 50-75% of the maximum are
+      The number of write transactions initiated when 50-75% of the ID pool is
       in use.
     </ShortDescription>
     <LongDescription>
@@ -1080,6 +1108,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1098,8 +1127,8 @@
     <Trend>Lower better</Trend>
     <Visibility>Advanced system</Visibility>
     <ShortDescription>
-      The number of write transactions initiated when 75-100% of transaction
-      IDs are in use.
+      The number of write transactions initiated when 75-100% of the ID pool is
+      in use.
     </ShortDescription>
     <LongDescription>
       This expression increments for every write transaction initiated when
@@ -1122,6 +1151,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1160,6 +1190,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1199,6 +1230,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1238,6 +1270,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1277,6 +1310,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1316,6 +1350,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1355,6 +1390,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

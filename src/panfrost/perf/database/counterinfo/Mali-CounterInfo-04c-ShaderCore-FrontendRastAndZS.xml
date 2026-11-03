@@ -128,6 +128,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -207,6 +208,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -230,8 +232,8 @@
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of coarse quads generated relative
-      to the number of fine quads that were rasterized. Coarse quads cover a
-      2x2 fragment region. Fine quads cover a 2x2 pixel region.
+      to the number of fine quads that are rasterized. Coarse quads cover a 2x2
+      fragment region. Fine quads cover a 2x2 pixel region.
 
       The fragment shading rate is lower than 100% if the application uses
       variable-rate shading to reduce shading rate.
@@ -247,6 +249,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -319,6 +322,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -358,6 +362,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -382,7 +387,7 @@
     <LongDescription>
       This counter increments for every quad that is a valid occluder for
       hidden surface removal. To be a candidate occluder, a quad must be
-      guaranteed to be opaque and have fulled resolved at early ZS.
+      guaranteed to be opaque and have fully resolved at early ZS.
 
       Draw calls that use blending, shader discard, alpha-to-coverage,
       programmable depth, or programmable tile buffer access can not be
@@ -424,7 +429,7 @@
     <LongDescription>
       This counter increments for every quad that is a valid occluder for
       hidden surface removal. To be a candidate occluder, a quad must be
-      guaranteed to be opaque and have fulled resolved at early ZS.
+      guaranteed to be opaque and have fully resolved at early ZS.
 
       Draw calls that use blending, shader discard, alpha-to-coverage,
       programmable depth, or programmable tile buffer access can not be
@@ -433,6 +438,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -538,7 +544,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of 2x2 fragment quads that are fragment shaded.
+      The number of 2x2 fragment quads shaded.
     </ShortDescription>
     <LongDescription>
       This expression defines the number of 2x2 fragment quads that are spawned
@@ -570,7 +576,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of 2x2 fragment quads that are fragment shaded.
+      The number of 2x2 fragment quads shaded.
     </ShortDescription>
     <LongDescription>
       This expression defines the number of 2x2 fragment quads that are spawned
@@ -594,6 +600,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -652,11 +659,11 @@
       The percentage of warps that contain samples with no coverage.
     </ShortDescription>
     <LongDescription>
-      This expression defines the percentage of warps quads that contain
-      fragment samples with no coverage. A high percentage can indicate that
-      the content has a high density of small triangles, which are expensive to
-      process. To avoid this, use mesh level-of-detail algorithms to select
-      simpler meshes as objects move further from the camera.
+      This expression defines the percentage of warps that contain fragment
+      samples with no coverage. A high percentage can indicate that the content
+      has a high density of small triangles, which are expensive to process. To
+      avoid this, use mesh level-of-detail algorithms to select simpler meshes
+      as objects move further from the camera.
     </LongDescription>
     <Equation>
       (MaliFragPartWarp / MaliFragWarp) * 100
@@ -696,8 +703,8 @@
       For maximum performance, this number must be close to the total number of
       input quads. We want as many of the input quads as possible to be subject
       to early ZS testing because early ZS testing is significantly more
-      efficient than late ZS testing, which only kills threads after they have
-      been shaded.
+      efficient than late ZS testing, which only kills threads after they are
+      shaded.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T720</GPU>
@@ -717,6 +724,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -735,11 +743,11 @@
     <Trend>Higher better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of rasterized quads that were subjected to early depth and
-      stencil testing.
+      The percentage of rasterized quads subjected to early depth and stencil
+      testing.
     </ShortDescription>
     <LongDescription>
-      This expression defines the percentage of rasterized quads that were
+      This expression defines the percentage of rasterized quads that are
       subjected to early depth and stencil testing.
 
       To achieve the best early test rates, enable depth testing, and avoid
@@ -784,14 +792,14 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The number of quads undergoing early depth and stencil testing, that are
+      The number of quads undergoing early depth and stencil testing that are
       capable of updating the framebuffer.
     </ShortDescription>
     <LongDescription>
       This counter increments for every quad undergoing early depth and stencil
       testing that can update the framebuffer. Quads that have a depth value
       that depends on shader behavior, or those that have indeterminate
-      coverage because of use of alpha-to-coverage or discard statements in the
+      coverage due to use of alpha-to-coverage or discard statements in the
       shader, might be early ZS tested but can not do an early ZS update.
 
       For maximum performance, this number must be close to the total number of
@@ -812,6 +820,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -904,6 +913,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -981,6 +991,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1009,6 +1020,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1037,6 +1049,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1055,7 +1068,7 @@
     <Trend>Lower better</Trend>
     <Visibility>Novice</Visibility>
     <ShortDescription>
-      The percentage of tested quads that are killed by the fragment prepass.
+      The percentage of quads tested and killed by the fragment prepass.
     </ShortDescription>
     <LongDescription>
       This expression defines the percentage of rasterized quads that are
@@ -1063,7 +1076,7 @@
 
       Quads killed at this stage are killed before shading, so a high
       percentage here is not generally a performance problem. However,
-      performance could be improved if occluded objects were removed using
+      performance can be improved if occluded objects are removed using
       software culling techniques.
     </LongDescription>
     <Equation>
@@ -1072,6 +1085,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1265,6 +1279,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1292,8 +1307,8 @@
 
       A high percentage of fragments performing a late ZS update can cause slow
       performance, even if fragments are not killed. This occurs because
-      younger fragments cannot complete early ZS until all older fragments at
-      the same coordinate have completed their late ZS operations.
+      younger fragments can not complete early ZS until all older fragments at
+      the same coordinate complete their late ZS operations.
 
       Shaders with mutable coverage, mutable depth, or side-effects on shared
       resources in memory, use late ZS testing.
@@ -1336,13 +1351,13 @@
       tested by late depth and stencil testing.
 
       A high percentage of fragments performing a late ZS update can cause slow
-      performance, even if fragments are not killed. Younger fragments cannot
-      complete early ZS until all older fragments at the same coordinate have
-      completed their late ZS operations, which can cause stalls.
+      performance, even if fragments are not killed. Younger fragments can not
+      complete early ZS until all older fragments at the same coordinate
+      complete their late ZS operations, which can cause stalls.
 
       You achieve the lowest late test rates by avoiding draw calls with
-      modifiable coverage,, or with shader programs that write to their depth
-      value or that have memory-visible side-effects
+      modifiable coverage, or with shader programs that write to their depth
+      value or that have memory-visible side-effects.
     </LongDescription>
     <Equation>
       (MaliFragLZSTestQd / MaliFragRastQd) * 100
@@ -1385,13 +1400,13 @@
       tested by late depth and stencil testing.
 
       A high percentage of fragments performing a late ZS update can cause slow
-      performance, even if fragments are not killed. Younger fragments cannot
-      complete early ZS until all older fragments at the same coordinate have
-      completed their late ZS operations, which can cause stalls.
+      performance, even if fragments are not killed. Younger fragments can not
+      complete early ZS until all older fragments at the same coordinate
+      complete their late ZS operations, which can cause stalls.
 
       You achieve the lowest late test rates by avoiding draw calls with
       modifiable coverage, or with shader programs that write to their depth
-      value or that have memory-visible side-effects
+      value or that have memory-visible side-effects.
     </LongDescription>
     <Equation>
       (MaliFragLZSTestQd / (4 * MaliFragWarp)) * 100
@@ -1399,6 +1414,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1438,6 +1454,7 @@
       <GPU>Mali-G720</GPU>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -1579,6 +1596,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>

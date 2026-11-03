@@ -45,7 +45,7 @@
       the fragment front-end. This increments per tile, which means that a
       single primitive that spans multiple tiles is counted multiple times. If
       you want to know the total number of primitives in the scene refer to the
-      {{C::MaliGeomTotalPrim}} expression
+      {{C::MaliGeomTotalPrim}} expression.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-T720</GPU>
@@ -119,12 +119,13 @@
       tile, which means that a single primitive that spans multiple tiles is
       counted multiple times.
 
-      Primitives might be also be loaded up to two times per tile, depending on
+      Primitives might also be loaded up to two times per tile, depending on
       interaction with fragment prepass hidden surface removal.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -156,6 +157,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -181,11 +183,12 @@
     </ShortDescription>
     <LongDescription>
       This counter increments for every primitive loaded by the fragment
-      front-end that are used in the fragment prepass hidden surface removal.
+      front-end that is used in the fragment prepass hidden surface removal.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -213,8 +216,8 @@
       by fragment prepass hidden surface removal.
 
       A low percentage indicates that many primitives are using a render state
-      that is ineligible for the prepass, or a primitive used a render state
-      that caused the prepass to terminate early. Review application draw call
+      that is ineligible for the prepass, or a primitive uses a render state
+      that causes the prepass to terminate early. Review application draw call
       settings to ensure compatibility with the fragment prepass requirements.
     </LongDescription>
     <Equation>
@@ -223,6 +226,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -253,6 +257,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -289,6 +294,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -313,12 +319,13 @@
     </ShortDescription>
     <LongDescription>
       This counter increments for every primitive that is not tested by
-      fragment prepass hidden surface removal because an earlier primitive was
-      incompatible and terminated the prepass.
+      fragment prepass hidden surface removal because an earlier primitive is
+      incompatible and terminates the prepass.
     </LongDescription>
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -341,11 +348,11 @@
       The percentage of primitives that are skipped by the fragment prepass.
     </ShortDescription>
     <LongDescription>
-      This expression defines the percentage of primitives that are not be
-      tested by fragment prepass hidden surface removal.
+      This expression defines the percentage of primitives that are not tested
+      by fragment prepass hidden surface removal.
 
       A high percentage indicates that many primitives are submitted after a
-      primitive that used a render state that caused the prepass to terminate.
+      primitive that uses a render state that causes the prepass to terminate.
       Review application draw call settings to ensure compatibility with the
       fragment prepass requirements. If an incompatible render state must be
       used, move all draw calls using that state after all prepass compatible
@@ -357,6 +364,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
@@ -436,6 +444,7 @@
     <SupportedGPUs>
       <GPU>Mali-G725</GPU>
       <GPU>Mali G1</GPU>
+      <GPU>Mali G2</GPU>
     </SupportedGPUs>
     <Perfetto>
       <Groups>
