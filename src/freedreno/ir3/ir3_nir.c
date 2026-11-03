@@ -1114,6 +1114,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
    OPT(s, ir3_nir_apply_trig_workarounds);
 
    const nir_lower_image_options lower_image_opts = {
+      /* resinfo returns a cube (array)'s layer count, not its cube count. */
       .lower_cube_size = true,
       .lower_image_samples_to_one = true
    };
@@ -1896,7 +1897,6 @@ ir3_nir_scan_driver_consts(struct ir3_compiler *compiler, nir_shader *shader,
                case nir_intrinsic_image_atomic_swap:
                case nir_intrinsic_image_load:
                case nir_intrinsic_image_store:
-               case nir_intrinsic_image_size:
                   /* a4xx gets these supplied by the hw directly (maybe CP?).
                    *
                    * Every image intrinsic still present here is emitted with
@@ -1904,6 +1904,7 @@ ir3_nir_scan_driver_consts(struct ir3_compiler *compiler, nir_shader *shader,
                    * offset: an image_load that could have used the texture
                    * path was turned into a tex instruction by
                    * nir_lower_readonly_images_to_tex long before this runs.
+                   * (image_size is a resinfo, which needs no dimensions.)
                    */
                   if (compiler->gen == 5) {
                      idx = nir_src_as_uint(intr->src[0]);

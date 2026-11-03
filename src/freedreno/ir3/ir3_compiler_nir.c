@@ -1790,49 +1790,6 @@ emit_intrinsic_load_image(struct ir3_context *ctx, nir_intrinsic_instr *intr,
    }
 }
 
-/* A4xx version of image_size, see ir3_a6xx.c for newer resinfo version. */
-void
-emit_intrinsic_image_size_tex(struct ir3_context *ctx,
-                              nir_intrinsic_instr *intr,
-                              struct ir3_instruction **dst)
-{
-   struct ir3_builder *b = &ctx->build;
-   struct tex_src_info info = get_image_ssbo_samp_tex_src(ctx, &intr->src[0], true);
-   struct ir3_instruction *sam, *lod;
-   unsigned flags, ncoords = ir3_get_image_coords(intr, &flags);
-   type_t dst_type = intr->def.bit_size == 16 ? TYPE_U16 : TYPE_U32;
-
-   info.flags |= flags;
-   assert(nir_src_as_uint(intr->src[1]) == 0);
-   lod = create_immed(b, 0);
-   sam = emit_sam(ctx, OPC_GETSIZE, info, dst_type, 0b1111, lod, NULL);
-
-   /* Array size actually ends up in .w rather than .z. This doesn't
-    * matter for miplevel 0, but for higher mips the value in z is
-    * minified whereas w stays. Also, the value in TEX_CONST_3_DEPTH is
-    * returned, which means that we have to add 1 to it for arrays for
-    * a3xx.
-    *
-    * Note use a temporary dst and then copy, since the size of the dst
-    * array that is passed in is based on nir's understanding of the
-    * result size, not the hardware's
-    */
-   struct ir3_instruction *tmp[4];
-
-   ir3_split_dest(b, tmp, sam, 0, 4);
-
-   for (unsigned i = 0; i < ncoords; i++)
-      dst[i] = tmp[i];
-
-   if (flags & IR3_INSTR_A) {
-      if (ctx->compiler->levels_add_one) {
-         dst[ncoords - 1] = ir3_ADD_U(b, tmp[3], 0, create_immed(b, 1), 0);
-      } else {
-         dst[ncoords - 1] = ir3_MOV(b, tmp[3], TYPE_U32);
-      }
-   }
-}
-
 struct bindless_ref_info {
    uint32_t desc_set;
 

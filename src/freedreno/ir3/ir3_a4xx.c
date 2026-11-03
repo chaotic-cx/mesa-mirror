@@ -520,6 +520,58 @@ emit_intrinsic_store_global(struct ir3_context *ctx, nir_intrinsic_instr *intr)
    stg->barrier_conflict = IR3_BARRIER_BUFFER_R | IR3_BARRIER_BUFFER_W;
 }
 
+/* imageSize() is a resinfo on the image's IBO slot, as the a418 and a530 blobs
+ * do it, rather than a getsize on a texture.  It reads the SSBO descriptor's
+ * size fields back, writing three components (measured on a5xx):
+ *
+ *   .1d: (WIDTH, 0, 0)
+ *   .2d: (WIDTH, HEIGHT, 0)
+ *   .3d: (WIDTH, HEIGHT, DEPTH)
+ *   .4d: (WIDTH + (HEIGHT << 16), 0, 0), the buffer form
+ *
+ * The dimension follows the blob: a 1D array's layers are its HEIGHT, and a
+ * cube (array) is a 2D array of faces whose DEPTH is the layer count (so
+ * nir_lower_image's lower_cube_size divides it by 6).
+ */
+static void
+emit_intrinsic_image_size(struct ir3_context *ctx, nir_intrinsic_instr *intr,
+                          struct ir3_instruction **dst)
+{
+   struct ir3_builder *b = &ctx->build;
+   struct ir3_instruction *ibo = ir3_image_to_ibo(ctx, intr->src[0]);
+   struct ir3_instruction *resinfo = ir3_RESINFO(b, ibo, 0);
+   bool array = nir_intrinsic_image_array(intr);
+
+   switch (nir_intrinsic_image_dim(intr)) {
+   case GLSL_SAMPLER_DIM_1D:
+      resinfo->cat6.d = array ? 2 : 1;
+      break;
+   case GLSL_SAMPLER_DIM_2D:
+   case GLSL_SAMPLER_DIM_RECT:
+      resinfo->cat6.d = array ? 3 : 2;
+      break;
+   case GLSL_SAMPLER_DIM_3D:
+      resinfo->cat6.d = 3;
+      break;
+   case GLSL_SAMPLER_DIM_BUF:
+      resinfo->cat6.d = 4;
+      break;
+   default:
+      UNREACHABLE("image dimension without a resinfo form");
+   }
+
+   resinfo->cat6.iim_val = 1;
+   resinfo->cat6.type = TYPE_U32;
+   /* a530 blob (but not a418) sets typed for buffers, but that doesn't seem to change anything. */
+   resinfo->cat6.typed = false;
+   /* resinfo has no writemask and always writes out 3 components: */
+   compile_assert(ctx, intr->num_components <= 3);
+   resinfo->dsts[0]->wrmask = MASK(3);
+   ir3_handle_nonuniform(resinfo, intr);
+
+   ir3_split_dest(b, dst, resinfo, 0, intr->num_components);
+}
+
 const struct ir3_context_funcs ir3_a4xx_funcs = {
    .emit_intrinsic_load_ssbo = emit_intrinsic_load_ssbo,
    .emit_intrinsic_store_ssbo = emit_intrinsic_store_ssbo,
@@ -527,7 +579,7 @@ const struct ir3_context_funcs ir3_a4xx_funcs = {
    .emit_intrinsic_load_image = emit_intrinsic_load_image,
    .emit_intrinsic_store_image = emit_intrinsic_store_image,
    .emit_intrinsic_atomic_image = emit_intrinsic_atomic_image,
-   .emit_intrinsic_image_size = emit_intrinsic_image_size_tex,
+   .emit_intrinsic_image_size = emit_intrinsic_image_size,
    .emit_intrinsic_load_global = emit_intrinsic_load_global,
    .emit_intrinsic_store_global = emit_intrinsic_store_global,
    .emit_intrinsic_atomic_global = emit_intrinsic_atomic_global,
