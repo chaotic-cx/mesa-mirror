@@ -127,6 +127,9 @@ shader_only_allowed_outputs_use_view_index(nir_shader *shader,
             continue;
 
          nir_variable *var = nir_intrinsic_get_var(store, 0);
+         if (!var || var->data.mode != nir_var_shader_out)
+            continue;
+
          if (!(allowed_outputs & BITFIELD64_BIT(var->data.location)))
             continue;
 
