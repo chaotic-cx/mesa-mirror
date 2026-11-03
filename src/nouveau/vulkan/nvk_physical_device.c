@@ -18,7 +18,6 @@
 #include "nvkmd/nvkmd.h"
 #include "nvkmd/nouveau/nvkmd_nouveau.h"
 #include "git_sha1.h"
-#include "util/detect_os.h"
 #include "util/disk_cache.h"
 #include "util/hex.h"
 #include "util/mesa-blake3.h"
@@ -322,7 +321,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .EXT_ycbcr_image_arrays = true,
       .EXT_zero_initialize_device_memory = true,
       .AMD_buffer_marker = true,
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
       .ANDROID_native_buffer = vk_android_get_ugralloc() != NULL,
 #endif
       .GOOGLE_decorate_string = true,

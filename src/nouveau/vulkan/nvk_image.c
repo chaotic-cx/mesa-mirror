@@ -12,7 +12,6 @@
 #include "nvk_physical_device.h"
 #include "nvkmd/nvkmd.h"
 
-#include "util/detect_os.h"
 #include "vk_android.h"
 #include "vk_enum_to_str.h"
 #include "vk_format.h"
@@ -1683,7 +1682,7 @@ nvk_bind_image_memory(struct nvk_device *dev,
    uint64_t offset_B = info->memoryOffset;
    VkResult result;
 
-#if DETECT_OS_ANDROID
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
    const VkNativeBufferANDROID *anb_info =
       vk_find_struct_const(info->pNext, NATIVE_BUFFER_ANDROID);
    if (anb_info != NULL && anb_info->handle != NULL) {
