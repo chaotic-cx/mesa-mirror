@@ -358,14 +358,19 @@ create_shadow_temp(struct lower_io_state *state, nir_variable *var)
    nir_variable_steal_name(state->shader, nvar, var);
 
    assert(nvar->constant_initializer == NULL && nvar->pointer_initializer == NULL);
+   assert(nvar->num_members == 0 && nvar->members == NULL);
 
    /* Give the original a new name with @<mode>-temp appended */
    const char *mode = mode_str(temp->data.mode);
    nir_variable_set_namef(state->shader, temp, "%s@%s-temp", mode, nvar->name);
-   temp->data.mode = nir_var_shader_temp;
-   temp->data.read_only = false;
-   temp->data.fb_fetch_output = false;
-   temp->data.compact = false;
+
+   /* Clear the data except the mode */
+   temp->data = (nir_variable_data) {
+      .mode = nir_var_shader_temp,
+   };
+
+   /* nir_var_shader_temp isn't an interface */
+   temp->interface_type = NULL;
 
    return nvar;
 }
