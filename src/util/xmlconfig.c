@@ -631,32 +631,36 @@ __driUtilMessage(const char *f, ...)
 
 /* We don't have real line/column # info in static-config case: */
 #if !WITH_XML_CONFIG
-#  define XML_GetCurrentLineNumber(p) -1
-#  define XML_GetCurrentColumnNumber(p) -1
+#  define XML_GetCurrentLineNumber64(p) UINT64_C(0)
+#  define XML_GetCurrentColumnNumber64(p) UINT64_C(0)
+#elif XML_MAJOR_VERSION == 2 && XML_MINOR_VERSION < 9
+/* Expat 2.9 added the *64 variants and deprecated the previous ones */
+#  define XML_GetCurrentLineNumber64(p) (uint64_t) XML_GetCurrentLineNumber(p)
+#  define XML_GetCurrentColumnNumber64(p) (uint64_t) XML_GetCurrentColumnNumber(p)
 #endif
 
 /** \brief Output a warning message. */
 #define XML_WARNING1(msg) do {                                          \
-      __driUtilMessage("Warning in %s line %d, column %d: "msg, data->name, \
-                        (int) XML_GetCurrentLineNumber(data->parser),   \
-                        (int) XML_GetCurrentColumnNumber(data->parser)); \
+      __driUtilMessage("Warning in %s line %" PRIu64 ", column %" PRIu64 ": "msg, data->name, \
+                        XML_GetCurrentLineNumber64(data->parser),   \
+                        XML_GetCurrentColumnNumber64(data->parser)); \
    } while (0)
 #define XML_WARNING(msg, ...) do {                                      \
-      __driUtilMessage("Warning in %s line %d, column %d: "msg, data->name, \
-                        (int) XML_GetCurrentLineNumber(data->parser),   \
-                        (int) XML_GetCurrentColumnNumber(data->parser), \
+      __driUtilMessage("Warning in %s line %" PRIu64 ", column %" PRIu64 ": "msg, data->name, \
+                        XML_GetCurrentLineNumber64(data->parser),   \
+                        XML_GetCurrentColumnNumber64(data->parser), \
                         ##__VA_ARGS__);                                 \
    } while (0)
 /** \brief Output an error message. */
 #define XML_ERROR1(msg) do {                                            \
-      __driUtilMessage("Error in %s line %d, column %d: "msg, data->name, \
-                        (int) XML_GetCurrentLineNumber(data->parser),   \
-                        (int) XML_GetCurrentColumnNumber(data->parser)); \
+      __driUtilMessage("Error in %s line %" PRIu64 ", column %" PRIu64 ": "msg, data->name, \
+                        XML_GetCurrentLineNumber64(data->parser),   \
+                        XML_GetCurrentColumnNumber64(data->parser)); \
    } while (0)
 #define XML_ERROR(msg, ...) do {                                        \
-      __driUtilMessage("Error in %s line %d, column %d: "msg, data->name, \
-                        (int) XML_GetCurrentLineNumber(data->parser),   \
-                        (int) XML_GetCurrentColumnNumber(data->parser), \
+      __driUtilMessage("Error in %s line %" PRIu64 ", column %" PRIu64 ": "msg, data->name, \
+                        XML_GetCurrentLineNumber64(data->parser),   \
+                        XML_GetCurrentColumnNumber64(data->parser), \
                         ##__VA_ARGS__);                                 \
    } while (0)
 
