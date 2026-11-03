@@ -16,6 +16,23 @@ vulkan_lvp = "vulkan.lvp"
 vulkan_gfxstream = "vulkan.ranchu"
 vulkan_freedreno = "vulkan.freedreno"
 
+[extra_include_dir_deps]
+gallium = [
+    "indices/u_indices.c",
+    "indices/u_unfilled_indices.c",
+]
+gtest = [
+    "src/gtest-assertion-result.cc",
+    "src/gtest-death-test.cc",
+    "src/gtest-filepath.cc",
+    "src/gtest-matchers.cc",
+    "src/gtest-port.cc",
+    "src/gtest-printers.cc",
+    "src/gtest-test-part.cc",
+    "src/gtest-typed-test.cc",
+    "src/gtest.cc",
+]
+
 [custom_target]
 [custom_target.workarounds]
 skip_export_include_dirs = [
