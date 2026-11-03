@@ -244,6 +244,20 @@ struct jay_parallel_copy {
    jay_reg dst, src;
 };
 
+UNUSED static void
+print_copies(struct jay_parallel_copy *copies, unsigned nr)
+{
+   printf("[[\n");
+
+   for (unsigned i = 0; i < nr; i++) {
+      printf("  %s%u = %s%u\n", jay_file_prefix(r_file(copies[i].dst)),
+             r_reg(copies[i].dst), jay_file_prefix(r_file(copies[i].src)),
+             r_reg(copies[i].src));
+   }
+
+   printf("]]\n");
+}
+
 static void
 add_copy(struct util_dynarray *copies, jay_reg dst, jay_reg src)
 {
@@ -388,23 +402,8 @@ jay_emit_parallel_copies(jay_builder *b,
    }
 
    struct jay_parallel_copy *simple = malloc(num_copies * sizeof(*simple));
-   unsigned num_simple = 0;
-
-#ifndef NDEBUG
-   if (0) {
-      printf("[[\n");
-
-      for (unsigned i = 0; i < num_copies; i++) {
-         printf("  %s%u = %s%u\n", jay_file_prefix(r_file(pcopies[i].dst)),
-                r_reg(pcopies[i].dst), jay_file_prefix(r_file(pcopies[i].src)),
-                r_reg(pcopies[i].src));
-      }
-
-      printf("]]\n");
-   }
-#endif
-
    ASSERTED jay_reg last_dst = NO_REG;
+   unsigned num_simple = 0;
 
    for (unsigned i = 0; i < num_copies; i++) {
       ++reg_use_count[r_file(pcopies[i].src)][r_reg(pcopies[i].src)];
