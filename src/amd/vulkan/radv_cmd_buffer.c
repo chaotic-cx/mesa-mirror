@@ -18,6 +18,7 @@
 #include "radv_cp_dma.h"
 #include "radv_cs.h"
 #include "radv_descriptor_update_template.h"
+#include "radv_descriptors.h"
 #include "radv_dgc.h"
 #include "radv_event.h"
 #include "radv_pipeline_layout.h"
@@ -9391,6 +9392,9 @@ radv_bind_fragment_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_
 
    cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PS_STATE;
 
+   if (ps->info.ps.reads_msrtss_inputs)
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_MSRTSS_INPUT_ATT;
+
    if (!previous_ps || previous_ps->info.ps.reads_fully_covered != ps->info.ps.reads_fully_covered)
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_MSAA_STATE;
 
@@ -11076,6 +11080,7 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
       }
 
       if (iview_ss) {
+         color_att[i].msrtss = true;
          color_att[i].resolve_iview = iview_ss;
          color_att[i].resolve_mode = att_info->resolveMode;
          if (color_att[i].resolve_mode == VK_RESOLVE_MODE_NONE) {
@@ -11344,7 +11349,8 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
    cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE | RADV_CMD_DIRTY_DEPTH_BIAS_STATE |
                               RADV_CMD_DIRTY_DEPTH_STENCIL_STATE | RADV_CMD_DIRTY_CB_RENDER_STATE |
                               RADV_CMD_DIRTY_MSAA_STATE | RADV_CMD_DIRTY_PS_STATE | RADV_CMD_DIRTY_PS_EPILOG_SHADER |
-                              RADV_CMD_DIRTY_DB_SHADER_CONTROL | RADV_CMD_DIRTY_VIEWPORT_STATE;
+                              RADV_CMD_DIRTY_DB_SHADER_CONTROL | RADV_CMD_DIRTY_VIEWPORT_STATE |
+                              RADV_CMD_DIRTY_MSRTSS_INPUT_ATT;
 
    if (pdev->info.rbplus_allowed)
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RBPLUS;
@@ -12762,6 +12768,55 @@ radv_get_nggc_settings(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static void
+radv_emit_msrtss_input_attachments(struct radv_cmd_buffer *cmd_buffer)
+{
+   const struct radv_shader *ps = cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT];
+   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   const struct radv_rendering_state *render = &cmd_buffer->state.render;
+   const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+   const uint32_t desc_size = radv_get_sampled_image_desc_size(pdev);
+   uint32_t mask = 0;
+   uint64_t va = 0;
+
+   if (!ps || !ps->info.ps.reads_msrtss_inputs)
+      return;
+
+   for (uint32_t i = 0; i < render->color_att_count; i++) {
+      if (render->color_att[i].msrtss && d->vk.ial.color_map[i] < RADV_MSRTSS_MAX_INPUTS)
+         mask |= BITFIELD_BIT(d->vk.ial.color_map[i]);
+   }
+
+   if (mask) {
+      uint32_t *table;
+
+      if (!radv_cmd_buffer_upload_alloc(cmd_buffer, RADV_MSRTSS_INPUTS_DESC_OFFSET + util_bitcount(mask) * desc_size,
+                                        32, &va, (void **)&table))
+         return;
+
+      table[0] = mask;
+
+      /* Descriptors are packed in index order.
+       * Keep in sync with lower_msrtss_input_attachment().
+       */
+      for (uint32_t i = 0; i < render->color_att_count; i++) {
+         if (!render->color_att[i].msrtss || d->vk.ial.color_map[i] >= RADV_MSRTSS_MAX_INPUTS)
+            continue;
+
+         const uint32_t slot = util_bitcount(mask & BITFIELD_MASK(d->vk.ial.color_map[i]));
+         const VkDescriptorImageInfo image_info = {
+            .imageView = radv_image_view_to_handle(render->color_att[i].iview),
+         };
+
+         radv_write_image_descriptor(&table[(RADV_MSRTSS_INPUTS_DESC_OFFSET + slot * desc_size) / 4], desc_size,
+                                     VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &image_info);
+      }
+   }
+
+   radv_emit_userdata_address(device, cmd_buffer->cs, ps, AC_UD_PS_MSRTSS_INPUTS, va);
+}
+
+static void
 radv_emit_ps_state(struct radv_cmd_buffer *cmd_buffer)
 {
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
@@ -13224,6 +13279,11 @@ radv_emit_shaders_state(struct radv_cmd_buffer *cmd_buffer)
    if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_FORCE_VRS_STATE) {
       radv_emit_force_vrs_state(cmd_buffer);
       cmd_buffer->state.dirty &= ~RADV_CMD_DIRTY_FORCE_VRS_STATE;
+   }
+
+   if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_MSRTSS_INPUT_ATT) {
+      radv_emit_msrtss_input_attachments(cmd_buffer);
+      cmd_buffer->state.dirty &= ~RADV_CMD_DIRTY_MSRTSS_INPUT_ATT;
    }
 }
 
@@ -14048,6 +14108,9 @@ radv_validate_dynamic_states(struct radv_cmd_buffer *cmd_buffer, uint64_t dynami
       if (ps && ps->info.ps.selects_front_face_dynamically)
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PS_STATE;
    }
+
+   if (dynamic_states & RADV_DYNAMIC_INPUT_ATTACHMENT_MAP)
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_MSRTSS_INPUT_ATT;
 
    if (dynamic_states &
        (RADV_DYNAMIC_LINE_STIPPLE_ENABLE | RADV_DYNAMIC_CONSERVATIVE_RAST_MODE | RADV_DYNAMIC_SAMPLE_LOCATIONS |

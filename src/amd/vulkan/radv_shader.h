@@ -590,7 +590,8 @@ struct radv_compiler_info {
       uint32_t gfx10_descriptor_alias_robust : 1;
       uint32_t nir_debug_info : 1;
       uint32_t use_elf : 1;
-      uint32_t padding : 25;
+      uint32_t msrtss : 1;
+      uint32_t padding : 24;
 
       int32_t force_aniso;
 

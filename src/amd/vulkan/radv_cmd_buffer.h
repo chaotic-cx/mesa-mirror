@@ -127,7 +127,8 @@ enum radv_cmd_dirty_bits {
    RADV_CMD_DIRTY_PS_EPILOG_STATE = 1ull << 38,
    RADV_CMD_DIRTY_GFX12_HIZ_WA_STATE = 1ull << 39,
    RADV_CMD_DIRTY_OVERRIDE_VRS_STATE = 1ull << 40,
-   RADV_CMD_DIRTY_ALL = (1ull << 41) - 1,
+   RADV_CMD_DIRTY_MSRTSS_INPUT_ATT = 1ull << 41,
+   RADV_CMD_DIRTY_ALL = (1ull << 42) - 1,
 
    RADV_CMD_DIRTY_SHADER_QUERY = RADV_CMD_DIRTY_NGG_STATE | RADV_CMD_DIRTY_TASK_STATE,
 };
@@ -186,6 +187,9 @@ struct radv_attachment {
    VkResolveModeFlagBits stencil_resolve_mode;
    VkImageLayout resolve_layout;
    VkImageLayout stencil_resolve_layout;
+
+   /* iview is an MSRTSS transient image that is rendered to. */
+   bool msrtss;
 };
 
 struct radv_rendering_state {

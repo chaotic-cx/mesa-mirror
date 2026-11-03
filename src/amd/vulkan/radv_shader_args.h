@@ -40,6 +40,7 @@ enum radv_ud_index {
    AC_UD_VS_PROLOG_INPUTS,
    AC_UD_VS_MAX_UD,
    AC_UD_PS_STATE,
+   AC_UD_PS_MSRTSS_INPUTS,
    AC_UD_PS_MAX_UD,
    AC_UD_CS_GRID_SIZE = AC_UD_SHADER_START,
    AC_UD_CS_SBT_DESCRIPTORS,
@@ -60,6 +61,25 @@ enum radv_ud_index {
    AC_UD_TES_MAX_UD = AC_UD_TCS_MAX_UD,
    AC_UD_MAX_UD = AC_UD_CS_MAX_UD,
 };
+
+/* AC_UD_PS_MSRTSS_INPUTS points to the following table, or is 0 if there is none:
+ *
+ *                   0 +--------------------------------+
+ *                     | mask                           |
+ *                   4 +--------------------------------+
+ *                     | unused, for 32-byte alignment  |
+ *                  32 +--------------------------------+
+ *                     | descriptor, slot 0             |
+ *      32 + desc_size +--------------------------------+
+ *                     | descriptor, slot 1             |
+ *                     +--------------------------------+
+ *                     | ...                            |
+ *                     +--------------------------------+
+ *                     | descriptor, slot N             |  N = popcount(mask) - 1
+ *                     +--------------------------------+
+ */
+#define RADV_MSRTSS_INPUTS_DESC_OFFSET 32
+#define RADV_MSRTSS_MAX_INPUTS         32
 
 struct radv_userdata_info {
    int8_t sgpr_idx;
@@ -103,6 +123,7 @@ struct radv_shader_args {
 
    /* Fragment shaders */
    struct ac_arg ps_state;
+   struct ac_arg ps_msrtss_inputs;
 
    struct ac_arg prolog_inputs;
    struct ac_arg vs_inputs[MAX_VERTEX_ATTRIBS];

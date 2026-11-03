@@ -30,6 +30,8 @@ struct vk_sampler_state_array;
 bool radv_nir_lower_descriptors(nir_shader *shader, const struct radv_compiler_info *compiler_info,
                                 const struct radv_shader_stage *stage);
 
+bool radv_nir_tex_is_msaa_fbfetch(const nir_tex_instr *tex);
+
 bool radv_nir_lower_abi(nir_shader *shader, enum amd_gfx_level gfx_level, const struct radv_shader_stage *stage,
                         const struct radv_graphics_state_key *gfx_state, uint32_t address32_hi);
 

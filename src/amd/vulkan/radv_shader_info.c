@@ -366,6 +366,9 @@ gather_tex_info(const nir_shader *nir, const nir_tex_instr *instr, struct radv_s
       }
    }
 
+   if (radv_nir_tex_is_msaa_fbfetch(instr))
+      info->ps.reads_msrtss_inputs = true;
+
    if (nir_tex_instr_need_sampler(instr))
       info->uses_sampler = true;
 }
@@ -1176,6 +1179,8 @@ radv_nir_shader_info_pass(const struct radv_compiler_info *compiler_info, const 
       break;
    case MESA_SHADER_FRAGMENT:
       gather_shader_info_fs(compiler_info->ac->gfx_level, nir, gfx_state, info);
+      /* Input attachment reads only need to be redirected if MSRTSS is enabled. */
+      info->ps.reads_msrtss_inputs &= compiler_info->key.msrtss;
       break;
    case MESA_SHADER_GEOMETRY:
       gather_shader_info_gs(compiler_info, nir, info);

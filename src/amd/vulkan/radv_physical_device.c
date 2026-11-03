@@ -679,7 +679,7 @@ radv_get_binning_settings(const struct radv_physical_device *pdev, struct radv_b
    settings->fpovs_per_batch = 63;
 }
 
-static bool
+bool
 radv_msrtss_enabled(const struct radv_physical_device *pdev)
 {
 #ifdef VK_USE_PLATFORM_ANDROID_KHR

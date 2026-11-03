@@ -222,6 +222,8 @@ VK_DEFINE_HANDLE_CASTS(radv_physical_device, vk.base, VkPhysicalDevice, VK_OBJEC
 
 bool radv_sparse_enabled(const struct radv_physical_device *pdev);
 
+bool radv_msrtss_enabled(const struct radv_physical_device *pdev);
+
 static inline struct radv_instance *
 radv_physical_device_instance(const struct radv_physical_device *pdev)
 {

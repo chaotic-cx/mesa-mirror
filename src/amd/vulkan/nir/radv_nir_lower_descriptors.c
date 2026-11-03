@@ -776,6 +776,65 @@ lower_descriptors_instr(nir_builder *b, nir_instr *instr, void *_state)
    return false;
 }
 
+/* Uniform multisampled input attachment read, which may target an MSRTSS attachment. */
+bool
+radv_nir_tex_is_msaa_fbfetch(const nir_tex_instr *tex)
+{
+   return tex->input_attachment_index && tex->sampler_dim == GLSL_SAMPLER_DIM_SUBPASS_MS && !tex->texture_non_uniform;
+}
+
+/* Replace the single-sampled image descriptor with the descriptor of the MSRTSS transient image if needed. */
+static bool
+lower_msrtss_input_attachment(nir_builder *b, nir_tex_instr *tex, void *_state)
+{
+   lower_descriptors_state *state = _state;
+
+   if (!radv_nir_tex_is_msaa_fbfetch(tex))
+      return false;
+
+   const int handle_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_handle);
+   nir_def *desc = tex->src[handle_idx].src.ssa;
+
+   b->cursor = nir_before_instr(&tex->instr);
+
+   nir_def *index = nir_imm_int(b, tex->texture_index);
+   const int offset_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_offset);
+   if (offset_idx >= 0)
+      index = nir_iadd(b, index, tex->src[offset_idx].src.ssa);
+
+   nir_def *table = get_scalar_arg(b, 1, state->args->ps_msrtss_inputs);
+   nir_def *msrtss_desc;
+
+   nir_push_if(b, nir_ine_imm(b, table, 0));
+   {
+      table = convert_pointer_to_64_bit(b, state, table);
+
+      nir_def *mask = ac_nir_load_smem(b, 1, table, nir_imm_int(b, 0), 4, 0);
+      nir_def *bit = nir_ishl(b, nir_imm_int(b, 1), index);
+      nir_def *enabled =
+         nir_iand(b, nir_ult_imm(b, index, RADV_MSRTSS_MAX_INPUTS), nir_ine_imm(b, nir_iand(b, mask, bit), 0));
+
+      /* Descriptors are packed in index order.
+       * Keep in sync with radv_emit_msrtss_input_attachments().
+       */
+      nir_def *slot = nir_bit_count(b, nir_iand(b, mask, nir_iadd_imm(b, bit, -1)));
+
+      /* The descriptor is loaded unconditionally, so clamp the slot to stay within the table. */
+      slot = nir_umin(b, slot, nir_iadd_imm(b, nir_bit_count(b, mask), -1));
+
+      const unsigned fmask_offset = tex->op == nir_texop_fragment_mask_fetch_amd ? 32 : 0;
+      nir_def *offset = nir_imul_imm(b, slot, state->sampled_image_desc_size);
+      offset = nir_iadd_imm(b, offset, RADV_MSRTSS_INPUTS_DESC_OFFSET + fmask_offset);
+
+      msrtss_desc = nir_bcsel(b, enabled, ac_nir_load_smem(b, 8, table, offset, 4, 0), desc);
+   }
+   nir_pop_if(b, NULL);
+
+   /* Fall back to the application's descriptor if there is no table or the attachment isn't MSRTSS. */
+   nir_src_rewrite(&tex->src[handle_idx].src, nir_if_phi(b, msrtss_desc, desc));
+   return true;
+}
+
 bool
 radv_nir_lower_descriptors(nir_shader *shader, const struct radv_compiler_info *compiler_info,
                            const struct radv_shader_stage *stage)
@@ -806,6 +865,9 @@ radv_nir_lower_descriptors(nir_shader *shader, const struct radv_compiler_info *
     */
    progress |= nir_shader_intrinsics_pass(shader, lower_descriptors_early_intrin, nir_metadata_control_flow, &state);
    progress |= nir_shader_instructions_pass(shader, lower_descriptors_instr, nir_metadata_control_flow, &state);
+
+   if (stage->info.ps.reads_msrtss_inputs)
+      progress |= nir_shader_tex_pass(shader, lower_msrtss_input_attachment, nir_metadata_none, &state);
 
    return progress;
 }

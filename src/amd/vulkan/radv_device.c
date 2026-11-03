@@ -1270,6 +1270,7 @@ radv_device_init_compiler_info(struct radv_device *device)
             .mesh_shader_queries = mesh_shader_queries && pdev->emulate_mesh_shader_queries,
             .image_2d_view_of_3d = image_2d_view_of_3d && pdev->info.gfx_level == GFX9,
             .use_fmask = pdev->use_fmask,
+            .msrtss = radv_msrtss_enabled(pdev),
             .force_64_byte_sampled_image = pdev->force_64_byte_sampled_image,
             .robust_buffer_access = pdev->use_llvm && (device->vk.enabled_features.robustBufferAccess2 ||
                                                        device->vk.enabled_features.robustBufferAccess),
