@@ -3024,13 +3024,38 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
    return extent;
 }
 
+static bool
+radv_should_enable_binning(struct radv_cmd_buffer *cmd_buffer, enum amd_gfx_level gfx_level)
+{
+   const struct radv_shader *ps = cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT];
+   const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+
+   if (!ps)
+      return true;
+
+   uint32_t db_shader_control = ps->regs.ps.db_shader_control;
+
+   if (ps->info.ps.has_epilog)
+      db_shader_control |= cmd_buffer->state.ps_epilog->db_shader_control;
+
+   /* ShaderCanKill = KILL_ENABLE || MASK_EXPORT_ENABLE || alpha-to-coverage */
+   const bool can_kill = G_02880C_KILL_ENABLE(db_shader_control) || G_02880C_MASK_EXPORT_ENABLE(db_shader_control) ||
+                         d->vk.ms.alpha_to_coverage_enable;
+
+   /* CanTriviallyReject = !Z_EXPORT_ENABLE || CONSERVATIVE_Z_EXPORT || EarlyDepthStencil */
+   const bool can_reject =
+      !G_02880C_Z_EXPORT_ENABLE(db_shader_control) || G_02880C_DEPTH_BEFORE_SHADER(db_shader_control) ||
+      (gfx_level >= GFX12 ? G_028BBC_CONSERVATIVE_Z_EXPORT(ps->regs.ps.pa_sc_hisz_control)
+                          : G_02880C_CONSERVATIVE_Z_EXPORT(db_shader_control));
+
+   return !(can_kill && can_reject);
+}
+
 static unsigned
 radv_get_disabled_binning_state(struct radv_cmd_buffer *cmd_buffer)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const struct radv_rendering_state *render = &cmd_buffer->state.render;
-   const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
    uint32_t pa_sc_binner_cntl_0;
 
    if (pdev->info.gfx_level >= GFX12) {
@@ -3046,25 +3071,10 @@ radv_get_disabled_binning_state(struct radv_cmd_buffer *cmd_buffer)
          S_028C44_BIN_SIZE_Y_EXTEND(util_logbase2(bin_size_y) - 5) | S_028C44_DISABLE_START_OF_PRIM(1) |
          S_028C44_FPOVS_PER_BATCH(63) | S_028C44_OPTIMAL_BIN_SELECTION(1) | S_028C44_FLUSH_ON_BINNING_TRANSITION(1);
    } else if (pdev->info.gfx_level >= GFX10) {
-      unsigned min_bytes_per_pixel = 0;
-
-      for (unsigned i = 0; i < render->color_att_count; ++i) {
-         struct radv_image_view *iview = render->color_att[i].iview;
-
-         if (!iview)
-            continue;
-
-         if (!((d->color_write_mask >> (4 * i)) & 0xfu))
-            continue;
-
-         unsigned bytes = vk_format_get_blocksize(render->color_att[i].format);
-         if (!min_bytes_per_pixel || bytes < min_bytes_per_pixel)
-            min_bytes_per_pixel = bytes;
-      }
-
       pa_sc_binner_cntl_0 = S_028C44_BINNING_MODE(V_028C44_BINNING_DISABLED) | S_028C44_BIN_SIZE_X(0) |
                             S_028C44_BIN_SIZE_Y(0) | S_028C44_BIN_SIZE_X_EXTEND(2) |       /* 128 */
-                            S_028C44_BIN_SIZE_Y_EXTEND(min_bytes_per_pixel <= 4 ? 2 : 1) | /* 128 or 64 */
+                            S_028C44_BIN_SIZE_Y_EXTEND(2) |                                /* 128 */
+                            S_028C44_FPOVS_PER_BATCH(63) | S_028C44_OPTIMAL_BIN_SELECTION(1) |
                             S_028C44_DISABLE_START_OF_PRIM(1) | S_028C44_FLUSH_ON_BINNING_TRANSITION(1);
    } else {
       pa_sc_binner_cntl_0 =
@@ -3091,7 +3101,13 @@ radv_get_binning_state(struct radv_cmd_buffer *cmd_buffer)
       bin_size = radv_gfx9_compute_bin_size(cmd_buffer);
    }
 
-   if (device->pbb_allowed && bin_size.width && bin_size.height) {
+   const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+   const bool shader_gating_allows_pbb = radv_should_enable_binning(cmd_buffer, pdev->info.gfx_level);
+   const bool line_stipple_disallows =
+      pdev->info.gfx_level >= GFX10 && d->vk.rs.line.stipple.enable;
+
+   if (device->pbb_allowed && bin_size.width && bin_size.height && shader_gating_allows_pbb &&
+       !line_stipple_disallows) {
       const struct radv_binning_settings *settings = &pdev->binning_settings;
 
       pa_sc_binner_cntl_0 =
@@ -9373,10 +9389,13 @@ radv_bind_fragment_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_FSR_STATE;
 
    if (!previous_ps || previous_ps->regs.ps.db_shader_control != ps->regs.ps.db_shader_control ||
+       (gfx_level >= GFX12 && previous_ps->regs.ps.pa_sc_hisz_control != ps->regs.ps.pa_sc_hisz_control) ||
        previous_ps->info.ps.pops_is_per_sample != ps->info.ps.pops_is_per_sample ||
        previous_ps->info.ps.uses_fbfetch_output != ps->info.ps.uses_fbfetch_output ||
-       previous_ps->info.ps.has_epilog != ps->info.ps.has_epilog)
+       previous_ps->info.ps.has_epilog != ps->info.ps.has_epilog) {
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_DB_SHADER_CONTROL;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
+   }
 }
 
 static void
@@ -9431,6 +9450,10 @@ radv_bind_ps_epilog(struct radv_cmd_buffer *cmd_buffer)
    if (cmd_buffer->state.ps_epilog == ps_epilog)
       return;
 
+   const struct radv_shader_part *previous_epilog = cmd_buffer->state.ps_epilog;
+   const uint32_t previous_epilog_db_shader_control =
+      previous_epilog ? previous_epilog->db_shader_control : 0;
+
    cmd_buffer->state.ps_epilog = ps_epilog;
 
    cmd_buffer->queue_state.shader_upload_seq = MAX2(cmd_buffer->queue_state.shader_upload_seq, ps_epilog->upload_seq);
@@ -9448,6 +9471,13 @@ radv_bind_ps_epilog(struct radv_cmd_buffer *cmd_buffer)
    if (ps_epilog->key.ps.has_depth_output || ps_epilog->key.ps.has_stencil_output ||
        ps_epilog->key.ps.has_sample_mask_output || ps_epilog->key.ps.alpha_to_coverage_via_mrtz)
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_DB_SHADER_CONTROL;
+
+   /* For epilog PS, PBB gating ORs this epilog's DB_SHADER_CONTROL with the main PS.
+    * Re-emit binning when the bound epilog changes and its export bits differ.
+    */
+   if (radv_device_physical(device)->info.gfx_level >= GFX9 &&
+       previous_epilog_db_shader_control != ps_epilog->db_shader_control)
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
 }
 
 /* This function binds/unbinds a shader to the cmdbuffer state. */
@@ -13970,7 +14000,8 @@ radv_validate_dynamic_states(struct radv_cmd_buffer *cmd_buffer, uint64_t dynami
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_VIEWPORT_STATE;
 
    if (dynamic_states &
-       (RADV_DYNAMIC_COLOR_WRITE_MASK | RADV_DYNAMIC_DEPTH_TEST_ENABLE | RADV_DYNAMIC_STENCIL_TEST_ENABLE))
+       (RADV_DYNAMIC_COLOR_WRITE_MASK | RADV_DYNAMIC_DEPTH_TEST_ENABLE | RADV_DYNAMIC_LINE_STIPPLE_ENABLE |
+         RADV_DYNAMIC_ALPHA_TO_COVERAGE_ENABLE | RADV_DYNAMIC_STENCIL_TEST_ENABLE))
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
 
    if (dynamic_states &
