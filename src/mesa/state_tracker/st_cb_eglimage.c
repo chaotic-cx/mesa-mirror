@@ -628,6 +628,10 @@ st_bind_egl_image(struct gl_context *ctx,
          break;
       }
       assert(texFormat != MESA_FORMAT_NONE);
+
+      /* Stored as the YUV format itself, GL_EXT_YUV_target renders to it. */
+      if (stimg->texture->format == stimg->format)
+         texFormat = st_pipe_format_to_mesa_format(stimg->format);
    } else {
       texFormat = st_pipe_format_to_mesa_format(stimg->format);
 
@@ -667,8 +671,8 @@ st_bind_egl_image(struct gl_context *ctx,
     * this texture. st_finalize_texture() returns early for surface_based
     * textures without computing this.
     */
-   texObj->needs_yuv_plane_views = (stimg->format != texObj->pt->format ||
-                                    util_format_is_yuv(stimg->format));
+   texObj->needs_yuv_plane_views =
+      st_needs_yuv_plane_views(st->screen, stimg->format, texObj->pt);
 
    switch (stimg->yuv_color_space) {
    case __DRI_YUV_COLOR_SPACE_ITU_REC709:

@@ -1734,7 +1734,7 @@
         "description": "mesa/st: Lower YUV only when the driver needs split samplers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "30870f70c66db41e87543409da53b446b33f69b5",
         "notes": null

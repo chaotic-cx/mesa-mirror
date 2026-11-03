@@ -3344,9 +3344,9 @@ st_finalize_texture(struct gl_context *ctx,
     * can read a flag instead of re-deriving it on every call.
     */
    if (tObj->pt) {
-      enum pipe_format view_format = st_get_view_format(tObj);
-      tObj->needs_yuv_plane_views = (view_format != tObj->pt->format ||
-                                     util_format_is_yuv(view_format));
+      tObj->needs_yuv_plane_views =
+         st_needs_yuv_plane_views(st->screen, st_get_view_format(tObj),
+                                  tObj->pt);
    }
 
    /* Pull in any images not in the object's texture:
@@ -3715,8 +3715,8 @@ st_TextureView(struct gl_context *ctx,
     * textures without computing this.
     */
    tex->needs_yuv_plane_views = tex->pt &&
-      (tex->surface_format != tex->pt->format ||
-       util_format_is_yuv(tex->surface_format));
+      st_needs_yuv_plane_views(st_context(ctx)->screen, tex->surface_format,
+                               tex->pt);
 
    tex->lastLevel = numLevels - 1;
 

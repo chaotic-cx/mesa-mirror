@@ -30,6 +30,8 @@
 
 
 #include "pipe/p_context.h"
+#include "pipe/p_screen.h"
+#include "util/format/u_format.h"
 #include "util/u_sampler.h"
 #include "util/simple_mtx.h"
 
@@ -124,6 +126,18 @@ st_get_view_format(struct gl_texture_object *stObj)
    if (!stObj)
       return PIPE_FORMAT_NONE;
    return stObj->surface_based ? stObj->surface_format : stObj->pt->format;
+}
+
+static inline bool
+st_needs_yuv_plane_views(struct pipe_screen *screen,
+                         enum pipe_format view_format,
+                         const struct pipe_resource *pt)
+{
+   if (view_format != pt->format)
+      return true;
+
+   return util_format_is_yuv(view_format) &&
+          screen->caps.needs_split_planar_samplers;
 }
 
 
