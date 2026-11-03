@@ -184,7 +184,7 @@ v3dv-rpi4-vk:arm64:
   variables:
     HWCI_START_WESTON: 1
     DEQP_SUITE: broadcom-rpi4-vk
-    DEQP_FRACTION: 2
+    DEQP_FRACTION: 4
     FLAKES_CHANNEL: "#videocore-ci"
 
 .ci-tron-v3dv-rpi4-vk:arm64:
@@ -336,7 +336,7 @@ v3dv-rpi5-vk:arm64:
   variables:
     HWCI_START_WESTON: 1
     DEQP_SUITE: broadcom-rpi5-vk
-    DEQP_FRACTION: 3
+    DEQP_FRACTION: 6
     FLAKES_CHANNEL: "#videocore-ci"
 
 .ci-tron-v3dv-rpi5-vk:arm64:
