@@ -87,7 +87,6 @@
 #include <string.h>
 #include "c11/threads.h"
 #include "mesa/glapi/glapi/glapi.h"
-#include "util/detect_os.h"
 #include "util/macros.h"
 #include "util/perf/cpu_trace.h"
 #include "util/u_debug.h"
@@ -418,7 +417,7 @@ eglGetDisplay(EGLNativeDisplayType nativeDisplay)
    _EGLDisplay *disp;
    void *native_display_ptr;
 
-#if !DETECT_OS_ANDROID
+#ifndef HAVE_ANDROID_PLATFORM
    util_cpu_trace_init();
 #endif
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
@@ -485,7 +484,7 @@ eglGetPlatformDisplayEXT(EGLenum platform, void *native_display,
    EGLAttrib *attrib_list;
    EGLDisplay disp;
 
-#if !DETECT_OS_ANDROID
+#ifndef HAVE_ANDROID_PLATFORM
    util_cpu_trace_init();
 #endif
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
@@ -502,7 +501,7 @@ PUBLIC EGLDisplay EGLAPIENTRY
 eglGetPlatformDisplay(EGLenum platform, void *native_display,
                       const EGLAttrib *attrib_list)
 {
-#if !DETECT_OS_ANDROID
+#ifndef HAVE_ANDROID_PLATFORM
    util_cpu_trace_init();
 #endif
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
@@ -664,7 +663,7 @@ _eglComputeVersion(_EGLDisplay *disp)
       disp->Version = 15;
 
       /* For Android P and below limit the EGL version to 1.4 */
-#if DETECT_OS_ANDROID && ANDROID_API_LEVEL <= 28
+#if defined(HAVE_ANDROID_PLATFORM) && ANDROID_API_LEVEL <= 28
    disp->Version = 14;
 #endif
 }
