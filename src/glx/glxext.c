@@ -31,6 +31,7 @@
 
 #if defined(GLX_DIRECT_RENDERING)
 #include "dri_common.h"
+#include "dri_screen.h"
 #endif
 
 #include "x11_dri3.h"
