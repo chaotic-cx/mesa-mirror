@@ -325,7 +325,9 @@ pop_temp(jay_builder *b, jay_def temp, jay_def backing)
 static void
 mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
 {
-   bool split_copy = dst.file == MEM && src.file == MEM;
+   /* Split copies as an optimization, not for correctness */
+   bool split_copy =
+      (dst.file == MEM && src.file == MEM && temps.gpr != NO_REG);
 
    if (dst.file == GPR && src.file == GPR) {
       struct jay_partition *p = &b->shader->partition;
@@ -478,9 +480,16 @@ jay_emit_parallel_copies(jay_builder *b,
          assert(dst.file == src.file);
          enum jay_file file = dst.file;
 
-         if (file == GPR &&
-             jay_def_stride(b->shader, dst) == JAY_STRIDE_4 &&
-             jay_def_stride(b->shader, src) == JAY_STRIDE_4) {
+         if (file == MEM && temps.gpr != NO_REG && temps.gpr2 != NO_REG) {
+            jay_MOV(b, def_from_reg(temps.gpr), dst);
+            jay_MOV(b, def_from_reg(temps.gpr2), src);
+            jay_MOV(b, src, def_from_reg(temps.gpr));
+            jay_MOV(b, dst, def_from_reg(temps.gpr2));
+         } else if (file == MEM) {
+            jay_SWAP(b, dst, src);
+         } else if (file == GPR &&
+                    jay_def_stride(b->shader, dst) == JAY_STRIDE_4 &&
+                    jay_def_stride(b->shader, src) == JAY_STRIDE_4) {
 
             /* If everything is stride=4, swapping is easy */
             jay_def acc = jay_bare_reg(ACCUM, 1);

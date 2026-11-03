@@ -61,9 +61,55 @@ insert_spill_fill(jay_builder *b,
             .type = JAY_TYPE_U32, .ex_desc = ADDRESS_REG, .bindless = true);
 }
 
+static void
+lower_mem_copy_swap(jay_function *f)
+{
+   unsigned nr_mem = 0;
+   jay_foreach_inst_in_func(f, block, I) {
+      if (I->dst.file == MEM) {
+         nr_mem = MAX2(nr_mem, I->dst.reg + 1);
+      }
+   }
+
+   jay_foreach_inst_in_func_safe(f, block, I) {
+      jay_builder b = jay_init_builder(f, jay_before_inst(I));
+
+      bool use_acc = f->shader->devinfo->ver >= 20;
+      jay_def t[] = { use_acc ? jay_bare_reg(ACCUM, 0) :
+                                jay_bare_reg(MEM, nr_mem + 1),
+                      jay_bare_reg(MEM, nr_mem + !use_acc + 1) };
+      jay_def r[] = { jay_bare_reg(GPR, 0), jay_bare_reg(GPR, 1) };
+
+      if (I->op == JAY_OPCODE_SWAP && I->src[0].file == MEM) {
+         jay_MOV(&b, t[0], r[0]);
+         jay_MOV(&b, t[1], r[1]);
+         jay_MOV(&b, r[0], I->src[0]);
+         jay_MOV(&b, r[1], I->src[1]);
+         jay_MOV(&b, I->src[0], r[1]);
+         jay_MOV(&b, I->src[1], r[0]);
+         jay_MOV(&b, r[0], t[0]);
+         jay_MOV(&b, r[1], t[1]);
+         jay_remove_instruction(I);
+      } else if (I->op == JAY_OPCODE_MOV &&
+                 (I->dst.file == MEM && I->src[0].file == MEM)) {
+
+         jay_MOV(&b, t[0], r[0]);
+         jay_MOV(&b, r[0], I->src[0]);
+         jay_MOV(&b, I->dst, r[0]);
+         jay_MOV(&b, r[0], t[0]);
+         jay_remove_instruction(I);
+      }
+   }
+}
+
 void
 jay_lower_spill(jay_function *func)
 {
+   /* Lower memory copies/swaps to load/store upfront since this burns more
+    * spill slots. Caller doesn't need to worry about it this way.
+    */
+   lower_mem_copy_swap(func);
+
    jay_builder b = jay_init_builder(func, jay_before_function(func));
    signed ugpr_reservation = -1;
 
