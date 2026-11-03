@@ -15,6 +15,7 @@ git clone https://gitlab.freedesktop.org/wayland/weston
 cd weston
 git checkout "$WESTON_VERSION"
 patch -p1 < "$OLDPWD/.gitlab-ci/container/patches/weston-no-xwm.patch"
+patch -p1 < "$OLDPWD/.gitlab-ci/container/patches/weston-window-id-race.patch"
 meson setup \
     -Dbackend-drm=false \
     -Dbackend-drm-screencast-vaapi=false \

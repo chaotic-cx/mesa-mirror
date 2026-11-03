@@ -42,23 +42,6 @@ dEQP-VK.synchronization.op.single_queue.fence.write_blit_image_read_image_comput
 dEQP-VK.synchronization.signal_order.timeline_semaphore.write_copy_image_read_image_compute.image_128x128_r16_uint
 dEQP-VK.texture.explicit_lod.2d.sizes.128x128_linear_linear_mipmap_linear_clamp
 dEQP-VK.texture.filtering.cube.formats.a1r5g5b5_unorm.linear.seamless
-dEQP-VK.wsi.wayland.maintenance1.scaling.resize_window.immediate.aspect_stretch.max_min.swapchain_smaller_taller_aspect
-dEQP-VK.wsi.wayland.present_id_wait.wait.single_no_timeout
-dEQP-VK.wsi.wayland.swapchain.create.clipped
-dEQP-VK.wsi.wayland.swapchain.render.basic
-dEQP-VK.wsi.xcb.maintenance1.scaling.continuous.one_to_one.max_min.swapchain_smaller_wider_aspect
-dEQP-VK.wsi.xcb.maintenance1.scaling.demand.aspect_stretch.max_max.swapchain_smaller_wider_aspect
-dEQP-VK.wsi.xcb.maintenance1.scaling.fifo.aspect_stretch.max_center.swapchain_bigger_same_aspect
-dEQP-VK.wsi.xcb.swapchain.create.clipped
-dEQP-VK.wsi.xcb.swapchain.create.image_array_layers
-dEQP-VK.wsi.xlib.maintenance1.scaling.demand.one_to_one.center_center.swapchain_taller
-dEQP-VK.wsi.xlib.maintenance1.scaling.resize_window.mailbox.aspect_stretch.center_max.swapchain_smaller_taller_aspect
-dEQP-VK.wsi.xlib.surface.query_capabilities2
-
-# Since the weston intermittently crashes on 925, these xfails from VKCTS
-# 1.4.4.2 -> 1.4.5.3 uprev will sometimes flake into being Skips.
-dEQP-VK.wsi.xcb.present_timing.query.parallel.parallel
-dEQP-VK.wsi.xlib.present_timing.basic.timing_queue
 
 # See Mesa bug #15880 ("panfrost: incomplete glCopyPixels() with feedback loop")
 spec@!opengl 1.4@copy-pixels
