@@ -637,6 +637,8 @@ fd_init_screen_caps(struct fd_screen *screen)
     */
    caps->gl_clamp = is_a2xx(screen);
 
+   caps->needs_split_planar_samplers = true;
+
    caps->clip_planes =
       /* Gens that support GS, have GS lowered into a quasi-VS which confuses
        * the frontend clip-plane lowering.  So we handle this in the backend
