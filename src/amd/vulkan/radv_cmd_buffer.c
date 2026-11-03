@@ -2683,8 +2683,6 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
    const unsigned color_tag_part = (color_tag_count * rb_count / pipe_count) * color_tag_size * pipe_count;
    const unsigned fmask_tag_part = (fmask_tag_count * rb_count / pipe_count) * fmask_tag_size * pipe_count;
 
-   const unsigned total_samples = cmd_buffer->state.num_rast_samples;
-   const unsigned samples_log = util_logbase2_ceil(total_samples);
    const unsigned ps_iter_samples = radv_get_ps_iter_samples(cmd_buffer);
 
    unsigned color_bytes_per_pixel = 0;
@@ -2699,12 +2697,15 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       if (!((d->color_write_mask >> (4 * i)) & 0xfu))
          continue;
 
-      const unsigned mmrt = ps_iter_samples > 1 ? total_samples : MIN2(total_samples, 2);
+      const unsigned num_samples = iview->image->vk.samples;
+      const unsigned mmrt = num_samples == 1 ? 1 : (ps_iter_samples > 1 ? num_samples : 2);
       color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format) * mmrt;
 
-      if (total_samples > 1 && radv_image_has_fmask(iview->image)) {
-         assert(samples_log <= 3);
+      if (radv_image_has_fmask(iview->image)) {
+         const unsigned samples_log = util_logbase2(num_samples);
          const unsigned fmask_array[] = {0, 1, 1, 4};
+
+         assert(samples_log <= 3);
          fmask_bytes_per_pixel += fmask_array[samples_log];
       }
    }
@@ -2729,7 +2730,7 @@ radv_gfx10_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       /* Coefficients taken from AMDVLK */
       unsigned depth_coeff = d->vk.ds.depth.test_enable && vk_format_has_depth(render->ds_att.format) ? 5 : 0;
       unsigned stencil_coeff = d->vk.ds.stencil.test_enable && vk_format_has_stencil(render->ds_att.format) ? 1 : 0;
-      unsigned db_bytes_per_pixel = (depth_coeff + stencil_coeff) * total_samples;
+      unsigned db_bytes_per_pixel = (depth_coeff + stencil_coeff) * render->ds_samples;
 
       const unsigned db_pixel_count_log = util_logbase2(db_tag_part / MAX2(db_bytes_per_pixel, 1));
 
@@ -2978,7 +2979,6 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
    unsigned log_num_rb_per_se = util_logbase2_ceil(pdev->info.max_render_backends / pdev->info.max_se);
    unsigned log_num_se = util_logbase2_ceil(pdev->info.max_se);
 
-   unsigned total_samples = cmd_buffer->state.num_rast_samples;
    unsigned ps_iter_samples = radv_get_ps_iter_samples(cmd_buffer);
    unsigned color_bytes_per_pixel = 0;
 
@@ -2991,7 +2991,8 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       if (!((d->color_write_mask >> (4 * i)) & 0xfu))
          continue;
 
-      const unsigned mmrt = ps_iter_samples > 1 ? total_samples : MIN2(total_samples, 2);
+      const unsigned num_samples = iview->image->vk.samples;
+      const unsigned mmrt = num_samples == 1 ? 1 : (ps_iter_samples > 1 ? num_samples : 2);
       color_bytes_per_pixel += vk_format_get_blocksize(render->color_att[i].format) * mmrt;
    }
 
@@ -3005,7 +3006,7 @@ radv_gfx9_compute_bin_size(struct radv_cmd_buffer *cmd_buffer)
       /* Coefficients taken from AMDVLK */
       unsigned depth_coeff = d->vk.ds.depth.test_enable && vk_format_has_depth(render->ds_att.format) ? 5 : 0;
       unsigned stencil_coeff = d->vk.ds.stencil.test_enable && vk_format_has_stencil(render->ds_att.format) ? 1 : 0;
-      unsigned ds_bytes_per_pixel = 4 * (depth_coeff + stencil_coeff) * total_samples;
+      unsigned ds_bytes_per_pixel = 4 * (depth_coeff + stencil_coeff) * render->ds_samples;
 
       const struct radv_bin_size_entry *ds_entry = ds_size_table[log_num_rb_per_se][log_num_se];
       while (ds_entry[1].bpp <= ds_bytes_per_pixel)
