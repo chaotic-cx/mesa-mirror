@@ -501,7 +501,7 @@ with_platform_wayland = _platforms.contains('wayland')
 with_platform_haiku = _platforms.contains('haiku')
 with_platform_windows = _platforms.contains('windows')
 with_platform_macos = _platforms.contains('macos')
-with_platform_display = system_has_kms_drm and not with_platform_android
+with_platform_display = system_has_kms_drm and not cc.has_define('__ANDROID__')
 
 with_gfxstream_emulated_android = with_gfxstream_vk and with_platform_android and host_machine.system() == 'linux'
 if with_gfxstream_emulated_android
