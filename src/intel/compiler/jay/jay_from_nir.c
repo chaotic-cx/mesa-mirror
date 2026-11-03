@@ -2321,7 +2321,10 @@ load_push_data(struct nir_to_jay_state *nj,
       if (base_offset % 4)
          offset = jay_ADD_u32(b, offset, base_offset % 4);
 
-      jay_SHUFFLE(b, JAY_TYPE_U | intr->def.bit_size, dst, push_data, offset);
+      jay_foreach_comp(dst, c) {
+         jay_SHUFFLE(b, JAY_TYPE_U | intr->def.bit_size, jay_extract(dst, c),
+                     push_data, c ? jay_ADD_u32(b, offset, c * sz) : offset);
+      }
    }
 }
 
