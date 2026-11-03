@@ -684,7 +684,7 @@
         "description": "dri: Move driDestroyConfigs from glx/dri_common and use it",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
