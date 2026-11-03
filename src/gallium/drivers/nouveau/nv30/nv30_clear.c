@@ -114,6 +114,8 @@ nv30_clear(struct pipe_context *pipe, unsigned buffers,
    PUSH_DATA (push, colr);
    PUSH_DATA (push, mode);
 
+   nv30_state_release(nv30);
+
    /* If we are clearing texture currently bound for sampling we need to invalidate the cache. */
    if (buffers & PIPE_CLEAR_COLOR) {
        for (unsigned i = 0; i < fb->nr_cbufs; i++) {
@@ -121,17 +123,15 @@ nv30_clear(struct pipe_context *pipe, unsigned buffers,
            if (!cbuf_tex)
                continue;
            for (unsigned s = 0; s < nv30->fragprog.num_textures; s++) {
-               struct pipe_sampler_view *view = nv30->fragprog.textures[i];
+               struct pipe_sampler_view *view = nv30->fragprog.textures[s];
                if (view && view->texture == cbuf_tex) {
-                   nv30->fragprog.dirty_samplers |= (1 << i);
+                   nv30->fragprog.dirty_samplers |= (1 << s);
                    nv30->dirty |= NV30_NEW_FRAGTEX;
                    break;
                }
            }
        }
    }
-
-   nv30_state_release(nv30);
 
    /* Make sure regular draw commands will get their scissor state set */
    nv30->dirty |= NV30_NEW_SCISSOR;
