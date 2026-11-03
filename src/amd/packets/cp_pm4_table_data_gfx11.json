@@ -5345,15 +5345,10 @@
                     },
                     "3": {
                         "a": {
-                            "reserved151": {
-                                "bits": "2:0",
-                                "bits_int": 3,
-                                "bits_str": "2:0"
-                            },
                             "address_lo": {
-                                "bits": "31:3",
-                                "bits_str": "31:3",
-                                "bits_int": 29
+                                "bits": "31:0",
+                                "bits_str": "31:0",
+                                "bits_int": 32
                             }
                         }
                     },
