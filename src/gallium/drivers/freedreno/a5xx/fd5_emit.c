@@ -417,9 +417,11 @@ emit_ssbos(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
    for (unsigned i = 0; i < count; i++) {
       struct pipe_shader_buffer *buf = &so->sb[i];
-      unsigned sz = buf->buffer_size;
+      /* As on a4xx, the size is in dwords (overflowing from WIDTH into
+       * HEIGHT), and loads and stores past it are dropped.
+       */
+      unsigned sz = DIV_ROUND_UP(buf->buffer_size, 4);
 
-      /* Unlike a6xx, SSBO size is in bytes. */
       OUT_RING(ring, A5XX_SSBO_1_0_WIDTH(sz & MASK(16)));
       OUT_RING(ring, A5XX_SSBO_1_1_HEIGHT(sz >> 16));
    }
