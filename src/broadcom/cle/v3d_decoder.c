@@ -59,10 +59,16 @@ struct v3d_spec {
 };
 
 #ifdef WITH_LIBEXPAT
+#if XML_MAJOR_VERSION == 2 && XML_MINOR_VERSION < 9
+/* Expat 2.9 added the *64 variants and deprecated the previous ones */
+#  define XML_GetCurrentLineNumber64(p) (uint64_t) XML_GetCurrentLineNumber(p)
+#  define XML_GetCurrentColumnNumber64(p) (uint64_t) XML_GetCurrentColumnNumber(p)
+#  define XML_GetCurrentByteIndex64(p) (int64_t) XML_GetCurrentByteIndex(p)
+#endif
 
 struct location {
         const char *filename;
-        int line_number;
+        uint64_t line_number;
 };
 
 struct parser_context {
@@ -291,7 +297,7 @@ string_to_type(struct parser_context *ctx, const char *s)
                 return (struct v3d_type) { .kind = V3D_TYPE_MBO };
         else {
                 mesa_log_stream_printf(ctx->stream,
-                                       "%s:%d: error: %s",
+                                       "%s:%" PRIu64 ": error: %s",
                                        ctx->loc.filename,
                                        ctx->loc.line_number,
                                        s);
@@ -417,7 +423,7 @@ start_element(void *data, const char *element_name, const char **atts)
         int min_ver = 0;
         int max_ver = 0;
 
-        ctx->loc.line_number = XML_GetCurrentLineNumber(ctx->parser);
+        ctx->loc.line_number = XML_GetCurrentLineNumber64(ctx->parser);
 
         for (i = 0; atts[i]; i += 2) {
                 assert(atts[i + 1]);
@@ -439,7 +445,7 @@ start_element(void *data, const char *element_name, const char **atts)
         if (strcmp(element_name, "vcxml") == 0) {
                 if (ver == NULL) {
                         mesa_log_stream_printf(ctx->stream,
-                                               "%s:%d: error: no ver given",
+                                               "%s:%" PRIu64 ": error: no ver given",
                                                ctx->loc.filename,
                                                ctx->loc.line_number);
                         exit(EXIT_FAILURE);
@@ -453,7 +459,7 @@ start_element(void *data, const char *element_name, const char **atts)
                 int n = sscanf(ver, "%d.%d", &major, &minor);
                 if (n == 0) {
                         mesa_log_stream_printf(ctx->stream,
-                                               "%s:%d: error: invalid ver given: %s",
+                                               "%s:%" PRIu64 ": error: invalid ver given: %s",
                                                ctx->loc.filename,
                                                ctx->loc.line_number,
                                                ver);
@@ -686,10 +692,10 @@ v3d_spec_load(const struct v3d_device_info *devinfo)
         memcpy(buf, &text_data[text_offset], text_length);
 
         if (XML_ParseBuffer(ctx.parser, text_length, true) == 0) {
-                mesa_loge("Error parsing XML at line %ld col %ld byte %ld/%u: %s",
-                          XML_GetCurrentLineNumber(ctx.parser),
-                          XML_GetCurrentColumnNumber(ctx.parser),
-                          XML_GetCurrentByteIndex(ctx.parser), text_length,
+                mesa_loge("Error parsing XML at line %" PRIu64 " col %" PRIu64 " byte %" PRIi64 "/%u: %s",
+                          XML_GetCurrentLineNumber64(ctx.parser),
+                          XML_GetCurrentColumnNumber64(ctx.parser),
+                          XML_GetCurrentByteIndex64(ctx.parser), text_length,
                           XML_ErrorString(XML_GetErrorCode(ctx.parser)));
                 XML_ParserFree(ctx.parser);
                 free(text_data);
