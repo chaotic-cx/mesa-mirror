@@ -3,9 +3,9 @@
 # This tests for the size of the register file. We do this by launching a
 # lot of workgroups with only one invocation, which causes the GPU to be
 # saturated with in-flight waves. Each thread records its wave id using "getwid"
-# (only available in a6xx+!) and stores it in the buffer. We then vary the
-# register footprint by introducing uses of higher and higher registers. This
-# lets us determine:
+# and stores it in the buffer with stib.b, so this only runs on a6xx+ (a5xx has
+# test-regfile-a5xx.sh). We then vary the register footprint by introducing
+# uses of higher and higher registers. This lets us determine:
 # 1. The total number of waves available (always 16 for known models)
 # 2. The wave granularity (how many waves are always launched together, always 2
 # for known models).
