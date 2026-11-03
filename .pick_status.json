@@ -654,7 +654,7 @@
         "description": "egl/wsi/wayland: Fix leaking dmabuf feedback",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4b985c3d2dad5224c24e9e7f1e352872136351fc",
         "notes": null
