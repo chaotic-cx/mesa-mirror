@@ -84,20 +84,7 @@ pub struct PlatformFeatures {
 static PLATFORM_ENV_ONCE: Once = Once::new();
 static PLATFORM_ONCE: Once = Once::new();
 
-static mut PLATFORM: Platform = Platform {
-    dispatch: &DISPATCH,
-    dispatch_data: 0,
-    devs: Vec::new(),
-    extension_string: String::new(),
-    extensions: Vec::new(),
-    vm: None,
-    worker_queue: LazyLock::new(|| {
-        let worker_count = u32::max(util::cpu_count() / 2, 1);
-        let max_job_count = worker_count * 8;
-        util::queue::Queue::new(c"clctxworker", max_job_count, worker_count)
-    }),
-    meta: LazyLock::new(|| Meta::new(&Platform::get().devs)),
-};
+static mut PLATFORM: Platform = Platform::new();
 static mut PLATFORM_DBG: PlatformDebug = PlatformDebug {
     allow_invalid_spirv: false,
     clc: false,
@@ -159,6 +146,23 @@ fn load_env() {
 }
 
 impl Platform {
+    const fn new() -> Self {
+        Platform {
+            dispatch: &DISPATCH,
+            dispatch_data: 0,
+            devs: Vec::new(),
+            extension_string: String::new(),
+            extensions: Vec::new(),
+            vm: None,
+            worker_queue: LazyLock::new(|| {
+                let worker_count = u32::max(util::cpu_count() / 2, 1);
+                let max_job_count = worker_count * 8;
+                util::queue::Queue::new(c"clctxworker", max_job_count, worker_count)
+            }),
+            meta: LazyLock::new(|| Meta::new(&Platform::get().devs)),
+        }
+    }
+
     pub fn as_ptr(&self) -> cl_platform_id {
         ptr::from_ref(self) as cl_platform_id
     }
