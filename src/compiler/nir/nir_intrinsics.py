@@ -1829,6 +1829,11 @@ store("raw_output_pan", [], [IO_SEMANTICS, BASE])
 store("combined_output_pan", [1, 1, 1, 4], [IO_SEMANTICS, COMPONENT, SRC_TYPE, DEST_TYPE])
 load("raw_output_pan", [1], [IO_SEMANTICS], [CAN_ELIMINATE, CAN_REORDER])
 
+# Very coarse tables for sin(x) and cos(x) (6-bits)
+# src[] = { x }
+intrinsic("fsin_table_pan", [1], dest_comp=1, bit_sizes=[32], flags=[CAN_ELIMINATE, CAN_REORDER])
+intrinsic("fcos_table_pan", [1], dest_comp=1, bit_sizes=[32], flags=[CAN_ELIMINATE, CAN_REORDER])
+
 # Returns a vec2 which is the result of CUBEFACE1/2
 # src = { x, y, z }
 intrinsic("cubeface_pan", [1, 1, 1], dest_comp=2, bit_sizes=[32],

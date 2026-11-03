@@ -827,6 +827,8 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_attr_pan:
    case nir_intrinsic_lea_attr_pan:
    case nir_intrinsic_lea_buf_pan:
+   case nir_intrinsic_fsin_table_pan:
+   case nir_intrinsic_fcos_table_pan:
    case nir_intrinsic_cubeface_pan:
    case nir_intrinsic_cube_ssel_pan:
    case nir_intrinsic_cube_tsel_pan:

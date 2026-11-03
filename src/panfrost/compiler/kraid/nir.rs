@@ -1983,6 +1983,22 @@ impl<'a> ShaderFromNir<'a> {
                     idx,
                 });
             }
+            nir_intrinsic_fsin_table_pan => {
+                let dst = self.alloc_ssa(b, &intrin.def).into();
+                b.push_op(OpFSinTable {
+                    dst,
+                    src: self.get_f32_src(&srcs[0]),
+                    offset: false,
+                });
+            }
+            nir_intrinsic_fcos_table_pan => {
+                let dst = self.alloc_ssa(b, &intrin.def).into();
+                b.push_op(OpFCosTable {
+                    dst,
+                    src: self.get_f32_src(&srcs[0]),
+                    offset: false,
+                });
+            }
             nir_intrinsic_ddx
             | nir_intrinsic_ddx_fine
             | nir_intrinsic_ddx_coarse
