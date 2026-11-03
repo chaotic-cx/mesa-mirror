@@ -523,7 +523,8 @@ memory_sync_info
 get_sync_info_with_hack(const Instruction* instr)
 {
    memory_sync_info sync = get_sync_info(instr);
-   if (instr->isSMEM() && !instr->operands.empty() && instr->operands[0].bytes() == 16) {
+   if (instr->isSMEM() && !instr->operands.empty() && instr->operands[0].bytes() == 16 &&
+       (!sync.storage || (sync.semantics & semantic_private))) {
       // FIXME: currently, it doesn't seem beneficial to omit this due to how our scheduler works
       sync.storage = (storage_class)(sync.storage | storage_buffer);
       sync.semantics =
