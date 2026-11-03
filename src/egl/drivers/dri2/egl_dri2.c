@@ -802,6 +802,8 @@ dri2_create_screen(_EGLDisplay *disp)
             dri2_dpy->dri_screen_display_gpu = driCreateNewScreen3(
                0, dri2_dpy->fd_display_gpu, dri2_dpy->loader_extensions,
                type, &dri2_dpy->driver_configs, false, dri2_dpy->multibuffers_available, disp);
+            driDestroyConfigs(dri2_dpy->driver_configs);
+            dri2_dpy->driver_configs = NULL;
          }
          free(driver_name_display_gpu);
       }
