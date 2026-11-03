@@ -72,13 +72,19 @@ using gfxstream::aemu::BumpPool;
 
 #include "VkEncoder.cpp.inl"
 
-#define VALIDATE_RET(retType, success, validate)   \
-    retType goldfish_vk_validateResult = validate; \
-    if (goldfish_vk_validateResult != success) return goldfish_vk_validateResult;
+#define VALIDATE_RET(retType, success, validate)                       \
+    retType goldfish_vk_validateResult = validate;                     \
+    if (goldfish_vk_validateResult != success) {                       \
+        if (!queueSubmitWithCommandsEnabled && doLock) this->unlock(); \
+        return goldfish_vk_validateResult;                             \
+    }
 
-#define VALIDATE_VOID(validate)                     \
-    VkResult goldfish_vk_validateResult = validate; \
-    if (goldfish_vk_validateResult != VK_SUCCESS) return;
+#define VALIDATE_VOID(validate)                                        \
+    VkResult goldfish_vk_validateResult = validate;                    \
+    if (goldfish_vk_validateResult != VK_SUCCESS) {                    \
+        if (!queueSubmitWithCommandsEnabled && doLock) this->unlock(); \
+        return;                                                        \
+    }
 
 static inline uint8_t* reservePacket(VulkanStreamGuest* stream, uint32_t opcode, size_t count,
                                      bool queueSubmitWithCommandsEnabled) {
@@ -12550,8 +12556,9 @@ VkResult VkEncoder::vkMapMemoryIntoAddressSpaceGOOGLE(VkDevice device, VkDeviceM
     bool queueSubmitWithCommandsEnabled =
         sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
     if (!queueSubmitWithCommandsEnabled && doLock) this->lock();
-    sResourceTracker->on_vkMapMemoryIntoAddressSpaceGOOGLE_pre(this, VK_SUCCESS, device, memory,
-                                                               pAddress);
+    VALIDATE_RET(VkResult, VK_SUCCESS,
+                 sResourceTracker->on_vkMapMemoryIntoAddressSpaceGOOGLE_pre(
+                     this, VK_SUCCESS, device, memory, pAddress));
     auto stream = mImpl->stream();
     VkDeviceMemory local_memory = memory;
     sResourceTracker->deviceMemoryTransform_tohost(

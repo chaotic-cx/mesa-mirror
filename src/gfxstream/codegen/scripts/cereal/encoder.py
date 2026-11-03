@@ -47,11 +47,17 @@ using gfxstream::aemu::BumpPool;
 
 #define VALIDATE_RET(retType, success, validate) \\
     retType goldfish_vk_validateResult = validate; \\
-    if (goldfish_vk_validateResult != success) return goldfish_vk_validateResult; \\
+    if (goldfish_vk_validateResult != success) { \\
+        if (!queueSubmitWithCommandsEnabled && doLock) this->unlock(); \\
+        return goldfish_vk_validateResult; \\
+    } \\
 
 #define VALIDATE_VOID(validate) \\
     VkResult goldfish_vk_validateResult = validate; \\
-    if (goldfish_vk_validateResult != VK_SUCCESS) return; \\
+    if (goldfish_vk_validateResult != VK_SUCCESS) { \\
+        if (!queueSubmitWithCommandsEnabled && doLock) this->unlock(); \\
+        return; \\
+    } \\
 
 static inline uint8_t* reservePacket(VulkanStreamGuest* stream, uint32_t opcode, size_t count,
                                      bool queueSubmitWithCommandsEnabled) {
@@ -161,12 +167,20 @@ def emit_custom_pre_validate(typeInfo, api, cgen):
 
 def emit_custom_resource_preprocess(typeInfo, api, cgen):
     if api.name in ENCODER_CUSTOM_RESOURCE_PREPROCESS:
-        cgen.stmt( \
+        callExpr = \
             make_event_handler_call( \
                 "sResourceTracker", api,
                 ENCODER_THIS_PARAM,
                 SUCCESS_RET_TYPES[api.getRetTypeExpr()],
-                cgen, suffix="_pre"))
+                cgen, suffix="_pre")
+
+        if api.getRetTypeExpr() == "void":
+            cgen.stmt(callExpr)
+        else:
+            cgen.stmt("VALIDATE_RET(%s, %s, %s)" % \
+                (api.getRetTypeExpr(),
+                 SUCCESS_RET_TYPES[api.getRetTypeExpr()],
+                 callExpr))
 
 def emit_custom_resource_postprocess(typeInfo, api, cgen):
     if api.name in ENCODER_CUSTOM_RESOURCE_POSTPROCESS:

@@ -676,7 +676,8 @@ class ResourceTracker {
 
     CoherentMemoryPtr createCoherentMemory(VkDevice device, VkDeviceMemory mem,
                                            const VkMemoryAllocateInfo& hostAllocationInfo,
-                                           VkEncoder* enc, VkResult& res);
+                                           const VirtGpuResourcePtr& guestBlob, VkEncoder* enc,
+                                           VkResult& res);
     VkResult allocateCoherentMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocateInfo,
                                     VkEncoder* enc, VkDeviceMemory* pMemory);
 

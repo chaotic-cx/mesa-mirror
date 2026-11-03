@@ -751,14 +751,15 @@ CoherentMemoryPtr ResourceTracker::freeCoherentMemoryLocked(VkDeviceMemory memor
                                                             VkDeviceMemory_Info& info) {
     VK_FROM_HANDLE(gfxstream_vk_device_memory, gfxstream_memory, memory);
 
-    if (info.coherentMemory && gfxstream_memory->mapped) {
-        gfxstream_memory->mapped = nullptr;
+    if (info.coherentMemory) {
+        if (gfxstream_memory->mapped) {
+            info.coherentMemory->release(info.coherentMemoryOffset);
+            gfxstream_memory->mapped = nullptr;
+        }
 
         if (info.coherentMemory->getDeviceMemory() != memory) {
             delete_gfxstream_vk_device_memory(memory);
         }
-
-        info.coherentMemory->release(info.coherentMemoryOffset);
 
         return std::move(info.coherentMemory);
     }
@@ -3210,8 +3211,20 @@ static uint32_t getVirglFormat(VkFormat vkFormat) {
 
 CoherentMemoryPtr ResourceTracker::createCoherentMemory(
     VkDevice device, VkDeviceMemory mem, const VkMemoryAllocateInfo& hostAllocationInfo,
-    VkEncoder* enc, VkResult& res) {
+    const VirtGpuResourcePtr& guestBlob, VkEncoder* enc, VkResult& res) {
     CoherentMemoryPtr coherentMemory = nullptr;
+
+    if (guestBlob) {
+        auto mapping = guestBlob->createMapping();
+        if (!mapping) {
+            mesa_loge("Failed to create coherent memory: failed to create blob mapping.");
+            res = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            return coherentMemory;
+        }
+
+        return std::make_shared<CoherentMemory>(mapping, hostAllocationInfo.allocationSize, device,
+                                                mem);
+    }
 
 #if DETECT_OS_ANDROID
     if (mFeatureInfo.hasDirectMem) {
@@ -3393,29 +3406,10 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
         return host_res;
     }
     VK_FROM_HANDLE(gfxstream_vk_device_memory, gfxstream_memory, mem);
+    gfxstream_memory->mapped_size = pAllocateInfo->allocationSize;
 
     struct VkDeviceMemory_Info info;
-    if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
-        gfxstream_memory->mapped_size = pAllocateInfo->allocationSize;
-        info.blobId = createBlobInfo.blobId;
-    }
-
-    if (guestBlob) {
-        auto mapping = guestBlob->createMapping();
-        if (!mapping) {
-            mesa_loge("Failed to allocate coherent memory: failed to create blob mapping.");
-            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-        }
-
-        auto coherentMemory = std::make_shared<CoherentMemory>(
-            mapping, hostAllocationInfo.allocationSize, device, mem);
-
-        coherentMemory->subAllocate(pAllocateInfo->allocationSize, &ptr, offset);
-        info.coherentMemoryOffset = offset;
-        info.coherentMemory = coherentMemory;
-        gfxstream_memory->mapped = ptr;
-    }
-
+    info.blobId = createBlobInfo.blobId;
     info.coherentMemorySize = hostAllocationInfo.allocationSize;
     info.memoryTypeIndex = hostAllocationInfo.memoryTypeIndex;
     info.device = device;
@@ -3427,27 +3421,41 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
         info_VkDeviceMemory[mem] = info;
     }
 
-    if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
+    // With deferred mapping, the coherent memory is created on the first vkMapMemory().
+    if (mCaps.vulkanCapset.deferredMapping && !mCaps.params[kParamCreateGuestHandle]) {
         *pMemory = mem;
+        return VK_SUCCESS;
+    }
+
+    auto coherentMemory =
+        createCoherentMemory(device, mem, hostAllocationInfo, guestBlob, enc, host_res);
+    if (!coherentMemory) {
+        // Also removes |mem| from info_VkDeviceMemory.
+        enc->vkFreeMemory(device, mem, nullptr, true /* do lock */);
         return host_res;
     }
 
-    auto coherentMemory = createCoherentMemory(device, mem, hostAllocationInfo, enc, host_res);
-    if (coherentMemory) {
-        std::lock_guard<std::recursive_mutex> lock(mLock);
-        coherentMemory->subAllocate(pAllocateInfo->allocationSize, &ptr, offset);
-        gfxstream_memory->mapped_size = pAllocateInfo->allocationSize;
-        info.coherentMemoryOffset = offset;
-        info.coherentMemory = coherentMemory;
-        gfxstream_memory->mapped = ptr;
-        info_VkDeviceMemory[mem] = info;
-        *pMemory = mem;
-    } else {
-        enc->vkFreeMemory(device, mem, nullptr, true);
-        std::lock_guard<std::recursive_mutex> lock(mLock);
-        info_VkDeviceMemory.erase(mem);
+    if (!coherentMemory->subAllocate(pAllocateInfo->allocationSize, &ptr, offset)) {
+        mesa_loge(
+            "Failed to allocate coherent memory: failed to sub-allocate %llu bytes from %llu-byte "
+            "block.",
+            static_cast<unsigned long long>(pAllocateInfo->allocationSize),
+            static_cast<unsigned long long>(hostAllocationInfo.allocationSize));
+        // |coherentMemory| owns |mem|: destroying it on return frees |mem| on the host and
+        // removes it from info_VkDeviceMemory (see ~CoherentMemory()).
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
-    return host_res;
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        auto& memInfo = info_VkDeviceMemory[mem];
+        memInfo.coherentMemoryOffset = offset;
+        memInfo.coherentMemory = coherentMemory;
+        gfxstream_memory->mapped = ptr;
+    }
+
+    *pMemory = mem;
+    return VK_SUCCESS;
 }
 
 VkResult ResourceTracker::getCoherentMemory(const VkMemoryAllocateInfo* pAllocateInfo,
@@ -3511,16 +3519,16 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                                               const VkMemoryAllocateInfo* pAllocateInfo,
                                               const VkAllocationCallbacks* pAllocator,
                                               VkDeviceMemory* pMemory) {
-#define _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(result)                                      \
-    {                                                                                          \
-        auto it = info_VkDevice.find(device);                                                  \
-        if (it == info_VkDevice.end()) return result;                                          \
-        mesa_logw("%s:%d: Allocation failure %d", __func__, __LINE__, result);                 \
-        emitDeviceMemoryReport(                                                                \
-            it->second, VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_ALLOCATION_FAILED_EXT, 0,           \
-            pAllocateInfo->allocationSize, VK_OBJECT_TYPE_DEVICE_MEMORY, 0,                    \
-            it->second.memProps.memoryTypes[pAllocateInfo->memoryTypeIndex].heapIndex);        \
-        return result;                                                                         \
+#define _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(result)                               \
+    {                                                                                   \
+        auto it = info_VkDevice.find(device);                                           \
+        if (it == info_VkDevice.end()) return result;                                   \
+        mesa_logw("%s:%d: Allocation failure %d", __func__, __LINE__, result);          \
+        emitDeviceMemoryReport(                                                         \
+            it->second, VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_ALLOCATION_FAILED_EXT, 0,    \
+            pAllocateInfo->allocationSize, VK_OBJECT_TYPE_DEVICE_MEMORY, 0,             \
+            it->second.memProps.memoryTypes[pAllocateInfo->memoryTypeIndex].heapIndex); \
+        return result;                                                                  \
     }
 
     if (input_result != VK_SUCCESS) _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(input_result);
@@ -4026,10 +4034,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     VirtGpuResourcePtr bufferBlob = nullptr;
     int importedFd = -1;
 #if defined(LINUX_GUEST_BUILD)
-    hasDedicatedImage =
-        dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
-    hasDedicatedBuffer =
-        dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
+    hasDedicatedImage = dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
+    hasDedicatedBuffer = dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
 
     // Check for import first; this takes precedence over exportDmabuf in creating the
     // VirtGpuResource
@@ -4344,10 +4350,9 @@ void ResourceTracker::on_vkFreeMemory(void* context, VkDevice device, VkDeviceMe
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
     if (info.vmoHandle && gfxstream_memory->mapped) {
-        zx_status_t status =
-            zx_vmar_unmap(zx_vmar_root_self(),
-                          reinterpret_cast<zx_paddr_t>(gfxstream_memory->mapped),
-                          gfxstream_memory->mapped_size);
+        zx_status_t status = zx_vmar_unmap(zx_vmar_root_self(),
+                                           reinterpret_cast<zx_paddr_t>(gfxstream_memory->mapped),
+                                           gfxstream_memory->mapped_size);
         if (status != ZX_OK) {
             mesa_loge("%s: Cannot unmap ptr: status %d", __func__, status);
         }
@@ -4429,12 +4434,21 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
         auto coherentMemory =
             std::make_shared<CoherentMemory>(mapping, createBlob.size, device, memory);
 
-        uint8_t* ptr;
-        uint64_t offset;
-        coherentMemory->subAllocate(gfxstream_memory->mapped_size, &ptr, offset);
-
-        deviceMemoryInfo.coherentMemoryOffset = offset;
+        // |coherentMemory| owns |memory| and frees it on destruction, so keep it even if the
+        // sub-allocation fails; it is released when the application frees |memory|.
         deviceMemoryInfo.coherentMemory = coherentMemory;
+
+        uint8_t* ptr = nullptr;
+        uint64_t coherentMemoryOffset = 0;
+        if (!coherentMemory->subAllocate(gfxstream_memory->mapped_size, &ptr,
+                                         coherentMemoryOffset)) {
+            mesa_loge("%s: Failed to sub-allocate %llu bytes from %llu-byte coherent memory block.",
+                      __func__, static_cast<unsigned long long>(gfxstream_memory->mapped_size),
+                      static_cast<unsigned long long>(createBlob.size));
+            return VK_ERROR_MEMORY_MAP_FAILED;
+        }
+
+        deviceMemoryInfo.coherentMemoryOffset = coherentMemoryOffset;
         gfxstream_memory->mapped = ptr;
     }
 
@@ -4449,8 +4463,8 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
         mesa_loge(
             "%s: size is too big. alloc size 0x%llx while we wanted offset 0x%llx size 0x%llx "
             "total 0x%llx",
-            __func__, (unsigned long long)gfxstream_memory->mapped_size,
-            (unsigned long long)offset, (unsigned long long)size, (unsigned long long)offset);
+            __func__, (unsigned long long)gfxstream_memory->mapped_size, (unsigned long long)offset,
+            (unsigned long long)size, (unsigned long long)offset);
         return VK_ERROR_MEMORY_MAP_FAILED;
     }
 
@@ -6986,7 +7000,10 @@ VkResult ResourceTracker::on_vkMapMemoryIntoAddressSpaceGOOGLE_pre(void*, VkResu
     auto& memInfo = it->second;
 
     GoldfishAddressSpaceBlockPtr block = std::make_shared<GoldfishAddressSpaceBlock>();
-    block->allocate(mGoldfishAddressSpaceBlockProvider.get(), memInfo.coherentMemorySize);
+    if (!block->allocate(mGoldfishAddressSpaceBlockProvider.get(), memInfo.coherentMemorySize)) {
+        *pAddress = 0;
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
 
     memInfo.goldfishBlock = block;
     *pAddress = block->physAddr();
@@ -8540,7 +8557,6 @@ const VkPhysicalDeviceMemoryProperties& ResourceTracker::getPhysicalDeviceMemory
     }
     return *mCachedPhysicalDeviceMemoryProps;
 }
-
 
 ResourceTracker::ResourceTracker() {}
 
