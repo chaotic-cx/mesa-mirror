@@ -391,8 +391,6 @@ jay_emit_parallel_copies(jay_builder *b,
    unsigned num_simple = 0;
 
 #ifndef NDEBUG
-   BITSET_WORD *packed = BITSET_CALLOC(UINT16_MAX);
-
    if (0) {
       printf("[[\n");
 
@@ -404,21 +402,18 @@ jay_emit_parallel_copies(jay_builder *b,
 
       printf("]]\n");
    }
-
-   /**
-    * Assert that each parallel copy destination is unique: no reg can appear
-    * as the destination of two parallel copies.
-    */
-   for (unsigned i = 0; i < num_copies; i++) {
-      assert(!BITSET_TEST(packed, pcopies[i].dst));
-      BITSET_SET(packed, pcopies[i].dst);
-   }
-
-   free(packed);
 #endif
+
+   ASSERTED jay_reg last_dst = NO_REG;
 
    for (unsigned i = 0; i < num_copies; i++) {
       ++reg_use_count[r_file(pcopies[i].src)][r_reg(pcopies[i].src)];
+
+      /* Assert that each parallel copy destination is unique: no reg can appear
+       * as the destination of two parallel copies. Note that copies are sorted.
+       */
+      assert(last_dst != pcopies[i].dst);
+      last_dst = pcopies[i].dst;
    }
 
    bool progress;
