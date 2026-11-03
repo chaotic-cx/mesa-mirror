@@ -227,6 +227,11 @@ variables:
   # Mesa-specific variables that shouldn't be forwarded to DUTs and crosvm
   CI_EXCLUDE_ENV_VAR_REGEX: 'SCRIPTS_DIR|RESULTS_DIR'
 
+  # Be more resilient against sustained attacks from LLMs against our infrastructure
+  EXECUTOR_JOB_SECTION_ATTEMPTS: 3
+  ARTIFACT_DOWNLOAD_ATTEMPTS: 3
+  GET_SOURCES_ATTEMPTS: 3
+
   # WARNING: These variables are part of the downstream pipeline ABI, do not rename!
   KERNEL_IMAGE_BASE: "https://$S3_HOST/$S3_KERNEL_BUCKET/$KERNEL_REPO/$KERNEL_TAG"
   # FIXME: mimic the same logic for firmware files, requires changes in linux-firmware
