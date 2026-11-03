@@ -31,7 +31,6 @@
 
 #include "pipe_loader_priv.h"
 
-#include "util/detect_os.h"
 #include "util/os_file.h"
 #include "util/u_memory.h"
 #include "sw/dri/dri_sw_winsys.h"
@@ -78,7 +77,7 @@ static const struct sw_driver_descriptor driver_descriptors = {
          .name = "null",
          .create_winsys = null_sw_create,
       },
-#if !DETECT_OS_ANDROID
+#ifndef HAVE_ANDROID_PLATFORM
       {
          .name = "wrapped",
          .create_winsys_wrapped = wrapper_sw_winsys_wrap_pipe_screen,
@@ -102,7 +101,7 @@ static const struct sw_driver_descriptor kopper_driver_descriptors = {
          .create_winsys_kms_dri = kms_dri_create_winsys,
       },
 #endif
-#if !DETECT_OS_ANDROID
+#ifndef HAVE_ANDROID_PLATFORM
       {
          .name = "null",
          .create_winsys = null_sw_create,
