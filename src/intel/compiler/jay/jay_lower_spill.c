@@ -74,10 +74,8 @@ lower_mem_copy_swap(jay_function *f)
    jay_foreach_inst_in_func_safe(f, block, I) {
       jay_builder b = jay_init_builder(f, jay_before_inst(I));
 
-      bool use_acc = f->shader->devinfo->ver >= 20;
-      jay_def t[] = { use_acc ? jay_bare_reg(ACCUM, 0) :
-                                jay_bare_reg(MEM, nr_mem + 1),
-                      jay_bare_reg(MEM, nr_mem + !use_acc + 1) };
+      jay_def t[] = { jay_bare_reg(MEM, nr_mem + 1),
+                      jay_bare_reg(MEM, nr_mem + 2) };
       jay_def r[] = { jay_bare_reg(GPR, 0), jay_bare_reg(GPR, 1) };
 
       if (I->op == JAY_OPCODE_SWAP && I->src[0].file == MEM) {

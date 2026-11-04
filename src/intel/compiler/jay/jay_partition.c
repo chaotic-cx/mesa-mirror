@@ -102,14 +102,14 @@ struct jay_partition_builder {
 static void
 build_partition(jay_shader *shader,
                 unsigned hw_grfs,
+                bool reserve_acc01,
                 struct jay_partition_builder *b,
                 unsigned n)
 {
    unsigned base_grf = 0, base_gpr[JAY_NUM_RA_FILES] = { 0 };
    struct jay_partition *p = &shader->partition;
 
-   /* acc0/acc1 reserved for lowering integer multiplication */
-   base_gpr[ACCUM] = 2 / jay_grf_per_gpr(shader);
+   base_gpr[ACCUM] = reserve_acc01 ? 2 / jay_grf_per_gpr(shader) : 0;
 
    *p = (struct jay_partition){
       .units_x16[UGPR] = jay_ugpr_per_grf(shader) * 16,
@@ -230,6 +230,7 @@ jay_partition_grf(jay_shader *shader)
    const struct intel_device_info *devinfo = shader->devinfo;
    unsigned grf_per_gpr = jay_grf_per_gpr(shader);
    unsigned ugpr_per_grf = jay_ugpr_per_grf(shader);
+   bool reserve_acc01 = false;
 
    /* Xe1 does not have any 32-bit SIMD32 instructions, so we use SIMD16 as the
     * base split there (and then use SIMD8 for instructions requiring further
@@ -242,6 +243,9 @@ jay_partition_grf(jay_shader *shader)
 
    unsigned eot_split = base_split;
    jay_foreach_inst_in_shader(shader, f, I) {
+      /* acc0/acc1 is clobbered by mul_32, so do not map it if mul_32 used */
+      reserve_acc01 |= (I->op == JAY_OPCODE_MUL_32);
+
       if (jay_is_early_eot_send(shader, I)) {
          eot_split = I->simd_split;
       }
@@ -402,7 +406,7 @@ jay_partition_grf(jay_shader *shader)
       special_4;
 
    unsigned mapped_accums =
-      shader->devinfo->ver >= 20 ? (grf_per_gpr == 1 ? 2 : 1) : 0;
+      shader->devinfo->ver >= 20 ? (reserve_acc01 ? 2 : 4) / grf_per_gpr : 0;
 
    for (unsigned spilling = 0; spilling <= 2; spilling++) {
       /* There is an interdependence between partition choice and spilling,
@@ -557,7 +561,7 @@ jay_partition_grf(jay_shader *shader)
    shader->num_regs[FLAG] = hw_flags;
    shader->num_regs[J_ADDRESS] = 1;
 
-   build_partition(shader, hw_grfs, blocks, ARRAY_SIZE(blocks));
+   build_partition(shader, hw_grfs, reserve_acc01, blocks, ARRAY_SIZE(blocks));
 
    /* By construction of our partition, the entire GRF is used. */
    shader->prog_data->base.grf_used = hw_grfs;
