@@ -2250,46 +2250,58 @@ radv_cmd_clear_image(VkCommandBuffer commandBuffer, VkImage image_h, VkImageLayo
       internal_clear_value.depthStencil = clear_value->depthStencil;
    }
 
+   /* radv_fast_clear_range can return up to 2 ranges per input range. */
+   STACK_ARRAY(VkImageSubresourceRange, remaining_ranges, range_count * 2);
+   if (!remaining_ranges) {
+      vk_command_buffer_set_error(&cmd_buffer->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return;
+   }
+
    radv_suspend_conditional_rendering(cmd_buffer);
    radv_meta_begin(cmd_buffer);
 
-   for (uint32_t r = 0; r < range_count; r++) {
-      VkImageSubresourceRange remaining_ranges[2];
+   unsigned num_remaining_ranges = 0;
 
-      /* Try to perform a fast clear first. If nothing or only a subset of the "range" is cleared, the function
-       * returns 1-2 ranges that remain to be cleared.
+   /* Execute all fast clears together. */
+   for (unsigned r = 0; r < range_count; r++) {
+      /* If nothing or only a subset of the range is cleared, the function returns 1-2 ranges that remain
+       * to be cleared.
        */
-      unsigned num_remaining_ranges = radv_fast_clear_range(cmd_buffer, image, format, image_layout, &ranges[r],
-                                                            &internal_clear_value, remaining_ranges);
+      num_remaining_ranges += radv_fast_clear_range(cmd_buffer, image, format, image_layout, &ranges[r],
+                                                    &internal_clear_value, &remaining_ranges[num_remaining_ranges]);
+   }
 
-      for (unsigned rem = 0; rem < num_remaining_ranges; rem++) {
-         const unsigned level_count = vk_image_subresource_level_count(&image->vk, &remaining_ranges[rem]);
+   /* Execute all slow clears together. */
+   for (unsigned r = 0; r < num_remaining_ranges; r++) {
+      const VkImageSubresourceRange *range = &remaining_ranges[r];
+      const unsigned level_count = vk_image_subresource_level_count(&image->vk, range);
 
-         for (uint32_t l = 0; l < level_count; ++l) {
-            const uint32_t layer_count = image->vk.image_type == VK_IMAGE_TYPE_3D
-                                            ? u_minify(image->vk.extent.depth, remaining_ranges[rem].baseMipLevel + l)
-                                            : vk_image_subresource_layer_count(&image->vk, &remaining_ranges[rem]);
-            if (cs) {
-               for (uint32_t s = 0; s < layer_count; ++s) {
-                  struct radv_meta_blit2d_surf surf;
-                  surf.format = format;
-                  surf.image = image;
-                  surf.level = remaining_ranges[rem].baseMipLevel + l;
-                  surf.layer = remaining_ranges[rem].baseArrayLayer + s;
-                  surf.aspect_mask = remaining_ranges[rem].aspectMask;
-                  surf.disable_compression = false;
-                  radv_meta_clear_image_cs(cmd_buffer, &surf, &internal_clear_value.color);
-               }
-            } else {
-               radv_clear_image_layer(cmd_buffer, image, image_layout, &remaining_ranges[rem], format, l, layer_count,
-                                      &internal_clear_value);
+      for (uint32_t l = 0; l < level_count; ++l) {
+         const uint32_t layer_count = image->vk.image_type == VK_IMAGE_TYPE_3D
+                                         ? u_minify(image->vk.extent.depth, range->baseMipLevel + l)
+                                         : vk_image_subresource_layer_count(&image->vk, range);
+         if (cs) {
+            for (uint32_t s = 0; s < layer_count; ++s) {
+               struct radv_meta_blit2d_surf surf;
+               surf.format = format;
+               surf.image = image;
+               surf.level = range->baseMipLevel + l;
+               surf.layer = range->baseArrayLayer + s;
+               surf.aspect_mask = range->aspectMask;
+               surf.disable_compression = false;
+               radv_meta_clear_image_cs(cmd_buffer, &surf, &internal_clear_value.color);
             }
+         } else {
+            radv_clear_image_layer(cmd_buffer, image, image_layout, range, format, l, layer_count,
+                                   &internal_clear_value);
          }
       }
    }
 
    radv_meta_end(cmd_buffer);
    radv_resume_conditional_rendering(cmd_buffer);
+
+   STACK_ARRAY_FINISH(remaining_ranges);
 }
 
 VKAPI_ATTR void VKAPI_CALL
