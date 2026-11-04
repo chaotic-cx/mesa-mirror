@@ -127,8 +127,8 @@ gitlab-ci*.yml @eric
 /src/glx/applegl_glx.c @jeremyhu
 
 # Asahi
-/src/asahi/ @alyssa
-/src/gallium/drivers/asahi/ @alyssa
+/src/asahi/ @alyssa @marysaka @jannau
+/src/gallium/drivers/asahi/ @alyssa @marysaka @jannau
 
 # Broadcom
 /src/broadcom/ @chema @jasuarez @itoral @apinheiro
