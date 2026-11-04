@@ -978,7 +978,7 @@ radv_can_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_
 static void
 radv_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_image_view *iview,
                       VkClearDepthStencilValue clear_value, VkImageAspectFlags aspects,
-                      struct radv_clear_sync_info *sync_info, enum att_id att_id)
+                      struct radv_clear_sync_info *sync_info, enum att_id att_id, bool handle_zs_aspect_hazard)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    uint32_t clear_word, flush_bits;
@@ -999,7 +999,7 @@ radv_fast_clear_depth(struct radv_cmd_buffer *cmd_buffer, const struct radv_imag
 
    flush_bits = radv_clear_htile_rmw(cmd_buffer, iview->image, &range, clear_word, RADV_HTILE_PRESERVE_VRS);
 
-   if (!sync_info && iview->image->planes[0].surface.has_stencil &&
+   if (handle_zs_aspect_hazard && iview->image->planes[0].surface.has_stencil &&
        !(aspects == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))) {
       /* Synchronize after performing a depth-only or a stencil-only
        * fast clear because the driver uses an optimized path which
@@ -1834,7 +1834,7 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer, const VkClearAttachment *clear_at
 
       if (fast_clear_aspects) {
          radv_fast_clear_depth(cmd_buffer, ds_att->iview, clear_att->clearValue.depthStencil, fast_clear_aspects,
-                               sync_info, att_id);
+                               sync_info, att_id, false);
       }
 
       if (slow_clear_aspects) {
@@ -2206,7 +2206,8 @@ radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
    if (is_color) {
       radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL, ATT_COLOR0);
    } else {
-      radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL, ATT_ZS);
+      radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL, ATT_ZS,
+                            true);
    }
 
    radv_image_view_finish(&iview);
