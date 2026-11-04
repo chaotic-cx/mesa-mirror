@@ -100,31 +100,18 @@ write_sampler_desc(struct panvk_descriptor_set *set,
 {
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
+   assert(binding_layout->type == VK_DESCRIPTOR_TYPE_SAMPLER);
 
    struct panvk_sampler *sampler;
-
    if (binding_layout->immutable_samplers) {
       if (!write_immutable)
          return;
       sampler = binding_layout->immutable_samplers[elem];
    } else {
-      if (!pImageInfo)
-         return;
       sampler = panvk_sampler_from_handle(pImageInfo->sampler);
    }
-
-   if (!sampler) {
-      for (uint8_t plane = 0; plane < binding_layout->samplers_per_desc;
-           plane++)
-         write_nulldesc(set, binding, elem,
-                        get_sampler_subdesc_info(binding_layout->type, plane));
-      return;
-   }
-
-   for (uint8_t plane = 0; plane < sampler->desc_count; plane++) {
-      write_desc(set, binding, elem, &sampler->descs[plane],
-                 get_sampler_subdesc_info(binding_layout->type, plane));
-   }
+   assert(sampler);
+   write_desc(set, binding, elem, &sampler->descs[0], NO_SUBDESC);
 }
 
 static void
@@ -132,37 +119,30 @@ write_image_view_desc(struct panvk_descriptor_set *set,
                       const VkDescriptorImageInfo *const pImageInfo,
                       uint32_t binding, uint32_t elem, VkDescriptorType type)
 {
-   if (!pImageInfo)
-      return;
-
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
+   /* this is only for bare image writes. */
+   assert(binding_layout->type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
    if (pImageInfo->imageView == VK_NULL_HANDLE) {
-      for (uint8_t plane = 0; plane < binding_layout->textures_per_desc;
-           plane++)
-         write_nulldesc(set, binding, elem,
-                        get_tex_subdesc_info(binding_layout->type, plane));
+      write_nulldesc(set, binding, elem,
+                     get_tex_subdesc_info(binding_layout->type, 0));
       return;
    }
 
    VK_FROM_HANDLE(panvk_image_view, view, pImageInfo->imageView);
+   assert(panvk_image_get_tex_count(PAN_ARCH, view->vk.view_format) == 1);
 
-   for (uint8_t plane = 0; plane < binding_layout->textures_per_desc; plane++) {
-      struct panvk_subdesc_info subdesc = get_tex_subdesc_info(type, plane);
+   if (type != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+      write_desc(set, binding, elem, &view->descs.tex[0], NO_SUBDESC);
+   else {
+      write_desc(set, binding, elem,
 #if PAN_ARCH >= 9
-      if (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
-         write_desc(set, binding, elem, &view->descs.storage_tex[plane],
-                    subdesc);
-      else
-         write_desc(set, binding, elem, &view->descs.tex[plane], subdesc);
+                 &view->descs.storage_tex[0],
 #else
-      if (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
-         write_desc(set, binding, elem, &view->descs.img_attrib_buf,
-                    NO_SUBDESC);
-      else
-         write_desc(set, binding, elem, &view->descs.tex[plane], subdesc);
+                 &view->descs.img_attrib_buf,
 #endif
+                 NO_SUBDESC);
    }
 }
 
@@ -571,14 +551,7 @@ desc_set_write_immutable_samplers(struct panvk_descriptor_set *set,
       for (uint32_t j = 0; j < array_size; j++) {
          struct panvk_sampler *sampler =
             layout->bindings[b].immutable_samplers[j];
-         if (!sampler) {
-            for (uint8_t plane = 0;
-                 plane < layout->bindings[b].samplers_per_desc; plane++)
-               write_nulldesc(
-                  set, b, j,
-                  get_sampler_subdesc_info(layout->bindings[b].type, plane));
-            continue;
-         }
+         assert(sampler);
          for (uint8_t plane = 0; plane < sampler->desc_count; plane++) {
             write_desc(set, b, j,
                        &sampler->descs[plane],
