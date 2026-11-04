@@ -2733,7 +2733,7 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
       goto cleanup;
    };
 
-   if (loader_get_user_preferred_device(render_dev, preferred_dev))
+   if (loader_get_user_preferred_device(render_dev, &preferred_dev))
    {
       bool found_matching_tranche = false;
 

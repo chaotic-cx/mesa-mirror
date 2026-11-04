@@ -474,7 +474,7 @@ bool loader_drm_devices_match(drmDevicePtr dev1, drmDevicePtr dev2)
    return ret;
 }
 
-bool loader_get_user_preferred_device(drmDevicePtr default_dev, drmDevicePtr preferred_dev)
+bool loader_get_user_preferred_device(drmDevicePtr default_dev, drmDevicePtr *preferred_dev)
 {
    const char *dri_prime = os_get_option("DRI_PRIME");
    bool debug = debug_get_bool_option("DRI_PRIME_DEBUG", false);
@@ -626,7 +626,9 @@ bool loader_get_user_preferred_device(drmDevicePtr default_dev, drmDevicePtr pre
 
       log_(debug ? _LOADER_WARNING : _LOADER_INFO,
            "selected (%s)\n", devices[i]->nodes[DRM_NODE_RENDER]);
-      memcpy(preferred_dev, devices[i], sizeof(drmDevice));
+      drmFreeDevice(preferred_dev);
+      *preferred_dev = devices[i];
+      devices[i] = NULL;
       break;
    }
    drmFreeDevices(devices, num_devices);
@@ -635,7 +637,7 @@ bool loader_get_user_preferred_device(drmDevicePtr default_dev, drmDevicePtr pre
       goto err;
 
    free(prime.str);
-   return !loader_drm_devices_match(default_dev, preferred_dev);
+   return !loader_drm_devices_match(default_dev, *preferred_dev);
  err:
    log_(debug ? _LOADER_WARNING : _LOADER_INFO,
         "DRI_PRIME: error. Using the default GPU\n");
@@ -658,7 +660,7 @@ bool loader_get_user_preferred_fd(int *fd_render_gpu, int *original_fd)
       return false;
    };
    is_render_and_display_gpu_diff = loader_get_user_preferred_device(
-      render_dev, preferred_dev);
+      render_dev, &preferred_dev);
    fd = loader_open_device(preferred_dev->nodes[DRM_NODE_RENDER]);
 
    if (fd < 0) {

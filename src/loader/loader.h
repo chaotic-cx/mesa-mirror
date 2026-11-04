@@ -91,7 +91,7 @@ loader_drm_devices_match(drmDevicePtr dev1, drmDevicePtr dev2);
  */
 
 bool
-loader_get_user_preferred_device(drmDevicePtr default_dev, drmDevicePtr preferred_dev);
+loader_get_user_preferred_device(drmDevicePtr default_dev, drmDevicePtr *preferred_dev);
 
 bool
 loader_get_user_preferred_fd(int *fd_render_gpu, int *original_fd);
