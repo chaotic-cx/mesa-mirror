@@ -267,56 +267,6 @@ add_copy(struct util_dynarray *copies, jay_reg dst, jay_reg src)
    }
 }
 
-static jay_def
-push_temp(jay_builder *b,
-          struct jay_temp_regs t,
-          enum jay_file file,
-          jay_def *backing,
-          jay_def avoid1,
-          jay_def avoid2)
-{
-   assert(file == GPR || file == UGPR);
-   jay_reg reg = file == GPR ? t.gpr : t.ugpr;
-   jay_def tmp = reg == NO_REG ? jay_null() : def_from_reg(reg);
-
-   if (!jay_is_null(tmp)) {
-      return tmp;
-   }
-
-   /* Find an aligned register that does not conflict with the inputs */
-   jay_def av[] = { avoid1, avoid2 };
-   unsigned r = 0;
-   bool succ;
-   do {
-      succ = true;
-      for (unsigned i = 0; i < ARRAY_SIZE(av); ++i) {
-         if (!jay_is_null(av[i]) && av[i].file == file && av[i].reg == r) {
-            r += (file == UGPR ? jay_ugpr_per_grf(b->shader) : 1);
-            succ = false;
-         }
-      }
-   } while (!succ);
-
-   assert(r < b->shader->num_regs[file] && "should have found something");
-   jay_def new = def_from_reg(make_reg(file, r));
-
-   /* Put accumulators down the float pipe - it's still a raw move. */
-   *backing = jay_bare_reg(ACCUM, 0);
-   jay_inst *mov = jay_MOV(b, *backing, new);
-   mov->type = JAY_TYPE_F32;
-   mov->uniform = file == UGPR;
-   return new;
-}
-
-static void
-pop_temp(jay_builder *b, jay_def temp, jay_def backing)
-{
-   if (!jay_is_null(backing)) {
-      assert(backing.file == ACCUM);
-      jay_MOV(b, temp, backing)->type = JAY_TYPE_F32;
-   }
-}
-
 /*
  * Insert a single logical copy. Like jay_MOV but expands to multiple moves
  * involving a temporary register in some cases.
