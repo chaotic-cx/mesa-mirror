@@ -5355,6 +5355,9 @@ tu_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer,
                      { .cnt = 1, .wait_cache_flush = true });
 
       if (offset) {
+         /* Without a WFI, CP_REG_RMW may read a stale value. */
+         tu_cs_emit_wfi(cs);
+
          cs->rmw(VPC_SO_BUFFER_OFFSET(CHIP, idx), {
             .src1_add = true,
             .src0 = 0xffffffff,
@@ -10164,11 +10167,15 @@ tu_dispatch(struct tu_cmd_buffer *cmd,
 
          cs->scratch_write(tu_scratch(tu_dispatch.scratch0), ~0);
 
-         /* CP_REG_RMW and CP_REG_TO_SCRATCH implicitly do a CP_WAIT_FOR_IDLE
-          * *and* CP_WAIT_FOR_ME, which is a full pipeline stall that we don't
-          * want, so manually wait for the CP_MEM_TO_REG write to land and
-          * then skip waiting below with SKIP_WAIT_FOR_ME.
+         /* CP_REG_RMW and CP_REG_TO_SCRATCH implicitly do a CP_WAIT_FOR_ME
+          * and on A750 CP_WAIT_FOR_IDLE (which is a full pipeline stall) that
+          * we don't want, so manually wait for the CP_MEM_TO_REG write to land
+          * and then skip waiting below with SKIP_WAIT_FOR_ME.
+          *
+          * On A8XX, the RMWs may still read a stale SP_CS_NDRANGE_1 without a WFI.
           */
+         if (CHIP >= A8XX)
+            tu_cs_emit_wfi(cs);
          tu_cs_emit_pkt7(cs, CP_WAIT_FOR_ME, 0);
 
          /* scratch0 = ((scratch0 & CS_NDRANGE_1) + -1
