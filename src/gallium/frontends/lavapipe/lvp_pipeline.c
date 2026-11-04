@@ -573,7 +573,7 @@ lvp_shader_lower(struct lvp_device *pdevice, nir_shader *nir, struct lvp_shader 
    };
 
    if (shader->heaps) {
-      NIR_PASS(_, nir, lvp_nir_lower_desciptor_heaps, mapping);
+      NIR_PASS(_, nir, lvp_nir_lower_descriptor_heaps);
 
       NIR_PASS(_, nir, lvp_nir_lower_push_constants, &shader->push_constant_size);
       NIR_PASS(_, nir, nir_lower_non_uniform_access, &options);

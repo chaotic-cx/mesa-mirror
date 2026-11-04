@@ -110,7 +110,7 @@ struct lvp_pipeline;
 struct lvp_pipeline_layout;
 struct vk_pipeline_robustness_state;
 
-bool lvp_nir_lower_desciptor_heaps(nir_shader *shader, const VkShaderDescriptorSetAndBindingMappingInfoEXT *mapping);
+bool lvp_nir_lower_descriptor_heaps(nir_shader *shader);
 
 bool lvp_lower_exec_graph(struct lvp_pipeline *pipeline, nir_shader *nir);
 

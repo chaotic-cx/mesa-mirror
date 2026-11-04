@@ -120,7 +120,7 @@ pass(nir_builder *b, nir_instr *instr, void *data)
 }
 
 bool
-lvp_nir_lower_desciptor_heaps(nir_shader *shader, const VkShaderDescriptorSetAndBindingMappingInfoEXT *mapping)
+lvp_nir_lower_descriptor_heaps(nir_shader *shader)
 {
    // nir_print_shader(shader, stdout);
    return nir_shader_instructions_pass(shader, pass, nir_metadata_control_flow, NULL);
