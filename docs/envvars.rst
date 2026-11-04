@@ -2311,7 +2311,7 @@ PowerVR driver environment variables
 
    A comma-separated list of passes to skip.
 
-.. envvar:: PCO_PRINT
+.. envvar:: PCO_DEBUG_PRINT
 
    A comma-separated list of named flags for the PCO compiler,
    which control debug printing options:
