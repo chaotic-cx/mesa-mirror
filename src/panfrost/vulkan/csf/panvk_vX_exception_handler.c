@@ -269,6 +269,7 @@ generate_tiler_oom_handler(struct panvk_device *dev,
 
          copy_fbd(&b, has_zs_ext, rt_count, current_fbd_ptr_reg, ir_descs_ptr,
                   scratch_fbd_ptr_reg);
+         cs_flush_stores(&b);
 
 #if PAN_ARCH >= 14
          /* Emit the scratch fbd layer state. */
