@@ -214,3 +214,7 @@ spec@!opengl 1.4@copy-pixels
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.local_read.max_remapped_attachments_with_gap_write_read
+
+# flakes every now and then
+dEQP-VK.wsi.wayland.incremental_present.scale_none.fifo.rotate_180.post_multiplied.reference
+dEQP-VK.wsi.xcb.maintenance1.present_modes.heterogenous.fifo_relaxed_fifo_immediate
