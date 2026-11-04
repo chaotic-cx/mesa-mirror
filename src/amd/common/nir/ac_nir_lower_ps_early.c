@@ -541,7 +541,7 @@ ac_nir_lower_ps_early(nir_shader *nir, const ac_nir_lower_ps_early_options *opti
    nir_shader_intrinsics_pass(nir, gather_info, nir_metadata_all, &state);
 
    bool progress = nir_shader_intrinsics_pass(nir, lower_ps_intrinsic,
-                                              nir_metadata_control_flow, &state);
+                                              nir_metadata_none, &state);
 
    if (state.persp_center || state.persp_centroid || state.persp_sample ||
        state.linear_center || state.linear_centroid || state.linear_sample) {
