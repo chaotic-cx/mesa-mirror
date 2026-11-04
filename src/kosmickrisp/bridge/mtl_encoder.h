@@ -14,14 +14,17 @@
 /* Common encoder utils */
 void mtl_end_encoding(void *encoder);
 void mtl_barrier_after_stages(void *encoder, enum mtl_stages after_stages,
-                              enum mtl_stages before_queue_stages);
+                              enum mtl_stages before_queue_stages,
+                              enum mtl_visibility_options visibility);
 void mtl_barrier_after_encoder_stages(void *encoder,
                                       enum mtl_stages after_stages,
-                                      enum mtl_stages before_queue_stages);
+                                      enum mtl_stages before_stages,
+                                      enum mtl_visibility_options visibility);
 
 void mtl_barrier_after_queue_stages(void *encoder,
                                     enum mtl_stages after_queue_stages,
-                                    enum mtl_stages before_stages);
+                                    enum mtl_stages before_stages,
+                                    enum mtl_visibility_options visibility);
 
 void mtl_update_fence(void *encoder, mtl_fence *fence,
                       enum mtl_stages after_stages);
@@ -76,6 +79,8 @@ void mtl_dispatch_threadgroups_with_indirect_buffer(
 
 void mtl_dispatch_threads_with_indirect_buffer(mtl_compute_encoder *encoder,
                                                uint64_t addr);
+
+enum mtl_stages mtl_compute_used_stages(mtl_compute_encoder *encoder);
 
 /* MTLRenderEncoder */
 mtl_render_encoder *mtl_new_render_command_encoder_with_descriptor(

@@ -336,7 +336,8 @@ static void
 end_encoder(struct kk_cmd_buffer *cmd, mtl_command_encoder *encoder)
 {
    /* TODO_KOSMICKRISP This is probably overkill */
-   mtl_barrier_after_stages(encoder, MTL_STAGE_ALL, MTL_STAGE_ALL);
+   mtl_barrier_after_stages(encoder, MTL_STAGE_ALL, MTL_STAGE_ALL,
+                            MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    mtl_end_encoding(encoder);
    mtl_release(encoder);
 
@@ -478,14 +479,16 @@ kk_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
          cs_start_render(cmd);
       } else
          mtl_barrier_after_encoder_stages(cmd->metal.render, MTL_STAGE_VERTEX,
-                                          MTL_STAGE_FRAGMENT);
+                                          MTL_STAGE_FRAGMENT,
+                                          MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    } else if (cmd->metal.compute) {
       /* We chain encoders, so an intra-encoder barrier is enough here:
        * no need to tear down and recreate the encoder.
        */
       mtl_barrier_after_encoder_stages(cmd->metal.compute,
                                        MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
-                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT);
+                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    }
 }
 
@@ -813,7 +816,8 @@ kk_dispatch_precomp(struct kk_cmd_buffer *cmd, struct kk_grid grid,
 
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
    mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_DISPATCH,
-                                    MTL_STAGE_DISPATCH);
+                                    MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    struct kk_ptr data_gpu = kk_pool_upload(cmd, data, data_size, 8u);
    if (unlikely(!data_gpu.gpu))
@@ -834,7 +838,8 @@ kk_dispatch_precomp(struct kk_cmd_buffer *cmd, struct kk_grid grid,
       mtl_dispatch_threadgroups_with_indirect_buffer(encoder, grid.addr,
                                                      local_size);
    mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_DISPATCH,
-                                    MTL_STAGE_DISPATCH);
+                                    MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    /* Rebind the existing root. */
    mtl_set_address(cmd->argument_table, cmd->state.root_addr, 0u);
@@ -1062,7 +1067,8 @@ kk_CmdWriteMarkerToMemoryAMD(VkCommandBuffer commandBuffer,
    if (cmd_buffer->metal.compute) {
       mtl_barrier_after_encoder_stages(cmd_buffer->metal.compute,
                                        MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
-                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT);
+                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    }
 
    write.value = pInfo->marker;

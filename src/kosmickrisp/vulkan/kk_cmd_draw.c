@@ -1064,7 +1064,8 @@ kk_heap(struct kk_cmd_buffer *cmd)
 
       /* Ensure heap is set to 0 before we allocate anything. */
       mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_DISPATCH,
-                                       MTL_STAGE_DISPATCH);
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
       cmd->uses_heap = true;
    }
@@ -2138,7 +2139,8 @@ kk_launch_tess(struct kk_cmd_buffer *cmd, struct kk_draw_data draw)
       mtl_compute_pipeline_state *pipeline = vs->pipeline.gfx.pre_render[0];
       struct mtl_size local_size = {KK_POLY_WG_SIZE, 1, 1};
       mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
-                                       MTL_STAGE_DISPATCH);
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
       mtl_compute_set_pipeline_state(enc, pipeline);
       kk_dispatch_compute(enc, grid_vs, local_size);
    }
@@ -2150,7 +2152,8 @@ kk_launch_tess(struct kk_cmd_buffer *cmd, struct kk_draw_data draw)
       if (grid_tcs.mode == KK_GRID_DIRECT && grid_tcs.size.x == 0u)
          return (struct kk_draw_data){.grid = kk_grid_1d(0u)};
       mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
-                                       MTL_STAGE_DISPATCH);
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
       mtl_compute_set_pipeline_state(enc, pipeline);
       kk_dispatch_compute(enc, grid_tcs, local_size);
    }
@@ -2271,14 +2274,15 @@ kk_launch_gs_prerast(struct kk_cmd_buffer *cmd,
    if (!(pdev->settings.disabled_workarounds & BITFIELD64_BIT(19)))
       mtl_set_threadgroup_memory_length(enc, 16u, 0u);
 
-   mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
-                                    MTL_STAGE_DISPATCH);
+   mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH, MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
    mtl_compute_set_pipeline_state(
       enc, vs->pipeline.gfx.pre_render[pre_render_count - 2u]);
    kk_dispatch_compute(enc, grid_vs, local_size);
 
-   mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
-                                    MTL_STAGE_DISPATCH);
+   mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH, MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    mtl_compute_set_pipeline_state(
       enc, vs->pipeline.gfx.pre_render[pre_render_count - 1u]);
    kk_dispatch_compute(enc, grid_gs, local_size);

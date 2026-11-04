@@ -235,6 +235,12 @@ enum mtl_cull_mode {
    MTL_CULL_MODE_BACK = 2,
 };
 
+enum mtl_visibility_options {
+   MTL_VISIBILITY_OPTION_NONE = 0,
+   MTL_VISIBILITY_OPTION_DEVICE = 1 << 0,
+   MTL_VISIBILITY_OPTION_RESOURCE_ALIAS = 1 << 1,
+};
+
 enum mtl_visibility_result_mode {
    MTL_VISIBILITY_RESULT_MODE_DISABLED = 0,
    MTL_VISIBILITY_RESULT_MODE_BOOLEAN = 1,

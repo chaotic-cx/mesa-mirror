@@ -591,7 +591,7 @@ kk_CmdCopyQueryPoolResultsToMemoryKHR(
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
    /* The resolveCounterHeap runs on the blit stage and it needs to be available
     * for the compute job to copy results to the bo. */
-   mtl_barrier_after_queue_stages(encoder, MTL_STAGE_BLIT, MTL_STAGE_DISPATCH);
+   mtl_barrier_after_queue_stages(encoder, MTL_STAGE_BLIT, MTL_STAGE_DISPATCH, MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    struct kk_bo *results_bo =
       kk_pool_is_oq(pool) ? dev->occlusion_queries.bo : pool->bo;

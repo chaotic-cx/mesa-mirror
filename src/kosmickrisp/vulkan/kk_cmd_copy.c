@@ -245,7 +245,8 @@ copy_through_buffer(struct kk_cmd_buffer *cmd, struct kk_image *src,
       info.mtl_data.options = src_options;
       mtl_copy_from_texture_to_buffer(encoder, &info.mtl_data);
 
-      mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_BLIT, MTL_STAGE_BLIT);
+      mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_BLIT, MTL_STAGE_BLIT,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
       info.mtl_data.image = dst_plane->mtl_handle;
       info.mtl_data.image_size = dst_size;
