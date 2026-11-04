@@ -281,7 +281,7 @@ For hangs, preventing them would make it possible to make a trace.
    * - V3DV, V3D
      - ``V3D_DEBUG``
    * - PVR
-     - :envvar:`PVR_DEBUG`, :envvar:`ROGUE_DEBUG`
+     - :envvar:`PVR_DEBUG`, :envvar:`PCO_DEBUG`
    * - DXVK (non-Mesa)
      - ``DXVK_CONFIG``
 

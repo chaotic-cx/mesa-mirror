@@ -184,7 +184,7 @@
         "description": "docs: drop references to ROGUE_DEBUG & ROGUE_COLOR envvars",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "21561f9718063de5c13285949b5c535d480ed866",
         "notes": null
