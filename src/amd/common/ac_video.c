@@ -31,8 +31,12 @@ needs_preenc_pitch_wa(struct radeon_info *info)
       return !check_vcn_fw_version(info, 9, 24, 40);
    else if (info->vcn_ip_version >= VCN_3_0_0)
       return !check_vcn_fw_version(info, 4, 33, 26);
+   else if (info->vcn_ip_version >= VCN_2_0_0)
+      return !check_vcn_fw_version(info, 8, 24, 22);
+   else if (info->vcn_ip_version >= VCN_1_0_0)
+      return !check_vcn_fw_version(info, 3, 15, 12);
    else
-      return true;
+      UNREACHABLE("VCN only workaround");
 }
 
 static bool
