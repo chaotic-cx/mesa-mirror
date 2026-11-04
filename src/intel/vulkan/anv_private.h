@@ -7216,6 +7216,8 @@ struct anv_video_rc_state {
    uint32_t frame_counter;
    uint32_t brc_init_frame;
    bool brc_reset;
+   double av1_target_fullness;
+   int32_t av1_hrd_fullness;
 };
 
 struct anv_video_session {
