@@ -5467,7 +5467,12 @@ tu_EndCommandBuffer(VkCommandBuffer commandBuffer)
    if (cmd_buffer->state.pass) {
       tu_clean_all_pending(&cmd_buffer->state.renderpass_cache);
       tu_emit_cache_flush_renderpass<CHIP>(cmd_buffer);
-   } else {
+   }
+
+   /* A suspended chain is rendered after cs, so in order to not lose the flushes - do them here. */
+   if (!cmd_buffer->state.pass ||
+       cmd_buffer->state.suspend_resume == SR_IN_CHAIN ||
+       cmd_buffer->state.suspend_resume == SR_IN_CHAIN_AFTER_PRE_CHAIN) {
       tu_clean_all_pending(&cmd_buffer->state.cache);
       cmd_buffer->state.cache.flush_bits |=
          TU_CMD_FLAG_CCU_CLEAN_COLOR |
