@@ -2047,15 +2047,23 @@ radv_clear_image_layer(struct radv_cmd_buffer *cmd_buffer, struct radv_image *im
 }
 
 /**
- * Return TRUE if a fast color or depth clear has been performed.
+ * This fast-clears either the whole range or its subset. If part of the range is not fast-cleared,
+ * the function returns the remaining ranges left to clear in the last parameter. It returns the number
+ * of returned ranges.
+ *
+ * The caller should check remaining_rangeN->aspectMask to see whether there is anything left to clear.
  */
-static bool
+static unsigned
 radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkFormat format,
-                      VkImageLayout image_layout, const VkImageSubresourceRange *range, const VkClearValue *clear_val)
+                      VkImageLayout image_layout, const VkImageSubresourceRange *range, const VkClearValue *clear_val,
+                      VkImageSubresourceRange remaining_ranges[2])
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_image_view iview;
-   bool fast_cleared = false;
+
+   /* Set the remaining ranges to none. */
+   remaining_ranges[0].aspectMask = 0;
+   remaining_ranges[1].aspectMask = 0;
 
    const VkImageViewUsage2CreateInfoKHR iview_usage_info = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_2_CREATE_INFO_KHR,
@@ -2101,23 +2109,108 @@ radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
       .clearValue = *clear_val,
    };
 
-   if (vk_format_is_color(format)) {
-      if (radv_can_fast_clear_color(cmd_buffer, &iview, image_layout, &clear_rect, clear_att.clearValue.color, 0,
-                                    NULL) == FAST_CLEAR_VALID) {
-         radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL, ATT_COLOR0);
-         fast_cleared = true;
-      }
-   } else {
-      if (radv_can_fast_clear_depth(cmd_buffer, &iview, image_layout, range->aspectMask, &clear_rect,
-                                    clear_att.clearValue.depthStencil, 0, NULL, NULL) == FAST_CLEAR_VALID) {
-         radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL,
-                               ATT_ZS);
-         fast_cleared = true;
+   const bool is_color = !(range->aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT));
+   const unsigned orig_level_count = iview.vk.level_count;
+   unsigned max_fast_clear_levels = orig_level_count;
+   bool reduce_iview = false;
+
+   /* Check the whole range. */
+   enum radv_fast_clear_support support =
+      is_color ? radv_can_fast_clear_color(cmd_buffer, &iview, image_layout, &clear_rect, clear_att.clearValue.color, 0,
+                                           &max_fast_clear_levels)
+               : radv_can_fast_clear_depth(cmd_buffer, &iview, image_layout, clear_att.aspectMask, &clear_rect,
+                                           clear_att.clearValue.depthStencil, 0, &clear_att.aspectMask,
+                                           &max_fast_clear_levels);
+
+   if (support == FAST_CLEAR_INVALID_SPLIT_ZS_ASPECTS) {
+      /* Check only the aspect that can be fast-cleared. This can only return FAST_CLEAR_VALID,
+       * FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE, or FAST_CLEAR_INVALID_OTHER.
+       */
+      support = radv_can_fast_clear_depth(cmd_buffer, &iview, image_layout, clear_att.aspectMask, &clear_rect,
+                                          clear_att.clearValue.depthStencil, 0, NULL, &max_fast_clear_levels);
+      assert(support != FAST_CLEAR_INVALID_SPLIT_ZS_ASPECTS);
+      /* The image view will lose one aspect. */
+      reduce_iview = true;
+   }
+
+   if (support == FAST_CLEAR_INVALID_SPLIT_LEVEL_RANGE) {
+      support = FAST_CLEAR_VALID;
+      /* The image view will lose the trailing levels that can't be fast-cleared. */
+      reduce_iview = true;
+   }
+
+   if (support != FAST_CLEAR_VALID) {
+      radv_image_view_finish(&iview);
+
+      /* The caller should use a slow clear for the whole range. */
+      remaining_ranges[0] = *range;
+      return 1;
+   }
+
+   if (reduce_iview) {
+      /* Reduce the aspect mask and/or the level count of the view. */
+      radv_image_view_finish(&iview);
+      radv_image_view_init(&iview, device,
+                           &(VkImageViewCreateInfo){
+                              .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                              .pNext = &iview_usage_info,
+                              .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
+                              .image = radv_image_to_handle(image),
+                              .viewType = radv_meta_get_view_type(image, false),
+                              .format = format,
+                              .subresourceRange =
+                                 {
+                                    .aspectMask = clear_att.aspectMask,
+                                    .baseMipLevel = range->baseMipLevel,
+                                    .levelCount = max_fast_clear_levels,
+                                    .baseArrayLayer = range->baseArrayLayer,
+                                    .layerCount = vk_image_subresource_layer_count(&image->vk, range),
+                                 },
+                           },
+                           NULL);
+
+      /* Return the remaining ranges that can't be fast-cleared, so that the caller can slow-clear them. */
+      if (range->aspectMask != clear_att.aspectMask) {
+         if (orig_level_count != max_fast_clear_levels) {
+            /* The whole range of one aspect and the trailing level range of the other aspect remain to be
+             * cleared by the caller.
+             *
+             * The first returned range is just 1 aspect of the leading levels that were not fast-cleared.
+             */
+            remaining_ranges[0] = *range;
+            remaining_ranges[0].aspectMask &= ~clear_att.aspectMask;
+            remaining_ranges[0].levelCount = max_fast_clear_levels;
+
+            /* The second returned range is both aspects for the trailing levels that were not fast-cleared. */
+            remaining_ranges[1] = *range;
+            remaining_ranges[1].baseMipLevel += max_fast_clear_levels;
+            remaining_ranges[1].levelCount = orig_level_count - max_fast_clear_levels;
+         } else {
+            /* Only one aspect remains to be cleared by the caller. */
+            remaining_ranges[0] = *range;
+            remaining_ranges[0].aspectMask &= ~clear_att.aspectMask;
+         }
+      } else {
+         if (orig_level_count != max_fast_clear_levels) {
+            /* Only a trailing level range remains to be cleared by the caller. */
+            remaining_ranges[0] = *range;
+            remaining_ranges[0].baseMipLevel += max_fast_clear_levels;
+            remaining_ranges[0].levelCount = orig_level_count - max_fast_clear_levels;
+         } else {
+            UNREACHABLE("the view shouldn't have been reduced");
+         }
       }
    }
 
+   /* Execute the fast clear for the whole range or whatever is left. */
+   if (is_color) {
+      radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL, ATT_COLOR0);
+   } else {
+      radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL, ATT_ZS);
+   }
+
    radv_image_view_finish(&iview);
-   return fast_cleared;
+   return !!remaining_ranges[0].aspectMask + !!remaining_ranges[1].aspectMask;
 }
 
 static void
@@ -2161,31 +2254,36 @@ radv_cmd_clear_image(VkCommandBuffer commandBuffer, VkImage image_h, VkImageLayo
    radv_meta_begin(cmd_buffer);
 
    for (uint32_t r = 0; r < range_count; r++) {
-      const VkImageSubresourceRange *range = &ranges[r];
+      VkImageSubresourceRange remaining_ranges[2];
 
-      /* Try to perform a fast clear first. */
-      if (radv_fast_clear_range(cmd_buffer, image, format, image_layout, range, &internal_clear_value)) {
-         continue;
-      }
+      /* Try to perform a fast clear first. If nothing or only a subset of the "range" is cleared, the function
+       * returns 1-2 ranges that remain to be cleared.
+       */
+      unsigned num_remaining_ranges = radv_fast_clear_range(cmd_buffer, image, format, image_layout, &ranges[r],
+                                                            &internal_clear_value, remaining_ranges);
 
-      for (uint32_t l = 0; l < vk_image_subresource_level_count(&image->vk, range); ++l) {
-         const uint32_t layer_count = image->vk.image_type == VK_IMAGE_TYPE_3D
-                                         ? u_minify(image->vk.extent.depth, range->baseMipLevel + l)
-                                         : vk_image_subresource_layer_count(&image->vk, range);
-         if (cs) {
-            for (uint32_t s = 0; s < layer_count; ++s) {
-               struct radv_meta_blit2d_surf surf;
-               surf.format = format;
-               surf.image = image;
-               surf.level = range->baseMipLevel + l;
-               surf.layer = range->baseArrayLayer + s;
-               surf.aspect_mask = range->aspectMask;
-               surf.disable_compression = false;
-               radv_meta_clear_image_cs(cmd_buffer, &surf, &internal_clear_value.color);
+      for (unsigned rem = 0; rem < num_remaining_ranges; rem++) {
+         const unsigned level_count = vk_image_subresource_level_count(&image->vk, &remaining_ranges[rem]);
+
+         for (uint32_t l = 0; l < level_count; ++l) {
+            const uint32_t layer_count = image->vk.image_type == VK_IMAGE_TYPE_3D
+                                            ? u_minify(image->vk.extent.depth, remaining_ranges[rem].baseMipLevel + l)
+                                            : vk_image_subresource_layer_count(&image->vk, &remaining_ranges[rem]);
+            if (cs) {
+               for (uint32_t s = 0; s < layer_count; ++s) {
+                  struct radv_meta_blit2d_surf surf;
+                  surf.format = format;
+                  surf.image = image;
+                  surf.level = remaining_ranges[rem].baseMipLevel + l;
+                  surf.layer = remaining_ranges[rem].baseArrayLayer + s;
+                  surf.aspect_mask = remaining_ranges[rem].aspectMask;
+                  surf.disable_compression = false;
+                  radv_meta_clear_image_cs(cmd_buffer, &surf, &internal_clear_value.color);
+               }
+            } else {
+               radv_clear_image_layer(cmd_buffer, image, image_layout, &remaining_ranges[rem], format, l, layer_count,
+                                      &internal_clear_value);
             }
-         } else {
-            radv_clear_image_layer(cmd_buffer, image, image_layout, range, format, l, layer_count,
-                                   &internal_clear_value);
          }
       }
    }
