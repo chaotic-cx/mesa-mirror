@@ -1142,9 +1142,6 @@ llvmpipe_delete_compute_state(struct pipe_context *pipe,
 
    if (llvmpipe->cs == cs)
       llvmpipe->cs = NULL;
-   for (unsigned i = 0; i < shader->max_global_buffers; i++)
-      pipe_resource_reference(&shader->global_buffers[i], NULL);
-   FREE(shader->global_buffers);
 
    util_shader_variant_list_destroy(&screen->cs_variant_opts,
                                     &shader->variants);
@@ -1808,30 +1805,30 @@ llvmpipe_set_global_binding(struct pipe_context *pipe,
                             uint32_t **handles)
 {
    struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
-   struct lp_compute_shader *cs = llvmpipe->cs;
 
-   if (first + count > cs->max_global_buffers) {
-      unsigned old_max = cs->max_global_buffers;
-      cs->max_global_buffers = first + count;
-      cs->global_buffers = realloc(cs->global_buffers,
-                                   cs->max_global_buffers * sizeof(cs->global_buffers[0]));
-      if (!cs->global_buffers) {
+   if (first + count > llvmpipe->max_global_buffers) {
+      unsigned old_max = llvmpipe->max_global_buffers;
+      unsigned new_max = first + count;
+      struct pipe_resource **buffers =
+         realloc(llvmpipe->global_buffers, new_max * sizeof(buffers[0]));
+      if (!buffers)
          return;
-      }
 
-      memset(&cs->global_buffers[old_max], 0, (cs->max_global_buffers - old_max) * sizeof(cs->global_buffers[0]));
+      memset(&buffers[old_max], 0, (new_max - old_max) * sizeof(buffers[0]));
+      llvmpipe->global_buffers = buffers;
+      llvmpipe->max_global_buffers = new_max;
    }
 
    if (!resources) {
       for (unsigned i = 0; i < count; i++)
-         pipe_resource_reference(&cs->global_buffers[first + i], NULL);
+         pipe_resource_reference(&llvmpipe->global_buffers[first + i], NULL);
       return;
    }
 
    for (unsigned i = 0; i < count; i++) {
       uintptr_t va;
       uint32_t offset;
-      pipe_resource_reference(&cs->global_buffers[first + i], resources[i]);
+      pipe_resource_reference(&llvmpipe->global_buffers[first + i], resources[i]);
       struct llvmpipe_resource *lp_res = llvmpipe_resource(resources[i]);
       offset = *handles[i];
       va = (uintptr_t)((char *)lp_res->data + offset);

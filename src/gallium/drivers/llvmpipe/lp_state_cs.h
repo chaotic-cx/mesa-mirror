@@ -124,9 +124,6 @@ struct lp_compute_shader {
    unsigned no;
    unsigned variants_created;
    bool zero_initialize_shared_memory;
-
-   int max_global_buffers;
-   struct pipe_resource **global_buffers;
 };
 
 struct lp_cs_exec {

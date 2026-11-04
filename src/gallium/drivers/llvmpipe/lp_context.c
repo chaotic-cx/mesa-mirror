@@ -72,6 +72,10 @@ llvmpipe_destroy(struct pipe_context *pipe)
    if (llvmpipe->mesh_ctx) {
       lp_csctx_destroy(llvmpipe->mesh_ctx);
    }
+   for (i = 0; i < llvmpipe->max_global_buffers; i++)
+      pipe_resource_reference(&llvmpipe->global_buffers[i], NULL);
+   free(llvmpipe->global_buffers);
+
    if (llvmpipe->blitter) {
       util_blitter_destroy(llvmpipe->blitter);
    }
