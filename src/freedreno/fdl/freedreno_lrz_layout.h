@@ -208,7 +208,7 @@ fdl6_lrz_layout_init(struct fdl_lrz_layout *lrz_layout,
          DIV_ROUND_UP(layout->height0 + extra_height, lrz_block->height);
 
       lrz_layout->lrz_pitch =
-         align(surface_width_in_blocks * per_slice_block_width_in_tiles, 64);
+         align(surface_width_in_blocks * per_slice_block_width_in_tiles, 32);
 
       /* Construct a "fake" height to use for fallback lrz clear on
        * the blitter.  Since we use lrz_pitch as the width, this is

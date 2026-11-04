@@ -2563,16 +2563,12 @@ tu6_clear_lrz_partial(struct tu_cmd_buffer *cmd,
          if (first >= lrz->lrz_layer_size)
             continue;
 
-         const uint32_t clear_block_bytes = 2048;
          if constexpr (CHIP < A8XX) {
             /* LRZ FC layer stride alignment is 64 bytes, or 512 bits. Each bit
              * is a FC block that covers 128 bytes.
              */
             assert(first % (512 * 128) == 0);
          }
-         /* LRZ layer stride is a multiple of 2048 bytes on all gens currently.
-          */
-         assert(lrz->lrz_layer_size % clear_block_bytes == 0);
 
          /* The LRZ FC layout is based on the LRZ layout. Each bit in the LRZ
           * fast-clear RAM corresponds to 1 fast-clear block of 128 bytes, or
@@ -2583,9 +2579,9 @@ tu6_clear_lrz_partial(struct tu_cmd_buffer *cmd,
                          i * lrz->lrz_buffer_size +
                          static_cast<uint64_t>(layer) * lrz->lrz_layer_size +
                          static_cast<uint64_t>(first);
-         uint64_t size_remaining =
-            lrz->lrz_layer_size - first;
-         assert(size_remaining % clear_block_bytes == 0);
+         uint32_t size_remaining = lrz->lrz_layer_size - first;
+         /* Pick power-of-two divisor of size_remaining. */
+         const uint32_t clear_block_bytes = MIN2(1u << (ffs(size_remaining) - 1), 0x4000u * 2);
 
          if (!any) {
             ops->setup(cmd, cs, PIPE_FORMAT_Z16_UNORM, PIPE_FORMAT_Z16_UNORM,
