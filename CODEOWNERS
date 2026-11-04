@@ -50,6 +50,9 @@ meson.build @dbaker @eric
 # Android Gralloc
 /src/util/u_gralloc/ @roman.stratiienko @zzyiwei
 
+# poly
+/src/poly/ @alyssa @marysaka @olivia
+
 #############
 # PLATFORMS #
 #############
