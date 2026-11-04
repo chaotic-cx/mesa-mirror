@@ -498,6 +498,16 @@ jay_emit_parallel_copies(jay_builder *b,
             jay_MOV(b, def_from_reg(temps.gpr2), src);
             jay_MOV(b, src, def_from_reg(temps.gpr));
             jay_MOV(b, dst, def_from_reg(temps.gpr2));
+         } else if (file == GPR &&
+                    ((jay_def_stride(b->shader, dst) == JAY_STRIDE_2 &&
+                      jay_def_stride(b->shader, src) == JAY_STRIDE_8) ||
+                     (jay_def_stride(b->shader, dst) == JAY_STRIDE_8 &&
+                      jay_def_stride(b->shader, src) == JAY_STRIDE_2))) {
+            /* We need to split the swap */
+            jay_def t = jay_bare_reg(GPR, 0);
+            jay_SWAP(b, dst, t);
+            jay_SWAP(b, src, t);
+            jay_SWAP(b, dst, t);
          } else if (file == MEM) {
             jay_SWAP(b, dst, src);
          } else {
