@@ -221,3 +221,57 @@ TEST_F(radv_nir_lower_opt_fs_frag_pos_test, pixelx_bit0_samplepos_vrs)
       }
    )"));
 }
+
+TEST_F(radv_nir_lower_opt_fs_frag_pos_test, pixelx_bit0)
+{
+   nir_unit_test_output(b, nir_iand_imm(b, nir_channel(b, nir_load_pixel_coord(b), 0), 0x1), 0);
+
+   run(false, false, true);
+
+   check_nir_string(NIR_REFERENCE_SHADER(R"(
+      shader: MESA_SHADER_FRAGMENT
+      name: radv_nir_lower_opt_fs_frag_pos_test
+      max_subgroup_size: 128
+      min_subgroup_size: 1
+      decl_function main () (entrypoint)
+
+      impl main {
+         block b0:  // preds:
+         32    %0 = @load_subgroup_invocation
+         16    %1 = u2u16 %0
+         16    %2 = load_const (0x0001)
+         16    %3 = iand %1, %2 (0x1)
+                    @unit_test_output (%3) (base=0)
+                    // succs: b1
+         block b1:
+      }
+   )"));
+}
+
+TEST_F(radv_nir_lower_opt_fs_frag_pos_test, pixelx_bit0_pixely)
+{
+   nir_unit_test_output(b, nir_iand_imm(b, nir_channel(b, nir_load_pixel_coord(b), 0), 0x1), 0);
+   nir_unit_test_output(b, nir_channel(b, nir_load_pixel_coord(b), 1), 1);
+
+   run(false, false, false);
+
+   check_nir_string(NIR_REFERENCE_SHADER(R"(
+      shader: MESA_SHADER_FRAGMENT
+      name: radv_nir_lower_opt_fs_frag_pos_test
+      max_subgroup_size: 128
+      min_subgroup_size: 1
+      decl_function main () (entrypoint)
+
+      impl main {
+         block b0:  // preds:
+         16x2  %0 = @load_pixel_coord
+         16    %1 = load_const (0x0001)
+         16    %2 = iand %0.x, %1 (0x1)
+                    @unit_test_output (%2) (base=0)
+         16    %3 = mov %0.y
+                    @unit_test_output (%3) (base=1)
+                    // succs: b1
+         block b1:
+      }
+   )"));
+}

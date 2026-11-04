@@ -206,7 +206,7 @@ lower_fs_frag_pos(nir_builder *b, nir_intrinsic_instr *intr, void *data)
             nir_def_replace(&intr->def, nir_f2u16(b, nir_load_frag_coord_xy(b)));
          }
          return true;
-      } else if (state->frag_pos_only_bit0_uses == 0x3) {
+      } else if (state->frag_pos_only_bit0_uses && !state->frag_pos_integer_uses) {
          /* Replacing only one component isn't beneficial since pixel_coord gives us the second
           * component for free, which is why we replace either both components or neither.
           */
