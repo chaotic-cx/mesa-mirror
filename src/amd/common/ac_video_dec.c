@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "util/u_math.h"
 #include "ac_video_dec.h"
 #include "ac_vcn_dec.h"
 #include "ac_uvd_dec.h"
@@ -24,6 +25,20 @@ ac_video_dec_dpb_alignment(const struct radeon_info *info, struct ac_video_dec_s
    if (info->vcn_ip_version >= VCN_1_0_0)
       return ac_vcn_dec_dpb_alignment(info, param);
    return 0;
+}
+
+void
+ac_video_dec_dpb_extent(const struct radeon_info *info,
+                        struct ac_video_dec_session_param *param,
+                        uint32_t *width, uint32_t *height)
+{
+   if (info->vcn_ip_version >= VCN_1_0_0) {
+      uint32_t alignment = ac_vcn_dec_dpb_alignment(info, param);
+      *width = align(*width, alignment);
+      *height = align(*height, alignment);
+   } else {
+      UNREACHABLE("unknown IP\n");
+   }
 }
 
 struct ac_video_dec *

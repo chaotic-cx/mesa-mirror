@@ -637,6 +637,9 @@ struct ac_video_dec {
 };
 
 uint32_t ac_video_dec_dpb_size(const struct radeon_info *info, struct ac_video_dec_session_param *param);
+void ac_video_dec_dpb_extent(const struct radeon_info *info,
+                             struct ac_video_dec_session_param *param,
+                             uint32_t *width, uint32_t *height);
 uint32_t ac_video_dec_dpb_alignment(const struct radeon_info *info, struct ac_video_dec_session_param *param);
 struct ac_video_dec *ac_create_video_decoder(const struct radeon_info *info, struct ac_video_dec_session_param *param);
 
