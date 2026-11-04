@@ -502,10 +502,8 @@ panvk_per_arch(CreateDescriptorPool)(
    pool->max_sets = pCreateInfo->maxSets;
 
    if (desc_count) {
-      /* adjust desc_count to account for 1 dummy sampler per descriptor set */
-      desc_count += pool->max_sets;
-
-      uint64_t pool_size = desc_count * PANVK_DESCRIPTOR_SIZE;
+      /* accommodate possible alignment losses with +1 */
+      uint64_t pool_size = (desc_count + 1) * PANVK_DESCRIPTOR_SIZE;
       VkResult result = panvk_init_pool_memory(device, pool, pCreateInfo,
                                                pool_size, pAllocator);
       if (result != VK_SUCCESS) {
