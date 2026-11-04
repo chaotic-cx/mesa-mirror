@@ -374,7 +374,9 @@ if with_radv_tests
       'radv_tests',
       files(
         'nir/radv_nir_lower_hit_attrib_derefs.c',
+        'nir/radv_nir_lower_opt_fs_frag_pos.c',
         'tests/radv_nir_lower_hit_attrib_derefs_tests.cpp',
+        'tests/radv_nir_lower_opt_fs_frag_pos_tests.cpp',
         'tests/helpers.cpp',
         'tests/helpers.h',
         'tests/drirc.cpp',
