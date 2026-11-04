@@ -5,3 +5,6 @@
 # Slow tests (>= 30s)
 dEQP-VK.api.external.fence.sync_fd.export_multiple_times_temporary
 dEQP-VK.api.external.semaphore.sync_fd.export_multiple_times_temporary
+dEQP-VK.wsi.wayland.colorspace.basic
+dEQP-VK.wsi.wayland.colorspace.hdr
+dEQP-VK.wsi.wayland.incremental_present.scale_none.fifo.identity.opaque.incremental_present

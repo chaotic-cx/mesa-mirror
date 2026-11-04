@@ -2,6 +2,14 @@
 # non-zero-length and not starting with '#', will regex match to
 # delete lines from the test list.  Be careful.
 
+spec@arb_texture_gather@texturegather@fs-rgba-alpha-int-cube
+spec@glsl-1.10@execution@built-in-functions@vs-op-assign-sub-ivec2-int
+spec@glsl-1.50@execution@built-in-functions@gs-op-add-mat4x2-float
+spec@glsl-1.50@execution@built-in-functions@gs-op-bitor-not-abs-ivec2-int
+
 dEQP-VK.api.external.fence.sync_fd.export_multiple_times_temporary
 dEQP-VK.api.external.semaphore.sync_fd.export_multiple_times_temporary
+dEQP-VK.wsi.wayland.colorspace.basic
+dEQP-VK.wsi.wayland.incremental_present.scale_none.fifo.identity.pre_multiplied.incremental_present
+dEQP-VK.wsi.wayland.incremental_present.scale_none.fifo.identity.pre_multiplied.reference
 dEQP-VK.wsi.wayland.swapchain.simulate_oom.image_extent
