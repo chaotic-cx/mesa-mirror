@@ -508,18 +508,23 @@ jay_emit_parallel_copies(jay_builder *b,
             jay_SWAP(b, dst, t);
             jay_SWAP(b, src, t);
             jay_SWAP(b, dst, t);
-         } else if (file == MEM) {
-            jay_SWAP(b, dst, src);
+         } else if (file == FLAG && temps.ugpr != NO_REG) {
+            jay_def t = def_from_reg(temps.ugpr);
+            jay_MOV(b, t, dst)->type = jay_flag_type(b->func);
+            jay_MOV(b, dst, src)->type = jay_flag_type(b->func);
+            jay_MOV(b, src, t)->type = jay_flag_type(b->func);
+         } else if (file == FLAG) {
+            /* We can swap flag<-->UGPR but not directly flag<-->flag, split */
+            jay_def u = jay_bare_reg(UGPR, 0);
+            jay_SWAP(b, dst, u)->type = jay_flag_type(b->func);
+            jay_SWAP(b, src, u)->type = jay_flag_type(b->func);
+            jay_SWAP(b, dst, u)->type = jay_flag_type(b->func);
+         } else if (file == GPR && temps.gpr != NO_REG) {
+            jay_MOV(b, def_from_reg(temps.gpr), dst);
+            jay_MOV(b, dst, src);
+            jay_MOV(b, src, def_from_reg(temps.gpr));
          } else {
-            struct jay_temp_regs t = { .gpr = temps.gpr2, .ugpr = temps.ugpr };
-            jay_def temp_backing = jay_null();
-            jay_def temp =
-               push_temp(b, temps, file == GPR || file == MEM ? GPR : UGPR,
-                         &temp_backing, dst, src);
-            mov(b, temp, dst, t);
-            mov(b, dst, src, t);
-            mov(b, src, temp, t);
-            pop_temp(b, temp, temp_backing);
+            jay_SWAP(b, dst, src);
          }
 
          for (unsigned j = 0; j < num_copies; j++) {
