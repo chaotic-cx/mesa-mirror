@@ -350,19 +350,8 @@ jay_partition_grf(jay_shader *shader)
       jay_calculate_last_use(f);
       jay_calculate_register_demands(f);
 
-      if (f->demand[FLAG] > flag_limit) {
-         jay_spill(f, FLAG, UGPR, flag_limit);
-         jay_compute_liveness(f);
-         jay_calculate_last_use(f);
-         jay_calculate_register_demands(f);
-      }
-
-      if (f->demand[UGPR] > ugpr_limit) {
-         jay_spill(f, UGPR, GPR, ugpr_limit);
-         jay_compute_liveness(f);
-         jay_calculate_last_use(f);
-         jay_calculate_register_demands(f);
-      }
+      jay_spill(f, FLAG, UGPR, flag_limit);
+      jay_spill(f, UGPR, GPR, ugpr_limit);
 
       assert(f->demand[UGPR] <= ugpr_limit);
 
@@ -561,23 +550,8 @@ jay_partition_grf(jay_shader *shader)
 
    /* Spill as needed to fit within the partition we picked. */
    jay_foreach_function(shader, f) {
-      unsigned limit =
-         register_limit(shader, GPR, shader->num_regs[GPR], base_split);
-      bool spilled = f->demand[GPR] > limit;
-
-      if (spilled) {
-         jay_spill(f, GPR, MEM, limit);
-         jay_validate(f->shader, "spilling");
-         jay_compute_liveness(f);
-         jay_calculate_last_use(f);
-         jay_calculate_register_demands(f);
-      }
-
-      if (f->demand[GPR] > limit) {
-         fprintf(stderr, "limit %u but demand %u\n", limit, f->demand[GPR]);
-         fflush(stderr);
-         UNREACHABLE("spiller bug");
-      }
+      jay_spill(f, GPR, MEM,
+                register_limit(shader, GPR, shader->num_regs[GPR], base_split));
 
       assert(f->demand[UGPR] <= f->shader->num_regs[UGPR] &&
              "UGPRs spilled above");

@@ -794,10 +794,15 @@ add_phi(struct spill_ctx *ctx,
 }
 
 void
-jay_spill(jay_function *f, enum jay_file file, enum jay_file target, unsigned k)
+jay_spill(jay_function *f, enum jay_file file, enum jay_file target, unsigned l)
 {
+   /* If the demand is already below the limit, there's nothing to spill */
+   if (f->demand[file] <= l) {
+      return;
+   }
+
    /* insert_reload needs a UGPR temporary */
-   k -= (file == UGPR) ? 1 : 0;
+   unsigned k = l - ((file == UGPR) ? 1 : 0);
 
    void *memctx = ralloc_context(NULL);
    void *linctx = linear_context(memctx);
@@ -937,4 +942,16 @@ jay_spill(jay_function *f, enum jay_file file, enum jay_file target, unsigned k)
    /* We've inserted invalid dead phis, clean them up. */
    jay_opt_dead_code(f->shader);
    jay_validate(f->shader, "spill");
+
+   /* ...and finally recalculate demands for the caller */
+   jay_compute_liveness(f);
+   jay_calculate_last_use(f);
+   jay_calculate_register_demands(f);
+
+   if (f->demand[file] > l) {
+      fprintf(stderr, "file %u limit %u but demand %u\n", file, k,
+              f->demand[file]);
+      fflush(stderr);
+      UNREACHABLE("spiller bug");
+   }
 }
