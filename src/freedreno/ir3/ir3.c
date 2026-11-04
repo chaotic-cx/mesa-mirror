@@ -1992,7 +1992,10 @@ ir3_valid_flags(struct ir3_instruction *instr, unsigned n, unsigned flags)
          switch (instr->opc) {
          case OPC_LDIB:
          case OPC_STIB:
-            if (n != 0 && n != 2)
+            /* a6xx+ src2 is the immediate offset, but on a5xx it's the
+             * coordinates.
+             */
+            if (n != 0 && (n != 2 || compiler->gen < 6))
                return false;
             break;
          case OPC_RESINFO:
