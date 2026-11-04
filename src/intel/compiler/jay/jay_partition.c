@@ -401,7 +401,7 @@ jay_partition_grf(jay_shader *shader)
       min_grf[JAY_STRIDE_2] +
       special_4;
 
-   unsigned mapped_accums = grf_per_gpr == 1 ? 2 : 0;
+   unsigned mapped_accums = grf_per_gpr == 1 ? 2 : 1;
 
    for (unsigned spilling = 0; spilling <= 2; spilling++) {
       /* There is an interdependence between partition choice and spilling,
