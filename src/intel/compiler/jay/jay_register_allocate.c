@@ -267,6 +267,15 @@ add_copy(struct util_dynarray *copies, jay_reg dst, jay_reg src)
    }
 }
 
+static bool
+must_split_copy(jay_shader *shader, jay_def dst, jay_def src)
+{
+   return (dst.file == GPR && src.file == GPR) &&
+          (jay_def_stride(shader, dst) != jay_def_stride(shader, src)) &&
+          (jay_def_stride(shader, dst) != JAY_STRIDE_4) &&
+          (jay_def_stride(shader, src) != JAY_STRIDE_4);
+}
+
 /*
  * Insert a single logical copy. Like jay_MOV but expands to multiple moves
  * involving a temporary register in some cases.
@@ -274,20 +283,10 @@ add_copy(struct util_dynarray *copies, jay_reg dst, jay_reg src)
 static void
 mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
 {
-   /* Split copies as an optimization, not for correctness */
+   /* Split memory copies as an optimization, not for correctness */
    bool split_copy =
+      must_split_copy(b->shader, dst, src) ||
       (dst.file == MEM && src.file == MEM && temps.gpr != NO_REG);
-   struct jay_register_block D, S;
-
-   if (dst.file == GPR && src.file == GPR) {
-      struct jay_partition *p = &b->shader->partition;
-      D = jay_lookup_block(p, dst.reg, GPR);
-      S = jay_lookup_block(p, src.reg, GPR);
-
-      split_copy |= D.stride != S.stride &&
-                    D.stride != JAY_STRIDE_4 &&
-                    S.stride != JAY_STRIDE_4;
-   }
 
    if (split_copy && temps.gpr != NO_REG) {
       jay_MOV(b, def_from_reg(temps.gpr), src);
@@ -298,12 +297,12 @@ mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
       /* This is terrible, but it's really uncommon. Use 4<-->8 swaps which
        * don't require further splitting to reduce the pain slightly.
        */
-      if (S.stride == JAY_STRIDE_8) {
+      if (jay_def_stride(b->shader, src) == JAY_STRIDE_8) {
          jay_SWAP(b, t, src);
          jay_MOV(b, dst, t);
          jay_SWAP(b, t, src);
       } else {
-         assert(D.stride == JAY_STRIDE_8);
+         assert(jay_def_stride(b->shader, dst) == JAY_STRIDE_8);
          jay_SWAP(b, t, dst);
          jay_MOV(b, t, src);
          jay_SWAP(b, t, dst);
@@ -448,12 +447,7 @@ jay_emit_parallel_copies(jay_builder *b,
             jay_MOV(b, def_from_reg(temps.gpr2), src);
             jay_MOV(b, src, def_from_reg(temps.gpr));
             jay_MOV(b, dst, def_from_reg(temps.gpr2));
-         } else if (file == GPR &&
-                    ((jay_def_stride(b->shader, dst) == JAY_STRIDE_2 &&
-                      jay_def_stride(b->shader, src) == JAY_STRIDE_8) ||
-                     (jay_def_stride(b->shader, dst) == JAY_STRIDE_8 &&
-                      jay_def_stride(b->shader, src) == JAY_STRIDE_2))) {
-            /* We need to split the swap */
+         } else if (file == GPR && must_split_copy(b->shader, dst, src)) {
             jay_def t = jay_bare_reg(GPR, 0);
             jay_SWAP(b, dst, t);
             jay_SWAP(b, src, t);
