@@ -1119,8 +1119,8 @@ radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device, VkVideoSessionKHR vi
       vk_outarray_append_typed(VkVideoSessionMemoryRequirementsKHR, &out, m)
       {
          m->memoryBindIndex = RADV_BIND_INTRA_ONLY;
-         m->memoryRequirements.size = vid->intra_only_dpb->size,
-         m->memoryRequirements.alignment = vid->intra_only_dpb->alignment,
+         m->memoryRequirements.size = vid->intra_only_dpb->size;
+         m->memoryRequirements.alignment = vid->intra_only_dpb->alignment;
          m->memoryRequirements.memoryTypeBits = memory_type_bits;
       }
    }
