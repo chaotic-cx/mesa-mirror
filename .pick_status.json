@@ -2034,7 +2034,7 @@
         "description": "anv/drirc: use anv_force_exact_glsl_fma for Project Wingman",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
