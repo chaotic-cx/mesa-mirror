@@ -94,7 +94,7 @@
         "description": "panfrost: make sure render_target_mask is non-empty if PLS is enabled",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "298ad17b81e07e33dcf4954a4b89a95cc841c340",
         "notes": null
