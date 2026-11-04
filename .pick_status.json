@@ -464,7 +464,7 @@
         "description": "radv/frag_pos: make masks disjoint earlier",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "502048f70b68c6fdbb93cdbb3ece9e81873c436d",
         "notes": null

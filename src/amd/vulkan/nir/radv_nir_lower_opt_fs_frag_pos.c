@@ -234,6 +234,10 @@ radv_nir_lower_opt_fs_frag_pos(nir_shader *shader, bool vrs_may_be_enabled, bool
     */
    nir_shader_intrinsics_pass(shader, gather_fs_frag_pos, nir_metadata_all, &state);
 
+   /* Make the masks disjoint. */
+   state.frag_pos_only_bit0_uses &= ~(state.frag_pos_float_uses | state.frag_pos_integer_uses);
+   state.frag_pos_integer_uses &= ~state.frag_pos_float_uses;
+
    if (vrs_may_be_enabled) {
       /* VRS changes the size of fragment quads, which means we can't use the subgroup invocation ID
        * to get bit 0 of pixel_coord unconditionally.
@@ -255,10 +259,6 @@ radv_nir_lower_opt_fs_frag_pos(nir_shader *shader, bool vrs_may_be_enabled, bool
       state.frag_pos_integer_uses |= state.frag_pos_float_uses;
       state.frag_pos_float_uses = 0;
    }
-
-   /* Make the masks disjoint. */
-   state.frag_pos_only_bit0_uses &= ~(state.frag_pos_float_uses | state.frag_pos_integer_uses);
-   state.frag_pos_integer_uses &= ~state.frag_pos_float_uses;
 
    /* Lower frag_coord_xy and sample_pos to pixel_coord only if both components are used as integer
     * (because it doesn't reduce initialized PS VGPRs if only one component is used) or if there is
