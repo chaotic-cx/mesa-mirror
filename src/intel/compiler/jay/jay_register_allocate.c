@@ -523,6 +523,10 @@ jay_emit_parallel_copies(jay_builder *b,
             jay_MOV(b, def_from_reg(temps.gpr), dst);
             jay_MOV(b, dst, src);
             jay_MOV(b, src, def_from_reg(temps.gpr));
+         } else if (file == UGPR && temps.ugpr != NO_REG) {
+            jay_MOV(b, def_from_reg(temps.ugpr), dst);
+            jay_MOV(b, dst, src);
+            jay_MOV(b, src, def_from_reg(temps.ugpr));
          } else {
             jay_SWAP(b, dst, src);
          }
