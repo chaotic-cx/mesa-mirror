@@ -426,7 +426,8 @@ jay_partition_grf(jay_shader *shader)
       hw_grfs =
          intel_vrt_register_file_size(shader->devinfo,
                                       shader->prog_data->base.source_hash,
-                                      uniform_grfs + estimate_nonunif_grf);
+                                      MAX2(uniform_grfs + estimate_nonunif_grf,
+                                           96));
 
       /* We want to determine a good GPR/UGPR split by the demand calculation.
        * At minimum we need to not spill UGPRs, but if GPR pressure is low we
