@@ -174,7 +174,7 @@
         "description": "docs: fix PCO related envvar name",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3349b5b296d04a6fc1bfe686b63ef0ec9d816bc4",
         "notes": null
