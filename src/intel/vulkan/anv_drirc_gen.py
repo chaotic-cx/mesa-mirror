@@ -81,6 +81,9 @@ def declare_options(android_version):
         B("anv_emulate_divergent_barriers", False,
           "Temporary workaround for a broken shader in some recent RE engine games",
           c_name="emulate_divergent_barriers"),
+        B("anv_force_exact_glsl_fma", False,
+          "Disallow contract/reassociation for GLSLstd450Fma.",
+          c_name="force_exact_glsl_fma"),
 
         # Workaround various driver
         B("always_flush_cache", False,
