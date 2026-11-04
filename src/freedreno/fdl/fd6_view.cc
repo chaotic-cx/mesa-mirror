@@ -631,9 +631,7 @@ fdl6_buffer_view_init(uint32_t *descriptor, enum pipe_format format,
       descriptor[1] = A8XX_TEX_MEMOBJ_1_BASE_HI(iova >> 32) |
                       A8XX_TEX_MEMOBJ_1_TYPE(A6XX_TEX_BUFFER) |
                       A8XX_TEX_MEMOBJ_1_STRUCTSIZETEXELS(struct_size_texels);
-      descriptor[2] = A8XX_TEX_MEMOBJ_2_WIDTH(elements & ((1 << 15) - 1)) |
-                      A8XX_TEX_MEMOBJ_2_HEIGHT(elements >> 15) |
-                      A8XX_TEX_MEMOBJ_2_SAMPLES(MSAA_ONE);
+      descriptor[2] = A8XX_TEX_MEMOBJ_2_NUM_ELEMENTS(elements);
       descriptor[3] = A8XX_TEX_MEMOBJ_3_FMT(fd6_texture_format(buffer_format, TILE6_LINEAR, false)) |
                       A8XX_TEX_MEMOBJ_3_SWAP(fd6_texture_swap(buffer_format, TILE6_LINEAR, false)) |
                       fdl6_texswiz<CHIP>(&args, false);
