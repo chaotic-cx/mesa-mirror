@@ -389,6 +389,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
 
    /* Set up nir shader compiler options, using device-specific overrides of our base settings. */
    compiler->nir_options = ir3_base_options;
+   compiler->nir_options.lower_fquantize2f16 = compiler->gen >= 8;
    compiler->nir_options.has_iadd3 = dev_info->props.has_sad;
    /* MGEN.B doesn't seem to produce useful results on FD307 */
    compiler->nir_options.has_bfm = compiler->gen >= 4;
