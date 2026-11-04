@@ -263,6 +263,9 @@ anv_shader_init_uuid(struct anv_physical_device *device)
    const bool lttd = device->instance->drirc.debug.lower_terminate_to_discard;
    _mesa_blake3_update(&ctx, &lttd, sizeof(lttd));
 
+   const bool fegf = device->instance->drirc.debug.force_exact_glsl_fma;
+   _mesa_blake3_update(&ctx, &fegf, sizeof(fegf));
+
    const bool large_wg_wa =
       device->instance->drirc.debug.large_workgroup_non_coherent_image_workaround;
    _mesa_blake3_update(&ctx, &large_wg_wa, sizeof(large_wg_wa));
@@ -331,6 +334,7 @@ anv_shader_get_spirv_options(struct vk_physical_device *device,
 
       .workarounds = {
          .lower_terminate_to_discard = pdevice->instance->drirc.debug.lower_terminate_to_discard,
+         .force_exact_glsl_fma = pdevice->instance->drirc.debug.force_exact_glsl_fma,
       },
 
       .store_dxbc_dxil_hashes = true,
