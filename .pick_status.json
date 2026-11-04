@@ -5384,7 +5384,7 @@
         "description": "pan/ci: remove stale flake",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "76c39acad74d106900957ee46b7920feed606034",
         "notes": null
