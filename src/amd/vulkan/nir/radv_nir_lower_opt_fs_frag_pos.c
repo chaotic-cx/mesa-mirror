@@ -296,6 +296,10 @@ radv_nir_lower_opt_fs_frag_pos(nir_shader *shader, bool vrs_may_be_enabled, bool
    if (state.dynamic_quad_pos_comp_mask && state.dynamic_quad_pos_comp_mask != state.frag_pos_integer_uses)
       state.dynamic_quad_pos_comp_mask = 0;
 
+   /* select_frag_coord_xy_dynamically is incompatible with dynamic_quad_pos_comp_mask. */
+   if (state.select_frag_coord_xy_dynamically)
+      state.dynamic_quad_pos_comp_mask = 0;
+
    if (!state.frag_pos_only_bit0_uses && !state.lower_to_pixel_coord && !state.lower_to_frag_coord_xy &&
        !state.select_frag_coord_xy_dynamically && !state.dynamic_quad_pos_comp_mask)
       return false;
