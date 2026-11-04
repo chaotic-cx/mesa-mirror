@@ -34,8 +34,24 @@
  */
 void
 optimize_dead_builtin_variables(ir_exec_list *instructions,
-                                enum ir_variable_mode other)
+                                mesa_shader_stage stage)
 {
+   enum ir_variable_mode other;
+   switch (stage) {
+   case MESA_SHADER_VERTEX:
+      other = ir_var_shader_in;
+      break;
+   case MESA_SHADER_FRAGMENT:
+      other = ir_var_shader_out;
+      break;
+   default:
+      /* Something invalid to ensure optimize_dead_builtin_uniforms
+       * doesn't remove anything other than uniforms or constants.
+       */
+      other = ir_var_mode_count;
+      break;
+   }
+
    ir_foreach_in_list_safe(ir_instruction, inst, instructions) {
       ir_variable *var = inst->as_variable();
       if (!var || var->data.used)

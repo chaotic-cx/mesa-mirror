@@ -54,7 +54,7 @@ bool lower_packing_builtins(ir_exec_list *instructions,
                             bool has_half_float_packing);
 bool lower_vector_derefs(gl_shader *shader, linear_ctx *linalloc);
 void optimize_dead_builtin_variables(ir_exec_list *instructions,
-                                     enum ir_variable_mode other);
+                                     mesa_shader_stage stage);
 
 bool lower_builtins(ir_exec_list *instructions);
 bool lower_subroutine(ir_exec_list *instructions, struct _mesa_glsl_parse_state *state);
