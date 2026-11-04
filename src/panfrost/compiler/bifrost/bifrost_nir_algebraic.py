@@ -201,6 +201,28 @@ algebraic_late += [
      ('unpack_64_2x32_split_y', ('umul_2x32_64', a, b)), 'is_kraid'),
 ]
 
+# Lowers small constant exponents fpows as a chain of fmuls, making it 
+# cheaper than the usual fpow lowering.  These rules come from
+# nir_opt_algebraic, but since Panfrost is using lower_fpow we are
+# enforcing them here.
+algebraic_late += [
+    (('~fpow', a, 5.0), ('fmul', ('fmul', ('fmul', a, a), ('fmul', a, a)), a)),
+    (('~fpow', a, 6.0), ('fmul', ('fmul', ('fmul', a, a), ('fmul', a, a)), ('fmul', a, a))),
+]
+
+# Returns fmul chain tuple for k-th power of 2.
+def expand_fpow(x, k):
+    if k == 0:
+        return x
+    inner = expand_fpow(x, k - 1)
+    return ('fmul', inner, inner)
+
+# Lowers fpows when the exponent is a power of 2 between 8 and 64.
+for k in range(3, 7):
+    algebraic_late += [
+        (('~fpow', a, float(1 << k)), expand_fpow('a', k))
+    ]
+
 # We don't have hardware fpow so we need to lower it.  However, the way we
 # implement 32-bit fexp makes it so we can do better than this for 32-bit
 # so we leave that unlowered
