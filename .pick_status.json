@@ -3154,7 +3154,7 @@
         "description": "llvmpipe: Track global bindings per context",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "19a58c4b4f5f83e2a16c768ec1afe2011ee76460",
         "notes": null
