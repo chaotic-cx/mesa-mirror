@@ -15,7 +15,6 @@ teflon/yolox_nano.whole,Fail
 teflon/deeplabv3.0004,Fail
 teflon/deeplabv3.0011,Fail
 teflon/deeplabv3.0022,Fail
-teflon/deeplabv3.0071,Fail
 teflon/deeplabv3.whole,Fail
 
 teflon/efficientdet_lite0.whole,Fail

@@ -184,6 +184,23 @@ test_model(void *buf, size_t buf_size, std::string cache_dir, unsigned tolerance
             }
             break;
          }
+         case kTfLiteInt64: {
+            int64_t *cpu = ((int64_t **)cpu_output)[i];
+            int64_t *npu = ((int64_t **)npu_output)[i];
+            if (abs(cpu[j] - npu[j]) > tolerance) {
+               std::cout << "CPU: ";
+               for (int k = 0; k < std::min(int(output_sizes[i]), 24); k++)
+                  std::cout << std::setfill('0') << std::setw(16) << std::hex << cpu[k] << " ";
+               std::cout << "\n";
+               std::cout << "NPU: ";
+               for (int k = 0; k < std::min(int(output_sizes[i]), 24); k++)
+                  std::cout << std::setfill('0') << std::setw(16) << std::hex << npu[k] << " ";
+               std::cout << "\n";
+
+               FAIL() << "Output at " << j << " from the NPU (" << std::setfill('0') << std::setw(16) << std::hex << npu[j] << ") doesn't match that from the CPU (" << std::setfill('0') << std::setw(16) << std::hex << cpu[j] << ").";
+            }
+            break;
+         }
          default:
             FAIL() << "Unsupported data type for output tensor";
          }

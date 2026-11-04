@@ -1,2 +1,0 @@
-teflon/deeplabv3.0071,Fail
-teflon/deeplabv3.whole,Fail

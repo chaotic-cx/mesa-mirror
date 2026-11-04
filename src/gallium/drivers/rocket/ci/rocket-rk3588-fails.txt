@@ -1,4 +1,3 @@
-teflon/deeplabv3.0071,Fail
 teflon/inception_v1.0032,Fail
 teflon/inception_v1.0075,Fail
 teflon/inception_v1.whole,Fail

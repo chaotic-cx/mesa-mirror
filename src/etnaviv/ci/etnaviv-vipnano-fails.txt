@@ -1,7 +1,6 @@
 teflon/deeplabv3.0004,Fail
 teflon/deeplabv3.0011,Fail
 teflon/deeplabv3.0022,Fail
-teflon/deeplabv3.0071,Fail
 teflon/deeplabv3.whole,Fail
 
 teflon/posenet_mobilenet_v1.0003,Fail
