@@ -123,7 +123,8 @@ prepare_tex_descs(struct panvk_image_view *view)
    uint32_t storage_payload_size = 0;
    if (has_storage) {
       /* We'll need a second set of Texture Descriptors for storage use. */
-      storage_payload_size = tex_payload_size * tex_desc_count;
+      assert(tex_desc_count == 1);
+      storage_payload_size = tex_payload_size;
       alloc_info.size += storage_payload_size;
    }
 #endif
@@ -160,15 +161,6 @@ prepare_tex_descs(struct panvk_image_view *view)
 
             GENX(pan_sampled_texture_emit)(&pview, &view->descs.tex[plane],
                                            &ptr);
-#if PAN_ARCH >= 9
-            if (has_storage) {
-               struct pan_image_view spview = panvk_storage_pview(view, &pview);
-               GENX(pan_storage_texture_emit)(
-                  &spview, &view->descs.storage_tex[plane], &storage_ptr);
-               storage_ptr = pan_ptr_offset(storage_ptr, tex_payload_size);
-            }
-#endif
-
             ptr = pan_ptr_offset(ptr, tex_payload_size);
          }
       } else {
@@ -176,7 +168,7 @@ prepare_tex_descs(struct panvk_image_view *view)
 #if PAN_ARCH >= 9
          if (has_storage) {
             struct pan_image_view spview = panvk_storage_pview(view, &pview);
-            GENX(pan_storage_texture_emit)(&spview, &view->descs.storage_tex[0],
+            GENX(pan_storage_texture_emit)(&spview, &view->descs.storage_tex,
                                            &storage_ptr);
          }
 #endif

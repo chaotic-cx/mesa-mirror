@@ -145,7 +145,7 @@ write_image_view_desc(struct panvk_descriptor_set *set,
    else {
       write_desc(set, binding, elem,
 #if PAN_ARCH >= 9
-                 &view->descs.storage_tex[0]
+                 &view->descs.storage_tex
 #else
                  &view->descs.img_attrib_buf
 #endif
