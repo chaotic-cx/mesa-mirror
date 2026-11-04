@@ -217,7 +217,7 @@ static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
       CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
       CP_LOAD_STATE4_0_STATE_BLOCK(imgsb[shader]) |
       CP_LOAD_STATE4_0_NUM_UNIT(1));
-   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(0) |
+   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(ST4_SHADER) |
       CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
    OUT_RELOC(ring, img->bo, img->offset, 0, 0);
    OUT_RING(ring, A4XX_SSBO_0_1_PITCH(pitch));
@@ -229,7 +229,7 @@ static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
       CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
       CP_LOAD_STATE4_0_STATE_BLOCK(imgsb[shader]) |
       CP_LOAD_STATE4_0_NUM_UNIT(1));
-   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(1) |
+   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(ST4_CONSTANTS) |
       CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
    OUT_RING(ring, A4XX_SSBO_1_0_CPP(img->cpp) |
       A4XX_SSBO_1_0_FMT(img->fmt) |
