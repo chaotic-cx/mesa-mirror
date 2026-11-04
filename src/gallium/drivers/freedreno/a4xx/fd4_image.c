@@ -73,12 +73,13 @@ static void translate_image(struct fd4_image *img, struct pipe_image_view *pimg)
       img->pitch = 0;
       img->pitchalign = 0;
 
-      /* size is encoded with low 16b in WIDTH and high bits in
-       * HEIGHT, in units of elements:
+      /* The size in elements, which the descriptors split between WIDTH and
+       * HEIGHT:
        */
-      unsigned sz = pimg->u.buf.size / img->cpp;
-      img->width = sz & MASK(16);
-      img->height = sz >> 16;
+      img->width = fd_clamp_buffer_size(format, pimg->u.buf.size,
+                                        A4XX_MAX_TEXEL_BUFFER_ELEMENTS_UINT) /
+                   img->cpp;
+      img->height = 0;
       img->depth = 0;
 
       /* Note that the blob sets the PITCH to the CPP in the SSBO descriptor,
@@ -136,6 +137,16 @@ static void translate_image(struct fd4_image *img, struct pipe_image_view *pimg)
 static void emit_image_tex(struct fd_ringbuffer *ring, unsigned slot,
       struct fd4_image *img, mesa_shader_stage shader)
 {
+   uint32_t width = img->width, height = img->height;
+
+   /* A buffer's element count has its low 15 bits in WIDTH and the rest in
+    * HEIGHT, as in fd4_sampler_view_create().
+    */
+   if (img->buffer) {
+      width = img->width & MASK(15);
+      height = img->width >> 15;
+   }
+
    OUT_PKT3(ring, CP_LOAD_STATE4, 2 + 8);
    OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(slot) |
       CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
@@ -149,8 +160,8 @@ static void emit_image_tex(struct fd_ringbuffer *ring, unsigned slot,
           fd4_tex_swiz(img->pfmt, PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y,
                     PIPE_SWIZZLE_Z, PIPE_SWIZZLE_W) |
           COND(img->srgb, A4XX_TEX_CONST_0_SRGB));
-   OUT_RING(ring, A4XX_TEX_CONST_1_WIDTH(img->width) |
-      A4XX_TEX_CONST_1_HEIGHT(img->height));
+   OUT_RING(ring, A4XX_TEX_CONST_1_WIDTH(width) |
+      A4XX_TEX_CONST_1_HEIGHT(height));
    OUT_RING(ring, A4XX_TEX_CONST_2_PITCHALIGN(img->pitchalign) |
       A4XX_TEX_CONST_2_PITCH(img->pitch) |
       COND(img->buffer, A4XX_TEX_CONST_2_BUFFER));
@@ -182,13 +193,23 @@ static void emit_image_tex(struct fd_ringbuffer *ring, unsigned slot,
 static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
       struct fd4_image *img, mesa_shader_stage shader)
 {
-   uint32_t height = img->height, pitch = img->pitch;
+   uint32_t width = img->width, height = img->height, pitch = img->pitch;
+
    /* VK blob treats 1D_ARRAY images as a 2d image with the layer count as the
     * height. Note that 1D textures do still use TEX_1D.
     */
    if (img->type == A4XX_TEX_1D && img->depth > 1) {
       height = img->depth;
       pitch = img->array_pitch;
+   }
+
+   /* Unlike the texture descriptor's, the SSBO descriptor's WIDTH is 16 bits,
+    * and a buffer's element count is split at bit 16 there, which is what
+    * resinfo.4d (imageSize()) recombines.
+    */
+   if (img->buffer) {
+      width = img->width & MASK(16);
+      height = img->width >> 16;
    }
 
    OUT_PKT3(ring, CP_LOAD_STATE4, 2 + 4);
@@ -212,7 +233,7 @@ static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
       CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
    OUT_RING(ring, A4XX_SSBO_1_0_CPP(img->cpp) |
       A4XX_SSBO_1_0_FMT(img->fmt) |
-      A4XX_SSBO_1_0_WIDTH(img->width));
+      A4XX_SSBO_1_0_WIDTH(width));
    OUT_RING(ring, A4XX_SSBO_1_1_HEIGHT(height) |
       A4XX_SSBO_1_1_DEPTH(img->depth));
 }
