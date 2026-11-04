@@ -18,6 +18,8 @@
 #include "util/mesa-blake3.h"
 
 #include "genxml/gen_macros.h"
+#include "panvk_image.h"
+#include "panvk_sampler.h"
 
 #define PANVK_DESCRIPTOR_SIZE         32
 #define MAX_DYNAMIC_UNIFORM_BUFFERS   16
@@ -180,22 +182,25 @@ get_sampler_subdesc_info(VkDescriptorType type, uint8_t plane)
 
 static inline uint32_t
 get_subdesc_idx(const struct panvk_descriptor_set_binding_layout *layout,
-                struct panvk_subdesc_info subdesc)
+                uint32_t element, struct panvk_subdesc_info subdesc)
 {
-   assert((subdesc.type == IMPLICIT_SUBDESC_TYPE) ||
-          (layout->type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER &&
-           (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER ||
-            subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)));
+   if (layout->type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+      return 0;
 
    uint32_t subdesc_idx = 0;
-
-   /* In case of combined image-sampler, we put the texture first. */
-   if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER)
-      subdesc_idx += layout->textures_per_desc +
-                     MIN2(subdesc.plane, layout->samplers_per_desc - 1);
-   else if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
-      subdesc_idx += MIN2(subdesc.plane, layout->textures_per_desc - 1);
-
+   if (layout->immutable_samplers) {
+      if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER) {
+         const struct panvk_sampler *sampler =
+            layout->immutable_samplers[element];
+         const uint32_t tex_desc_count =
+            panvk_image_get_tex_count(PAN_ARCH, sampler->vk.format);
+         subdesc_idx =
+            tex_desc_count + MIN2(sampler->desc_count - 1, subdesc.plane);
+      } else if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+         subdesc_idx = MIN2(subdesc.plane, layout->textures_per_desc - 1);
+   } else {
+      subdesc_idx = subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER;
+   }
    return subdesc_idx;
 }
 
@@ -206,7 +211,7 @@ panvk_get_desc_index(const struct panvk_descriptor_set_binding_layout *layout,
    assert(!vk_descriptor_type_is_dynamic(layout->type));
 
    return layout->desc_idx + elem * panvk_get_desc_stride(layout) +
-      get_subdesc_idx(layout, subdesc);
+          get_subdesc_idx(layout, elem, subdesc);
 }
 
 #endif /* PANVK_VX_DESCRIPTOR_SET_LAYOUT_H */

@@ -134,20 +134,21 @@ desc_type_to_table_type(
 
 static uint32_t
 shader_desc_idx(uint32_t set, uint32_t binding,
-                struct panvk_subdesc_info subdesc,
+                struct panvk_subdesc_info subdesc, uint32_t element,
                 const struct lower_desc_ctx *ctx)
 {
    const struct panvk_descriptor_set_layout *set_layout =
       get_set_layout(set, ctx);
    const struct panvk_descriptor_set_binding_layout *bind_layout =
       &set_layout->bindings[binding];
-   uint32_t subdesc_idx = get_subdesc_idx(bind_layout, subdesc);
 
    /* On Valhall, all non-dynamic descriptors are accessed directly through
     * their set. The vertex attribute table always comes first, so we always
     * offset user sets by one if we're dealing with a vertex shader. */
-   if (PAN_ARCH >= 9 && !vk_descriptor_type_is_dynamic(bind_layout->type))
+   if (PAN_ARCH >= 9 && !vk_descriptor_type_is_dynamic(bind_layout->type)) {
+      uint32_t subdesc_idx = get_subdesc_idx(bind_layout, element, subdesc);
       return pan_res_handle(set + 1, bind_layout->desc_idx + subdesc_idx);
+   }
 
    /* On Bifrost, the SSBO descriptors are read directly from the set. */
    if (PAN_ARCH < 9 && bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
@@ -309,7 +310,7 @@ build_res_index(nir_builder *b, uint32_t set, uint32_t binding,
          ? 1
          : bind_layout->desc_count;
    nir_address_format addr_fmt = addr_format_for_type(bind_layout->type, ctx);
-   uint32_t desc_idx = shader_desc_idx(set, binding, NO_SUBDESC, ctx);
+   uint32_t desc_idx = shader_desc_idx(set, binding, NO_SUBDESC, 0, ctx);
 
    switch (addr_fmt) {
 #if PAN_ARCH < 9
@@ -540,7 +541,7 @@ load_resource_deref_desc(nir_builder *b, nir_deref_instr *deref,
             ? get_sampler_subdesc_info(bind_layout->type, 0)
             : NO_SUBDESC;
 
-   unsigned subdesc_idx = get_subdesc_idx(bind_layout, subdesc);
+   unsigned subdesc_idx = get_subdesc_idx(bind_layout, index_imm, subdesc);
 
    assert(index_ssa == NULL || index_imm == 0);
    if (index_ssa == NULL)
@@ -898,8 +899,9 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct lower_desc_ctx *ctx)
       struct panvk_subdesc_info subdesc =
          get_sampler_subdesc_info(bind_layout->type, plane);
       uint32_t desc_stride = get_desc_array_stride(bind_layout, subdesc.type);
-      uint32_t sampler_index = shader_desc_idx(set, binding, subdesc, ctx) +
-                               index_imm * desc_stride;
+      uint32_t sampler_index =
+         shader_desc_idx(set, binding, subdesc, index_imm, ctx) +
+         index_imm * desc_stride;
 
 #if PAN_ARCH >= 9
       nir_def *handle = nir_imm_int(b, sampler_index);
@@ -940,8 +942,9 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct lower_desc_ctx *ctx)
       struct panvk_subdesc_info subdesc =
          get_tex_subdesc_info(bind_layout->type, plane);
       uint32_t desc_stride = get_desc_array_stride(bind_layout, subdesc.type);
-      uint32_t texture_index = shader_desc_idx(set, binding, subdesc, ctx) +
-                               index_imm * desc_stride;
+      uint32_t texture_index =
+         shader_desc_idx(set, binding, subdesc, index_imm, ctx) +
+         index_imm * desc_stride;
 
 #if PAN_ARCH >= 9
       nir_def *handle = nir_imm_int(b, texture_index);
@@ -979,7 +982,8 @@ get_img_index(nir_builder *b, nir_deref_instr *deref,
           bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER ||
           bind_layout->type == VK_DESCRIPTOR_TYPE_MUTABLE_EXT);
 
-   unsigned img_offset = shader_desc_idx(set, binding, NO_SUBDESC, ctx);
+   unsigned img_offset =
+      shader_desc_idx(set, binding, NO_SUBDESC, index_imm, ctx);
 
    if (index_ssa == NULL) {
       return nir_imm_int(b, img_offset + index_imm);
@@ -1099,7 +1103,6 @@ record_binding(struct lower_desc_ctx *ctx, unsigned set, unsigned binding,
    const struct panvk_descriptor_set_layout *set_layout = ctx->set_layouts[set];
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set_layout->bindings[binding];
-   ASSERTED uint32_t subdesc_idx = get_subdesc_idx(binding_layout, subdesc);
    ASSERTED uint32_t desc_stride = panvk_get_desc_stride(binding_layout);
    ASSERTED uint32_t max_desc_stride = MAX2(
       binding_layout->samplers_per_desc + binding_layout->textures_per_desc, 1);
@@ -1117,8 +1120,6 @@ record_binding(struct lower_desc_ctx *ctx, unsigned set, unsigned binding,
    if (PAN_ARCH < 9 &&
        binding_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
       return;
-
-   assert(subdesc_idx < desc_stride);
 
    struct desc_id src = {
       .set = set,
@@ -1175,12 +1176,16 @@ fill_copy_descs_for_binding(struct lower_desc_ctx *ctx, unsigned set,
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set_layout->bindings[binding];
    uint32_t desc_stride = panvk_get_desc_stride(binding_layout);
-   uint32_t subdesc_offset = sampler_subdesc ? binding_layout->textures_per_desc : 0;
    uint32_t *first_entry = NULL;
+   struct panvk_subdesc_info subdesc_info =
+      sampler_subdesc ? get_sampler_subdesc_info(binding_layout->type, 0)
+                      : NO_SUBDESC;
 
    assert(desc_count <= binding_layout->desc_count);
 
    for (uint32_t i = 0; i < desc_count; i++) {
+      const uint32_t subdesc_offset =
+         get_subdesc_idx(binding_layout, i, subdesc_info);
       uint32_t src_idx =
          binding_layout->desc_idx + (i * desc_stride) + subdesc_offset;
       struct lower_desc_map *map;
