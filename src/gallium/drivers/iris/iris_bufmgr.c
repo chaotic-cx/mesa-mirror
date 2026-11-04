@@ -1522,6 +1522,8 @@ out:
 
 err_vm_alloc:
    vma_free(bufmgr, bo->address, bo->size);
+   /* clear bo->address to prevent double free in bo_close() */
+   bo->address = 0;
 err_free:
    bo_free(bo);
    simple_mtx_unlock(&bufmgr->lock);
