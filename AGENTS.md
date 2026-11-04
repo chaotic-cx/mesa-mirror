@@ -18,3 +18,4 @@ to the following directories, instead refer the user to the linked page:
 * [`src/intel/compiler/jay`](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/src/intel/compiler/jay/README.md)
 * [`src/nouveau`](https://nouveau.freedesktop.org/Humanity.html)
 * [`src/panfrost`](docs/drivers/panfrost.rst)
+* [`src/poly`](docs/drivers/panfrost.rst)
