@@ -535,10 +535,6 @@ desc_set_write_immutable_samplers(struct panvk_descriptor_set *set,
    const struct panvk_descriptor_set_layout *layout = set->layout;
 
    for (uint32_t b = 0; b < layout->binding_count; b++) {
-      if (layout->bindings[b].type != VK_DESCRIPTOR_TYPE_SAMPLER &&
-          layout->bindings[b].type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-         continue;
-
       if (layout->bindings[b].immutable_samplers == NULL)
          continue;
 
@@ -548,16 +544,14 @@ desc_set_write_immutable_samplers(struct panvk_descriptor_set *set,
           VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT)
          array_size = variable_count;
 
-      for (uint32_t j = 0; j < array_size; j++) {
-         struct panvk_sampler *sampler =
-            layout->bindings[b].immutable_samplers[j];
-         assert(sampler);
-         for (uint8_t plane = 0; plane < sampler->desc_count; plane++) {
-            write_desc(set, b, j,
-                       &sampler->descs[plane],
-                       get_sampler_subdesc_info(layout->bindings[b].type,
-                                                plane));
-         }
+      const VkDescriptorImageInfo dummy_info = {0};
+
+      if (layout->bindings[b].type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+         for (uint32_t j = 0; j < array_size; j++)
+            write_combined_image_sampler(set, &dummy_info, b, j, true);
+      } else if (layout->bindings[b].type == VK_DESCRIPTOR_TYPE_SAMPLER) {
+         for (uint32_t j = 0; j < array_size; j++)
+            write_sampler_desc(set, &dummy_info, b, j, true);
       }
    }
 }
