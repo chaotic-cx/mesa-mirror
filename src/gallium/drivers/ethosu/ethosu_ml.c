@@ -294,8 +294,13 @@ ethosu_resize_bilinear_supported(const struct pipe_ml_operation *operation)
 
    if (input->type_size != 1 || output->type_size != 1 ||
        input->is_signed != output->is_signed || input->scale != output->scale ||
-       input->zero_point != output->zero_point ||
-       operation->resize_bilinear.half_pixel_centers)
+       input->zero_point != output->zero_point)
+      return false;
+
+   if (!memcmp(input->dims, output->dims, sizeof(input->dims)))
+      return true;
+
+   if (operation->resize_bilinear.half_pixel_centers)
       return false;
 
    if (input->dims[1] == 1 && input->dims[2] == 1)
