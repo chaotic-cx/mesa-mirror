@@ -68,8 +68,8 @@ class Optimizer : public testing::Test {
 
       out = jay_scalar(GPR, 32, 8);
       wx = jay_scalar(TEST_FILE, 32, 1);
-      wy = jay_scalar(TEST_FILE, 32, 1);
-      wz = jay_scalar(TEST_FILE, 32, 1);
+      wy = jay_scalar(TEST_FILE, 32, 2);
+      wz = jay_scalar(TEST_FILE, 32, 3);
    }
 
    ~Optimizer()
@@ -90,7 +90,7 @@ static enum jay_type float_types[] = {
 TEST_F(Optimizer, Copyprop)
 {
    CASEB(jay_ADD(b, JAY_TYPE_U32, out, wx, after ? wy : jay_MOV_u32(b, wy)));
-   CASEB(jay_ADD(b, JAY_TYPE_U32, out, wx, after ? wy : jay_MOV_u32(b, wy)));
+   CASEB(jay_ADD(b, JAY_TYPE_U32, out, after ? wx : jay_MOV_u32(b, wx), wy));
 }
 
 TEST_F(Optimizer, FusedNeg)
@@ -306,7 +306,7 @@ TEST_F(Optimizer, FloatMismatchConditionalMods)
       GEN_CONDITION_LT,
    };
 
-   for (unsigned i = 0; i < 2; ++i) {
+   for (unsigned i = 0; i < ARRAY_SIZE(mods); ++i) {
       NEGCASE({
          jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
          jay_def x = jay_alloc_def(b, GPR, 32, 1);
