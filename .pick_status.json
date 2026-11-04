@@ -4,7 +4,7 @@
         "description": "freedreno/fdl: Use NUM_ELEMENTS for A8XX buffer descriptors",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f448ad3adf74dc5165609f081f37a484d065095a",
         "notes": null
