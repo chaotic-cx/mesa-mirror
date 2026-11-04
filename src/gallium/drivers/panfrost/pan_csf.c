@@ -1561,8 +1561,10 @@ csf_emit_draw_flags(struct panfrost_context *ctx, enum mesa_prim mode,
 
       if (fs_required) {
          /* See JM Valhall equivalent code */
-         flags_1->render_target_mask =
-            (fs->info.outputs_written >> FRAG_RESULT_DATA0) & ctx->fb_rt_mask;
+         /* if PLS is enabled we may write to any output to store data */
+         flags_1->render_target_mask = ctx->fb_rt_mask;
+         if (!ctx->pipe_framebuffer.pls_enabled)
+            flags_1->render_target_mask &= fs->info.outputs_written >> FRAG_RESULT_DATA0;
       }
    }
 }
