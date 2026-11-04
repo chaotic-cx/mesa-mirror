@@ -34,9 +34,6 @@ struct gl_shader;
 struct gl_linked_shader;
 struct gl_shader_program;
 
-bool do_common_optimization(ir_exec_list *ir, bool linked, mesa_shader_stage stage,
-                            const struct pipe_screen *screen);
-
 bool do_rebalance_tree(ir_exec_list *instructions);
 bool do_algebraic(ir_exec_list *instructions);
 bool do_dead_code(ir_exec_list *instructions);

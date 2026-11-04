@@ -2298,12 +2298,44 @@ opt_shader(const struct pipe_screen *screen,
    assert(shader->CompileStatus != COMPILE_FAILURE &&
           !shader->ir->is_empty());
 
-   /* Do some optimization at compile time to reduce shader IR size
-    * and reduce later work if the same shader is linked multiple times.
+   /* Do some optimization at compile time to reduce shader IR size.
     *
-    * Run it just once, since NIR will do the real optimization.
+    * Run them just once, since NIR will do the real optimization.
     */
-   do_common_optimization(shader->ir, false, shader->Stage, screen);
+   const bool debug = false;
+
+#define OPT(PASS, ...) do {                                             \
+      if (debug) {                                                      \
+         fprintf(stderr, "START GLSL optimization %s\n", #PASS);        \
+         const bool opt_progress = PASS(__VA_ARGS__);                   \
+         if (opt_progress)                                              \
+            _mesa_print_ir(stderr, shader->ir, NULL);                   \
+         fprintf(stderr, "GLSL optimization %s: %s progress\n",         \
+                 #PASS, opt_progress ? "made" : "no");                  \
+      } else {                                                          \
+         PASS(__VA_ARGS__);                                             \
+      }                                                                 \
+   } while (false)
+
+   OPT(propagate_invariance, shader->ir);
+   OPT(do_if_simplification, shader->ir);
+   OPT(opt_flatten_nested_if_blocks, shader->ir);
+
+   OPT(do_dead_code_unlinked, shader->ir);
+   OPT(do_tree_grafting, shader->ir);
+   OPT(do_minmax_prune, shader->ir);
+   OPT(do_rebalance_tree, shader->ir);
+   OPT(do_algebraic, shader->ir);
+   OPT(do_lower_jumps, shader->ir, true,
+       !screen->shader_caps[shader->Stage].cont_supported);
+
+   /* If an optimization pass fails to preserve the invariant flag, calling
+    * the pass only once earlier may result in incorrect code generation. Always call
+    * propagate_invariance() last to avoid this possibility.
+    */
+   OPT(propagate_invariance, shader->ir);
+
+#undef OPT
 
    validate_ir_tree(shader->ir);
 
@@ -2572,64 +2604,3 @@ _mesa_glsl_compile_shader(struct gl_context *ctx, struct gl_shader *shader,
 }
 
 } /* extern "C" */
-/**
- * Do the set of common optimizations passes
- *
- * \param ir                          List of instructions to be optimized
- * \param linked                      Is the shader linked?  This enables
- *                                    optimizations passes that remove code at
- *                                    global scope and could cause linking to
- *                                    fail.
- * \param uniform_locations_assigned  Have locations already been assigned for
- *                                    uniforms?  This prevents the declarations
- *                                    of unused uniforms from being removed.
- *                                    The setting of this flag only matters if
- *                                    \c linked is \c true.
- * \param options                     The driver's preferred shader options.
- * \param native_integers             Selects optimizations that depend on the
- *                                    implementations supporting integers
- *                                    natively (as opposed to supporting
- *                                    integers in floating point registers).
- */
-bool
-do_common_optimization(ir_exec_list *ir, bool linked, mesa_shader_stage stage,
-                       const struct pipe_screen *screen)
-{
-   const bool debug = false;
-   bool progress = false;
-
-#define OPT(PASS, ...) do {                                             \
-      if (debug) {                                                      \
-         fprintf(stderr, "START GLSL optimization %s\n", #PASS);        \
-         const bool opt_progress = PASS(__VA_ARGS__);                   \
-         progress = opt_progress || progress;                           \
-         if (opt_progress)                                              \
-            _mesa_print_ir(stderr, ir, NULL);                           \
-         fprintf(stderr, "GLSL optimization %s: %s progress\n",         \
-                 #PASS, opt_progress ? "made" : "no");                  \
-      } else {                                                          \
-         progress = PASS(__VA_ARGS__) || progress;                      \
-      }                                                                 \
-   } while (false)
-
-   OPT(propagate_invariance, ir);
-   OPT(do_if_simplification, ir);
-   OPT(opt_flatten_nested_if_blocks, ir);
-
-   OPT(do_dead_code_unlinked, ir);
-   OPT(do_tree_grafting, ir);
-   OPT(do_minmax_prune, ir);
-   OPT(do_rebalance_tree, ir);
-   OPT(do_algebraic, ir);
-   OPT(do_lower_jumps, ir, true, !screen->shader_caps[stage].cont_supported);
-
-   /* If an optimization pass fails to preserve the invariant flag, calling
-    * the pass only once earlier may result in incorrect code generation. Always call
-    * propagate_invariance() last to avoid this possibility.
-    */
-   OPT(propagate_invariance, ir);
-
-#undef OPT
-
-   return progress;
-}
