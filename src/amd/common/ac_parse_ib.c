@@ -708,7 +708,7 @@ static void parse_sdma_ib(FILE *f, struct ac_ib_parser *ib)
 
          uint32_t dwords = ac_ib_get(ib);
          if (ib->sdma_version >= SDMA_4_0)
-            ++dwords;
+            dwords = (dwords & SDMA_4_0_WRITE_MAX_COUNT) + 1;
          fprintf(f, "    written dword count = %u\n", dwords);
 
          for (unsigned i = 0; i < dwords; ++i) {

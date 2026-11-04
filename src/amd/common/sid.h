@@ -409,6 +409,8 @@
 #define SDMA_2_0_COPY_MAX_BYTES 0x3fff00   /* almost 4 MB*/
 #define SDMA_5_2_COPY_MAX_BYTES 0x3fffff00 /* almost 1 GB */
 
+#define SDMA_4_0_WRITE_MAX_COUNT 0xfffff
+
 #define SDMA_NOP_PAD SDMA_PACKET(SDMA_OPCODE_NOP, 0, 0) /* header-only version */
 
 /* SDMA DCC settings for GFX10+ */
