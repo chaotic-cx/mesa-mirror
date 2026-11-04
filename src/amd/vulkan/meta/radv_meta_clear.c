@@ -2056,7 +2056,7 @@ radv_clear_image_layer(struct radv_cmd_buffer *cmd_buffer, struct radv_image *im
 static unsigned
 radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkFormat format,
                       VkImageLayout image_layout, const VkImageSubresourceRange *range, const VkClearValue *clear_val,
-                      VkImageSubresourceRange remaining_ranges[2])
+                      VkImageSubresourceRange remaining_ranges[2], enum ac_barrier_flags *pending_flush)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_image_view iview;
@@ -2202,13 +2202,20 @@ radv_fast_clear_range(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
       }
    }
 
+   /* This is only used to get pending flush flags from fast clears. */
+   struct radv_clear_sync_info sync_info;
+   enum att_id att_id = is_color ? ATT_COLOR0 : ATT_ZS;
+   memset(&sync_info.att[att_id], 0, sizeof(sync_info.att[att_id]));
+
    /* Execute the fast clear for the whole range or whatever is left. */
    if (is_color) {
-      radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, NULL, ATT_COLOR0);
+      radv_fast_clear_color(cmd_buffer, &iview, &clear_att, &clear_rect, 0, &sync_info, att_id);
    } else {
-      radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, NULL, ATT_ZS,
-                            true);
+      radv_fast_clear_depth(cmd_buffer, &iview, clear_att.clearValue.depthStencil, clear_att.aspectMask, &sync_info,
+                            att_id, true);
    }
+
+   *pending_flush |= sync_info.att[att_id].compute_dma.pending_flush;
 
    radv_image_view_finish(&iview);
    return !!remaining_ranges[0].aspectMask + !!remaining_ranges[1].aspectMask;
@@ -2262,15 +2269,24 @@ radv_cmd_clear_image(VkCommandBuffer commandBuffer, VkImage image_h, VkImageLayo
    radv_meta_begin(cmd_buffer);
 
    unsigned num_remaining_ranges = 0;
+   enum ac_barrier_flags pending_flush = 0;
 
    /* Execute all fast clears together. */
    for (unsigned r = 0; r < range_count; r++) {
       /* If nothing or only a subset of the range is cleared, the function returns 1-2 ranges that remain
        * to be cleared.
        */
-      num_remaining_ranges += radv_fast_clear_range(cmd_buffer, image, format, image_layout, &ranges[r],
-                                                    &internal_clear_value, &remaining_ranges[num_remaining_ranges]);
+      num_remaining_ranges +=
+         radv_fast_clear_range(cmd_buffer, image, format, image_layout, &ranges[r], &internal_clear_value,
+                               &remaining_ranges[num_remaining_ranges], &pending_flush);
    }
+
+   /* We must wait for all fast clears to prevent DCC/HTILE corruption between fast clears and slow clears
+    * within the same call to vkCmdClearColorImage and vkCmdClearDepthStencilImage. Overlapping ranges
+    * between multiple calls aren't allowed without barriers, but they can overlap within one call.
+    */
+   if (num_remaining_ranges)
+      cmd_buffer->state.flush_bits |= pending_flush;
 
    /* Execute all slow clears together. */
    for (unsigned r = 0; r < num_remaining_ranges; r++) {
