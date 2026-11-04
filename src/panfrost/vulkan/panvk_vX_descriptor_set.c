@@ -487,8 +487,8 @@ panvk_per_arch(CreateDescriptorPool)(
       if (!vk_descriptor_type_is_dynamic(pCreateInfo->pPoolSizes[i].type)) {
          const struct panvk_descriptor_set_binding_layout layout = {
             .type = pCreateInfo->pPoolSizes[i].type,
-            .textures_per_desc = PANVK_MAX_PLANES,
-            .samplers_per_desc = PANVK_MAX_DESCS_PER_SAMPLER,
+            .textures_per_desc = 1,
+            .samplers_per_desc = 1,
          };
          desc_count += panvk_get_desc_stride(&layout) *
                        pCreateInfo->pPoolSizes[i].descriptorCount;

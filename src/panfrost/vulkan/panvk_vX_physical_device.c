@@ -1237,7 +1237,7 @@ panvk_per_arch(get_physical_device_properties)(
       .nonStrictSinglePixelWideLinesUseParallelogram = false,
       .nonStrictWideLinesUseParallelogram = false,
       .blockTexelViewCompatibleMultipleLayers = true,
-      .maxCombinedImageSamplerDescriptorCount = 1,
+      .maxCombinedImageSamplerDescriptorCount = 3,
       /* We don't implement VK_KHR_fragment_shading_rate */
       .fragmentShadingRateClampCombinerInputs = false,
       .defaultRobustnessStorageBuffers =

@@ -1814,8 +1814,10 @@ panvk_GetPhysicalDeviceImageFormatProperties2(
        (image_usage & VK_IMAGE_USAGE_2_HOST_TRANSFER_BIT_KHR))
       goto fail;
 
+   const uint32_t arch = pan_arch(physical_device->kmod.dev->props.gpu_id);
    if (ycbcr_props)
-      ycbcr_props->combinedImageSamplerDescriptorCount = 1;
+      ycbcr_props->combinedImageSamplerDescriptorCount =
+         panvk_image_get_tex_count(arch, base_info->format);
 
    return VK_SUCCESS;
 
