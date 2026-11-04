@@ -45,7 +45,7 @@ struct util_dl_library *
 util_dl_open(const char *filename)
 {
 #if DETECT_OS_POSIX_LITE
-   return (struct util_dl_library *)dlopen(filename, RTLD_LAZY | RTLD_LOCAL);
+   return (struct util_dl_library *)dlopen(filename, RTLD_NOW | RTLD_LOCAL);
 #elif DETECT_OS_WINDOWS
    return (struct util_dl_library *)LoadLibraryA(filename);
 #else
