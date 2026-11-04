@@ -2329,12 +2329,6 @@ opt_shader(const struct pipe_screen *screen,
    OPT(do_lower_jumps, shader->ir, true,
        !screen->shader_caps[shader->Stage].cont_supported);
 
-   /* If an optimization pass fails to preserve the invariant flag, calling
-    * the pass only once earlier may result in incorrect code generation. Always call
-    * propagate_invariance() last to avoid this possibility.
-    */
-   OPT(propagate_invariance, shader->ir);
-
 #undef OPT
 
    validate_ir_tree(shader->ir);
