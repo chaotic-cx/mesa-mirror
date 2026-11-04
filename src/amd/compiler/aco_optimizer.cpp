@@ -4764,8 +4764,8 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
               CONSERVATIVE);
       add_opt(v_mad_u32_u16, v_mad_u32_u16, 0x3, "1203", remove_const_cb<0>, CONSERVATIVE);
       add_opt(p_v_mad_u32_u32_u16, p_v_mad_u32_u32_u16, 0x3, "1203", remove_const_cb<0>,
-              CONSERVATIVE);
-      add_opt(p_v_mad_u32, p_v_mad_u32, 0x3, "1203", remove_const_cb<0>, CONSERVATIVE);
+              SINGLE_USE);
+      add_opt(p_v_mad_u32, p_v_mad_u32, 0x3, "1203", remove_const_cb<0>, SINGLE_USE);
       add_opt(v_mul_u32_u24, v_mad_u32_u24, 0x3, "120", nullptr, CONSERVATIVE);
       add_opt(v_mul_i32_i24, v_mad_i32_i24, 0x3, "120", nullptr, CONSERVATIVE);
       add_opt(v_xor_b32, v_xad_u32, 0x3, "120", nullptr, CONSERVATIVE);
