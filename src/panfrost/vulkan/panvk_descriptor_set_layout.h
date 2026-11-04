@@ -206,12 +206,11 @@ get_subdesc_idx(const struct panvk_descriptor_set_binding_layout *layout,
 
 static inline uint32_t
 panvk_get_desc_index(const struct panvk_descriptor_set_binding_layout *layout,
-                     uint32_t elem, struct panvk_subdesc_info subdesc)
+                     uint32_t elem)
 {
    assert(!vk_descriptor_type_is_dynamic(layout->type));
 
-   return layout->desc_idx + elem * panvk_get_desc_stride(layout) +
-          get_subdesc_idx(layout, elem, subdesc);
+   return layout->desc_idx + elem * panvk_get_desc_stride(layout);
 }
 
 #endif /* PANVK_VX_DESCRIPTOR_SET_LAYOUT_H */

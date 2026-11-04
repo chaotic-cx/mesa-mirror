@@ -37,12 +37,12 @@
 
 static const void *
 get_desc_slot_ptr(struct panvk_descriptor_set *set, uint32_t binding,
-                  uint32_t elem, struct panvk_subdesc_info subdesc)
+                  uint32_t elem)
 {
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
 
-   uint32_t offset = panvk_get_desc_index(binding_layout, elem, subdesc);
+   uint32_t offset = panvk_get_desc_index(binding_layout, elem);
 
    assert(offset < set->layout->desc_count);
 
@@ -51,13 +51,13 @@ get_desc_slot_ptr(struct panvk_descriptor_set *set, uint32_t binding,
 
 static void
 write_desc_data(struct panvk_descriptor_set *set, uint32_t binding,
-                uint32_t elem, struct panvk_subdesc_info subdesc,
-                uint32_t desc_offset, const void *desc_data, size_t desc_size)
+                uint32_t elem, uint32_t desc_offset, const void *desc_data,
+                size_t desc_size)
 {
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
 
-   uint32_t index = panvk_get_desc_index(binding_layout, elem, subdesc);
+   uint32_t index = panvk_get_desc_index(binding_layout, elem);
 
    assert(index < set->layout->desc_count);
    assert(index + DIV_ROUND_UP(desc_size, PANVK_DESCRIPTOR_SIZE) <=
@@ -71,24 +71,23 @@ write_desc_data(struct panvk_descriptor_set *set, uint32_t binding,
    set->descs.dirty_max = MAX2(set->descs.dirty_max, offset_B + desc_size);
 }
 
-#define write_desc(set, binding, elem, desc, subdesc)                          \
+#define write_desc(set, binding, elem, desc)                                   \
    do {                                                                        \
       static_assert(sizeof(*(desc)) == PANVK_DESCRIPTOR_SIZE,                  \
                     "wrong descriptor size");                                  \
-      write_desc_data(set, binding, elem, subdesc, 0,                          \
-                      (desc), PANVK_DESCRIPTOR_SIZE);                          \
+      write_desc_data(set, binding, elem, 0, (desc), PANVK_DESCRIPTOR_SIZE);   \
    } while (0)
 
 #if PAN_ARCH >= 9
-#define write_nulldesc(set, binding, elem, subdesc)                            \
+#define write_nulldesc(set, binding, elem)                                     \
    do {                                                                        \
       struct mali_null_descriptor_packed null_desc;                            \
       pan_pack(&null_desc, NULL_DESCRIPTOR, cfg)                               \
          ;                                                                     \
-      write_desc(set, binding, elem, &null_desc, (subdesc));                   \
+      write_desc(set, binding, elem, &null_desc);                              \
    } while (0)
 #else
-#define write_nulldesc(set, binding, elem, subdesc)                            \
+#define write_nulldesc(set, binding, elem)                                     \
    do {                                                                        \
    } while (0)
 #endif
@@ -111,7 +110,7 @@ write_sampler_desc(struct panvk_descriptor_set *set,
       sampler = panvk_sampler_from_handle(pImageInfo->sampler);
    }
    assert(sampler);
-   write_desc(set, binding, elem, &sampler->descs[0], NO_SUBDESC);
+   write_desc(set, binding, elem, &sampler->descs[0]);
 }
 
 static void
@@ -125,8 +124,7 @@ write_image_view_desc(struct panvk_descriptor_set *set,
    assert(binding_layout->type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
    if (pImageInfo->imageView == VK_NULL_HANDLE) {
-      write_nulldesc(set, binding, elem,
-                     get_tex_subdesc_info(binding_layout->type, 0));
+      write_nulldesc(set, binding, elem);
       return;
    }
 
@@ -134,15 +132,15 @@ write_image_view_desc(struct panvk_descriptor_set *set,
    assert(panvk_image_get_tex_count(PAN_ARCH, view->vk.view_format) == 1);
 
    if (type != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
-      write_desc(set, binding, elem, &view->descs.tex[0], NO_SUBDESC);
+      write_desc(set, binding, elem, &view->descs.tex[0]);
    else {
       write_desc(set, binding, elem,
 #if PAN_ARCH >= 9
-                 &view->descs.storage_tex[0],
+                 &view->descs.storage_tex[0]
 #else
-                 &view->descs.img_attrib_buf,
+                 &view->descs.img_attrib_buf
 #endif
-                 NO_SUBDESC);
+      );
    }
 }
 
@@ -171,28 +169,22 @@ write_combined_image_sampler(struct panvk_descriptor_set *set,
       if (sampler->vk.ycbcr_conversion != NULL)
          tex_size *= panvk_image_get_tex_count(PAN_ARCH, sampler->vk.format);
       if (write_immutable)
-         write_desc_data(set, binding, elem,
-                         get_sampler_subdesc_info(binding_layout->type, 0), 0,
-                         sampler->descs,
+         write_desc_data(set, binding, elem, tex_size, sampler->descs,
                          sampler->desc_count * PANVK_DESCRIPTOR_SIZE);
    } else {
       assert(pImageInfo->sampler);
       const struct panvk_sampler *sampler =
          panvk_sampler_from_handle(pImageInfo->sampler);
-      write_desc_data(
-         set, binding, elem, get_sampler_subdesc_info(binding_layout->type, 0),
-         0, sampler->descs, sampler->desc_count * PANVK_DESCRIPTOR_SIZE);
+      write_desc_data(set, binding, elem, tex_size, sampler->descs,
+                      sampler->desc_count * PANVK_DESCRIPTOR_SIZE);
    }
 
    if (pImageInfo->imageView == VK_NULL_HANDLE) {
-      write_nulldesc(set, binding, elem,
-                     get_tex_subdesc_info(binding_layout->type, 0));
+      write_nulldesc(set, binding, elem);
    } else {
       struct panvk_image_view *view =
          panvk_image_view_from_handle(pImageInfo->imageView);
-      write_desc_data(set, binding, elem,
-                      get_tex_subdesc_info(binding_layout->type, 0), 0,
-                      view->descs.tex, tex_size);
+      write_desc_data(set, binding, elem, 0, view->descs.tex, tex_size);
    }
 }
 
@@ -202,7 +194,7 @@ write_buffer_desc(struct panvk_descriptor_set *set,
                   uint32_t elem, VkDescriptorType type)
 {
    if (info->buffer == VK_NULL_HANDLE) {
-      write_nulldesc(set, binding, elem, NO_SUBDESC);
+      write_nulldesc(set, binding, elem);
       return;
    }
 
@@ -217,7 +209,7 @@ write_buffer_desc(struct panvk_descriptor_set *set,
          .size = align(range, 4),
       };
 
-      write_desc(set, binding, elem, &desc, NO_SUBDESC);
+      write_desc(set, binding, elem, &desc);
    } else {
       struct {
          struct mali_uniform_buffer_packed ubo;
@@ -229,7 +221,7 @@ write_buffer_desc(struct panvk_descriptor_set *set,
          cfg.entries = DIV_ROUND_UP(range, 16);
       }
 
-      write_desc(set, binding, elem, &padded_desc, NO_SUBDESC);
+      write_desc(set, binding, elem, &padded_desc);
    }
 #else
    const bool is_ssbo = type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -239,7 +231,7 @@ write_buffer_desc(struct panvk_descriptor_set *set,
       cfg.address = panvk_buffer_gpu_ptr(buffer, info->offset);
       cfg.size = align(range, is_ssbo ? 4 : 16);
    }
-   write_desc(set, binding, elem, &desc, NO_SUBDESC);
+   write_desc(set, binding, elem, &desc);
 #endif
 }
 
@@ -276,7 +268,7 @@ write_buffer_view_desc(struct panvk_descriptor_set *set,
                        uint32_t elem, VkDescriptorType type)
 {
    if (bufferView == VK_NULL_HANDLE) {
-      write_nulldesc(set, binding, elem, NO_SUBDESC);
+      write_nulldesc(set, binding, elem);
       return;
    }
 
@@ -292,9 +284,9 @@ write_buffer_view_desc(struct panvk_descriptor_set *set,
       .attr_desc = view->descs.attrib,
    };
 
-   write_desc(set, binding, elem, &padded_desc, NO_SUBDESC);
+   write_desc(set, binding, elem, &padded_desc);
 #else
-   write_desc(set, binding, elem, &view->descs.buf, NO_SUBDESC);
+   write_desc(set, binding, elem, &view->descs.buf);
 #endif
 }
 
@@ -325,8 +317,8 @@ write_iub(struct panvk_descriptor_set *set, uint32_t binding,
       const uint32_t copy_size = MIN2(count, binding_size - offset);
 
       /* on bifrost, first slot is the extra buffer descriptor. */
-      write_desc_data(set, binding, (PAN_ARCH < 9) ? 1 : 0, NO_SUBDESC, offset,
-                      data, copy_size);
+      write_desc_data(set, binding, (PAN_ARCH < 9) ? 1 : 0, offset, data,
+                      copy_size);
 
       data += copy_size;
       offset = 0;
@@ -364,8 +356,8 @@ copy_iub(const VkCopyDescriptorSet *copy)
       const uint32_t copy_size =
          MIN2(src_copy_size, src_binding_size - src_offset);
 
-      const void *src = get_desc_slot_ptr(src_set, src_binding,
-                                          (PAN_ARCH < 9) ? 1 : 0, NO_SUBDESC);
+      const void *src =
+         get_desc_slot_ptr(src_set, src_binding, (PAN_ARCH < 9) ? 1 : 0);
       src += src_offset;
       write_iub(dst_set, copy->dstBinding, dst_offset, copy_size, src);
 
@@ -570,8 +562,7 @@ panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
 
    /* The first element is the buffer descriptor. */
    uint32_t iub_data_offset =
-      panvk_get_desc_index(binding_layout, 1, NO_SUBDESC) *
-      PANVK_DESCRIPTOR_SIZE;
+      panvk_get_desc_index(binding_layout, 1) * PANVK_DESCRIPTOR_SIZE;
    uint64_t iub_data_dev = set->descs.dev + iub_data_offset;
    uint32_t iub_desc_count = panvk_get_iub_desc_count(
       has_variable_count ? variable_count : binding_layout->desc_count);
@@ -586,7 +577,7 @@ panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
       cfg.pointer = iub_data_dev;
       cfg.entries = iub_size_dev;
    }
-   write_desc(set, binding, 0, &padded_desc, NO_SUBDESC);
+   write_desc(set, binding, 0, &padded_desc);
 }
 #endif
 
@@ -839,8 +830,8 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    switch (src_binding_layout->type) {
    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
       for (uint32_t i = 0; i < copy->descriptorCount; i++) {
-         const void *src = get_desc_slot_ptr(
-            src_set, copy->srcBinding, copy->srcArrayElement + i, NO_SUBDESC);
+         const void *src = get_desc_slot_ptr(src_set, copy->srcBinding,
+                                             copy->srcArrayElement + i);
          /* we're not supposed to copy immutable samplers over. with those, we
           * just copy the texture descriptors. no immutable? no ycbcr, no
           * problem! just copy 2 descriptors. */
@@ -853,7 +844,7 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
                PANVK_DESCRIPTOR_SIZE;
          }
          write_desc_data(dst_set, copy->dstBinding, copy->dstArrayElement + i,
-                         NO_SUBDESC, 0, src, copy_size);
+                         0, src, copy_size);
       }
       break;
    /* these are all single-descriptor descriptors. */
@@ -867,10 +858,10 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
    case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
       for (uint32_t i = 0; i < copy->descriptorCount; i++) {
-         const void *src = get_desc_slot_ptr(
-            src_set, copy->srcBinding, copy->srcArrayElement + i, NO_SUBDESC);
+         const void *src = get_desc_slot_ptr(src_set, copy->srcBinding,
+                                             copy->srcArrayElement + i);
          write_desc_data(dst_set, copy->dstBinding, copy->dstArrayElement + i,
-                         NO_SUBDESC, 0, src, PANVK_DESCRIPTOR_SIZE);
+                         0, src, PANVK_DESCRIPTOR_SIZE);
       }
       break;
 
