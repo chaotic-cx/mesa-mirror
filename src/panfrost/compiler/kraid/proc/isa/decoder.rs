@@ -1010,11 +1010,11 @@ fn gen_decode(
     ts.extend(quote! {
       pub fn try_decode(
           input_value: u64, arch: u8
-      ) -> Result<usize, InvalidInstrError> {
+      ) -> Result<&'static Instr, InvalidInstrError> {
           match arch {
               #arch_cases
               _ => Err(InvalidInstrError::Any),
-          }
+          }.map(|idx| &DISASM_TABLE[idx])
       }
     });
 

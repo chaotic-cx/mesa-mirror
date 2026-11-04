@@ -105,8 +105,7 @@ pub fn disassemble<W: Write>(
             write!(f, "{:016x}    ", instr)?;
         }
         match v9::decode::try_decode(*instr, arch) {
-            Ok(table_idx) => {
-                let entry = &v9::decode::DISASM_TABLE[table_idx];
+            Ok(entry) => {
                 v9::decode::print_instr(entry, *instr, arch, f, &print_ctx)?;
                 writeln!(f, "")?;
             }
@@ -136,8 +135,7 @@ mod tests {
         let mut buffer = Vec::new();
 
         match try_decode(val, arch) {
-            Ok(instr_idx) => {
-                let instr = &DISASM_TABLE[instr_idx];
+            Ok(instr) => {
                 print_instr(instr, val, arch, &mut buffer, &ctx).unwrap();
                 let result_string = String::from_utf8(buffer).unwrap();
                 Ok(result_string)
