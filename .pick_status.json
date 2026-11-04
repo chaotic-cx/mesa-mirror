@@ -124,7 +124,7 @@
         "description": "panvk: restore zero-value for flush_id after copy_fbd",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "eaf68f744b7ae394b6d05e2e3a3ebfee4eb5fe08",
         "notes": null
