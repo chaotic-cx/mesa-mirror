@@ -108,11 +108,15 @@ build_partition(jay_shader *shader,
    unsigned base_grf = 0, base_gpr[JAY_NUM_RA_FILES] = { 0 };
    struct jay_partition *p = &shader->partition;
 
+   /* acc0/acc1 reserved for lowering integer multiplication */
+   base_gpr[ACCUM] = 2 / jay_grf_per_gpr(shader);
+
    *p = (struct jay_partition){
       .units_x16[UGPR] = jay_ugpr_per_grf(shader) * 16,
       .units_x16[GPR] = 16 / jay_grf_per_gpr(shader),
       .units_x16[MEM] = 16 / jay_grf_per_gpr(shader),
       .units_x16[FLAG] = 16 / jay_grf_per_gpr(shader),
+      .units_x16[ACCUM] = 16 / jay_grf_per_gpr(shader),
    };
 
    /* Drop empty blocks and merge the resulting neighbours. This avoids needless
@@ -165,9 +169,6 @@ build_partition(jay_shader *shader,
       for (unsigned b = 0; b < p->nr_blocks[file]; ++b) {
          struct jay_register_block B = p->blocks[file][b];
          unsigned len_grf = (B.len_gpr * 16) / p->units_x16[file];
-         if (B.type == JAY_BLOCK_ACCUM) {
-            continue;
-         }
 
          assert(len_grf > 0 && "no empty partitions");
          assert(B.start_grf + len_grf <= hw_grfs && "GRF file size");
@@ -402,13 +403,14 @@ jay_partition_grf(jay_shader *shader)
 
    unsigned mapped_accums = grf_per_gpr == 1 ? 2 : 0;
 
-   for (unsigned spilling = 0; spilling <= 1; spilling++) {
+   for (unsigned spilling = 0; spilling <= 2; spilling++) {
       /* There is an interdependence between partition choice and spilling,
        * because spilling requires reserved UGPRs for the lowered SENDs. The
-       * solution is to first try to build a partition that forbids spilling,
-       * and if that fails, build one with it.
+       * solution is to first try to build a partition that forbids spilling
+       * (spilling = 0), then try to build one that spills to accumulators
+       * (spilling = 1), and if all else fails, build one that spills to memory.
        */
-      spilling_grfs = spilling ? shader->dispatch_width / ugpr_per_grf : 0;
+      spilling_grfs = spilling == 2 ? shader->dispatch_width / ugpr_per_grf : 0;
       uniform_grfs = DIV_ROUND_UP(MAX2(demand[UGPR], min_ugprs), ugpr_per_grf) +
                      spilling_grfs;
 
@@ -436,13 +438,23 @@ jay_partition_grf(jay_shader *shader)
       nonuniform_grfs = hw_grfs - uniform_grfs;
 
       /* Set the targets for the virtual register file accordingly */
-      shader->num_regs[GPR] = (nonuniform_grfs / grf_per_gpr) + mapped_accums;
+      shader->num_regs[GPR] = nonuniform_grfs / grf_per_gpr;
       shader->num_regs[UGPR] = uniform_grfs * ugpr_per_grf;
 
       /* If we're under the limit without spilling, we're good to go. */
       if (demand[GPR] <=
           register_limit(shader, GPR, shader->num_regs[GPR], base_split)) {
          break;
+      }
+
+      /* Try mapping accumulators */
+      if (spilling == 0) {
+         jay_foreach_function(shader, f) {
+            if (f->demand[GPR] > shader->num_regs[GPR] && mapped_accums) {
+               jay_spill(f, GPR, ACCUM, f->demand[GPR] - mapped_accums);
+               jay_spill(f, ACCUM, GPR, mapped_accums);
+            }
+         }
       }
    }
 
@@ -535,11 +547,12 @@ jay_partition_grf(jay_shader *shader)
       { GPR, JAY_STRIDE_4, eot_4, JAY_BLOCK_EOT, eot_split },
       { UGPR, 0, eot_u, JAY_BLOCK_EOT },
 
-      /* Accumulator block */
-      { GPR, JAY_STRIDE_4, mapped_accums * grf_per_gpr, JAY_BLOCK_ACCUM },
+      /* Accumulator/flag blocks */
+      { ACCUM, 0, mapped_accums * grf_per_gpr },
       { FLAG, 0, flag_limit * jay_grf_per_gpr(shader) },
    };
 
+   shader->num_regs[ACCUM] = mapped_accums;
    shader->num_regs[FLAG] = hw_flags;
    shader->num_regs[J_ADDRESS] = 1;
 
@@ -563,7 +576,8 @@ jay_partition_grf(jay_shader *shader)
 #define ANSI_ITALIC "\033[3m"
 
 static const char *jay_files[JAY_NUM_RA_FILES] = {
-   [GPR] = "GPR", [UGPR] = "UGPR", [MEM] = "MEM", [FLAG] = "FLAG"
+   [GPR] = "GPR",   [UGPR] = "UGPR",   [MEM] = "MEM",
+   [FLAG] = "FLAG", [ACCUM] = "ACCUM",
 };
 
 void
@@ -591,8 +605,7 @@ jay_print_partition(FILE *fp, jay_shader *s)
                     s->dispatch_width >> B.split);
          }
 
-         const char *types[JAY_BLOCK_TYPES] = { "", " EOT", " Spill",
-                                                " Accumulator" };
+         const char *types[JAY_BLOCK_TYPES] = { "", " EOT", " Spill" };
          fprintf(fp, ANSI_ITALIC "%s" ANSI_END "\n", types[B.type]);
       }
    }

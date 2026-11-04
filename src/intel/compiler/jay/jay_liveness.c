@@ -260,8 +260,8 @@ jay_calculate_register_demands(jay_function *func)
          }
 
          if (jay_debug & JAY_DBG_PRINTDEMAND) {
-            fprintf(stderr, "(LA) [G:%u\tU:%u\tF:%u] ", demands[GPR],
-                    demands[UGPR], demands[FLAG]);
+            fprintf(stderr, "(LA) [G:%u\tU:%u\tF:%u\tA:%u] ", demands[GPR],
+                    demands[UGPR], demands[FLAG], demands[ACCUM]);
             jay_print_inst_with_lu(stderr, func, block, I, &print_kill_idx);
          }
       }

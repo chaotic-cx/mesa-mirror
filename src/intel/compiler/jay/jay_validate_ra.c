@@ -11,7 +11,7 @@
 
 /* Validatation doesn't make sense in release builds */
 #ifndef NDEBUG
-#define NUM_VALIDATE_FILES (ACCUM + 1)
+#define NUM_VALIDATE_FILES (J_ADDRESS + 1)
 
 struct regfile {
    /* For each register in each file, records the SSA index currently stored
@@ -195,8 +195,7 @@ jay_validate_ra(jay_function *func)
       assert(block->index < func->num_blocks);
 
       for (unsigned file = 0; file < NUM_VALIDATE_FILES; ++file) {
-         b->n[file] = file == ACCUM ? 8 / jay_grf_per_gpr(func->shader) :
-                                      func->shader->num_regs[file];
+         b->n[file] = func->shader->num_regs[file];
          b->r[file] = linear_zalloc_array(lin_ctx, uint32_t, b->n[file]);
       }
    }

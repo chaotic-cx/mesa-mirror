@@ -302,7 +302,7 @@ push_temp(jay_builder *b,
    jay_def new = def_from_reg(make_reg(file, r));
 
    /* Put accumulators down the float pipe - it's still a raw move. */
-   *backing = jay_bare_reg(ACCUM, outer * 2);
+   *backing = jay_bare_reg(ACCUM, outer);
    jay_inst *mov = jay_MOV(b, *backing, new);
    mov->type = JAY_TYPE_F32;
    mov->uniform = file == UGPR;
@@ -326,34 +326,26 @@ static void
 mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
 {
    bool split_copy = dst.file == MEM && src.file == MEM;
-   bool acc_src = false, acc_dst = false;
 
    if (dst.file == GPR && src.file == GPR) {
       struct jay_partition *p = &b->shader->partition;
       struct jay_register_block D = jay_lookup_block(p, dst.reg, GPR);
       struct jay_register_block S = jay_lookup_block(p, src.reg, GPR);
 
-      acc_dst = D.type == JAY_BLOCK_ACCUM;
-      acc_src = S.type == JAY_BLOCK_ACCUM;
-
       split_copy |= D.stride != S.stride &&
                     D.stride != JAY_STRIDE_4 &&
                     S.stride != JAY_STRIDE_4;
-
-      split_copy |= (acc_dst && S.stride != JAY_STRIDE_4) ||
-                    (acc_src && D.stride != JAY_STRIDE_4);
    }
 
    if (split_copy) {
       jay_def temp = jay_null(), backing = jay_null();
       temp = push_temp(b, temps, GPR, false, &backing, jay_null(), jay_null());
-      jay_MOV(b, temp, src)->type = acc_src ? JAY_TYPE_F32 : JAY_TYPE_U32;
-      jay_MOV(b, dst, temp)->type = acc_dst ? JAY_TYPE_F32 : JAY_TYPE_U32;
+      jay_MOV(b, temp, src);
+      jay_MOV(b, dst, temp);
       pop_temp(b, temp, backing);
    } else {
-      jay_MOV(b, dst, src)->type = (acc_src || acc_dst) ? JAY_TYPE_F32 :
-                                   dst.file == FLAG ? jay_flag_type(b->func) :
-                                                      JAY_TYPE_U32;
+      jay_MOV(b, dst, src)->type =
+         dst.file == FLAG ? jay_flag_type(b->func) : JAY_TYPE_U32;
    }
 }
 
@@ -491,7 +483,7 @@ jay_emit_parallel_copies(jay_builder *b,
              jay_def_stride(b->shader, src) == JAY_STRIDE_4) {
 
             /* If everything is stride=4, swapping is easy */
-            jay_def acc = jay_bare_reg(ACCUM, 2);
+            jay_def acc = jay_bare_reg(ACCUM, 1);
             jay_MOV(b, acc, dst)->type = JAY_TYPE_F32;
             jay_MOV(b, dst, src)->type = JAY_TYPE_F32;
             jay_MOV(b, src, acc)->type = JAY_TYPE_F32;
@@ -592,14 +584,12 @@ is_block_compatible(struct jay_register_block block,
                     enum jay_stride max_stride,
                     unsigned split,
                     bool eot,
-                    bool allow_accum,
                     bool allow_split)
 {
    return block.type != JAY_BLOCK_SPILL &&
           (file != GPR ||
            (min_stride <= block.stride && block.stride <= max_stride)) &&
           (!eot || block.type == JAY_BLOCK_EOT) &&
-          (allow_accum || block.type != JAY_BLOCK_ACCUM) &&
           (file != GPR ||
            block.split == split ||
            (block.split > split && allow_split));
@@ -616,7 +606,7 @@ try_find_free_reg(jay_ra_state *ra,
       struct jay_register_block B = ra->b.shader->partition.blocks[file][b];
 
       if (is_block_compatible(B, file, stride == JAY_NUM_STRIDES ? 0 : stride,
-                              stride, 0, false, allow_special, allow_special)) {
+                              stride, 0, false, allow_special)) {
          for (unsigned i = B.start_gpr; i < B.start_gpr + B.len_gpr; ++i) {
             if (BITSET_TEST(ra->available_regs[file], i) && i != except) {
                return make_reg(file, i);
@@ -812,7 +802,7 @@ pick_regs(jay_ra_state *ra,
           !BITSET_TEST_COUNT(ra->pinned[file], cur, size) &&
           util_is_aligned(cur - block.start_gpr, alignment) &&
           is_block_compatible(block, file, min_stride, max_stride, split, eot,
-                              false, allow_split) &&
+                              allow_split) &&
           cur + size <= (block.start_gpr + block.len_gpr)) {
          return cur;
       }
@@ -858,7 +848,7 @@ pick_regs(jay_ra_state *ra,
       struct jay_register_block block = partition->blocks[file][b];
 
       if (is_block_compatible(block, file, min_stride, max_stride, split, eot,
-                              false, allow_split)) {
+                              allow_split)) {
          unsigned r = b_ == rr->block ? rr->gpr : 0;
 
          if (affinity.repr == jay_channel(var, 0) && b_ == rr->block) {
@@ -1201,9 +1191,9 @@ local_ra(jay_ra_state *ra, jay_block *block)
       }
 
       if (jay_debug & JAY_DBG_PRINTDEMAND) {
-         fprintf(stderr, "(RA) [G:%u\tU:%u\tF:%u] ",
+         fprintf(stderr, "(RA) [G:%u\tU:%u\tF:%u\tA:%u] ",
                  register_demand(ra, GPR), register_demand(ra, UGPR),
-                 register_demand(ra, FLAG));
+                 register_demand(ra, FLAG), register_demand(ra, ACCUM));
          jay_print_inst(stderr, ra->b.func, I);
       }
    }
@@ -1373,20 +1363,6 @@ insert_parallel_copies_for_phis(jay_function *f)
 }
 
 static void
-map_gpr_to_acc(jay_shader *shader, jay_def *x)
-{
-   if (!jay_is_null(*x) && x->file == GPR) {
-      struct jay_register_block B =
-         jay_lookup_block(&shader->partition, x->reg, GPR);
-
-      if (B.type == JAY_BLOCK_ACCUM) {
-         x->file = ACCUM;
-         x->reg = (2 + (x->reg - B.start_gpr)) * 2;
-      }
-   }
-}
-
-static void
 jay_register_allocate_function(jay_function *f)
 {
    /* Pre-RA scheduling ran a liveness analysis but disrupted all the
@@ -1501,9 +1477,7 @@ jay_register_allocate_function(jay_function *f)
    }
 
    jay_foreach_inst_in_func(f, block, I) {
-      map_gpr_to_acc(shader, &I->dst);
-
-      if (I->dst.file == GPR || I->dst.file == UGPR) {
+      if (I->dst.file == GPR || I->dst.file == UGPR || I->dst.file == ACCUM) {
          I->dst.reg *= 2;
       } else if (I->dst.file == FLAG) {
          I->dst.reg *= jay_phys_flag_per_virt(shader);
@@ -1512,9 +1486,9 @@ jay_register_allocate_function(jay_function *f)
       I->cond_flag.reg *= jay_phys_flag_per_virt(shader);
 
       jay_foreach_src(I, s) {
-         map_gpr_to_acc(shader, &I->src[s]);
-
-         if (I->src[s].file == GPR || I->src[s].file == UGPR) {
+         if (I->src[s].file == GPR ||
+             I->src[s].file == UGPR ||
+             I->src[s].file == ACCUM) {
             I->src[s].reg *= 2;
          } else if (I->src[s].file == FLAG) {
             I->src[s].reg *= jay_phys_flag_per_virt(shader);
@@ -1526,6 +1500,8 @@ jay_register_allocate_function(jay_function *f)
 void
 jay_register_allocate(jay_shader *s)
 {
+   s->num_regs[ACCUM] = 8 / jay_grf_per_gpr(s);
+
    jay_foreach_function(s, f) {
       jay_register_allocate_function(f);
    }

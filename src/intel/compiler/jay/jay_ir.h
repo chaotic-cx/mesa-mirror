@@ -33,13 +33,13 @@ enum PACKED jay_file {
    FLAG = 4,
    UFLAG = FLAG | JAY_UNIFORM,
 
+   /** Accumulators: 32-bits values (per SIMT lane or uniform) */
+   ACCUM = 6,
+
    /** Address registers */
-   J_ADDRESS = 6 | JAY_UNIFORM,
+   J_ADDRESS = 8 | JAY_UNIFORM,
 
    /* Non-SSA files below: */
-
-   /** Accumulators: 32-bits values (per SIMT lane or uniform) */
-   ACCUM = 8,
 
    /** Inputs within Jay unit tests */
    TEST_FILE = 10,
@@ -54,7 +54,7 @@ enum PACKED jay_file {
    JAY_NUM_SSA_FILES = J_ADDRESS + 1,
 
    /* Set of files that the main RA (and not eg flag RA) allocates. */
-   JAY_NUM_RA_FILES = UFLAG + 1,
+   JAY_NUM_RA_FILES = ACCUM + 1,
    JAY_NUM_GRF_FILES = UGPR + 1,
 };
 static_assert(JAY_FILE_LAST <= 0b1111, "must fit in 4 bits (see jay_def)");
@@ -809,9 +809,6 @@ enum jay_block_type {
 
    /** A block reserved for post-RA spill lowering */
    JAY_BLOCK_SPILL,
-
-   /** A block containing accumulators mapped as GPRs */
-   JAY_BLOCK_ACCUM,
 
    JAY_BLOCK_TYPES,
 };
