@@ -19,14 +19,6 @@ ac_video_dec_dpb_size(const struct radeon_info *info, struct ac_video_dec_sessio
    return 0;
 }
 
-uint32_t
-ac_video_dec_dpb_alignment(const struct radeon_info *info, struct ac_video_dec_session_param *param)
-{
-   if (info->vcn_ip_version >= VCN_1_0_0)
-      return ac_vcn_dec_dpb_alignment(info, param);
-   return 0;
-}
-
 void
 ac_video_dec_dpb_extent(const struct radeon_info *info,
                         struct ac_video_dec_session_param *param,
