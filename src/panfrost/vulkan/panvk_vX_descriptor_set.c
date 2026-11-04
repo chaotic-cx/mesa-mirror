@@ -167,6 +167,56 @@ write_image_view_desc(struct panvk_descriptor_set *set,
 }
 
 static void
+write_combined_image_sampler(struct panvk_descriptor_set *set,
+                             const VkDescriptorImageInfo *const pImageInfo,
+                             uint32_t binding, uint32_t elem,
+                             bool write_immutable)
+{
+   /* Vulkan has some nice strict rules for combined image samplers:
+    * - a sampler always exists, either immutable or in pImageInfo. (00325)
+    *    - and immutable samplers cannot be null samplers (00282)
+    * - with ycbcr, imageview also always exists, no null descriptors. (09506)
+    *    - i.e. we never need to care about "multi-descriptor null descriptors"
+    * tldr, if imageview isn't null, we just yoink all descriptors to the set.
+    */
+   const struct panvk_descriptor_set_binding_layout *binding_layout =
+      &set->layout->bindings[binding];
+
+   uint32_t tex_size = PANVK_DESCRIPTOR_SIZE;
+
+   if (binding_layout->immutable_samplers) {
+      const struct panvk_sampler *sampler =
+         binding_layout->immutable_samplers[elem];
+      /* ycbcr depends on immutable samplers with the proper format. */
+      if (sampler->vk.ycbcr_conversion != NULL)
+         tex_size *= panvk_image_get_tex_count(PAN_ARCH, sampler->vk.format);
+      if (write_immutable)
+         write_desc_data(set, binding, elem,
+                         get_sampler_subdesc_info(binding_layout->type, 0), 0,
+                         sampler->descs,
+                         sampler->desc_count * PANVK_DESCRIPTOR_SIZE);
+   } else {
+      assert(pImageInfo->sampler);
+      const struct panvk_sampler *sampler =
+         panvk_sampler_from_handle(pImageInfo->sampler);
+      write_desc_data(
+         set, binding, elem, get_sampler_subdesc_info(binding_layout->type, 0),
+         0, sampler->descs, sampler->desc_count * PANVK_DESCRIPTOR_SIZE);
+   }
+
+   if (pImageInfo->imageView == VK_NULL_HANDLE) {
+      write_nulldesc(set, binding, elem,
+                     get_tex_subdesc_info(binding_layout->type, 0));
+   } else {
+      struct panvk_image_view *view =
+         panvk_image_view_from_handle(pImageInfo->imageView);
+      write_desc_data(set, binding, elem,
+                      get_tex_subdesc_info(binding_layout->type, 0), 0,
+                      view->descs.tex, tex_size);
+   }
+}
+
+static void
 write_buffer_desc(struct panvk_descriptor_set *set,
                   const VkDescriptorBufferInfo *const info, uint32_t binding,
                   uint32_t elem, VkDescriptorType type)
@@ -745,12 +795,9 @@ panvk_per_arch(descriptor_set_write)(struct panvk_descriptor_set *set,
 
    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
       for (uint32_t j = 0; j < write->descriptorCount; j++) {
-         write_image_view_desc(set, write->pImageInfo + j, write->dstBinding,
-                               write->dstArrayElement + j,
-                               write->descriptorType);
-         write_sampler_desc(set, write->pImageInfo + j, write->dstBinding,
-                            write->dstArrayElement + j,
-                            write_immutable_samplers);
+         write_combined_image_sampler(
+            set, write->pImageInfo + j, write->dstBinding,
+            write->dstArrayElement + j, write_immutable_samplers);
       }
       break;
 
@@ -942,11 +989,9 @@ panvk_per_arch(descriptor_set_write_template)(
          for (uint32_t j = 0; j < entry->array_count; j++) {
             const VkDescriptorImageInfo *info =
                data + entry->offset + j * entry->stride;
-            write_image_view_desc(set, info, entry->binding,
-                                  entry->array_element + j, entry->type);
-            write_sampler_desc(set, info, entry->binding,
-                               entry->array_element + j,
-                               write_immutable_samplers);
+            write_combined_image_sampler(set, info, entry->binding,
+                                         entry->array_element + j,
+                                         write_immutable_samplers);
          }
          break;
 
