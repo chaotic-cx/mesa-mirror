@@ -104,7 +104,7 @@ gather_fs_frag_pos(nir_builder *b, nir_intrinsic_instr *intr, void *data)
          ((comp_mask & 0x2 ? nir_def_bits_used(nir_scalar_resolved(&intr->def, 1)) == 0x1 : 0) << 1);
 
       state->has_pixel_coord = true;
-      state->frag_pos_integer_uses |= comp_mask;
+      state->frag_pos_integer_uses |= comp_mask & ~only_bit0_uses;
       state->frag_pos_only_bit0_uses |= only_bit0_uses;
       return false;
    }
