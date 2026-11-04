@@ -15,6 +15,7 @@
 #include "dev/intel_debug.h"
 #include "dev/intel_wa.h"
 
+#include <algorithm>
 #include <memory>
 
 /** Emits the interpolation for the varying inputs. */
