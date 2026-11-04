@@ -114,7 +114,7 @@
         "description": "panvk: add missing flush after copy_fbd",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "5a7159f86987da79e5072c77757b00e41b64f099",
         "notes": null
