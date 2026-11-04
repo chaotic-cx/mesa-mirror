@@ -1201,8 +1201,9 @@ local_ra(jay_ra_state *ra, jay_block *block)
       }
 
       if (jay_debug & JAY_DBG_PRINTDEMAND) {
-         printf("(RA) [G:%u\tU:%u\tF:%u] ", register_demand(ra, GPR),
-                register_demand(ra, UGPR), register_demand(ra, FLAG));
+         fprintf(stderr, "(RA) [G:%u\tU:%u\tF:%u] ",
+                 register_demand(ra, GPR), register_demand(ra, UGPR),
+                 register_demand(ra, FLAG));
          jay_print_inst(stderr, ra->b.func, I);
       }
    }

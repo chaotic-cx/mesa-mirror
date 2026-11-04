@@ -560,7 +560,7 @@ min_algorithm(struct spill_ctx *ctx,
       ctx->ip += inst_cycles(I);
 
       if (jay_debug & JAY_DBG_PRINTDEMAND) {
-         printf("(SP) %u: ", ctx->nW);
+         fprintf(stderr, "(SP) %u: ", ctx->nW);
          jay_print_inst(stderr, ctx->func, I);
       }
    }
