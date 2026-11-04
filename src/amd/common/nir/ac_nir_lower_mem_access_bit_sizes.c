@@ -333,15 +333,15 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
          if (larger > bytes + max_overfetch) {
             /* Avoid overfetching more than one (two for 256bit+ and four for 512bit+) dword. */
             bytes = smaller;
-         } else if (can_align_down) {
-            /* Rounding the address down makes this safe. */
-            res.align = overfetch_align;
-            bytes = larger;
          } else if (is_buffer_load) {
             /* Bounds checking makes this safe. */
             bytes = larger;
          } else if (ac_nir_can_increase_load_size(align_mul, align_offset, original_bytes, larger)) {
             /* Additional trailing bytes stay within an accessible page. */
+            bytes = larger;
+         } else if (can_align_down) {
+            /* Rounding the address down makes this safe. */
+            res.align = overfetch_align;
             bytes = larger;
          } else {
             bytes = smaller;
