@@ -818,6 +818,8 @@ custom_decodes = {
     "vkCmdBeginRenderPass" : emit_global_state_wrapped_decoding,
     "vkCmdBeginRenderPass2" : emit_global_state_wrapped_decoding,
     "vkCmdBeginRenderPass2KHR" : emit_global_state_wrapped_decoding,
+    "vkCmdBeginRendering" : emit_global_state_wrapped_decoding,
+    "vkCmdBeginRenderingKHR" : emit_global_state_wrapped_decoding,
 
     "vkCreateSamplerYcbcrConversion": emit_global_state_wrapped_decoding,
     "vkDestroySamplerYcbcrConversion": emit_global_state_wrapped_decoding,
