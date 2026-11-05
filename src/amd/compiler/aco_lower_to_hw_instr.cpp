@@ -2917,6 +2917,8 @@ lower_to_hw_instr(Program* program)
                break;
             }
             case aco_opcode::p_end_with_regs: {
+               if (!instr->operands[0].isUndefined())
+                  bld.sop1(Builder::s_mov, Definition(exec, bld.lm), instr->operands[0]);
                bld.insert(std::move(instr));
                end_with_regs_block_index = block->index;
                break;

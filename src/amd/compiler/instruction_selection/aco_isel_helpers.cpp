@@ -713,10 +713,11 @@ void
 build_end_with_regs(isel_context* ctx, std::vector<Operand>& regs)
 {
    aco_ptr<Instruction> end{
-      create_instruction(aco_opcode::p_end_with_regs, Format::PSEUDO, regs.size(), 0)};
+      create_instruction(aco_opcode::p_end_with_regs, Format::PSEUDO, 1 + regs.size(), 0)};
 
+   end->operands[0] = Operand(ctx->program->lane_mask);
    for (unsigned i = 0; i < regs.size(); i++)
-      end->operands[i] = regs[i];
+      end->operands[1 + i] = regs[i];
 
    ctx->block->instructions.emplace_back(std::move(end));
 
@@ -856,11 +857,12 @@ finish_program(isel_context* ctx)
       /* Delay transistion to Exact to help optimizations and scheduling */
       while (it != instrs->end()) {
          aco_ptr<Instruction>& instr = *it;
-         /* End WQM before: */
+         /* End WQM before or combine: */
          if (instr->isDS() || instr->isEXP() ||
              instr->opcode == aco_opcode::p_dual_src_export_gfx11 ||
              instr->opcode == aco_opcode::p_jump_to_epilog ||
-             instr->opcode == aco_opcode::p_logical_start)
+             instr->opcode == aco_opcode::p_logical_start ||
+             instr->opcode == aco_opcode::p_end_with_regs)
             break;
 
          ++it;
@@ -868,14 +870,16 @@ finish_program(isel_context* ctx)
          /* End WQM after: */
          if (instr->opcode == aco_opcode::p_logical_end ||
              instr->opcode == aco_opcode::p_discard_if ||
-             instr->opcode == aco_opcode::p_demote_to_helper ||
-             instr->opcode == aco_opcode::p_end_with_regs)
+             instr->opcode == aco_opcode::p_demote_to_helper)
             break;
       }
 
-      Builder bld(ctx->program);
-      bld.reset(instrs, it);
-      bld.pseudo(aco_opcode::p_end_wqm);
+      if (it == instrs->end() ? instrs->back()->opcode != aco_opcode::p_end_with_regs
+                              : (*it)->opcode != aco_opcode::p_end_with_regs) {
+         Builder bld(ctx->program);
+         bld.reset(instrs, it);
+         bld.pseudo(aco_opcode::p_end_wqm);
+      }
    }
 }
 

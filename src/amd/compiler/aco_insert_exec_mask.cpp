@@ -518,6 +518,13 @@ process_instructions(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instructio
          state = Exact;
          ctx.handle_wqm = false;
          continue;
+      } else if (instr->opcode == aco_opcode::p_end_with_regs && state == WQM) {
+         /* This instruction can also indicate the end of WQM mode. */
+         assert(block->kind & block_kind_top_level && info.exec.size() == 2);
+         info.exec.pop_back();
+         instr->operands[0] = info.exec[0].op;
+         state = Exact;
+         ctx.handle_wqm = false;
       } else if (instr_disables_wqm(instr.get())) {
          if (!ctx.handle_wqm) {
             remove_disable_wqm(instr.get());
