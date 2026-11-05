@@ -1303,10 +1303,11 @@ void r300_emit_vs_constants(struct r300_context* r300,
         if (buf->remap_table){
             uint32_t *data = buf->ptr;
             for (i = 0; i < count; i++) {
-                uint32_t constant[4];
+                uint32_t constant[4] = {0};
                 for (unsigned chan = 0; chan < 4; chan++) {
-                    constant[chan] = data[buf->remap_table[i].index[chan] * 4 +
-                                           buf->remap_table[i].swizzle[chan]];
+                    unsigned swizzle = buf->remap_table[i].swizzle[chan];
+                    if (swizzle != RC_SWIZZLE_UNUSED)
+                        constant[chan] = data[buf->remap_table[i].index[chan] * 4 + swizzle];
                 }
                 OUT_CS_TABLE(constant, 4);
             }

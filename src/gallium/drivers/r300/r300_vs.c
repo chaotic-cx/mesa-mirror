@@ -163,9 +163,7 @@ void r300_translate_vertex_shader(struct r300_context *r300,
         goto cleanup;
     }
 
-    if (compiler.Base.Program.Constants.Count > 200) {
-        compiler.Base.remove_unused_constants = true;
-    }
+    compiler.Base.remove_unused_constants = true;
 
     assert(!(BITFIELD_MASK(vs->outputs.num_total) &
              ~compiler.Base.Program.OutputsWritten));
