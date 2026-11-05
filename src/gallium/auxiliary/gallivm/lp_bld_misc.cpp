@@ -377,6 +377,8 @@ lp_build_fill_mattrs(std::vector<std::string> &MAttrs)
    MAttrs.push_back(util_get_cpu_caps()->has_avx512vl ? "+avx512vl"  : "-avx512vl");
    MAttrs.push_back(util_get_cpu_caps()->has_avx512vbmi ? "+avx512vbmi"  : "-avx512vbmi");
    MAttrs.push_back(util_get_cpu_caps()->has_avx512fp16 ? "+avx512fp16"  : "-avx512fp16");
+   /* turn off APX for now */
+   MAttrs.push_back("-ppx");
 #endif
 #if DETECT_ARCH_ARM || DETECT_ARCH_AARCH64
    if (!util_get_cpu_caps()->has_neon) {
