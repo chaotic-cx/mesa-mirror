@@ -535,7 +535,7 @@ dzn_GetDescriptorSetLayoutSupport(VkDevice _device,
          upper_bound = is_sampler ? sampler_upper_bound : MIN2(sampler_upper_bound, upper_bound);
       }
 
-      if (binding_flags && binding_flags->bindingCount &&
+      if (variable_count && binding_flags && binding_flags->bindingCount &&
           (binding_flags->pBindingFlags[i] & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT))
          variable_count->maxVariableDescriptorCount = device->bindless ? INT32_MAX : upper_bound;
 
