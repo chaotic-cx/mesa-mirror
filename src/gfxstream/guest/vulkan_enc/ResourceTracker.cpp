@@ -1396,6 +1396,9 @@ void ResourceTracker::transformImpl_VkExternalMemoryProperties_fromhost(
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif  // VK_USE_PLATFORM_ANDROID_KHR
+#ifdef LINUX_GUEST_BUILD
+    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+#endif  // LINUX_GUEST_BUILD
     if (supportedHandleType) {
         pProperties->compatibleHandleTypes &= supportedHandleType;
         pProperties->exportFromImportedHandleTypes &= supportedHandleType;
@@ -6309,8 +6312,7 @@ VkResult ResourceTracker::on_vkGetMemoryFdKHR(void* context, VkResult, VkDevice 
     if (!pGetFdInfo) return VK_ERROR_OUT_OF_HOST_MEMORY;
     if (!pGetFdInfo->memory) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    if (!(pGetFdInfo->handleType & (VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-                                    VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT))) {
+    if (!(pGetFdInfo->handleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
         mesa_loge("%s: Export operation not defined for handleType: 0x%x\n", __func__,
                   pGetFdInfo->handleType);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -7702,6 +7704,9 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2(
         vk_find_struct(pImageFormatProperties, ANDROID_HARDWARE_BUFFER_USAGE_ANDROID);
     supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif
+#ifdef LINUX_GUEST_BUILD
+    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+#endif
     const VkPhysicalDeviceExternalImageFormatInfo* ext_img_info =
         vk_find_struct_const(pImageFormatInfo, PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO);
     if (supportedHandleType && ext_img_info) {
@@ -7821,10 +7826,17 @@ void ResourceTracker::on_vkGetPhysicalDeviceExternalBufferProperties(
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif
+#ifdef LINUX_GUEST_BUILD
+    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+#endif
     if (supportedHandleType) {
         // 0 is a valid handleType so we can't check against 0
         if (pExternalBufferInfo->handleType !=
             (pExternalBufferInfo->handleType & supportedHandleType)) {
+            pExternalBufferProperties->externalMemoryProperties.externalMemoryFeatures = 0;
+            pExternalBufferProperties->externalMemoryProperties.exportFromImportedHandleTypes = 0;
+            pExternalBufferProperties->externalMemoryProperties.compatibleHandleTypes =
+                pExternalBufferInfo->handleType;
             return;
         }
     }
