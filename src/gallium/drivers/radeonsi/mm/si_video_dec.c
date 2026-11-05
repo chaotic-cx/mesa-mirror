@@ -11,6 +11,7 @@
 #include "util/vl_zscan_data.h"
 #include "vl/vl_video_buffer.h"
 #include "ac_debug.h"
+#include "ac_cmdbuf_sdma.h"
 
 #define ERROR(fmt, args...) \
    do { \
@@ -386,9 +387,32 @@ static void decode_cmd_init(struct si_video_dec *vid, struct pipe_picture_desc *
    vid->bs_ptr = NULL;
 }
 
+static bool begin_sdma_cs(struct si_video_dec *vid, bool tmz)
+{
+   struct si_context *sctx = (struct si_context *)vid->base.context;
+
+   if (!vid->cs_sdma) {
+      vid->cs_sdma = CALLOC_STRUCT(radeon_cmdbuf);
+      if (!vid->cs_sdma)
+         return false;
+
+      if (!vid->ws->cs_create(vid->cs_sdma, sctx->ctx, AMD_IP_SDMA, NULL, NULL)) {
+         FREE(vid->cs_sdma);
+         vid->cs_sdma = NULL;
+         return false;
+      }
+   }
+
+   if (tmz != vid->ws->cs_is_secure(vid->cs_sdma))
+      vid->ws->cs_flush(vid->cs_sdma, RADEON_FLUSH_TOGGLE_SECURE_SUBMISSION, NULL);
+
+   return true;
+}
+
 static int decode_cmd_build(struct si_video_dec *vid, struct pipe_picture_desc *pic,
                             struct ac_video_dec_decode_cmd *cmd)
 {
+   struct si_screen *sscreen = (struct si_screen *)vid->screen;
    struct si_resource *emb_buffer = NULL;
 
    if (vid->dec->embedded_size) {
@@ -462,13 +486,22 @@ static int decode_cmd_build(struct si_video_dec *vid, struct pipe_picture_desc *
             ((struct si_texture *)vid->dpb_buffer->b.b.next)->surface.u.gfx9.surf_slice_size;
          uint64_t src_offset = 0;
          uint64_t dst_offset = 0;
-         for (uint32_t slice = 0; slice < vid->dec->param.max_num_ref; slice++) {
-            si_copy_buffer((struct si_context *)vid->base.context, &vid->dpb_buffer->b.b, &resize_dpb->b.b,
-                           dst_offset, src_offset, src_slice_size);
-            src_offset += src_slice_size;
-            dst_offset += dst_slice_size;
+         if (begin_sdma_cs(vid, pic->protected_playback)) {
+            for (uint32_t slice = 0; slice < vid->dec->param.max_num_ref; slice++) {
+               uint64_t size = src_slice_size;
+               while (size) {
+                  size -= ac_emit_sdma_copy_linear(&vid->cs_sdma->current, sscreen->info.sdma_ip_version,
+                                                   resize_dpb->gpu_address + src_offset + src_slice_size - size,
+                                                   vid->dpb_buffer->gpu_address + dst_offset + src_slice_size - size,
+                                                   size, pic->protected_playback);
+               }
+               src_offset += src_slice_size;
+               dst_offset += dst_slice_size;
+            }
+            vid->ws->cs_add_buffer(vid->cs_sdma, resize_dpb->buf, RADEON_USAGE_READ | RADEON_USAGE_SYNCHRONIZED, 0);
+            vid->ws->cs_add_buffer(vid->cs_sdma, vid->dpb_buffer->buf, RADEON_USAGE_WRITE | RADEON_USAGE_SYNCHRONIZED, 0);
+            vid->ws->cs_flush(vid->cs_sdma, 0, NULL);
          }
-         vid->base.context->flush(vid->base.context, NULL, 0);
          si_resource_reference(&resize_dpb, NULL);
          vid->dec->param.max_width = vid->base.width;
          vid->dec->param.max_height = vid->base.height;
@@ -1434,6 +1467,8 @@ static void si_dec_destroy(struct pipe_video_codec *decoder)
       si_dec_destroy_decoder(vid);
       vid->dec->destroy(vid->dec);
       vid->ws->cs_destroy(&vid->cs);
+      if (vid->cs_sdma)
+         vid->ws->cs_destroy(vid->cs_sdma);
       if (vid->ectx)
          vid->ectx->destroy(vid->ectx);
    }
@@ -1449,6 +1484,7 @@ static void si_dec_destroy(struct pipe_video_codec *decoder)
    for (unsigned i = 0; i < ARRAY_SIZE(vid->dpb); i++)
       pipe_resource_reference(&vid->dpb[i], NULL);
 
+   FREE(vid->cs_sdma);
    FREE(vid);
 }
 

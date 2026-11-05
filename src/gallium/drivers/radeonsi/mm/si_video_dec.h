@@ -19,6 +19,7 @@ struct si_video_dec {
    struct pipe_screen *screen;
    struct radeon_winsys *ws;
    struct radeon_cmdbuf cs;
+   struct radeon_cmdbuf *cs_sdma;
    struct pipe_context *ectx;
 
    bool error;
