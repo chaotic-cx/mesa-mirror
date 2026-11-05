@@ -621,7 +621,7 @@ static bool pvr_physical_device_get_properties(
    UNUSED const uint32_t sub_pixel_precision =
       PVR_HAS_FEATURE(dev_info, simple_internal_parameter_format) ? 4U : 8U;
 
-   UNUSED const uint32_t max_render_size = rogue_get_render_size_max(dev_info);
+   const uint32_t max_render_size = rogue_get_render_size_max(dev_info);
 
    const uint32_t max_sample_bits = ((max_multisample << 1) - 1);
 
@@ -672,10 +672,10 @@ static bool pvr_physical_device_get_properties(
       .deviceType = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
       /* deviceName and pipelineCacheUUID are filled below .*/
 
-      .maxImageDimension1D = 4096U,
-      .maxImageDimension2D = 4096U,
+      .maxImageDimension1D = max_render_size,
+      .maxImageDimension2D = max_render_size,
       .maxImageDimension3D = pvr_get_texture_extent_max_z(dev_info),
-      .maxImageDimensionCube = 4096U,
+      .maxImageDimensionCube = max_render_size,
       .maxImageArrayLayers = rogue_get_render_size_max_z(dev_info),
       .maxTexelBufferElements = 64U * 1024U,
       .maxUniformBufferRange = 16U * 1024U,
@@ -759,10 +759,10 @@ static bool pvr_physical_device_get_properties(
       .maxSamplerAnisotropy = 16.0f, /* Requires samplerAnisotropy */
       .maxViewports = 1U, /* Requires multiViewport */
 
-      .maxViewportDimensions[0] = 4096U,
-      .maxViewportDimensions[1] = 4096U,
-      .viewportBoundsRange[0] = -8192.0f,
-      .viewportBoundsRange[1] = 8191.0f,
+      .maxViewportDimensions[0] = max_render_size,
+      .maxViewportDimensions[1] = max_render_size,
+      .viewportBoundsRange[0] = -(int32_t)(2U * max_render_size),
+      .viewportBoundsRange[1] = 2U * max_render_size,
 
       .viewportSubPixelBits = 0U,
       .minMemoryMapAlignment = pdevice->ws->page_size,
@@ -782,8 +782,8 @@ static bool pvr_physical_device_get_properties(
       .maxInterpolationOffset = 0.5f,
       .subPixelInterpolationOffsetBits = 4U,
 
-      .maxFramebufferWidth = 4096U,
-      .maxFramebufferHeight = 4096U,
+      .maxFramebufferWidth = max_render_size,
+      .maxFramebufferHeight = max_render_size,
       .maxFramebufferLayers = 256U,
 
       /* Note: update nir_shader_compiler_options.max_samples when changing this. */
