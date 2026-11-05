@@ -55,6 +55,10 @@ compositor_proc_process_frame(struct pipe_video_codec *codec,
    if (util_format_is_subsampled_422(dst->buffer_format))
       return 1;
 
+   /* Protected buffers not supported */
+   if (src->bind & PIPE_BIND_PROTECTED || dst->bind & PIPE_BIND_PROTECTED)
+      return 1;
+
    surfaces = dst->get_surfaces(dst);
    if (!surfaces[0].texture)
       return 1;

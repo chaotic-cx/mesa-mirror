@@ -445,6 +445,8 @@ vl_deint_filter_check_buffers(struct vl_deint_filter *filter,
          return false;
       if (bufs[i]->interlaced != !filter->interleaved)
          return false;
+      if (bufs[i]->bind & PIPE_BIND_PROTECTED)
+         return false;
    }
 
    return true;
