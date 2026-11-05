@@ -2634,7 +2634,7 @@
         "description": "zink: reset attachment storeOp when begin_rendering has no tc info",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "73528dd3b702317449a9c7ebae1eb44ce504d294",
         "notes": null
