@@ -827,8 +827,27 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    assert(dst_binding_layout->type == src_binding_layout->type || src_mutable || dst_mutable);
 
    switch (src_binding_layout->type) {
-   case VK_DESCRIPTOR_TYPE_SAMPLER:
    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+      for (uint32_t i = 0; i < copy->descriptorCount; i++) {
+         const void *src = get_desc_slot_ptr(
+            src_set, copy->srcBinding, copy->srcArrayElement + i, NO_SUBDESC);
+         /* we're not supposed to copy immutable samplers over. with those, we
+          * just copy the texture descriptors. no immutable? no ycbcr, no
+          * problem! just copy 2 descriptors. */
+         uint32_t copy_size = 2 * PANVK_DESCRIPTOR_SIZE;
+         if (dst_binding_layout->immutable_samplers) {
+            struct panvk_sampler *sampler =
+               dst_binding_layout->immutable_samplers[copy->dstArrayElement + i];
+            copy_size =
+               panvk_image_get_tex_count(PAN_ARCH, sampler->vk.format) *
+               PANVK_DESCRIPTOR_SIZE;
+         }
+         write_desc_data(dst_set, copy->dstBinding, copy->dstArrayElement + i,
+                         NO_SUBDESC, 0, src, copy_size);
+      }
+      break;
+   /* these are all single-descriptor descriptors. */
+   case VK_DESCRIPTOR_TYPE_SAMPLER:
    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
@@ -838,13 +857,10 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
    case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
       for (uint32_t i = 0; i < copy->descriptorCount; i++) {
-         const void *src = get_desc_slot_ptr(src_set, copy->srcBinding,
-                                             copy->srcArrayElement + i,
-                                             NO_SUBDESC);
-         const size_t copy_size =
-            PANVK_DESCRIPTOR_SIZE * panvk_get_desc_stride(src_binding_layout);
+         const void *src = get_desc_slot_ptr(
+            src_set, copy->srcBinding, copy->srcArrayElement + i, NO_SUBDESC);
          write_desc_data(dst_set, copy->dstBinding, copy->dstArrayElement + i,
-                         NO_SUBDESC, 0, src, copy_size);
+                         NO_SUBDESC, 0, src, PANVK_DESCRIPTOR_SIZE);
       }
       break;
 
