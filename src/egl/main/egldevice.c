@@ -254,7 +254,7 @@ _eglDeviceNext(struct _egl_device *dev)
 }
 
 EGLBoolean
-_eglDeviceSupports(struct _egl_device *dev, _EGLDeviceExtension ext)
+_eglDeviceSupports(struct _egl_device *dev, enum _egl_device_extension ext)
 {
    switch (ext) {
    case _EGL_DEVICE_SOFTWARE:

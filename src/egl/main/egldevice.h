@@ -70,8 +70,6 @@ enum _egl_device_extension {
    _EGL_DEVICE_TYPE,
 };
 
-typedef enum _egl_device_extension _EGLDeviceExtension;
-
 #ifdef HAVE_LIBDRM
 drmDevicePtr
 _eglDeviceDrm(struct _egl_device *dev);
@@ -83,7 +81,7 @@ struct _egl_device *
 _eglDeviceNext(struct _egl_device *dev);
 
 EGLBoolean
-_eglDeviceSupports(struct _egl_device *dev, _EGLDeviceExtension ext);
+_eglDeviceSupports(struct _egl_device *dev, enum _egl_device_extension ext);
 
 int
 _eglDeviceRefreshList(void);
