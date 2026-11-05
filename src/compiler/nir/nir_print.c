@@ -1217,12 +1217,26 @@ static const char *
 nir_descriptor_type_name(nir_descriptor_type type)
 {
    switch (type) {
+   case nir_descriptor_type_invalid:
+      return "invalid";
    case nir_descriptor_type_uniform_buffer:
       return "UBO";
    case nir_descriptor_type_storage_buffer:
       return "SSBO";
    case nir_descriptor_type_acceleration_structure:
       return "accel-struct";
+   case nir_descriptor_type_sampler:
+      return "sampler";
+   case nir_descriptor_type_storage_texel_buffer:
+      return "storage-texel-buffer";
+   case nir_descriptor_type_uniform_texel_buffer:
+      return "uniform-texel-buffer";
+   case nir_descriptor_type_input_attachment:
+      return "input-attachment";
+   case nir_descriptor_type_storage_image:
+      return "storage-image";
+   case nir_descriptor_type_sampled_image:
+      return "sampled-image";
    default:
       return "unknown";
    }

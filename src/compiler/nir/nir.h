@@ -201,9 +201,16 @@ typedef enum {
  * Descriptor types.
  */
 typedef enum {
-   nir_descriptor_type_uniform_buffer = 0,
-   nir_descriptor_type_storage_buffer = 1,
-   nir_descriptor_type_acceleration_structure = 2,
+   nir_descriptor_type_invalid = 0,
+   nir_descriptor_type_uniform_buffer = 1,
+   nir_descriptor_type_storage_buffer = 2,
+   nir_descriptor_type_acceleration_structure = 3,
+   nir_descriptor_type_sampler = 4,
+   nir_descriptor_type_storage_texel_buffer = 5,
+   nir_descriptor_type_uniform_texel_buffer = 6,
+   nir_descriptor_type_input_attachment = 7,
+   nir_descriptor_type_storage_image = 8,
+   nir_descriptor_type_sampled_image = 9,
 } nir_descriptor_type;
 
 /**
