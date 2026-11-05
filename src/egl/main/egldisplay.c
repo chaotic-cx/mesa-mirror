@@ -390,7 +390,7 @@ _eglCleanupDisplay(struct _egl_display *disp)
  * own the resource.
  */
 EGLBoolean
-_eglCheckResource(void *res, _EGLResourceType type, struct _egl_display *disp)
+_eglCheckResource(void *res, enum _egl_resource_type type, struct _egl_display *disp)
 {
    struct _egl_resource *list = disp->ResourceLists[type];
 
@@ -449,7 +449,7 @@ _eglPutResource(struct _egl_resource *res)
  * Link a resource to its display.
  */
 void
-_eglLinkResource(struct _egl_resource *res, _EGLResourceType type)
+_eglLinkResource(struct _egl_resource *res, enum _egl_resource_type type)
 {
    assert(res->Display);
    simple_mtx_assert_locked(&res->Display->Mutex);
@@ -464,7 +464,7 @@ _eglLinkResource(struct _egl_resource *res, _EGLResourceType type)
  * Unlink a linked resource from its display.
  */
 void
-_eglUnlinkResource(struct _egl_resource *res, _EGLResourceType type)
+_eglUnlinkResource(struct _egl_resource *res, enum _egl_resource_type type)
 {
    struct _egl_resource *prev;
 

@@ -70,7 +70,6 @@ enum _egl_resource_type {
 
    _EGL_NUM_RESOURCES
 };
-typedef enum _egl_resource_type _EGLResourceType;
 
 /**
  * A resource of a display.
@@ -249,7 +248,7 @@ extern void
 _eglCleanupDisplay(struct _egl_display *disp);
 
 extern EGLBoolean
-_eglCheckResource(void *res, _EGLResourceType type, struct _egl_display *disp);
+_eglCheckResource(void *res, enum _egl_resource_type type, struct _egl_display *disp);
 
 /**
  * Return the handle of a linked display, or EGL_NO_DISPLAY.
@@ -287,10 +286,10 @@ extern EGLBoolean
 _eglPutResource(struct _egl_resource *res);
 
 extern void
-_eglLinkResource(struct _egl_resource *res, _EGLResourceType type);
+_eglLinkResource(struct _egl_resource *res, enum _egl_resource_type type);
 
 extern void
-_eglUnlinkResource(struct _egl_resource *res, _EGLResourceType type);
+_eglUnlinkResource(struct _egl_resource *res, enum _egl_resource_type type);
 
 /**
  * Return true if the resource is linked.

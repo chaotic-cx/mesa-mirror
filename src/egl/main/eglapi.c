@@ -2436,7 +2436,7 @@ eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType, EGLObjectKHR object,
                   EGLLabelKHR label)
 {
    struct _egl_display *disp = NULL;
-   _EGLResourceType type;
+   enum _egl_resource_type type;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
 
