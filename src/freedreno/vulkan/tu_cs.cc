@@ -40,6 +40,17 @@ tu_cs_init(struct tu_cs *cs,
 }
 
 /**
+ * Initialize a command stream whose entries may be submitted to the kernel as IB1s,
+ * so its BOs must be allocated with tu_bo_ib1_flags().
+ */
+void
+tu_cs_init_ib1(struct tu_cs *cs, struct tu_device *device, enum tu_cs_mode mode, uint32_t initial_size, const char *name)
+{
+   tu_cs_init(cs, device, mode, initial_size, name);
+   cs->ib1 = true;
+}
+
+/**
  * Initialize a command stream as a wrapper to an external buffer.
  */
 void
@@ -176,7 +187,7 @@ tu_cs_add_bo(struct tu_cs *cs, uint32_t size)
                      static_cast<enum tu_bo_alloc_flags>(COND(!cs->writeable,
                                                    TU_BO_ALLOC_GPU_READ_ONLY) |
                                               TU_BO_ALLOC_ALLOW_DUMP |
-                                              tu_bo_ib_flags(cs->device)),
+                                              COND(cs->ib1, tu_bo_ib1_flags(cs->device))),
                      cs->name);
    if (result != VK_SUCCESS) {
       return result;

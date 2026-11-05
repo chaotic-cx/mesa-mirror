@@ -115,6 +115,8 @@ struct tu_cs
    struct tu_device *device;
    enum tu_cs_mode mode;
    bool writeable;
+   /* Whether entries of this CS may be submitted to the kernel as IB1s. */
+   bool ib1;
    uint32_t next_bo_size;
    VkResult status;
 
@@ -242,6 +244,10 @@ tu_cs_init(struct tu_cs *cs,
            struct tu_device *device,
            enum tu_cs_mode mode,
            uint32_t initial_size, const char *name);
+
+void
+tu_cs_init_ib1(
+   struct tu_cs *cs, struct tu_device *device, enum tu_cs_mode mode, uint32_t initial_size, const char *name);
 
 void
 tu_cs_init_external(struct tu_cs *cs, struct tu_device *device,

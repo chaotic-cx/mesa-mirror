@@ -348,7 +348,7 @@ tu_autotune::get_supported_mod_flags(tu_device *device) const
 
 tu_autotune::submission_entry::submission_entry(tu_device *device): fence(0)
 {
-   tu_cs_init(&fence_cs, device, TU_CS_MODE_GROW, 5, "autotune fence cs");
+   tu_cs_init_ib1(&fence_cs, device, TU_CS_MODE_GROW, 5, "autotune fence cs");
 }
 
 tu_autotune::submission_entry::~submission_entry()

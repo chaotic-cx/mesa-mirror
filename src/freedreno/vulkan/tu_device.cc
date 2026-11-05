@@ -2444,8 +2444,8 @@ tu_create_copy_timestamp_cs(struct tu_u_trace_submission_data *submission_data,
             &device->vk.alloc, sizeof(struct tu_copy_timestamp_data), 8,
             VK_SYSTEM_ALLOCATION_SCOPE_DEVICE));
 
-      tu_cs_init(&submission_data->timestamp_copy_data->cs, device,
-                 TU_CS_MODE_GROW, cs_size, "trace copy timestamp cs");
+      tu_cs_init_ib1(&submission_data->timestamp_copy_data->cs, device,
+                     TU_CS_MODE_GROW, cs_size, "trace copy timestamp cs");
       u_trace_init(&submission_data->timestamp_copy_data->trace,
                    &device->trace_context);
    }
@@ -3088,8 +3088,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       &device->pipeline_suballoc, device, 128 * 1024,
       static_cast<enum tu_bo_alloc_flags>(TU_BO_ALLOC_GPU_READ_ONLY |
                                           TU_BO_ALLOC_ALLOW_DUMP |
-                                          TU_BO_ALLOC_INTERNAL_RESOURCE |
-                                          tu_bo_ib_flags(device)),
+                                          TU_BO_ALLOC_INTERNAL_RESOURCE),
       "pipeline_suballoc");
    if (is_kgsl(physical_device->instance)) {
       tu_bo_suballocator_init(&device->kgsl_profiling_suballoc, device,
@@ -3105,7 +3104,8 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       &device->vis_stream_suballocator, device,
       getpagesize(),
       static_cast<enum tu_bo_alloc_flags>(TU_BO_ALLOC_INTERNAL_RESOURCE |
-                                          TU_BO_ALLOC_ALLOW_DUMP),
+                                          TU_BO_ALLOC_ALLOW_DUMP |
+                                          tu_bo_ib1_flags(device)),
       "vis_stream_suballoc");
 
    result = tu_bo_init_new(
@@ -3183,6 +3183,8 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
        * from 0 to 31. One of these will be picked up at cmd submit time
        * when the perf query is executed.
        */
+      tu_cs_init_ib1(&device->perfcntrs_pass_cs, device,
+                     TU_CS_MODE_SUB_STREAM, 32 * 3, "perfcntrs pass cs");
 
       device->perfcntrs_pass_cs_entries =
          static_cast<struct tu_cs_entry *>(calloc(32, sizeof(struct tu_cs_entry)));
@@ -3195,7 +3197,8 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       for (unsigned i = 0; i < 32; i++) {
          struct tu_cs sub_cs;
 
-         result = tu_cs_begin_sub_stream(&device->sub_cs, 3, &sub_cs);
+         result = tu_cs_begin_sub_stream(&device->perfcntrs_pass_cs, 3,
+                                         &sub_cs);
          if (result != VK_SUCCESS) {
             vk_startup_errorf(device->instance, result,
                   "failed to allocate commands streams");
@@ -3206,7 +3209,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
          tu_cs_emit_pkt7(&sub_cs, CP_WAIT_FOR_ME, 0);
 
          device->perfcntrs_pass_cs_entries[i] =
-            tu_cs_end_sub_stream(&device->sub_cs, &sub_cs);
+            tu_cs_end_sub_stream(&device->perfcntrs_pass_cs, &sub_cs);
       }
    }
 
@@ -3324,6 +3327,7 @@ fail_autotune:
 fail_prepare_perfcntrs_pass_cs:
    free(device->perfcntrs_pass_cs_entries);
 fail_perfcntrs_pass_entries_alloc:
+   tu_cs_finish(&device->perfcntrs_pass_cs);
    tu_cs_finish(&device->sub_cs);
    vk_pipeline_cache_destroy(device->mem_cache, &device->vk.alloc);
 fail_pipeline_cache:
@@ -3411,6 +3415,7 @@ tu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
 
    tu_cs_finish(&device->sub_cs);
 
+   tu_cs_finish(&device->perfcntrs_pass_cs);
    free(device->perfcntrs_pass_cs_entries);
 
    if (device->dbg_cmdbuf_stomp_cs) {
