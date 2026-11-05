@@ -153,7 +153,8 @@ typedef enum {
                                  nir_var_mem_ubo | nir_var_mem_ssbo |
                                  nir_var_mem_shared | nir_var_mem_global |
                                  nir_var_mem_push_const | nir_var_mem_task_payload |
-                                 nir_var_shader_out | nir_var_system_value,
+                                 nir_var_shader_out | nir_var_system_value |
+                                 nir_var_resource_heap,
 
    nir_num_variable_modes        = 22,
    nir_var_all                   = (1 << nir_num_variable_modes) - 1,
