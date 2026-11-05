@@ -197,6 +197,7 @@ of the ``bcsel``.
 
 | Log:
 | 2026-05-14: Workaround implemented
+| 2026-11-05: Workaround disabled on M3+
 
 KK_WORKAROUND_9
 ---------------
