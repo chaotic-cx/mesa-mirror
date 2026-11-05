@@ -804,8 +804,19 @@ try_lower_heaps_deref_access(nir_builder *b, nir_intrinsic_instr *intrin,
       offset = build_buffer_addr_for_deref(b, offset, deref,
                                            nir_address_format_32bit_offset);
 
-      const uint32_t range = mapping->sourceData.pushDataOffset +
-                             glsl_get_explicit_size(root_cast->type, false);
+      const struct glsl_type *type = root_cast->type;
+      uint32_t range;
+
+      /* Use the maximum push data size range for unsized arrays. */
+      if (glsl_type_is_unsized_array(type) ||
+          (glsl_type_is_struct_or_ifc(type) &&
+           glsl_type_is_unsized_array(glsl_get_struct_field(type, glsl_get_length(type) - 1)))) {
+         range = ctx->options ? ctx->options->max_push_data_size : 0;
+         assert(range > 0);
+      } else {
+         range = mapping->sourceData.pushDataOffset +
+                 glsl_get_explicit_size(type, false);
+      }
 
       b->cursor = nir_before_instr(&intrin->instr);
       nir_def *val = nir_load_push_constant(b, intrin->def.num_components,

@@ -966,10 +966,15 @@ vk_pipeline_precompile_shader(struct vk_device *device,
    const VkShaderDescriptorSetAndBindingMappingInfoEXT *desc_map =
       vk_find_struct_const(info->pNext,
                            SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+
+   const vk_nir_lower_descriptor_heaps_options heap_options = {
+      .max_push_data_size = device->physical->properties.maxPushDataSize,
+   };
+
    struct vk_sampler_state_array embedded_samplers;
    bool heaps_progress = false;
    NIR_PASS(heaps_progress, nir, vk_nir_lower_descriptor_heaps,
-            desc_map, NULL, &embedded_samplers);
+            desc_map, &heap_options, &embedded_samplers);
    if (heaps_progress) {
       NIR_PASS(_, nir, nir_remove_dead_variables,
                nir_var_uniform | nir_var_image, NULL);

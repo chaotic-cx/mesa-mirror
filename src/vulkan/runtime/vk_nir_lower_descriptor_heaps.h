@@ -68,6 +68,9 @@ vk_sampler_state_array_finish(struct vk_sampler_state_array *arr)
 }
 
 typedef struct vk_nir_lower_descriptor_heaps_options {
+   /* Maximum push data size in bytes for unsized push data array. */
+   uint32_t max_push_data_size;
+
    /* Whether to lower non-arrayed resources backed by SRI to non-uniform. */
    bool lower_shader_record_index_to_non_uniform : 1;
 } vk_nir_lower_descriptor_heaps_options;
