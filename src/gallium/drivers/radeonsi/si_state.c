@@ -3498,7 +3498,7 @@ static void si_set_min_samples(struct pipe_context *ctx, unsigned min_samples)
 
 /**
  * Build the sampler view descriptor for a buffer texture.
- * @param state 256-bit descriptor; only the high 128 bits are filled in
+ * @param state 256-bit descriptor
  */
 void si_make_buffer_descriptor(struct si_screen *screen, struct si_resource *buf,
                                enum pipe_format format, unsigned offset, unsigned num_elements,

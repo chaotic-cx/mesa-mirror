@@ -27,7 +27,7 @@
  *
  *       | Image        | w/ FMASK   | Buffer       | NULL
  * [ 0: 3] Image[0:3]   | Image[0:3] | Buffer[0:3]  | Null[0:3]
- * [ 4: 7] Image[4:7]   | Image[4:7] | Buffer[4:7]  | 0
+ * [ 4: 7] Image[4:7]   | Image[4:7] | 0            | 0
  * [ 8:11] Null[0:3]    | Fmask[0:3] | Null[0:3]    | Null[0:3]
  * [12:15] Sampler[0:3] | Fmask[4:7] | Sampler[0:3] | Sampler[0:3]
  *
