@@ -2152,7 +2152,8 @@ static void *si_texture_transfer_map(struct pipe_context *ctx, struct pipe_resou
    if (tex->buffer.b.b.flags & SI_RESOURCE_AUX_PLANE)
       return NULL;
 
-   if ((tex->buffer.flags & RADEON_FLAG_ENCRYPTED) && usage & PIPE_MAP_READ)
+   if ((tex->buffer.flags & RADEON_FLAG_ENCRYPTED) &&
+       (usage & PIPE_MAP_READ || !sctx->is_gfx_queue))
       return NULL;
 
    if (tex->is_depth || tex->buffer.flags & RADEON_FLAG_SPARSE) {
