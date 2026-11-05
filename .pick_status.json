@@ -244,7 +244,7 @@
         "description": "radeonsi: fix debug dump of buffer descriptors",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "384bf8e58ed5e149e157c91bc934482fbb0151c8",
         "notes": null
