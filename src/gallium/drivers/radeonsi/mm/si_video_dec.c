@@ -174,7 +174,8 @@ static int si_dec_init_decoder(struct si_video_dec *vid, struct ac_video_dec_ses
    vid->dpb_size = ac_video_dec_dpb_size(&sscreen->info, param);
 
    if (sscreen->info.ip[vid->dec->ip_type].num_instances > 1) {
-      vid->ectx = sscreen->b.context_create(&sscreen->b, NULL, PIPE_CONTEXT_COMPUTE_ONLY);
+      struct si_context *sctx = (struct si_context *)vid->base.context;
+      vid->ectx = sscreen->b.context_create(&sscreen->b, NULL, sctx->context_flags);
       if (vid->ectx)
          vid->base.context = vid->ectx;
    }
