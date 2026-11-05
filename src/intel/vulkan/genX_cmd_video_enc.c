@@ -261,6 +261,12 @@ anv_video_emit_vd_control_state(struct anv_cmd_buffer *cmd)
 
 #define ANV_REENCODE_FIRST_SEGMENT_SIZE 16384
 #define ANV_REENCODE_SEGMENT_SIZE       2048
+/* The tile segment(for AV1) holds the tile tail(walker, flushes,
+ * tile bitstream size) and the next tile's AVP state including
+ * AVP_PIPE_BUF_ADDR_STATE, or the frame tail with the tile group
+ * obu_size.
+ */
+#define ANV_REENCODE_TILE_SEGMENT_SIZE  4096
 
 struct anv_reencode {
    struct anv_batch parent;
@@ -5762,6 +5768,9 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
    anv_video_emit_force_wakeup(cmd, false);
 
    for (uint32_t pass = 0; pass < num_passes; pass++) {
+      struct anv_reencode reencode_state;
+      struct anv_reencode *reencode = NULL;
+
       if (brc_enabled) {
          if (pass == 0 && brc_init)
             anv_av1_brc_emit_huc_init(cmd, brc_init_dmem);
@@ -5770,8 +5779,14 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
                                      brc_input_slb[pass], brc_const_data,
                                      brc_pak_insert);
 
-         /* TODO: skip the second pass with MI_CONDITIONAL_BATCH_BUFFER_END
-          * on HUC_STATUS like media-driver, see the HEVC BRC path */
+         /* Run the PAK only pass only when the HuC sets the re-encode bit,
+          * see the HEVC BRC path. Every SLB jump ends a segment.
+          */
+         if (pass > 0) {
+            reencode = &reencode_state;
+            anv_reencode_begin(cmd, reencode,
+                               ANV_REENCODE_FIRST_SEGMENT_SIZE);
+         }
       }
 
       anv_vdenc_emit_control_state(cmd);
@@ -5801,10 +5816,11 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
          anv_av1_emit_avp_ind_obj_base_addr_state(cmd, enc_info);
 
          if (brc_enabled) {
-            anv_video_emit_brc_slb_jump(cmd,
+            anv_video_emit_brc_slb_jump_reencode(cmd, reencode,
                   ANV_VID_MEM_BRC_EXEC_SLB,
                   tile_idx == 0 ? ANV_AV1_BRC_SLB_PIC_STATE_OFFSET :
-                                  ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET);
+                                  ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET,
+                  ANV_REENCODE_SEGMENT_SIZE);
 
                anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
                                tile_idx == 0 ? ANV_AV1_BRC_SLB_PIC_STATE_OFFSET :
@@ -5816,7 +5832,8 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
          anv_av1_emit_avp_inter_pred_state(cmd);
 
          if (brc_enabled) {
-            anv_video_emit_brc_slb_jump(cmd, ANV_VID_MEM_BRC_EXEC_SLB, 0);
+            anv_video_emit_brc_slb_jump_reencode(cmd, reencode,
+                  ANV_VID_MEM_BRC_EXEC_SLB, 0, ANV_REENCODE_SEGMENT_SIZE);
          } else {
             anv_av1_emit_avp_segment_state(cmd, NULL, enc_info);
             anv_av1_emit_avp_inloop_filter_state(cmd, NULL, enc_info, false);
@@ -5828,7 +5845,8 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
             size_t hdr_size;
 
             if (brc_enabled) {
-               anv_video_emit_brc_slb_jump(cmd, ANV_VID_MEM_AV1_BRC_PAK_INSERT_OUT, 0);
+               anv_video_emit_brc_slb_jump_reencode(cmd, reencode,
+                     ANV_VID_MEM_AV1_BRC_PAK_INSERT_OUT, 0, ANV_REENCODE_SEGMENT_SIZE);
                hdr_size = brc_hdr_size;
             } else {
                hdr_size = anv_av1_emit_frame_header(cmd, NULL, enc_info, false, NULL);
@@ -5841,7 +5859,8 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
          anv_vdenc_emit_weightsoffsets_state(cmd, NULL, true);
 
          if (brc_enabled) {
-            anv_video_emit_brc_slb_jump(cmd, ANV_VID_MEM_BRC_EXEC_SLB, ANV_AV1_BRC_SLB_CMD1_OFFSET);
+            anv_video_emit_brc_slb_jump_reencode(cmd, reencode,
+                  ANV_VID_MEM_BRC_EXEC_SLB, ANV_AV1_BRC_SLB_CMD1_OFFSET, ANV_REENCODE_SEGMENT_SIZE);
          } else {
             anv_av1_emit_vdenc_cmd1(cmd, NULL, enc_info);
          }
@@ -5853,7 +5872,8 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
          lcu_tile_offset += DIV_ROUND_UP(2 * 4 * geom.tile_w_sb * geom.tile_h_sb * (5 + max_cu * 8), 64);
 
          if (brc_enabled) {
-            anv_video_emit_brc_slb_jump(cmd, ANV_VID_MEM_BRC_EXEC_SLB, ANV_AV1_BRC_SLB_CMD2_OFFSET);
+            anv_video_emit_brc_slb_jump_reencode(cmd, reencode,
+                  ANV_VID_MEM_BRC_EXEC_SLB, ANV_AV1_BRC_SLB_CMD2_OFFSET, ANV_REENCODE_TILE_SEGMENT_SIZE);
          } else {
             anv_av1_emit_vdenc_cmd2(cmd, NULL, enc_info);
          }
@@ -5866,6 +5886,9 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
 
       anv_av1_emit_avp_pipeline_flush(cmd);
       anv_av1_patch_tile_group_obu_size(cmd, &layout, tg_leb128_addr, tg_payload_prefix);
+
+      if (reencode)
+         anv_reencode_end(cmd, reencode);
    }
 
    if (brc_enabled)
