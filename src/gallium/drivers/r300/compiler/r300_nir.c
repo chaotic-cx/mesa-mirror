@@ -206,6 +206,9 @@ r300_alu_to_scalar_filter_cb(const nir_instr *instr, const void *data)
 
    nir_alu_instr *alu = nir_instr_as_alu(instr);
    switch (alu->op) {
+   case nir_op_fdot2:
+      /* Expose MADs in normal reconstruction from squared vec2 lengths. */
+      return *(const bool *)data && nir_alu_srcs_equal(alu, alu, 0, 1);
    case nir_op_fmul:
    case nir_op_fadd:
    case nir_op_fneg: {
