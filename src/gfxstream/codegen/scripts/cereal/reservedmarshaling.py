@@ -253,20 +253,31 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
                         self.cgen.endIf()
                     self.genPtrIncr("8 * %s" % lenAccess)
         else:
+            # Read marshaling handles both boxed ("unbox_") and raw ("") cast paths.
             if "1" == lenAccess:
                 self.genStreamCall(handle64VarType, handle64VarAccess, handle64Bytes)
-                self.cgen.stmt("*%s%s = (%s)%s((%s)(*%s))" % (
-                    self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
-                    vulkanType.typeName, mapFunc, vulkanType.typeName, handle64VarAccess))
+                if self.handlemapPrefix == "unbox_":
+                    self.cgen.stmt("*%s%s = (%s)%s(Boxed<%s>::fromRaw(*%s))" % (
+                        self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
+                        vulkanType.typeName, mapFunc, vulkanType.typeName, handle64VarAccess))
+                else:
+                    self.cgen.stmt("*%s%s = (%s)%s((%s)(*%s))" % (
+                        self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
+                        vulkanType.typeName, mapFunc, vulkanType.typeName, handle64VarAccess))
             else:
                 self.genPtrIncr("8 * %s" % lenAccess)
                 if lenAccessGuard is not None:
                     self.cgen.beginIf(lenAccessGuard)
                 self.cgen.beginFor("uint32_t k = 0", "k < %s" % lenAccess, "++k")
                 self.cgen.stmt("uint64_t tmpval; memcpy(&tmpval, %s_ptr + k * 8, sizeof(uint64_t))" % handle64Var)
-                self.cgen.stmt("*((%s%s) + k) = tmpval ? (%s)%s((%s)tmpval) : VK_NULL_HANDLE" % (
-                    self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
-                    vulkanType.typeName, mapFunc, vulkanType.typeName))
+                if self.handlemapPrefix == "unbox_":
+                    self.cgen.stmt("*((%s%s) + k) = tmpval ? (%s)%s(Boxed<%s>::fromRaw(tmpval)) : VK_NULL_HANDLE" % (
+                        self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
+                        vulkanType.typeName, mapFunc, vulkanType.typeName))
+                else:
+                    self.cgen.stmt("*((%s%s) + k) = tmpval ? (%s)%s((%s)tmpval) : VK_NULL_HANDLE" % (
+                        self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
+                        vulkanType.typeName, mapFunc, vulkanType.typeName))
                 if lenAccessGuard is not None:
                     self.cgen.endIf()
                 self.cgen.endFor()

@@ -184,13 +184,13 @@ def emit_unmarshal(typeInfo, param, cgen, output = False, destroy = False, noUnb
         lenAccessGuard = cgen.generalLengthAccessGuard(param)
         if None == lenAccess or "1" == lenAccess:
             cgen.stmt("boxed_%s_preserve = %s" % (param.paramName, param.paramName))
-            cgen.stmt("%s = try_unbox_%s(%s)" % (param.paramName, param.typeName, param.paramName))
+            cgen.stmt("%s = try_unbox_%s(Boxed<%s>(%s))" % (param.paramName, param.typeName, param.typeName, param.paramName))
         else:
             if lenAccessGuard is not None:
                 cgen.beginIf(lenAccessGuard)
             cgen.beginFor("uint32_t i = 0", "i < %s" % lenAccess, "++i")
             cgen.stmt("boxed_%s_preserve[i] = %s[i]" % (param.paramName, param.paramName))
-            cgen.stmt("((%s*)(%s))[i] = try_unbox_%s(%s[i])" % (param.typeName, param.paramName, param.typeName, param.paramName))
+            cgen.stmt("((%s*)(%s))[i] = try_unbox_%s(Boxed<%s>(%s[i]))" % (param.typeName, param.paramName, param.typeName, param.typeName, param.paramName))
             cgen.endFor()
             if lenAccessGuard is not None:
                 cgen.endIf()
@@ -228,15 +228,15 @@ def emit_dispatch_unmarshal(typeInfo: VulkanTypeInfo, param: VulkanType, cgen, g
         dynAlloc=True))
 
     if not globalWrapped:
-        cgen.stmt("auto unboxed_%s = unbox_%s(%s)" %
-                  (param.paramName, param.typeName, param.paramName))
-        cgen.stmt("auto vk = dispatch_%s(%s)" %
-                  (param.typeName, param.paramName))
+        cgen.stmt("auto unboxed_%s = unbox_%s(Boxed<%s>(%s))" %
+                  (param.paramName, param.typeName, param.typeName, param.paramName))
+        cgen.stmt("auto vk = dispatch_%s(Boxed<%s>(%s))" %
+                  (param.typeName, param.typeName, param.paramName))
         cgen.stmt("// End manual dispatchable handle unboxing for %s" % param.paramName)
     else:
         # Still need to check dispatcher validity to handle threads with fatal errors
-        cgen.stmt("auto vk = dispatch_%s(%s)" %
-                  (param.typeName, param.paramName))
+        cgen.stmt("auto vk = dispatch_%s(Boxed<%s>(%s))" %
+                  (param.typeName, param.typeName, param.paramName))
 
 
 def emit_transform(typeInfo, param, cgen, variant="tohost"):
@@ -486,19 +486,19 @@ def emit_destroyed_handle_cleanup(api, cgen):
             if destroy:
                 if None == lenAccess or "1" == lenAccess:
                     if api.name in DELAYED_DECODER_DELETES:
-                        cgen.stmt("delayed_delete_%s(boxed_%s_preserve, unboxed_device, delayed_remove_callback)" % (p.typeName, p.paramName))
+                        cgen.stmt("delayed_delete_%s(Boxed<%s>(boxed_%s_preserve), unboxed_device, delayed_remove_callback)" % (p.typeName, p.typeName, p.paramName))
                     elif api.name in DELAYED_DECODER_DELETE_DICT_ENTRIES:
-                        cgen.stmt("delayed_delete_%s(boxed_%s_preserve, unboxed_device, nullptr)" % (p.typeName, p.paramName))
+                        cgen.stmt("delayed_delete_%s(Boxed<%s>(boxed_%s_preserve), unboxed_device, nullptr)" % (p.typeName, p.typeName, p.paramName))
                     else:
-                        cgen.stmt("delete_%s(boxed_%s_preserve)" % (p.typeName, p.paramName))
+                        cgen.stmt("delete_%s(Boxed<%s>(boxed_%s_preserve))" % (p.typeName, p.typeName, p.paramName))
                 else:
                     if lenAccessGuard is not None:
                         cgen.beginIf(lenAccessGuard)
                     cgen.beginFor("uint32_t i = 0", "i < %s" % lenAccess, "++i")
                     if api.name in DELAYED_DECODER_DELETES:
-                        cgen.stmt("delayed_delete_%s(boxed_%s_preserve[i], unboxed_device, delayed_remove_callback)" % (p.typeName, p.paramName))
+                        cgen.stmt("delayed_delete_%s(Boxed<%s>(boxed_%s_preserve[i]), unboxed_device, delayed_remove_callback)" % (p.typeName, p.typeName, p.paramName))
                     else:
-                        cgen.stmt("delete_%s(boxed_%s_preserve[i])" % (p.typeName, p.paramName))
+                        cgen.stmt("delete_%s(Boxed<%s>(boxed_%s_preserve[i]))" % (p.typeName, p.typeName, p.paramName))
                     cgen.endFor()
                     if lenAccessGuard is not None:
                         cgen.endIf()

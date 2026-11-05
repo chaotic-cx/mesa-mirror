@@ -494,7 +494,7 @@ memcpy((uint64_t*)&{newInputVarName}->accelerationStructureReference, *ptr, size
             uint64_t cgen_var_0;
             memcpy((uint64_t*)&cgen_var_0, *ptr, 1 * 8);
             *ptr += 1 * 8;
-            *(VkBuffer*)&forUnmarshaling->buffer = (VkBuffer)try_unbox_VkBuffer((VkBuffer)(*&cgen_var_0));
+            *(VkBuffer*)&forUnmarshaling->buffer = (VkBuffer)try_unbox_VkBuffer(Boxed<VkBuffer>::fromRaw(*&cgen_var_0));
             memcpy((VkDeviceSize*)&forUnmarshaling->offset, *ptr, sizeof(VkDeviceSize));
             *ptr += sizeof(VkDeviceSize);
             memcpy((VkDeviceSize*)&forUnmarshaling->range, *ptr, sizeof(VkDeviceSize));

@@ -172,42 +172,42 @@ def extract_deps_vkAllocateMemory(param, access, lenExpr, api, cgen):
     cgen.beginIf("dedicatedAllocateInfo");
     cgen.beginIf("dedicatedAllocateInfo->image")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImage(dedicatedAllocateInfo->image)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImage(dedicatedAllocateInfo->image).value()"))
     cgen.endIf()
     cgen.beginIf("dedicatedAllocateInfo->buffer")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkBuffer(dedicatedAllocateInfo->buffer)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkBuffer(dedicatedAllocateInfo->buffer).value()"))
     cgen.endIf()
     cgen.endIf()
 
 def extract_deps_vkAllocateCommandBuffers(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkCommandPool(pAllocateInfo->commandPool)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkCommandPool(pAllocateInfo->commandPool).value()"))
 
 def extract_deps_vkAllocateDescriptorSets(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDescriptorPool(pAllocateInfo->descriptorPool)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDescriptorPool(pAllocateInfo->descriptorPool).value()"))
 
 def extract_deps_vkUpdateDescriptorSets(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)device)")
     cgen.beginFor("uint32_t i = 0", "i < descriptorWriteCount", "++i")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDescriptorSet( pDescriptorWrites[i].dstSet))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDescriptorSet( pDescriptorWrites[i].dstSet).value())")
     cgen.beginFor("uint32_t j = 0", "j < pDescriptorWrites[i].descriptorCount", "++j")
     cgen.beginIf("(pDescriptorWrites[i].pImageInfo)")
     cgen.beginIf("pDescriptorWrites[i].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkSampler( pDescriptorWrites[i].pImageInfo[j].sampler))")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImageView( pDescriptorWrites[i].pImageInfo[j].imageView))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkSampler( pDescriptorWrites[i].pImageInfo[j].sampler).value())")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImageView( pDescriptorWrites[i].pImageInfo[j].imageView).value())")
     cgen.endIf()
     cgen.beginIf("pDescriptorWrites[i].pImageInfo[j].imageView")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImageView( pDescriptorWrites[i].pImageInfo[j].imageView))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImageView( pDescriptorWrites[i].pImageInfo[j].imageView).value())")
     cgen.endIf()
     cgen.beginIf("pDescriptorWrites[i].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkSampler( pDescriptorWrites[i].pImageInfo[j].sampler))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkSampler( pDescriptorWrites[i].pImageInfo[j].sampler).value())")
     cgen.endIf()
     cgen.endIf()
     cgen.beginIf("pDescriptorWrites[i].pBufferInfo");
     cgen.beginIf("pDescriptorWrites[i].descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER");
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer( pDescriptorWrites[i].pBufferInfo[j].buffer))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer( pDescriptorWrites[i].pBufferInfo[j].buffer).value())")
     cgen.endIf()
     cgen.endIf()
     cgen.endFor()
@@ -215,41 +215,41 @@ def extract_deps_vkUpdateDescriptorSets(param, access, lenExpr, api, cgen):
 
 def extract_deps_vkCreateImageView(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImage(pCreateInfo->image)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImage(pCreateInfo->image).value()"))
 
 def extract_deps_vkCreateBufferView(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkBuffer(pCreateInfo->buffer)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkBuffer(pCreateInfo->buffer).value()"))
 
 def extract_deps_vkCreateGraphicsPipelines(param, access, lenExpr, api, cgen):
     cgen.beginFor("uint32_t i = 0", "i < createInfoCount", "++i")
     cgen.beginFor("uint32_t j = 0", "j < pCreateInfos[i].stageCount", "++j")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(%s + i), %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, 1, "unboxed_to_boxed_non_dispatchable_VkShaderModule(pCreateInfos[i].pStages[j].module)"))
+              (access, 1, "unboxed_to_boxed_non_dispatchable_VkShaderModule(pCreateInfos[i].pStages[j].module).value()"))
     cgen.endFor()
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(%s + i), %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, 1, "unboxed_to_boxed_non_dispatchable_VkRenderPass(pCreateInfos[i].renderPass)"))
+              (access, 1, "unboxed_to_boxed_non_dispatchable_VkRenderPass(pCreateInfos[i].renderPass).value()"))
     cgen.endFor()
 
 def extract_deps_vkCreateFramebuffer(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkRenderPass(pCreateInfo->renderPass)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkRenderPass(pCreateInfo->renderPass).value()"))
     cgen.beginIf("(pCreateInfo->flags & VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT) == 0")
     cgen.beginFor("uint32_t i = 0", "i < pCreateInfo->attachmentCount" , "++i")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImageView(pCreateInfo->pAttachments[i])"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImageView(pCreateInfo->pAttachments[i]).value()"))
     cgen.endFor()
     cgen.endIf();
 
 def extract_deps_vkBindImageMemory(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory).value()"))
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)((%s)[0]), VkReconstruction::BOUND_MEMORY)" % \
               (access, lenExpr, access))
 
 def extract_deps_vkBindBufferMemory(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
-              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory).value()"))
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)((%s)[0]), VkReconstruction::BOUND_MEMORY)" % \
               (access, lenExpr, access))
 
@@ -290,10 +290,10 @@ def api_special_implementation_common(api, cgen, tag_vk):
 def api_special_implementation_vkCmdPipelineBarrier(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
     cgen.beginFor("uint32_t i = 0", "i < bufferMemoryBarrierCount", "++i")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer( pBufferMemoryBarriers[i].buffer))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer( pBufferMemoryBarriers[i].buffer).value())")
     cgen.endFor()
     cgen.beginFor("uint32_t i = 0", "i < imageMemoryBarrierCount", "++i")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage( pImageMemoryBarriers[i].image))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage( pImageMemoryBarriers[i].image).value())")
     cgen.endFor()
 
 def api_special_implementation_vkUpdateDescriptorSetWithTemplateSizedGOOGLE(api, cgen):
@@ -306,7 +306,7 @@ def api_special_implementation_vkUpdateDescriptorSetWithTemplateSizedGOOGLE(api,
     cgen.stmt("mReconstruction.addHandles((const uint64_t*)(&handle), 1)")
     cgen.stmt("mReconstruction.setApiTrace(apiCallHandle, apiCallPacket, apiCallPacketSize)")
     cgen.stmt("mReconstruction.addHandleDependency( (const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)device)")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDescriptorSet(descriptorSet))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDescriptorSet(descriptorSet).value())")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, imageInfoCount, pImageInfos)")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, bufferInfoCount, pBufferInfos)")
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, bufferViewCount, pBufferViews)")
@@ -315,51 +315,51 @@ def api_special_implementation_vkUpdateDescriptorSetWithTemplateSizedGOOGLE(api,
 
 def api_special_implementation_vkCmdBeginRenderPass(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkFramebuffer( pRenderPassBegin->framebuffer))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkFramebuffer( pRenderPassBegin->framebuffer).value())")
 
 def api_special_implementation_vkMapMemoryIntoAddressSpaceGOOGLE(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
     cgen.stmt("VkDecoderGlobalState* m_state = VkDecoderGlobalState::get()")
     cgen.stmt("uint64_t handle = m_state->newGlobalVkGenericHandle(Tag_VkMapMemory)")
     cgen.stmt("mReconstruction.addHandles((const uint64_t*)(&handle), 1)")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory).value())")
     cgen.stmt("mReconstruction.forEachHandleAddApi((const uint64_t*)(&handle), 1, apiCallHandle, VkReconstruction::CREATED)")
     cgen.stmt("mReconstruction.setCreatedHandlesForApi(apiCallHandle, (const uint64_t*)(&handle), 1)")
     cgen.stmt("mReconstruction.setApiTrace(apiCallHandle, apiCallPacket, apiCallPacketSize)")
 
 def api_special_implementation_vkCmdBeginRenderPass(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkFramebuffer( pRenderPassBegin->framebuffer))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkFramebuffer( pRenderPassBegin->framebuffer).value())")
 
 def api_special_implementation_vkCmdCopyBufferToImage(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(srcBuffer))")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(dstImage))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(srcBuffer).value())")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(dstImage).value())")
 
 def api_special_implementation_vkCmdCopyImageToBuffer(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(srcImage))")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(dstBuffer))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(srcImage).value())")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(dstBuffer).value())")
 
 def api_special_implementation_vkCmdCopyBuffer(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(srcBuffer))")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(dstBuffer))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(srcBuffer).value())")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(dstBuffer).value())")
 
 def api_special_implementation_vkCmdBindVertexBuffers(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
     cgen.beginFor("uint32_t i = 0", "i < bindingCount", "++i")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(pBuffers[i]))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(pBuffers[i]).value())")
     cgen.endFor()
 
 def api_special_implementation_vkCmdBindPipeline(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkPipeline(pipeline))")
+    cgen.stmt("mReconstruction.addApiCallDependencyOnVkObject(apiCallHandle, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkPipeline(pipeline).value())")
 
 def api_special_implementation_vkResetCommandPool(api, cgen):
     cgen.line("// Note: special implementation");
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.removeGrandChildren((uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkCommandPool(commandPool))")
+    cgen.stmt("mReconstruction.removeGrandChildren((uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkCommandPool(commandPool).value())")
 
 def api_special_implementation_vkResetCommandBuffer(api, cgen):
     cgen.line("// Note: special implementation");
@@ -370,23 +370,23 @@ def api_special_implementation_vkResetDescriptorPool(api, cgen):
     cgen.line("// Note: special implementation");
     cgen.stmt("if (input_result != VK_SUCCESS) return")
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
-    cgen.stmt("mReconstruction.removeDescendantsOfHandle((uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDescriptorPool(descriptorPool))")
+    cgen.stmt("mReconstruction.removeDescendantsOfHandle((uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDescriptorPool(descriptorPool).value())")
 
 def api_special_implementation_vkBindBufferMemory(api, cgen):
     api_special_implementation_common(api, cgen, "Tag_VkBindMemory")
-    cgen.stmt("mReconstruction.addHandleDependency( (const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory))")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)(unboxed_to_boxed_non_dispatchable_VkBuffer(buffer)))")
+    cgen.stmt("mReconstruction.addHandleDependency( (const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory).value())")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)(unboxed_to_boxed_non_dispatchable_VkBuffer(buffer).value()))")
 
 def api_special_implementation_vkBindImageMemory(api, cgen):
     api_special_implementation_common(api, cgen, "Tag_VkBindMemory")
-    cgen.stmt("mReconstruction.addHandleDependency( (const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory))")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(image))")
+    cgen.stmt("mReconstruction.addHandleDependency( (const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory).value())")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(&handle), 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(image).value())")
 
 def api_special_implementation_vkBindImageMemory2(api, cgen):
     api_special_implementation_common(api, cgen, "Tag_VkBindMemory")
     cgen.beginFor("uint32_t i = 0", "i < bindInfoCount", "++i")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)&handle, 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(pBindInfos[i].memory))")
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)&handle, 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(pBindInfos[i].image))")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)&handle, 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(pBindInfos[i].memory).value())")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)&handle, 1, (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(pBindInfos[i].image).value())")
     cgen.endFor()
 
 apiSpecialImplementation = {
@@ -490,7 +490,7 @@ def emit_impl(typeInfo, api, cgen):
             if p.isCreatedBy(api):
                 boxed_access = access
             else:
-                cgen.stmt("%s boxed_%s = unboxed_to_boxed_non_dispatchable_%s(%s[0])" % (p.typeName, p.typeName, p.typeName, access))
+                cgen.stmt("%s boxed_%s = unboxed_to_boxed_non_dispatchable_%s(%s[0]).value()" % (p.typeName, p.typeName, p.typeName, access))
                 boxed_access = "&boxed_%s" % p.typeName
             if p.pointerIndirectionLevels > 0:
                 cgen.stmt("if (!%s) return" % access)
@@ -551,7 +551,7 @@ def emit_impl(typeInfo, api, cgen):
                 cgen.beginIf(lenAccessGuard)
             cgen.beginFor("uint32_t i = 0", "i < %s" % lenExpr, "++i")
             if p.isNonDispatchableHandleType():
-                cgen.stmt("%s boxed = unboxed_to_boxed_non_dispatchable_%s(%s[i])" % (p.typeName, p.typeName, access))
+                cgen.stmt("%s boxed = unboxed_to_boxed_non_dispatchable_%s(%s[i]).value()" % (p.typeName, p.typeName, access))
             else:
                 cgen.line("// %s is already boxed, no need to box again" % p.paramName)
                 cgen.stmt("%s boxed = %s(%s[i])" % (p.typeName, p.typeName, access))
