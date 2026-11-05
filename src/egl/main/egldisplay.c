@@ -72,7 +72,7 @@
  * Map build-system platform names to platform types.
  */
 static const struct {
-   _EGLPlatformType platform;
+   enum _egl_platform_type platform;
    const char *name;
 } egl_platforms[] = {
    {_EGL_PLATFORM_X11, "x11"},
@@ -89,10 +89,10 @@ static const struct {
 /**
  * Return the native platform by parsing EGL_PLATFORM.
  */
-static _EGLPlatformType
+static enum _egl_platform_type
 _eglGetNativePlatformFromEnv(void)
 {
-   _EGLPlatformType plat = _EGL_INVALID_PLATFORM;
+   enum _egl_platform_type plat = _EGL_INVALID_PLATFORM;
    const char *plat_name;
    EGLint i;
 
@@ -122,7 +122,7 @@ _eglGetNativePlatformFromEnv(void)
 /**
  * Try detecting native platform with the help of native display characteristics.
  */
-static _EGLPlatformType
+static enum _egl_platform_type
 _eglNativePlatformDetectNativeDisplay(void *nativeDisplay)
 {
    if (nativeDisplay == EGL_DEFAULT_DISPLAY)
@@ -158,10 +158,10 @@ _eglNativePlatformDetectNativeDisplay(void *nativeDisplay)
 /**
  * Return the native platform.  It is the platform of the EGL native types.
  */
-_EGLPlatformType
+enum _egl_platform_type
 _eglGetNativePlatform(void *nativeDisplay)
 {
-   _EGLPlatformType detected_platform = _eglGetNativePlatformFromEnv();
+   enum _egl_platform_type detected_platform = _eglGetNativePlatformFromEnv();
    const char *detection_method = "environment";
 
    if (detected_platform == _EGL_INVALID_PLATFORM) {
@@ -250,7 +250,7 @@ _eglSameAttribs(const EGLAttrib *a, const EGLAttrib *b)
  * parameters.
  */
 struct _egl_display *
-_eglFindDisplay(_EGLPlatformType plat, void *plat_dpy,
+_eglFindDisplay(enum _egl_platform_type plat, void *plat_dpy,
                 const EGLAttrib *attrib_list)
 {
    struct _egl_display *disp;

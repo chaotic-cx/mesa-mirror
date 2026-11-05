@@ -412,7 +412,7 @@ _eglConvertAttribsToInt(const EGLAttrib *attr_list)
 PUBLIC EGLDisplay EGLAPIENTRY
 eglGetDisplay(EGLNativeDisplayType nativeDisplay)
 {
-   _EGLPlatformType plat;
+   enum _egl_platform_type plat;
    struct _egl_display *disp;
    void *native_display_ptr;
 

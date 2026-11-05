@@ -61,7 +61,6 @@ enum _egl_platform_type {
    _EGL_NUM_PLATFORMS,
    _EGL_INVALID_PLATFORM = -1
 };
-typedef enum _egl_platform_type _EGLPlatformType;
 
 enum _egl_resource_type {
    _EGL_RESOURCE_CONTEXT,
@@ -190,7 +189,7 @@ struct _egl_display {
     */
    struct u_rwlock TerminateLock;
 
-   _EGLPlatformType Platform; /**< The type of the platform display */
+   enum _egl_platform_type Platform; /**< The type of the platform display */
    void *PlatformDisplay;     /**< A pointer to the platform display */
 
    struct _egl_device *Device;       /**< Device backing the display */
@@ -234,14 +233,14 @@ _eglLockDisplay(EGLDisplay dpy);
 extern void
 _eglUnlockDisplay(struct _egl_display *disp);
 
-extern _EGLPlatformType
+extern enum _egl_platform_type
 _eglGetNativePlatform(void *nativeDisplay);
 
 extern void
 _eglFiniDisplay(void);
 
 extern struct _egl_display *
-_eglFindDisplay(_EGLPlatformType plat, void *plat_dpy, const EGLAttrib *attr);
+_eglFindDisplay(enum _egl_platform_type plat, void *plat_dpy, const EGLAttrib *attr);
 
 extern void
 _eglReleaseDisplayResources(struct _egl_display *disp);
