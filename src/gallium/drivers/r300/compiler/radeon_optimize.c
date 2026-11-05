@@ -1485,16 +1485,6 @@ rc_optimize(struct radeon_compiler *c, void *user)
       }
    }
 
-   /* Copy propagate few extra movs from the merge_channels pass. */
-   inst = c->Program.Instructions.Next;
-   while (inst != &c->Program.Instructions) {
-      struct rc_instruction *cur = inst;
-      inst = inst->Next;
-      if (cur->U.I.Opcode == RC_OPCODE_MOV) {
-         copy_propagate(c, cur);
-      }
-   }
-
    /* Copy propagate constant swizzles */
    inst = c->Program.Instructions.Next;
    while (inst != &c->Program.Instructions) {
@@ -1503,6 +1493,16 @@ rc_optimize(struct radeon_compiler *c, void *user)
       if (cur->U.I.Opcode == RC_OPCODE_MOV && cur->U.I.SrcReg[0].File == RC_FILE_NONE &&
           cur->U.I.DstReg.File == RC_FILE_TEMPORARY) {
          copy_propagate_constant_swizzle(c, cur);
+      }
+   }
+
+   /* Copy propagate MOVs exposed by channel merging and constant swizzles. */
+   inst = c->Program.Instructions.Next;
+   while (inst != &c->Program.Instructions) {
+      struct rc_instruction *cur = inst;
+      inst = inst->Next;
+      if (cur->U.I.Opcode == RC_OPCODE_MOV) {
+         copy_propagate(c, cur);
       }
    }
 
