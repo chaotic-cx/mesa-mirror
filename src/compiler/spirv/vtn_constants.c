@@ -496,6 +496,36 @@ vtn_handle_spec_constant_op(struct vtn_builder *b, struct vtn_value *val,
    }
 }
 
+static nir_descriptor_type
+vtn_get_desc_type(struct vtn_builder *b, const struct vtn_type *type)
+{
+   switch (type->base_type) {
+   case vtn_base_type_sampler:
+      return nir_descriptor_type_sampler;
+   case vtn_base_type_accel_struct:
+      return nir_descriptor_type_acceleration_structure;
+   case vtn_base_type_buffer:
+      return type->storage_class == SpvStorageClassUniform ?
+             nir_descriptor_type_uniform_buffer : nir_descriptor_type_storage_buffer;
+   case vtn_base_type_image: {
+      const bool storage = glsl_type_is_image(type->glsl_image);
+      switch (glsl_get_sampler_dim(type->glsl_image)) {
+      case GLSL_SAMPLER_DIM_BUF:
+         return storage ? nir_descriptor_type_storage_texel_buffer
+                        : nir_descriptor_type_uniform_texel_buffer;
+      case GLSL_SAMPLER_DIM_SUBPASS:
+      case GLSL_SAMPLER_DIM_SUBPASS_MS:
+         return nir_descriptor_type_input_attachment;
+      default:
+         return storage ? nir_descriptor_type_storage_image
+                        : nir_descriptor_type_sampled_image;
+      }
+   }
+   default:
+      return nir_descriptor_type_invalid;
+   }
+}
+
 void
 vtn_handle_constants(struct vtn_builder *b, SpvOp opcode,
                      const uint32_t *w, unsigned count)
@@ -647,19 +677,26 @@ vtn_handle_constants(struct vtn_builder *b, SpvOp opcode,
                   "Result Type must be a 32-bit or 64-bit integer type scalar.");
 
       struct vtn_type *type = vtn_get_type(b, w[3]);
-      switch (type->base_type) {
-      case vtn_base_type_image:
+      nir_descriptor_type desc_type = vtn_get_desc_type(b, type);
+
+      switch (desc_type) {
+      case nir_descriptor_type_sampled_image:
+      case nir_descriptor_type_storage_image:
+      case nir_descriptor_type_input_attachment:
+      case nir_descriptor_type_uniform_texel_buffer:
+      case nir_descriptor_type_storage_texel_buffer:
          val->constant->values[0].u32 =
             align(b->options->image_descriptor_size,
                   b->options->image_descriptor_alignment);
          break;
-      case vtn_base_type_sampler:
+      case nir_descriptor_type_sampler:
          val->constant->values[0].u32 =
             align(b->options->sampler_descriptor_size,
                   b->options->sampler_descriptor_alignment);
          break;
-      case vtn_base_type_accel_struct:
-      case vtn_base_type_buffer:
+      case nir_descriptor_type_uniform_buffer:
+      case nir_descriptor_type_storage_buffer:
+      case nir_descriptor_type_acceleration_structure:
          val->constant->values[0].u32 =
             align(b->options->buffer_descriptor_size,
                   b->options->buffer_descriptor_alignment);
