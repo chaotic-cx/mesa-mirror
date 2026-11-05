@@ -537,6 +537,7 @@ lvp_shader_lower(struct lvp_device *pdevice, nir_shader *nir, struct lvp_shader 
    struct vk_sampler_state_array embedded_samplers;
    if (shader->heaps) {
       vk_nir_lower_descriptor_heaps_options heaps_options = {
+         .max_push_data_size = MAX_PUSH_CONSTANTS_SIZE,
          .lower_shader_record_index_to_non_uniform = true,
       };
       NIR_PASS(_, nir, vk_nir_lower_descriptor_heaps, mapping, &heaps_options, &embedded_samplers);

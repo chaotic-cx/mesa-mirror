@@ -834,6 +834,7 @@ radv_shader_spirv_to_nir(const struct radv_compiler_info *compiler_info, struct 
 
    if (stage->key.descriptor_heap) {
       const vk_nir_lower_descriptor_heaps_options heap_options = {
+         .max_push_data_size = MAX_PUSH_CONSTANTS_SIZE,
          .lower_shader_record_index_to_non_uniform = true,
       };
 
