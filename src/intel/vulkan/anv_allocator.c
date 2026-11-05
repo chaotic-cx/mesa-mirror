@@ -2170,6 +2170,12 @@ anv_device_release_bo(struct anv_device *device,
    if (p_atomic_dec_not_one(&bo->refcount))
       return;
 
+   if (bo->slab_parent) {
+      if (p_atomic_dec_zero(&bo->refcount))
+         anv_slab_bo_free(device, bo);
+      return;
+   }
+
    simple_mtx_lock(&cache->mutex);
 
    /* We are probably the last reference since our attempt to decrement above
@@ -2183,12 +2189,6 @@ anv_device_release_bo(struct anv_device *device,
       return;
    }
    assert(bo->refcount == 0);
-
-   if (bo->slab_parent) {
-      simple_mtx_unlock(&cache->mutex);
-      anv_slab_bo_free(device, bo);
-      return;
-   }
 
    assert(bo_is_xe_userptr ||
           anv_device_lookup_bo(device, bo->gem_handle) == bo);
