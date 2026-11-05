@@ -263,6 +263,8 @@ GENX(pan_fb_fold_resolve_into_store)(const struct pan_fb_layout *fb,
                                   PAN_FB_RESOLVE_Z, &resolve->z, &store->zs);
    fold_resolve_into_store_target(fb->s_format, fb->sample_count,
                                   PAN_FB_RESOLVE_S, &resolve->s, &store->s);
+
+   assert(fb->rt_count <= PAN_MAX_RTS);
    for (unsigned rt = 0; rt < fb->rt_count; rt++) {
       fold_resolve_into_store_target(fb->rt_formats[rt], fb->sample_count,
                                      PAN_FB_RESOLVE_RT(rt),
