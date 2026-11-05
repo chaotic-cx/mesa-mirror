@@ -93,6 +93,8 @@ struct MoveState {
    aco::unordered_map<uint32_t, int> rar_dependencies; /* temp-id -> index relative to insert_idx */
    MoveState() : rar_dependencies(m) {}
 
+   bool has_rar_dependency(uint32_t id) const { return rar_dependencies.count(id); }
+
    /* for moving instructions before the current instruction to after it */
    DownwardsCursor downwards_init(int current_idx, bool improved_rar);
    MoveResult downwards_check_deps(Instruction* instr, Temp* rar_dep = NULL);
@@ -200,7 +202,7 @@ MoveState::downwards_check_deps(Instruction* instr, Temp* rar_dep)
       if (!improved_rar && depends_on[op.tempId()])
          return move_fail_rar;
 
-      if (improved_rar && rar_dependencies.count(op.tempId())) {
+      if (improved_rar && has_rar_dependency(op.tempId())) {
          /* We allow for exactly one read-after-read dependency. */
          if (rar_dep && (*rar_dep == Temp() || *rar_dep == op.getTemp()))
             *rar_dep = op.getTemp();
@@ -466,7 +468,7 @@ MoveState::upwards_move(UpwardsCursor& cursor)
 
    /* check if candidate uses/kills an operand which is used by a dependency */
    for (const Operand& op : instr->operands) {
-      if (op.isTemp() && (!improved_rar || op.isFirstKill()) && rar_dependencies.count(op.tempId()))
+      if (op.isTemp() && (!improved_rar || op.isFirstKill()) && has_rar_dependency(op.tempId()))
          return move_fail_rar;
    }
 
