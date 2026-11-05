@@ -68,9 +68,11 @@ r300_nir_prepare_presubtract = [
         (('fmul', 'a(is_ubo_or_input)', 2.0), ('fadd', a, a)),
 ]
 
+# Loads and shared values cannot absorb output modifiers. Move supported scales
+# after the product, leaving single-use ALU results for the backend to fold.
 for multiplier in [2.0, 4.0, 8.0, 0.5, 0.25, 0.125]:
     r300_nir_prepare_presubtract.extend([
-        (('fmul', a, ('fmul(is_used_once)', 'b(is_ubo_or_input)', multiplier)), ('fmul', multiplier, ('fmul', a, b))),
+        (('fmul', a, ('fmul(is_used_once)', 'b(is_not_single_use_alu)', multiplier)), ('fmul', multiplier, ('fmul', a, b))),
 ])
 
 r300_nir_opt_algebraic_late = [

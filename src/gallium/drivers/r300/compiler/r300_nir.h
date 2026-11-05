@@ -34,6 +34,14 @@ is_ubo_or_input(UNUSED const nir_search_state *state, const nir_alu_instr *instr
 }
 
 static inline bool
+is_not_single_use_alu(UNUSED const nir_search_state *state, const nir_alu_instr *instr, unsigned src,
+                      unsigned num_components, const uint8_t *swizzle)
+{
+   nir_def *def = instr->src[src].src.ssa;
+   return !nir_def_is_alu(def) || !list_is_singular(&def->uses);
+}
+
+static inline bool
 is_not_used_in_single_if(const nir_alu_instr *instr)
 {
    unsigned if_uses = 0;
