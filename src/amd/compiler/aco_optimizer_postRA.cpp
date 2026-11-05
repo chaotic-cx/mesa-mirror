@@ -54,6 +54,10 @@ struct pr_opt_ctx {
          instr_idx_by_regs(std::unique_ptr<Idx_array[]>{new Idx_array[p->blocks.size()]})
    {}
 
+   Idx* reg_writers(unsigned reg) { return instr_idx_by_regs[current_block->index].data() + reg; }
+
+   Idx& reg_writer(unsigned reg) { return *reg_writers(reg); }
+
    ALWAYS_INLINE void reset_block_regs(const Block::edge_vec& preds, const unsigned block_index,
                                        const unsigned min_reg, const unsigned num_regs)
    {
@@ -133,12 +137,10 @@ save_reg_writes(pr_opt_ctx& ctx, aco_ptr<Instruction>& instr)
 
       assert((r + dw_size) <= max_reg_cnt);
       assert(def.size() == dw_size || def.regClass().is_subdword());
-      std::fill(ctx.instr_idx_by_regs[ctx.current_block->index].begin() + r,
-                ctx.instr_idx_by_regs[ctx.current_block->index].begin() + r + dw_size, idx);
+      std::fill_n(ctx.reg_writers(r), dw_size, idx);
    }
    if (instr->isPseudo() && instr->pseudo().needs_scratch_reg) {
-      ctx.instr_idx_by_regs[ctx.current_block->index][instr->pseudo().scratch_sgpr] =
-         overwritten_unknown_instr;
+      ctx.reg_writer(instr->pseudo().scratch_sgpr) = overwritten_unknown_instr;
    }
    if (instr->isCall()) {
       std::fill(ctx.instr_idx_by_regs[ctx.current_block->index].begin(),
@@ -151,13 +153,11 @@ last_writer_idx(pr_opt_ctx& ctx, PhysReg physReg, RegClass rc)
 {
    /* Verify that all of the operand's registers are written by the same instruction. */
    assert(physReg.reg() < max_reg_cnt);
-   Idx instr_idx = ctx.instr_idx_by_regs[ctx.current_block->index][physReg.reg()];
+   Idx* reg_writes = ctx.reg_writers(physReg.reg());
+   Idx instr_idx = reg_writes[0];
    unsigned dw_size = DIV_ROUND_UP(rc.bytes(), 4u);
-   unsigned r = physReg.reg();
    bool all_same =
-      std::all_of(ctx.instr_idx_by_regs[ctx.current_block->index].begin() + r,
-                  ctx.instr_idx_by_regs[ctx.current_block->index].begin() + r + dw_size,
-                  [instr_idx](Idx i) { return i == instr_idx; });
+      std::all_of(reg_writes, reg_writes + dw_size, [instr_idx](Idx i) { return i == instr_idx; });
 
    return all_same ? instr_idx : overwritten_untrackable;
 }
@@ -194,7 +194,7 @@ is_overwritten_since(pr_opt_ctx& ctx, PhysReg reg, RegClass rc, const Idx& since
    unsigned current_block_idx = ctx.current_block->index;
 
    for (unsigned r = begin_reg; r < end_reg; ++r) {
-      Idx& i = ctx.instr_idx_by_regs[current_block_idx][r];
+      Idx& i = ctx.reg_writer(r);
       if (i == overwritten_untrackable && current_block_idx > since_idx.block)
          return true;
       else if (i == overwritten_untrackable || i == not_written_yet)
@@ -1184,8 +1184,7 @@ try_optimize_branching_sequence(pr_opt_ctx& ctx, aco_ptr<Instruction>& exec_copy
       exec_val->definitions[0] = Definition(exec, ctx.program->lane_mask);
    }
    for (unsigned i = 0; i < ctx.program->lane_mask.size(); i++)
-      ctx.instr_idx_by_regs[ctx.current_block->index][exec + i] =
-         ctx.instr_idx_by_regs[ctx.current_block->index][exec_copy_op.physReg() + i];
+      ctx.reg_writer(exec + i) = ctx.reg_writer(exec_copy_op.physReg() + i);
 
    /* If there are other instructions (besides p_logical_end) between
     * writing the value and copying it to exec, reassign uses
