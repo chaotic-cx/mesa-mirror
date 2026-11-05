@@ -311,8 +311,11 @@ fn test_sanity() {
 }
 
 fn f32_eq(a: f32, b: f32) -> bool {
-    if a.is_nan() && b.is_nan() {
-        true
+    if a.is_nan() && b.is_nan()
+        || a.is_infinite() && b.is_infinite()
+        || a == 0.0 && b == 0.0
+    {
+        a.is_sign_positive() == b.is_sign_positive()
     } else if a.is_nan() || b.is_nan() {
         // If one is NaN but not the other, fail
         false
@@ -322,8 +325,11 @@ fn f32_eq(a: f32, b: f32) -> bool {
 }
 
 fn f64_eq(a: f64, b: f64) -> bool {
-    if a.is_nan() && b.is_nan() {
-        true
+    if a.is_nan() && b.is_nan()
+        || a.is_infinite() && b.is_infinite()
+        || a == 0.0 && b == 0.0
+    {
+        a.is_sign_positive() == b.is_sign_positive()
     } else if a.is_nan() || b.is_nan() {
         // If one is NaN but not the other, fail
         false
