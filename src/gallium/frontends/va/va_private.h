@@ -338,7 +338,6 @@ ProfileToPipe(VAProfile profile)
 typedef struct {
    struct vl_screen *vscreen;
    struct pipe_context *pipe;
-   struct pipe_context *pipe2;
    struct handle_table *htab;
    struct pipe_video_codec *proc;
    mtx_t mutex;

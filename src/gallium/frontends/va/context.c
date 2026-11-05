@@ -544,8 +544,6 @@ vlVaTerminate(VADriverContextP ctx)
 
    drv = ctx->pDriverData;
    pipe_video_codec_reference(&drv->proc, NULL);
-   if (drv->pipe2)
-      drv->pipe2->destroy(drv->pipe2);
    drv->pipe->destroy(drv->pipe);
    drv->vscreen->destroy(drv->vscreen);
    handle_table_destroy(drv->htab);

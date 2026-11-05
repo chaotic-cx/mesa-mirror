@@ -787,32 +787,6 @@ vlVaSurfaceFlush(vlVaDriver *drv, vlVaSurface *surf)
                     drv->has_external_handles ? 0 : PIPE_FLUSH_ASYNC);
 }
 
-static void
-vlVaSwitchToProtectedContext(vlVaDriver *drv)
-{
-   if (drv->pipe2)
-      return;
-
-   /* For now the context only needs to have graphics */
-   struct pipe_context *ctx = pipe_create_multimedia_context(drv->pipe->screen, false);
-   if (!ctx)
-      return;
-
-   drv->pipe2 = drv->pipe;
-   drv->pipe = ctx;
-
-   if (drv->proc) {
-      struct pipe_video_codec templat = {
-         .profile = PIPE_VIDEO_PROFILE_UNKNOWN,
-         .entrypoint = PIPE_VIDEO_ENTRYPOINT_PROCESSING,
-      };
-      pipe_video_codec_reference(&drv->proc, NULL);
-      drv->proc = vl_create_proc(drv->pipe, &templat);
-      if (drv->proc)
-         pipe_reference_init(&drv->proc->reference, 1);
-   }
-}
-
 static int
 rt_format_to_fourcc(uint32_t format)
 {
@@ -894,9 +868,6 @@ vlVaCreateSurfaces2(VADriverContextP ctx, unsigned int format,
 
    protected = format & VA_RT_FORMAT_PROTECTED;
    format &= ~VA_RT_FORMAT_PROTECTED;
-
-   if (protected)
-      vlVaSwitchToProtectedContext(drv);
 
    expected_fourcc = rt_format_to_fourcc(format);
    if (!expected_fourcc)
