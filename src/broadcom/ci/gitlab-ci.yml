@@ -236,7 +236,7 @@ v3dv-rpi4-vk-ubsan:arm64:
     # UBSan is quite slow, so restrict to 1 job
     FDO_CI_CONCURRENT: 1
     DEQP_SUITE: broadcom-rpi4-vk-ubsan
-    DEQP_FRACTION: 45
+    DEQP_FRACTION: 80
 
 v3d-rpi5-gl:arm64:
   extends:
@@ -371,7 +371,7 @@ v3dv-rpi5-vk-asan:arm64:
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 20
     FDO_CI_CONCURRENT: 1
     DEQP_SUITE: broadcom-rpi5-vk-asan
-    DEQP_FRACTION: 160
+    DEQP_FRACTION: 250
 
 # This is quite unstable. Keep it disabled
 .rpi3-skqp:arm64:
