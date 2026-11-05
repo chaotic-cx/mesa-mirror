@@ -289,7 +289,7 @@ static void si_log_chunk_desc_list_print(void *data, FILE *f)
          fprintf(f, COLOR_CYAN "    Buffer:" COLOR_RESET "\n");
          for (unsigned j = 0; j < 4; j++)
             ac_dump_reg(f, chunk->gfx_level, chunk->family,
-                        R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, gpu_list[4 + j], 0xffffffff);
+                        R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, gpu_list[j], 0xffffffff);
          break;
       case 16:
          for (unsigned j = 0; j < 8; j++)
@@ -299,7 +299,7 @@ static void si_log_chunk_desc_list_print(void *data, FILE *f)
          fprintf(f, COLOR_CYAN "    Buffer:" COLOR_RESET "\n");
          for (unsigned j = 0; j < 4; j++)
             ac_dump_reg(f, chunk->gfx_level, chunk->family,
-                        R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, gpu_list[4 + j], 0xffffffff);
+                        R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, gpu_list[j], 0xffffffff);
 
          fprintf(f, COLOR_CYAN "    FMASK:" COLOR_RESET "\n");
          for (unsigned j = 0; j < 8; j++)
