@@ -699,6 +699,15 @@ dd_context_resource_commit(struct pipe_context *_pipe,
 }
 
 static void
+dd_context_resource_release(struct pipe_context *_pipe,
+                            struct pipe_resource *resource)
+{
+   struct pipe_context *pipe = dd_context(_pipe)->pipe;
+
+   pipe->resource_release(pipe, resource);
+}
+
+static void
 dd_context_set_global_binding(struct pipe_context *_pipe,
 			      unsigned first, unsigned count,
 			      struct pipe_resource **resources,
@@ -935,6 +944,7 @@ dd_context_create(struct dd_screen *dscreen, struct pipe_context *pipe)
    CTX_INIT(texture_barrier);
    CTX_INIT(memory_barrier);
    CTX_INIT(resource_commit);
+   CTX_INIT(resource_release);
    CTX_INIT(set_global_binding);
    /* create_video_codec */
    /* create_video_buffer */
