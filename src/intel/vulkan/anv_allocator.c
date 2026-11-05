@@ -1957,14 +1957,6 @@ anv_device_import_bo_from_host_ptr(struct anv_device *device,
                           "same host pointer imported two different ways");
       }
 
-      if ((bo->alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS) !=
-          (alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS)) {
-         simple_mtx_unlock(&cache->mutex);
-         return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
-                          "The same BO was imported with and without buffer "
-                          "device address");
-      }
-
       if (client_address && client_address != intel_48b_address(bo->offset)) {
          simple_mtx_unlock(&cache->mutex);
          return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
@@ -2051,14 +2043,6 @@ anv_device_import_bo(struct anv_device *device,
    }
 
    if (bo->refcount > 0) {
-      if ((bo->alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS) !=
-          (alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS)) {
-         simple_mtx_unlock(&cache->mutex);
-         return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
-                          "The same BO was imported with and without buffer "
-                          "device address");
-      }
-
       if (client_address && client_address != intel_48b_address(bo->offset)) {
          simple_mtx_unlock(&cache->mutex);
          return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
