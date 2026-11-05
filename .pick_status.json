@@ -404,7 +404,7 @@
         "description": "dzn: Handle missing variable descriptor count layout support output",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "fcd56e31f7ceab8860932a7a30e6d588032b0f1c",
         "notes": null
