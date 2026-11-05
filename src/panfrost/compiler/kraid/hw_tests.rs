@@ -1538,6 +1538,23 @@ fn test_op_fadd_lscale() {
 }
 
 #[test]
+fn test_op_fcos_table() {
+    let mut a = Acorn::new();
+    let rng = |_, _| match a.get_u32() % 4 {
+        0 => a.get_u32(),
+        1 => F32_CURATED[(a.get_u32() as usize) % F32_CURATED.len()].to_bits(),
+        _ => (a.get_u32() & 0x7F) | 0x49400000,
+    };
+
+    let op = OpFCosTable {
+        dst: DstRef::None.into(),
+        src: 0_u32.into(),
+        offset: false,
+    };
+    test_foldable_op_with(op, Precision::Exact, rng);
+}
+
+#[test]
 fn test_op_flush() {
     const DATA_TYPES: &[DataType] = &[DataType::F32, DataType::V2F16];
 
@@ -1713,6 +1730,23 @@ fn test_op_frsq() {
         // Hardware has 1 ULP precision, but we have double-rounding issues
         test_foldable_op(op, Precision::Ulp(2));
     }
+}
+
+#[test]
+fn test_op_fsin_table() {
+    let mut a = Acorn::new();
+    let rng = |_, _| match a.get_u32() % 4 {
+        0 => a.get_u32(),
+        1 => F32_CURATED[(a.get_u32() as usize) % F32_CURATED.len()].to_bits(),
+        _ => (a.get_u32() & 0x7F) | 0x49400000,
+    };
+
+    let op = OpFSinTable {
+        dst: DstRef::None.into(),
+        src: 0_u32.into(),
+        offset: false,
+    };
+    test_foldable_op_with(op, Precision::Exact, rng);
 }
 
 #[test]

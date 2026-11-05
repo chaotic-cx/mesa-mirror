@@ -1548,6 +1548,40 @@ impl DisplayOp for OpFCosTable {
     }
 }
 
+fn fold_cases_fsincos(bits: u32, table_lookup: impl FnOnce(u8) -> f32) -> f32 {
+    let x = f32::from_bits(bits);
+    let sign = bits >> 31;
+    let exponent = (bits >> 23) & 0xff;
+    let exp_bias = 127;
+
+    if x.is_nan() {
+        x
+    } else if x.is_infinite() {
+        f32::NAN
+    } else if (sign, exponent) != (0, exp_bias + 19) {
+        // Only lookup numbers with 2**19 as exp
+        -0.0
+    } else {
+        table_lookup((bits & 0x3F) as u8)
+    }
+}
+
+impl Foldable for OpFCosTable {
+    fn fold(&self, _model: &dyn Model, f: &mut impl FoldDataView) {
+        let bits = f.get_src(&self.src) as u32;
+        assert!(!self.offset); // TODO: reverse-engineer
+
+        // Use f64 precision to not think about rounding, handle edge-cases
+        let dst = fold_cases_fsincos(bits, |x| match x {
+            16 => 0.0,
+            48 => -0.0,
+            _ => ((x as f64) * std::f64::consts::PI / 32.0).cos() as f32,
+        });
+
+        f.set_dst(&self.dst, dst.to_bits().into());
+    }
+}
+
 /// Performs 2^x
 #[repr(C)]
 #[derive(Clone, Opcode)]
@@ -2092,6 +2126,22 @@ impl DisplayOp for OpFSinTable {
             bool_as_mod_str!(self.offset),
             self.fmt_src(&self.src),
         )
+    }
+}
+
+impl Foldable for OpFSinTable {
+    fn fold(&self, _model: &dyn Model, f: &mut impl FoldDataView) {
+        let bits = f.get_src(&self.src) as u32;
+        assert!(!self.offset); // TODO: reverse-engineer
+
+        // Use f64 precision to not think about rounding, handle edge-cases
+        let dst = fold_cases_fsincos(bits, |x| match x {
+            0 => -0.0,
+            32 => 0.0,
+            _ => ((x as f64) * std::f64::consts::PI / 32.0).sin() as f32,
+        });
+
+        f.set_dst(&self.dst, dst.to_bits().into());
     }
 }
 
