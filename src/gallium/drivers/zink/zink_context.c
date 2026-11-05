@@ -3414,13 +3414,13 @@ begin_rendering(struct zink_context *ctx, bool check_attachment_shadow)
             ctx->dynamic_fb.attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
          else
             ctx->dynamic_fb.attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+         /* no tc info while blitting: do not keep the previous storeOp */
+         ctx->dynamic_fb.attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
          if (use_tc_info) {
             if (very_legal_and_conformant_msaa_opt ||
                 /* don't invalidate cbufs without resolve */
                 (ctx->dynamic_fb.tc_info.has_resolve && ctx->dynamic_fb.tc_info.cbuf_invalidate & BITFIELD_BIT(i)))
                ctx->dynamic_fb.attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            else
-               ctx->dynamic_fb.attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
          }
          if (ctx->dynamic_fb.attachments[i].loadOp == VK_ATTACHMENT_LOAD_OP_LOAD) {
             attachment_shadow_mask |= BITFIELD_BIT(i);
@@ -3447,11 +3447,10 @@ begin_rendering(struct zink_context *ctx, bool check_attachment_shadow)
          else
             ctx->dynamic_fb.attachments[PIPE_MAX_COLOR_BUFS].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
+         ctx->dynamic_fb.attachments[PIPE_MAX_COLOR_BUFS].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
          if (use_tc_info) {
             if ((very_legal_and_conformant_msaa_opt && !ctx->fb_state.nr_cbufs) || ctx->dynamic_fb.tc_info.zsbuf_invalidate)
                ctx->dynamic_fb.attachments[PIPE_MAX_COLOR_BUFS].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            else
-               ctx->dynamic_fb.attachments[PIPE_MAX_COLOR_BUFS].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
          }
 
          if (res->base.b.nr_samples > 1 && zink_debug & ZINK_DEBUG_PERFINFO) {
