@@ -1567,7 +1567,9 @@ panfrost_emit_const_buf(struct panfrost_batch *batch,
          ((user_ubo_mask & ~BITFIELD_MASK(PAN_UBO_SYSVALS + 1)) >> 1);
 
    u_foreach_bit(ubo_adj, user_ubo_mask_adj & buf->enabled_mask) {
+      assert(ubo_adj < ARRAY_SIZE(buf->cb));
       unsigned ubo = ubo_adj + (ubo_adj >= sysval_ubo ? 1 : 0);
+      assert(ubo < shader->info.ubo_count);
 
       size_t usz = buf->cb[ubo_adj].buffer_size;
       uint64_t address = 0;
