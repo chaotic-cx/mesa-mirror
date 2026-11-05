@@ -49,10 +49,3 @@ dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.ov
 dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_5,Fail
 dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_75,Fail
 dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_plain_conservative,Fail
-
-# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
-# Not entirely reliable, so clear the flakes entry when it's fixed.
-dEQP-VK.renderpasses.dynamic_rendering.graphics_pipeline_library.local_read.max_remapped_attachments_with_gap_write_only,Fail
-dEQP-VK.renderpasses.dynamic_rendering.graphics_pipeline_library.local_read.max_remapped_attachments_with_gap_write_read,Fail
-dEQP-VK.renderpasses.dynamic_rendering.partial_secondary_cmd_buff.local_read.max_remapped_attachments_with_gap_write_read,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.local_read.max_remapped_attachments_with_gap_write_only,Fail

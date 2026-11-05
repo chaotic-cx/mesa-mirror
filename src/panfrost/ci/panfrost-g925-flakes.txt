@@ -86,6 +86,3 @@ dEQP-VK.subgroups.*
 
 # See Mesa bug #15880 ("panfrost: incomplete glCopyPixels() with feedback loop")
 spec@!opengl 1.4@copy-pixels
-
-# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
-dEQP-VK.renderpasses.dynamic_rendering.*.local_read.max_remapped_attachments_with_gap_write_*
