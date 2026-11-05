@@ -694,6 +694,22 @@
     <field name="Command Type" dword="0" bits="31:29" type="uint" default="3" />
     <field name="Scissor Rect Pointer" dword="1" bits="63:6" type="address" />
   </instruction>
+  <instruction name="3DSTATE_TBIMR_TILE_PASS_INFO" bias="2" length="4" engine="render">
+    <field name="DWord Length" dword="0" bits="7:0" type="uint" default="2" />
+    <field name="3D Command Sub Opcode" dword="0" bits="23:16" type="uint" default="110" />
+    <field name="3D Command Opcode" dword="0" bits="26:24" type="uint" default="0" />
+    <field name="Command SubType" dword="0" bits="28:27" type="uint" default="3" />
+    <field name="Command Type" dword="0" bits="31:29" type="uint" default="3" />
+    <field name="Tile Rectangle Height" dword="1" bits="13:0" type="uint" />
+    <field name="Tile Rectangle Width" dword="1" bits="29:16" type="uint" />
+    <field name="Vertical Tile Count" dword="2" bits="15:0" type="uint" />
+    <field name="Horizontal Tile Count" dword="2" bits="31:16" type="uint" />
+    <field name="Walk Pattern" dword="3" bits="0:0" type="uint" />
+    <field name="Tile Box Check" dword="3" bits="2:2" type="uint" />
+    <field name="TBIMR Batch Size" dword="3" bits="5:3" type="uint" />
+    <field name="Poly Trigger Width" dword="3" bits="9:6" type="uint" />
+    <field name="Poly Trigger Height" dword="3" bits="13:10" type="uint" />
+  </instruction>
   <instruction name="3DSTATE_VIEWPORT_STATE_POINTERS_CC_2" bias="2" length="3" engine="render">
     <field name="DWord Length" dword="0" bits="7:0" type="uint" default="1" />
     <field name="3D Command Sub Opcode" dword="0" bits="23:16" type="uint" default="141" />
