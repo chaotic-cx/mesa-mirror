@@ -230,16 +230,13 @@ rc_get_stats(struct radeon_compiler *c, struct rc_program_stats *s)
              * The only case when we don't want to add the cycles
              * penalty is when the texblock contains only kil.
              */
-            const struct rc_opcode_info *next_op = rc_get_opcode_info(tmp->Next->U.I.Opcode);
-            struct rc_instruction *second_next_instr = tmp->Next->Next;
-            const struct rc_opcode_info *second_next_op;
-            if (second_next_instr->Type == RC_INSTRUCTION_NORMAL) {
-               second_next_op = rc_get_opcode_info(second_next_instr->U.I.Opcode);
-            } else {
-               second_next_op = rc_get_opcode_info(second_next_instr->U.P.RGB.Opcode);
-            }
-            if (next_op->Opcode != RC_OPCODE_KIL ||
-                (second_next_instr->Type == RC_INSTRUCTION_NORMAL && second_next_op->HasTexture)) {
+            struct rc_instruction *next = tmp->Next;
+            while (next != &c->Program.Instructions && next->Type == RC_INSTRUCTION_NORMAL &&
+                   next->U.I.Opcode == RC_OPCODE_KIL)
+               next = next->Next;
+
+            if (next != &c->Program.Instructions && next->Type == RC_INSTRUCTION_NORMAL &&
+                rc_get_opcode_info(next->U.I.Opcode)->HasTexture) {
                s->num_cycles += 30;
                last_begintex = ip;
             }
