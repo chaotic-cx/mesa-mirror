@@ -889,12 +889,6 @@ msl_src_is_float(struct nir_to_msl_ctx *ctx, nir_src *src)
 }
 
 bool
-msl_def_is_sampler(struct nir_to_msl_ctx *ctx, nir_def *def)
-{
-   return get_type(ctx->types, def) == TYPE_SAMPLER;
-}
-
-bool
 msl_def_is_texture(struct nir_to_msl_ctx *ctx, nir_def *def)
 {
    return get_type(ctx->types, def) == TYPE_TEXTURE;
