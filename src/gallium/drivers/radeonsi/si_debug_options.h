@@ -17,7 +17,6 @@ OPT_INT(tc_max_cpu_storage_size, 2500, "Enable the CPU storage for pipelined buf
 OPT_INT(max_vram_map_size, 8196, "Maximum size of a buffer in VRAM to map directly. Bigger buffers use staging uploads.")
 OPT_BOOL(force_use_fma32, false, "Force use fma32 instruction for GPU family newer than gfx9")
 OPT_BOOL(dcc_msaa, true, "Enable DCC for MSAA for GFX10-10.3")
-OPT_BOOL(zerovram, false, "Zero all VRAM allocations")
 OPT_BOOL(clear_lds, false, "Clear LDS at the end of shaders. Might decrease performance.")
 OPT_BOOL(cache_cb_gl2, false, "Enable GL2 caching for CB.")
 OPT_BOOL(cache_db_gl2, true, "Enable GL2 caching for DB.")

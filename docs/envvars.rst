@@ -1904,10 +1904,6 @@ RadeonSI driver environment variables
 
    Clamp div by zero (x / 0 becomes FLT_MAX instead of NaN) (might fix rendering corruptions)
 
-.. envvar:: radeonsi_zerovram
-
-   Clear all allocated memory to 0 before usage (might fix rendering corruptions)
-
 .. envvar:: AMD_DEBUG
 
    a comma-separated list of named flags, which do various things:
