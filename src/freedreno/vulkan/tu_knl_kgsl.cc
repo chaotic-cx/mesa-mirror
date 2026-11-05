@@ -314,52 +314,93 @@ kgsl_bo_init(struct tu_device *dev,
       }
    }
 
-   struct kgsl_gpumem_alloc_id req = {
-      .size = size,
-   };
+   uint64_t kgsl_flags = 0;
 
    if (mem_property & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) {
       if (mem_property & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) {
-         req.flags |= KGSL_MEMFLAGS_IOCOHERENT;
+         kgsl_flags |= KGSL_MEMFLAGS_IOCOHERENT;
       }
 
-      req.flags |= KGSL_CACHEMODE_WRITEBACK << KGSL_CACHEMODE_SHIFT;
+      kgsl_flags |= KGSL_CACHEMODE_WRITEBACK << KGSL_CACHEMODE_SHIFT;
    } else {
-      req.flags |= KGSL_CACHEMODE_WRITECOMBINE << KGSL_CACHEMODE_SHIFT;
+      kgsl_flags |= KGSL_CACHEMODE_WRITECOMBINE << KGSL_CACHEMODE_SHIFT;
    }
 
    if (flags & TU_BO_ALLOC_GPU_READ_ONLY)
-      req.flags |= KGSL_MEMFLAGS_GPUREADONLY;
+      kgsl_flags |= KGSL_MEMFLAGS_GPUREADONLY;
 
    if (flags & TU_BO_ALLOC_REPLAYABLE)
-      req.flags |= KGSL_MEMFLAGS_USE_CPU_MAP;
+      kgsl_flags |= KGSL_MEMFLAGS_USE_CPU_MAP;
 
-   req.flags |= kgsl_align_flag(align);
+   kgsl_flags |= kgsl_align_flag(align);
 
    /* Forcing everything in the first 4GB is overkill, but we don't have many
     * other options here since we don't control iova addresses and kgsl
     * doesn't have a flag to avoid 32B rollover.
     */
    if (flags & TU_BO_ALLOC_NO_32B_ROLLOVER)
-      req.flags |= KGSL_MEMFLAGS_FORCE_32BIT;
+      kgsl_flags |= KGSL_MEMFLAGS_FORCE_32BIT;
 
+   uint32_t id;
+   uint64_t mmapsize, gpuaddr;
    int ret;
 
-   ret = safe_ioctl(dev->physical_device->local_fd,
-                    IOCTL_KGSL_GPUMEM_ALLOC_ID, &req);
-   if (ret) {
-      return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                       "GPUMEM_ALLOC_ID failed (%s)", strerror(errno));
+   if (kgsl_flags >> 32) {
+      /* kgsl_gpumem_alloc_id only has a 32-bit flags field, which would
+       * silently drop flags such as KGSL_MEMFLAGS_FORCE_32BIT.
+       */
+      struct kgsl_gpuobj_alloc req = {
+         .size = size,
+         .flags = kgsl_flags,
+      };
+
+      ret = safe_ioctl(dev->physical_device->local_fd, IOCTL_KGSL_GPUOBJ_ALLOC, &req);
+      if (ret) {
+         return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY, "GPUOBJ_ALLOC failed (%s)", strerror(errno));
+      }
+
+      struct kgsl_gpuobj_info info_req = {
+         .id = req.id,
+      };
+
+      ret = safe_ioctl(dev->physical_device->local_fd, IOCTL_KGSL_GPUOBJ_INFO, &info_req);
+      if (ret) {
+         const int error = errno;
+         struct kgsl_gpumem_free_id free_req = {
+            .id = req.id,
+         };
+         safe_ioctl(dev->physical_device->local_fd, IOCTL_KGSL_GPUMEM_FREE_ID, &free_req);
+
+         return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY, "GPUOBJ_INFO failed (%s)", strerror(error));
+      }
+
+      id = req.id;
+      mmapsize = req.mmapsize;
+      gpuaddr = info_req.gpuaddr;
+   } else {
+      struct kgsl_gpumem_alloc_id req = {
+         .flags = (unsigned int) kgsl_flags,
+         .size = size,
+      };
+
+      ret = safe_ioctl(dev->physical_device->local_fd, IOCTL_KGSL_GPUMEM_ALLOC_ID, &req);
+      if (ret) {
+         return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY, "GPUMEM_ALLOC_ID failed (%s)", strerror(errno));
+      }
+
+      id = req.id;
+      mmapsize = req.mmapsize;
+      gpuaddr = req.gpuaddr;
    }
 
-   struct tu_bo* bo = tu_device_lookup_bo(dev, req.id);
+   struct tu_bo* bo = tu_device_lookup_bo(dev, id);
    assert(bo && bo->gem_handle == 0);
 
    *bo = (struct tu_bo) {
-      .gem_handle = req.id,
-      .size = req.mmapsize,
-      .iova = req.gpuaddr,
-      .name = tu_debug_bos_add(dev, req.mmapsize, name),
+      .gem_handle = id,
+      .size = mmapsize,
+      .iova = gpuaddr,
+      .name = tu_debug_bos_add(dev, mmapsize, name),
       .refcnt = 1,
       .shared_fd = -1,
       .base = base,
