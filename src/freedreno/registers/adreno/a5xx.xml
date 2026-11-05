@@ -3022,7 +3022,9 @@ different border-color states per texture..  Looks something like:
 		<bitfield name="BASE_HI" low="0" high="16"/>
 		<bitfield name="DEPTH" low="17" high="29" type="uint"/>
 	</reg32>
-	<reg32 offset="6" name="6"/>
+	<reg32 offset="6" name="6">
+		<bitfield name="MIN_LOD_CLAMP" low="0" high="11" type="ufixed" radix="8"/>
+	</reg32>
 	<reg32 offset="7" name="7"/>
 	<reg32 offset="8" name="8"/>
 	<reg32 offset="9" name="9"/>
