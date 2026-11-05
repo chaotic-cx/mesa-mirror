@@ -233,11 +233,64 @@ impl Fuse {
         }))
     }
 
+    // n = ICMP.ne c 0
+    // BRANCH.not n
+    //      =>
+    // BRANCH.not c
+    // Also flips the polarity:
+    // n = ICMP.eq c 0
+    // BRANCH.not n
+    //      =>
+    // BRANCH c
+    // TODO: Needs support for swizzles as combine ops
+    fn fuse_branch(&self, s: &Shader, branch: &OpBranch) -> Option<Op> {
+        if branch.combine_op != BranchCombineOp::None
+            || !branch.cond.src_mod.is_none()
+        {
+            return None;
+        }
+
+        let SrcRef::SSA(cond_vec) = &branch.cond.src_ref else {
+            return None;
+        };
+        debug_assert_eq!(cond_vec.len(), 1);
+        let cond_ssa = cond_vec[0];
+
+        let cmp = self.get_foldable_cmp(s, cond_ssa)?;
+        if cmp.src_type.is_float_type() || cmp.accum_op != CmpAccumOp::None {
+            return None;
+        }
+
+        if cmp.cmp_op != CmpOp::Eq && cmp.cmp_op != CmpOp::Ne {
+            return None;
+        }
+
+        let c = if cmp.srcs[0].is_zero() {
+            &cmp.srcs[1]
+        } else if cmp.srcs[1].is_zero() {
+            &cmp.srcs[0]
+        } else {
+            return None;
+        };
+
+        if cond_ssa.bits() != 32 || cmp.src_type.bits() != 32 {
+            return None;
+        }
+
+        Some(Op::from(OpBranch {
+            not: branch.not ^ (cmp.cmp_op == CmpOp::Eq),
+            cond: c.clone(),
+            combine_op: branch.combine_op,
+            label: branch.label,
+        }))
+    }
+
     pub fn visit(&self, s: &Shader, i: &Instr) -> Option<Op> {
         match &i.op {
             Op::Discard(op) => self.fuse_discard(s, op),
             Op::Mux(op) => self.fuse_mux_csel(s, op),
             Op::ShiftLop(op) => self.fuse_shift_lop_accum(s, op),
+            Op::Branch(op) => self.fuse_branch(s, op),
             _ => None,
         }
     }
@@ -249,7 +302,6 @@ impl Fuse {
 /// FCMP.ge.or A B ACCUM.  This pass fuses (OR (FCMP A B) ACCUM) into
 /// (FCMP_OR A B ACCUM).
 ///
-/// TODO: Fuse BRANCH + CMP.ne (+ swizzles?)
 /// TODO: Unit tests
 impl Shader<'_> {
     pub fn opt_fuse(&mut self) -> bool {
