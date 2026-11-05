@@ -820,7 +820,7 @@ lp_build_mul_norm(struct gallivm_state *gallivm,
          LLVMBuildICmp(builder, LLVMIntEQ, a, min_value, ""),
          bld.int_vec_type, ""), "");
       b = LLVMBuildAdd(builder, b, LLVMBuildZExt(builder,
-         LLVMBuildICmp(builder, LLVMIntEQ, a, min_value, ""),
+         LLVMBuildICmp(builder, LLVMIntEQ, b, min_value, ""),
          bld.int_vec_type, ""), "");
    }
 
