@@ -2322,36 +2322,38 @@ link_fs_inout_layout_qualifiers(struct gl_shader_program *prog,
    bool origin_upper_left = false;
    bool pixel_center_integer = false;
 
-   if (linked_shader->Stage != MESA_SHADER_FRAGMENT ||
-       (prog->GLSL_Version < 150 && !arb_fragment_coord_conventions_enable))
+   if (linked_shader->Stage != MESA_SHADER_FRAGMENT)
       return;
 
    for (unsigned i = 0; i < num_shaders; i++) {
       struct gl_shader *shader = shader_list[i];
-      /* From the GLSL 1.50 spec, page 39:
-       *
-       *   "If gl_FragCoord is redeclared in any fragment shader in a program,
-       *    it must be redeclared in all the fragment shaders in that program
-       *    that have a static use gl_FragCoord."
-       */
-      if ((redeclares_gl_fragcoord && !shader->redeclares_gl_fragcoord &&
-           shader->uses_gl_fragcoord)
-          || (shader->redeclares_gl_fragcoord && !redeclares_gl_fragcoord &&
-              uses_gl_fragcoord)) {
-             linker_error(prog, "fragment shader defined with conflicting "
-                         "layout qualifiers for gl_FragCoord\n");
-      }
 
-      /* From the GLSL 1.50 spec, page 39:
-       *
-       *   "All redeclarations of gl_FragCoord in all fragment shaders in a
-       *    single program must have the same set of qualifiers."
-       */
-      if (redeclares_gl_fragcoord && shader->redeclares_gl_fragcoord &&
-          (shader->origin_upper_left != origin_upper_left ||
-           shader->pixel_center_integer != pixel_center_integer)) {
-         linker_error(prog, "fragment shader defined with conflicting "
-                      "layout qualifiers for gl_FragCoord\n");
+      if (prog->GLSL_Version >= 150 || arb_fragment_coord_conventions_enable) {
+         /* From the GLSL 1.50 spec, page 39:
+         *
+         *   "If gl_FragCoord is redeclared in any fragment shader in a program,
+         *    it must be redeclared in all the fragment shaders in that program
+         *    that have a static use gl_FragCoord."
+         */
+         if ((redeclares_gl_fragcoord && !shader->redeclares_gl_fragcoord &&
+            shader->uses_gl_fragcoord)
+            || (shader->redeclares_gl_fragcoord && !redeclares_gl_fragcoord &&
+               uses_gl_fragcoord)) {
+               linker_error(prog, "fragment shader defined with conflicting "
+                           "layout qualifiers for gl_FragCoord\n");
+         }
+
+         /* From the GLSL 1.50 spec, page 39:
+          *
+          *   "All redeclarations of gl_FragCoord in all fragment shaders in a
+          *    single program must have the same set of qualifiers."
+          */
+         if (redeclares_gl_fragcoord && shader->redeclares_gl_fragcoord &&
+            (shader->origin_upper_left != origin_upper_left ||
+            shader->pixel_center_integer != pixel_center_integer)) {
+            linker_error(prog, "fragment shader defined with conflicting "
+                        "layout qualifiers for gl_FragCoord\n");
+         }
       }
 
       /* Update the linked shader state.  Note that uses_gl_fragcoord should
