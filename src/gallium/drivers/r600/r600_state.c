@@ -2610,6 +2610,7 @@ void r600_update_ps_state(struct pipe_context *ctx, struct r600_pipe_shader *sha
 	spi_ps_in_control_1 = 0;
 	if (face_index != -1) {
 		spi_ps_in_control_1 |= S_0286D0_FRONT_FACE_ENA(1) |
+			S_0286D0_FRONT_FACE_ALL_BITS(1) |
 			S_0286D0_FRONT_FACE_ADDR(rshader->input[face_index].gpr);
 	}
 	if (fixed_pt_position_index != -1) {

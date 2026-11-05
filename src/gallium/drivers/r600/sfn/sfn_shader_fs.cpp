@@ -70,10 +70,13 @@ FragmentShader::load_input(nir_intrinsic_instr *intr)
    }
 
    if (location == VARYING_SLOT_FACE) {
-      auto ir = new AluInstr(op2_setgt_dx10,
+      static_assert(
+         NIR_FALSE == 0u && static_cast<uint32_t>(NIR_TRUE) == UINT32_C(0xFFFFFFFF),
+         "Assuming that the front face value provided by SPI with `FRONT_FACE_ALL_BITS` "
+         "can be used directly as a 32-bit NIR boolean");
+      auto ir = new AluInstr(op1_mov,
                              vf.dest(intr->def, 0, pin_none),
                              m_face_input,
-                             vf.inline_const(ALU_SRC_0, 0),
                              AluInstr::write);
       emit_instruction(ir);
       return true;
