@@ -623,7 +623,7 @@ static bool pvr_physical_device_get_properties(
 
    UNUSED const uint32_t max_render_size = rogue_get_render_size_max(dev_info);
 
-   UNUSED const uint32_t max_sample_bits = ((max_multisample << 1) - 1);
+   const uint32_t max_sample_bits = ((max_multisample << 1) - 1);
 
    UNUSED const uint32_t max_user_vertex_components =
       pvr_get_max_user_vertex_output_components(dev_info);
@@ -787,15 +787,15 @@ static bool pvr_physical_device_get_properties(
       .maxFramebufferLayers = 256U,
 
       /* Note: update nir_shader_compiler_options.max_samples when changing this. */
-      .framebufferColorSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
-      .framebufferDepthSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
-      .framebufferStencilSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
-      .framebufferNoAttachmentsSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
+      .framebufferColorSampleCounts = max_sample_bits,
+      .framebufferDepthSampleCounts = max_sample_bits,
+      .framebufferStencilSampleCounts = max_sample_bits,
+      .framebufferNoAttachmentsSampleCounts = max_sample_bits,
       .maxColorAttachments = 4U,
-      .sampledImageColorSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
-      .sampledImageIntegerSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
-      .sampledImageDepthSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
-      .sampledImageStencilSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
+      .sampledImageColorSampleCounts = max_sample_bits,
+      .sampledImageIntegerSampleCounts = max_sample_bits,
+      .sampledImageDepthSampleCounts = max_sample_bits,
+      .sampledImageStencilSampleCounts = max_sample_bits,
       .storageImageSampleCounts = VK_SAMPLE_COUNT_1_BIT, /* Requires shaderStorageImageMultisample */
       .maxSampleMaskWords = 1U,
       .timestampComputeAndGraphics = false,
@@ -862,8 +862,7 @@ static bool pvr_physical_device_get_properties(
       .maxDescriptorSetUpdateAfterBindInputAttachments = 0,
       .filterMinmaxSingleComponentFormats = false,
       .filterMinmaxImageComponentMapping = false,
-      .framebufferIntegerColorSampleCounts =
-         VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
+      .framebufferIntegerColorSampleCounts = max_sample_bits,
 
       /* Vulkan 1.0 / VK_KHR_maintenance2 */
       .pointClippingBehavior =
