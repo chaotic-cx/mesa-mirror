@@ -2366,6 +2366,9 @@ tu_emit_program_state(struct tu_cs *sub_cs,
                               &shaders[i]->const_state,
                               variants[i]);
 
+      if (shaders[i]->const_state.num_bindless_base_addresses)
+         prog->uses_bindless_base_addrs = true;
+
       struct tu_push_constant_range *push_consts =
          &shaders[i]->const_state.push_consts;
       if (push_consts->type == IR3_PUSH_CONSTS_SHARED ||

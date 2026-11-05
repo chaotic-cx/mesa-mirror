@@ -114,6 +114,11 @@ struct tu_program_state
 
       unsigned dynamic_descriptor_offsets[MAX_SETS];
 
+      /* Whether any shader reads the descriptor set base addresses from
+       * consts, so the consts have to be re-emitted when sets change.
+       */
+      bool uses_bindless_base_addrs;
+
       /* With FDM, we control the fragment area by overriding the viewport and
        * scsissor. In order to have different areas for different views, we
        * need to have a viewport/scissor per FDM layer. There are various
