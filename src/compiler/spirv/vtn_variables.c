@@ -687,6 +687,20 @@ _vtn_variable_load_store(struct vtn_builder *b, bool load,
                          enum gl_access_qualifier access,
                          struct vtn_ssa_value **inout)
 {
+   if (ptr->type->pointed->base_type == vtn_base_type_accel_struct &&
+       ptr->var && ptr->var->var &&
+       ptr->var->var->data.mode == nir_var_resource_heap) {
+      /* Acceleration structures loaded from the resource heap are
+       * descriptors, not raw data.
+       */
+      vtn_assert(load);
+      nir_deref_instr *deref = vtn_pointer_to_deref(b, ptr);
+      (*inout)->def = nir_load_buffer_ptr_deref(&b->nb, 1, 64, &deref->def,
+                                                .access = access,
+                                                .resource_type = nir_resource_type_acceleration_structure);
+      return;
+   }
+
    if (ptr->mode == vtn_variable_mode_uniform ||
        ptr->mode == vtn_variable_mode_image) {
       if (ptr->type->pointed->base_type == vtn_base_type_image ||
