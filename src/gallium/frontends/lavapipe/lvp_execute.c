@@ -2990,14 +2990,8 @@ static void handle_blit_image(struct vk_cmd_queue_entry *cmd,
       .dst.format = dst_image->planes[0].bo->format,
       .filter = blitcmd->filter == VK_FILTER_NEAREST ? PIPE_TEX_FILTER_NEAREST : PIPE_TEX_FILTER_LINEAR,
    };
-   if (util_format_is_depth_or_stencil(info.src.format)) {
-      if (src_image->vk.aspects & VK_IMAGE_ASPECT_DEPTH_BIT && dst_image->vk.aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
-         info.mask |= PIPE_MASK_Z;
-      if (src_image->vk.aspects & VK_IMAGE_ASPECT_STENCIL_BIT && dst_image->vk.aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
-         info.mask |= PIPE_MASK_S;
-   } else {
+   if (!util_format_is_depth_or_stencil(info.src.format))
       info.mask = PIPE_MASK_RGBA;
-   }
 
    for (uint32_t i = 0; i < blitcmd->regionCount; i++) {
       int srcX0, srcX1, srcY0, srcY1;
@@ -3042,6 +3036,15 @@ static void handle_blit_image(struct vk_cmd_queue_entry *cmd,
       bool zflip = blitcmd->pRegions[i].dstOffsets[0].z > blitcmd->pRegions[i].dstOffsets[1].z;
       apply_blit_depth_src(src_image, &info.src.box, &blitcmd->pRegions[i].srcSubresource, blitcmd->pRegions[i].srcOffsets, zflip);
       apply_blit_depth_dst(dst_image, &info.dst.box, &blitcmd->pRegions[i].dstSubresource, blitcmd->pRegions[i].dstOffsets);
+
+      if (util_format_is_depth_or_stencil(info.src.format)) {
+         const VkImageAspectFlags aspects = blitcmd->pRegions[i].srcSubresource.aspectMask;
+         info.mask = 0;
+         if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+            info.mask |= PIPE_MASK_Z;
+         if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
+            info.mask |= PIPE_MASK_S;
+      }
 
       info.src.level = blitcmd->pRegions[i].srcSubresource.mipLevel;
       info.dst.level = blitcmd->pRegions[i].dstSubresource.mipLevel;
