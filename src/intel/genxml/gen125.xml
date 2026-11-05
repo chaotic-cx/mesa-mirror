@@ -1277,8 +1277,8 @@
     <field name="3D Command Opcode" dword="0" bits="26:24" type="uint" default="0" />
     <field name="Command SubType" dword="0" bits="28:27" type="uint" default="3" />
     <field name="Command Type" dword="0" bits="31:29" type="uint" default="3" />
-    <field name="Tile Rectangle Height" dword="1" bits="14:0" type="uint" />
-    <field name="Tile Rectangle Width" dword="1" bits="30:16" type="uint" />
+    <field name="Tile Rectangle Height" dword="1" bits="13:0" type="uint" />
+    <field name="Tile Rectangle Width" dword="1" bits="29:16" type="uint" />
     <field name="Vertical Tile Count" dword="2" bits="15:0" type="uint" />
     <field name="Horizontal Tile Count" dword="2" bits="31:16" type="uint" />
     <field name="Walk Pattern" dword="3" bits="0:0" type="uint" />
