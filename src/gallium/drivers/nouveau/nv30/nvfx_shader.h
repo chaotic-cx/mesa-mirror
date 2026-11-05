@@ -261,6 +261,7 @@
 
 /* NV40 only fragment program opcodes */
 #define NVFX_FP_OP_OPCODE_TXL_NV40 0x2F
+#define NVFX_FP_OP_OPCODE_DP2_NV40 0x38
 #define NVFX_FP_OP_OPCODE_LITEX2_NV40 0x3C
 
 /* The use of these instructions appears to be indicated by bit 31 of DWORD 2.*/
