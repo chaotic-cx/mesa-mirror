@@ -1791,6 +1791,16 @@ kk_sanitize_index_range(struct kk_cmd_buffer *cmd, struct kk_addr_range range)
       range.range = sizeof(uint32_t);
    }
 
+   /* KK_WORKAROUND_12: macOS 26 requires addr + range to be 4 byte aligned due
+    * to a known bug where Metal drops the last index if addr + range is not 4
+    * byte aligned. The extra bytes will not be read. The issue is not present
+    * in macOS 27.
+    */
+   struct kk_physical_device *pdev =
+      kk_device_physical(kk_cmd_buffer_device(cmd));
+   if (!(pdev->settings.disabled_workarounds & BITFIELD64_BIT(12)))
+      range.range = align64(range.addr + range.range, 4u) - range.addr;
+
    return range;
 }
 
