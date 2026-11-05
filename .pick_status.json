@@ -2944,7 +2944,7 @@
         "description": "freedreno/ci: drop the fixed a702 uniform texel buffer barrier tests",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "cadc7e42fb721dca2531df1f80ff381a1d04134d",
         "notes": null
