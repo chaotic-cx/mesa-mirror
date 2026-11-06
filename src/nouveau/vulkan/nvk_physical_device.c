@@ -1494,11 +1494,11 @@ nvk_physical_device_init_pipeline_cache(struct nvk_physical_device *pdev)
                                pdev->info.chipset);
    assert(len == sizeof(renderer) - 2);
 
-   char timestamp[BLAKE3_HEX_LEN];
-   _mesa_blake3_format(timestamp, instance->driver_build_sha);
+   char driver_id[BLAKE3_HEX_LEN];
+   _mesa_blake3_format(driver_id, blake3);
 
    const uint64_t driver_flags = nvk_physical_device_compiler_flags(pdev);
-   pdev->vk.disk_cache = disk_cache_create(renderer, timestamp, driver_flags);
+   pdev->vk.disk_cache = disk_cache_create(renderer, driver_id, driver_flags);
    if (pdev->vk.disk_cache != NULL) {
       pdev->vk.properties.pipelineBinaryInternalCache = true;
       pdev->vk.properties.pipelineBinaryInternalCacheControl = true;
