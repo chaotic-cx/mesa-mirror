@@ -168,6 +168,8 @@ var_info_cmp(const void *_a, const void *_b)
 
    if (a->is_constant != b->is_constant) {
       return (int)a->is_constant - (int)b->is_constant;
+   } else if (a->is_small != b->is_small) {
+      return (int)a->is_small - (int)b->is_small;
    } else if (a_size < b_size) {
       return -1;
    } else if (a_size > b_size) {
