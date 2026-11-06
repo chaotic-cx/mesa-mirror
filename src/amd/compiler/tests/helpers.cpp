@@ -216,7 +216,7 @@ finish_validator_test()
    finish_program(program.get(), true, true);
    aco_print_program(program.get(), output);
    fprintf(output, "Validation results:\n");
-   if (aco::validate_ir(program.get()))
+   if (aco::validate_ir(program.get()) && aco::validate_cfg(program.get()))
       fprintf(output, "Validation passed\n");
    else
       fprintf(output, "Validation failed\n");
@@ -226,12 +226,12 @@ void
 finish_opt_test()
 {
    finish_program(program.get(), true, true);
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation before optimization failed");
       return;
    }
    aco::optimize(program.get());
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation after optimization failed");
       return;
    }
@@ -242,12 +242,12 @@ void
 finish_setup_reduce_temp_test()
 {
    finish_program(program.get(), true, true);
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation before setup_reduce_temp failed");
       return;
    }
    aco::setup_reduce_temp(program.get());
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation after setup_reduce_temp failed");
       return;
    }
@@ -258,12 +258,12 @@ void
 finish_lower_subdword_test()
 {
    finish_program(program.get(), true, true);
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation before lower_subdword failed");
       return;
    }
    aco::lower_subdword(program.get());
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation after lower_subdword failed");
       return;
    }
@@ -274,7 +274,7 @@ void
 finish_ra_test(ra_test_policy policy)
 {
    finish_program(program.get(), true, true);
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation before register allocation failed");
       return;
    }
@@ -283,7 +283,7 @@ finish_ra_test(ra_test_policy policy)
    aco::live_var_analysis(program.get());
    aco::register_allocation(program.get(), policy);
 
-   if (aco::validate_ra(program.get())) {
+   if (aco::validate_ra(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation after register allocation failed");
       return;
    }
@@ -296,7 +296,7 @@ finish_optimizer_postRA_test()
 {
    finish_program(program.get(), true, true);
 
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation before optimize_postRA failed");
       return;
    }
@@ -306,7 +306,7 @@ finish_optimizer_postRA_test()
 
    aco::optimize_postRA(program.get());
 
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation after optimize_postRA failed");
       return;
    }
@@ -319,14 +319,14 @@ finish_to_hw_instr_test()
 {
    finish_program(program.get(), true, true);
 
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation before lower_to_hw_instr failed");
       return;
    }
 
    aco::lower_to_hw_instr(program.get());
 
-   if (!aco::validate_ir(program.get())) {
+   if (!aco::validate_ir(program.get()) || !aco::validate_cfg(program.get())) {
       fail_test("Validation after lower_to_hw_instr failed");
       return;
    }

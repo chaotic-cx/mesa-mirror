@@ -822,6 +822,11 @@ add_startpgm(struct isel_context* ctx, bool is_callee)
 static void
 cleanup_cfg(Program* program)
 {
+   for (const Block& block : program->blocks) {
+      assert(block.linear_succs.empty());
+      assert(block.logical_succs.empty());
+   }
+
    /* create linear_succs/logical_succs */
    for (Block& BB : program->blocks) {
       for (unsigned idx : BB.linear_preds)
