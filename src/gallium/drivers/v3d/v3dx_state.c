@@ -673,6 +673,9 @@ v3d_upload_sampler_state_variant(void *map,
                         case V3D_SAMPLER_STATE_F16_LA:
                         case V3D_SAMPLER_STATE_F16_LA_UNORM:
                         case V3D_SAMPLER_STATE_F16_LA_SNORM:
+                        case V3D_SAMPLER_STATE_32_LA:
+                        case V3D_SAMPLER_STATE_32_LA_UNORM:
+                        case V3D_SAMPLER_STATE_32_LA_SNORM:
                                 border.i[0] = cso->border_color.i[0];
                                 border.i[1] = cso->border_color.i[3];
                                 border.i[2] = 0;
@@ -691,6 +694,7 @@ v3d_upload_sampler_state_variant(void *map,
                         case V3D_SAMPLER_STATE_F16_LA_UNORM:
                         case V3D_SAMPLER_STATE_32_UNORM:
                         case V3D_SAMPLER_STATE_32_A_UNORM:
+                        case V3D_SAMPLER_STATE_32_LA_UNORM:
                                 for (int i = 0; i < 4; i++)
                                         border.f[i] = CLAMP(border.f[i], 0, 1);
                                 break;
@@ -701,6 +705,7 @@ v3d_upload_sampler_state_variant(void *map,
                         case V3D_SAMPLER_STATE_F16_LA_SNORM:
                         case V3D_SAMPLER_STATE_32_SNORM:
                         case V3D_SAMPLER_STATE_32_A_SNORM:
+                        case V3D_SAMPLER_STATE_32_LA_SNORM:
                                 for (int i = 0; i < 4; i++)
                                         border.f[i] = CLAMP(border.f[i], -1, 1);
                                 break;
@@ -1127,7 +1132,9 @@ v3d_create_sampler_view(struct pipe_context *pctx, struct pipe_resource *prsc,
                 }
         } else {
                 if (v3d_get_tex_return_size(&screen->devinfo, sample_format) == 32) {
-                        if (util_format_is_alpha(sample_format))
+                        if (util_format_is_luminance_alpha(sample_format))
+                                so->sampler_variant = V3D_SAMPLER_STATE_32_LA;
+                        else if (util_format_is_alpha(sample_format))
                                 so->sampler_variant = V3D_SAMPLER_STATE_32_A;
                         else
                                 so->sampler_variant = V3D_SAMPLER_STATE_32;
