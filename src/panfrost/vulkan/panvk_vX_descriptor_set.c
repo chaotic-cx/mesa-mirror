@@ -272,8 +272,76 @@ static void
 write_iub(struct panvk_descriptor_set *set, uint32_t binding,
           uint32_t dst_offset, uint32_t count, const void *data)
 {
-   /* First slot is the actual buffer descriptor. */
-   write_desc_data(set, binding, 1, NO_SUBDESC, dst_offset, data, count);
+   /* note: an application can issue writes spanning multiple IUBs.
+    * double note: the write doesn't even have to touch the target binding!
+    * it can instead directly offset into later IUBs! nice one, Vulkan.. */
+   uint32_t offset = dst_offset;
+   while (count) {
+      const struct panvk_descriptor_set_binding_layout *binding_layout =
+         &set->layout->bindings[binding];
+      /* this "desc_count" is in bytes */
+      const uint32_t binding_size = binding_layout->desc_count;
+
+      /* handle skips and zero sized bindings */
+      if (offset >= binding_size) {
+         offset -= binding_size;
+         binding += 1;
+         continue;
+      }
+      /* stop writing when overflowing to another non-zero descriptor type. */
+      if (binding_layout->type != VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK)
+         break;
+
+      const uint32_t copy_size = MIN2(count, binding_size - offset);
+
+      /* First slot is the actual buffer descriptor. */
+      write_desc_data(set, binding, 1, NO_SUBDESC, offset, data, copy_size);
+
+      data += copy_size;
+      offset = 0;
+      count -= copy_size;
+      binding += 1;
+   }
+}
+
+static void
+copy_iub(const VkCopyDescriptorSet *copy)
+{
+   /* much like in write_iub, we need to be careful here by skipping the
+    * internal buffer descriptors. a copy can span multiple, completely
+    * different src and dst IUB layouts with different offsets for each. */
+   VK_FROM_HANDLE(panvk_descriptor_set, src_set, copy->srcSet);
+   VK_FROM_HANDLE(panvk_descriptor_set, dst_set, copy->dstSet);
+   uint32_t src_copy_size = copy->descriptorCount;
+   uint32_t src_binding = copy->srcBinding;
+   uint32_t src_offset = copy->srcArrayElement;
+   uint32_t dst_offset = copy->dstArrayElement;
+   while (src_copy_size) {
+      const struct panvk_descriptor_set_binding_layout *src_binding_layout =
+         &src_set->layout->bindings[src_binding];
+      /* this "desc_count" is in bytes */
+      const uint32_t src_binding_size = src_binding_layout->desc_count;
+
+      /* handle skips and zero sized bindings */
+      if (src_offset >= src_binding_size) {
+         src_offset -= src_binding_size;
+         src_binding += 1;
+         continue;
+      }
+      assert(src_binding_layout->type ==
+             VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK);
+      const uint32_t copy_size =
+         MIN2(src_copy_size, src_binding_size - src_offset);
+
+      const void *src = get_desc_slot_ptr(src_set, src_binding, 1, NO_SUBDESC);
+      src += src_offset;
+      write_iub(dst_set, copy->dstBinding, dst_offset, copy_size, src);
+
+      dst_offset += copy_size;
+      src_offset = 0;
+      src_copy_size -= copy_size;
+      src_binding += 1;
+   }
 }
 
 static void
@@ -485,8 +553,8 @@ panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
       panvk_get_desc_index(binding_layout, 1, NO_SUBDESC) *
       PANVK_DESCRIPTOR_SIZE;
    uint64_t iub_data_dev = set->descs.dev + iub_data_offset;
-   uint32_t iub_desc_count = has_variable_count ?
-      panvk_get_iub_desc_count(variable_count) : binding_layout->desc_count;
+   uint32_t iub_desc_count = panvk_get_iub_desc_count(
+      has_variable_count ? variable_count : binding_layout->desc_count);
    uint32_t iub_size_dev = panvk_get_iub_size(iub_desc_count);
 
 #if PAN_ARCH < 9
@@ -527,7 +595,8 @@ panvk_desc_pool_allocate_set(struct panvk_descriptor_pool *pool,
           !vk_descriptor_type_is_dynamic(layout->bindings[last_binding].type)) {
          if (layout->bindings[last_binding].type ==
              VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
-            num_descs -= layout->bindings[last_binding].desc_count;
+            num_descs -= panvk_get_iub_desc_count(
+               layout->bindings[last_binding].desc_count);
             num_descs += panvk_get_iub_desc_count(variable_count);
          } else {
             uint32_t desc_stride =
@@ -794,11 +863,7 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    }
 
    case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK: {
-      const void *src =
-         get_desc_slot_ptr(src_set, copy->srcBinding, 0, NO_SUBDESC);
-      src += PANVK_DESCRIPTOR_SIZE + copy->srcArrayElement;
-      write_iub(dst_set, copy->dstBinding, copy->dstArrayElement,
-                copy->descriptorCount, src);
+      copy_iub(copy);
       break;
    }
 

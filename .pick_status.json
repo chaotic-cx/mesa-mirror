@@ -714,7 +714,7 @@
         "description": "panvk: fix consecutive IUB updates",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "2ec6527c70a04c27dca36ffab7e9e2ddb317eb18",
         "notes": null
