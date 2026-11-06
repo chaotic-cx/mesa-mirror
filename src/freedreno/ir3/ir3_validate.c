@@ -273,6 +273,12 @@ validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
 {
    struct ir3_register *last_reg = NULL;
 
+   /* This is a validation of these helpers and not of instructions but we might
+    * as well put it here. No instruction should be both a (ss) and (sy)
+    * producer at the same time.
+    */
+   validate_assert(ctx, !(is_ss_producer(instr) && is_sy_producer(instr)));
+
    validate_rpt(ctx, instr);
 
    /* Use alias-group-aware iterator to make sure the src number will be the
