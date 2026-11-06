@@ -2767,21 +2767,6 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
 }
 
 void
-radv_graphics_shaders_create(struct radv_device *device, struct vk_pipeline_cache *cache, bool skip_shaders_cache,
-                             struct radv_shader **shaders, struct radv_shader_binary **binaries,
-                             struct radv_shader_debug_info *debug, struct radv_shader **gs_copy_shader,
-                             struct radv_shader_binary *gs_copy_binary, struct radv_shader_debug_info *gs_copy_debug)
-{
-   for (int i = 0; i < MESA_VULKAN_SHADER_STAGES; ++i) {
-      struct radv_shader_binary *binary = binaries[i];
-      if (binary)
-         shaders[i] = radv_shader_create(device, cache, binary, skip_shaders_cache, &debug[i]);
-   }
-   if (gs_copy_binary)
-      *gs_copy_shader = radv_shader_create(device, cache, gs_copy_binary, skip_shaders_cache, gs_copy_debug);
-}
-
-void
 radv_graphics_pipeline_state_finish(struct radv_device *device, struct radv_graphics_pipeline_state *gfx_state)
 {
    radv_pipeline_layout_finish(device, &gfx_state->layout);

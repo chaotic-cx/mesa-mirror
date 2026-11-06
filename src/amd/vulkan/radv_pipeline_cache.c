@@ -209,6 +209,21 @@ radv_shader_create(struct radv_device *device, struct vk_pipeline_cache *cache, 
    return shader_obj ? container_of(shader_obj, struct radv_shader, base) : NULL;
 }
 
+void
+radv_graphics_shaders_create(struct radv_device *device, struct vk_pipeline_cache *cache, bool skip_shaders_cache,
+                             struct radv_shader **shaders, struct radv_shader_binary **binaries,
+                             struct radv_shader_debug_info *debug, struct radv_shader **gs_copy_shader,
+                             struct radv_shader_binary *gs_copy_binary, struct radv_shader_debug_info *gs_copy_debug)
+{
+   for (int i = 0; i < MESA_VULKAN_SHADER_STAGES; ++i) {
+      struct radv_shader_binary *binary = binaries[i];
+      if (binary)
+         shaders[i] = radv_shader_create(device, cache, binary, skip_shaders_cache, &debug[i]);
+   }
+   if (gs_copy_binary)
+      *gs_copy_shader = radv_shader_create(device, cache, gs_copy_binary, skip_shaders_cache, gs_copy_debug);
+}
+
 const struct vk_pipeline_cache_object_ops radv_shader_ops = {
    .serialize = radv_shader_cache_serialize,
    .deserialize = radv_shader_cache_deserialize,

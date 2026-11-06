@@ -681,12 +681,6 @@ void radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_inf
                                    struct radv_shader_debug_info *gs_copy_debug,
                                    struct radv_shader_binary **gs_copy_binary);
 
-void radv_graphics_shaders_create(struct radv_device *device, struct vk_pipeline_cache *cache, bool skip_shaders_cache,
-                                  struct radv_shader **shaders, struct radv_shader_binary **binaries,
-                                  struct radv_shader_debug_info *debug, struct radv_shader **gs_copy_shader,
-                                  struct radv_shader_binary *gs_copy_binary,
-                                  struct radv_shader_debug_info *gs_copy_debug);
-
 struct radv_vgt_shader_key {
    uint8_t tess : 1;
    uint8_t gs : 1;
