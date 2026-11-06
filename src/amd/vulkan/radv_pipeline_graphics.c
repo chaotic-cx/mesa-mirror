@@ -2394,46 +2394,29 @@ radv_skip_graphics_pipeline_compile(const struct radv_device *device, const VkGr
 }
 
 void
-radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, struct vk_pipeline_cache *cache,
-                              struct radv_shader_stage *stages, const struct radv_graphics_state_key *gfx_state,
-                              bool is_internal, struct radv_retained_shaders *retained_shaders, bool noop_fs,
-                              struct radv_shader_debug_info *debug, struct radv_shader_binary **binaries,
-                              struct radv_shader_debug_info *gs_copy_debug, struct radv_shader_binary **gs_copy_binary)
+radv_graphics_shaders_spirv_to_nir(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *stages,
+                                   bool is_internal)
 {
-   const bool nir_cache = compiler_info->enable_nir_cache;
-
    for (unsigned s = 0; s < MESA_VULKAN_SHADER_STAGES; s++) {
-      if (stages[s].stage == MESA_SHADER_NONE)
+      /* NIR might already have been imported from a library or found in the cache. */
+      if (stages[s].stage == MESA_SHADER_NONE || stages[s].nir)
          continue;
 
       int64_t stage_start = os_time_get_nano();
 
-      /* NIR might already have been imported from a library. */
-      if (!stages[s].nir) {
-         struct radv_spirv_to_nir_options options = {
-            .lower_view_index_to_zero = !stages[s].key.multiview,
-            .lower_view_index_to_device_index = stages[s].key.view_index_from_device_index,
-         };
-         blake3_hash key;
-
-         if (nir_cache) {
-            radv_hash_graphics_spirv_to_nir(key, &stages[s], &options);
-            stages[s].nir = radv_pipeline_cache_lookup_nir(compiler_info, cache, s, key);
-         }
-         if (!stages[s].nir) {
-            stages[s].nir = radv_shader_spirv_to_nir(compiler_info, &stages[s], &options, is_internal);
-            if (nir_cache)
-               radv_pipeline_cache_insert_nir(compiler_info, cache, key, stages[s].nir);
-         }
-      }
+      const struct radv_spirv_to_nir_options options = radv_get_graphics_spirv_to_nir_options(&stages[s]);
+      stages[s].nir = radv_shader_spirv_to_nir(compiler_info, &stages[s], &options, is_internal);
 
       stages[s].feedback.duration += os_time_get_nano() - stage_start;
    }
+}
 
-   if (retained_shaders) {
-      radv_pipeline_retain_shaders(retained_shaders, stages);
-   }
-
+void
+radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *stages,
+                              const struct radv_graphics_state_key *gfx_state, bool noop_fs,
+                              struct radv_shader_debug_info *debug, struct radv_shader_binary **binaries,
+                              struct radv_shader_debug_info *gs_copy_debug, struct radv_shader_binary **gs_copy_binary)
+{
    VkShaderStageFlagBits active_nir_stages = 0;
    for (int i = 0; i < MESA_VULKAN_SHADER_STAGES; i++) {
       if (stages[i].nir)
@@ -3016,8 +2999,15 @@ radv_graphics_pipeline_compile(struct radv_graphics_pipeline *pipeline, const Vk
 
    struct radv_shader_debug_info debug[MESA_VULKAN_SHADER_STAGES] = {0};
    struct radv_shader_debug_info gs_copy_debug = {0};
-   radv_graphics_shaders_compile(compiler_info, cache, stages, &gfx_state->key.gfx_state, pipeline->base.is_internal,
-                                 retained_shaders, noop_fs, debug, binaries, &gs_copy_debug, &gs_copy_binary);
+   const VkShaderStageFlags nir_cache_misses = radv_graphics_shaders_lookup_nir(compiler_info, cache, stages);
+   radv_graphics_shaders_spirv_to_nir(compiler_info, stages, pipeline->base.is_internal);
+   radv_graphics_shaders_insert_nir(compiler_info, cache, stages, nir_cache_misses);
+
+   if (retained_shaders)
+      radv_pipeline_retain_shaders(retained_shaders, stages);
+
+   radv_graphics_shaders_compile(compiler_info, stages, &gfx_state->key.gfx_state, noop_fs, debug, binaries,
+                                 &gs_copy_debug, &gs_copy_binary);
    radv_graphics_shaders_create(device, cache, skip_shaders_cache, pipeline->base.shaders, binaries, debug,
                                 &pipeline->base.gs_copy_shader, gs_copy_binary, &gs_copy_debug);
 

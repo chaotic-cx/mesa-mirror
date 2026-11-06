@@ -672,9 +672,11 @@ void radv_init_ps_epilog_format_infos(struct radv_compiler_info *compiler_info);
 struct radv_ps_epilog_key radv_generate_ps_epilog_key(const struct radv_compiler_info *compiler_info,
                                                       const struct radv_ps_epilog_state *state);
 
-void radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, struct vk_pipeline_cache *cache,
-                                   struct radv_shader_stage *stages, const struct radv_graphics_state_key *gfx_state,
-                                   bool is_internal, struct radv_retained_shaders *retained_shaders, bool noop_fs,
+void radv_graphics_shaders_spirv_to_nir(const struct radv_compiler_info *compiler_info,
+                                        struct radv_shader_stage *stages, bool is_internal);
+
+void radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *stages,
+                                   const struct radv_graphics_state_key *gfx_state, bool noop_fs,
                                    struct radv_shader_debug_info *debug, struct radv_shader_binary **binaries,
                                    struct radv_shader_debug_info *gs_copy_debug,
                                    struct radv_shader_binary **gs_copy_binary);

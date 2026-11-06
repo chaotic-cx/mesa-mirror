@@ -63,6 +63,12 @@ nir_shader *radv_pipeline_cache_lookup_nir(const struct radv_compiler_info *comp
 void radv_pipeline_cache_insert_nir(const struct radv_compiler_info *compiler_info, struct vk_pipeline_cache *cache,
                                     const blake3_hash key, const nir_shader *nir);
 
+VkShaderStageFlags radv_graphics_shaders_lookup_nir(const struct radv_compiler_info *compiler_info,
+                                                    struct vk_pipeline_cache *cache, struct radv_shader_stage *stages);
+
+void radv_graphics_shaders_insert_nir(const struct radv_compiler_info *compiler_info, struct vk_pipeline_cache *cache,
+                                      struct radv_shader_stage *stages, VkShaderStageFlags nir_cache_misses);
+
 struct nir_shader *radv_pipeline_cache_handle_to_nir(const struct radv_compiler_info *compiler_info,
                                                      struct vk_pipeline_cache_object *object);
 

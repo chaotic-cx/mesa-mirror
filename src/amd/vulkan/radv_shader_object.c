@@ -199,8 +199,9 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
       struct radv_shader_debug_info debug[MESA_VULKAN_SHADER_STAGES] = {0};
       struct radv_shader_debug_info gs_copy_debug = {0};
 
-      radv_graphics_shaders_compile(&device->compiler_info, NULL, stages, &gfx_state, false, NULL, false, debug,
-                                    binaries, &gs_copy_debug, &gs_copy_binary);
+      radv_graphics_shaders_spirv_to_nir(&device->compiler_info, stages, false);
+      radv_graphics_shaders_compile(&device->compiler_info, stages, &gfx_state, false, debug, binaries, &gs_copy_debug,
+                                    &gs_copy_binary);
       radv_graphics_shaders_create(device, NULL, true, shaders, binaries, debug, &shader_obj->gs.copy_shader,
                                    gs_copy_binary, &gs_copy_debug);
 
@@ -234,8 +235,9 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
          radv_shader_stage_init(device, pCreateInfo, layout_info, &stages[stage]);
          stages[stage].next_stage = next_stage;
 
-         radv_graphics_shaders_compile(&device->compiler_info, NULL, stages, &gfx_state, false, NULL, false, debug,
-                                       binaries, &gs_copy_debug, &gs_copy_binary);
+         radv_graphics_shaders_spirv_to_nir(&device->compiler_info, stages, false);
+         radv_graphics_shaders_compile(&device->compiler_info, stages, &gfx_state, false, debug, binaries,
+                                       &gs_copy_debug, &gs_copy_binary);
          radv_graphics_shaders_create(device, NULL, true, shaders, binaries, debug, &shader_obj->gs.copy_shader,
                                       gs_copy_binary, &gs_copy_debug);
 
@@ -538,8 +540,9 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
    struct radv_shader_binary *gs_copy_binary = NULL;
    struct radv_shader_debug_info gs_copy_debug = {0};
 
-   radv_graphics_shaders_compile(&device->compiler_info, NULL, stages, &gfx_state, false, NULL, false, debug, binaries,
-                                 &gs_copy_debug, &gs_copy_binary);
+   radv_graphics_shaders_spirv_to_nir(&device->compiler_info, stages, false);
+   radv_graphics_shaders_compile(&device->compiler_info, stages, &gfx_state, false, debug, binaries, &gs_copy_debug,
+                                 &gs_copy_binary);
    radv_graphics_shaders_create(device, NULL, true, shaders, binaries, debug, &gs_copy_shader, gs_copy_binary,
                                 &gs_copy_debug);
 

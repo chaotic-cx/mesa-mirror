@@ -298,6 +298,15 @@ struct radv_shader_stage {
    struct radv_shader_layout layout;
 };
 
+static inline struct radv_spirv_to_nir_options
+radv_get_graphics_spirv_to_nir_options(const struct radv_shader_stage *stage)
+{
+   return (struct radv_spirv_to_nir_options){
+      .lower_view_index_to_zero = !stage->key.multiview,
+      .lower_view_index_to_device_index = stage->key.view_index_from_device_index,
+   };
+}
+
 static inline bool
 radv_is_last_vgt_stage(const struct radv_shader_stage *stage)
 {
