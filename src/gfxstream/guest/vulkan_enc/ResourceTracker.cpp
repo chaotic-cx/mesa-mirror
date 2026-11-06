@@ -2267,6 +2267,8 @@ void ResourceTracker::on_vkGetPhysicalDeviceProperties2(void* context,
         pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT);
     auto* pciProps = vk_extract_struct<VkPhysicalDevicePCIBusInfoPropertiesEXT>(
         pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT);
+    auto* layeredPropsList = vk_extract_struct<VkPhysicalDeviceLayeredApiPropertiesListKHR>(
+        pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_API_PROPERTIES_LIST_KHR);
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     auto* presentationProps = vk_extract_struct<VkPhysicalDevicePresentationPropertiesANDROID>(
         pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENTATION_PROPERTIES_ANDROID);
@@ -2282,11 +2284,37 @@ void ResourceTracker::on_vkGetPhysicalDeviceProperties2(void* context,
         __vk_append_struct(pProperties, &driverPropsLocal);
     }
 
+    VkPhysicalDeviceLayeredApiVulkanPropertiesKHR* layeredVkProps =
+        (layeredPropsList && layeredPropsList->pLayeredApis &&
+         layeredPropsList->layeredApiCount > 0)
+            ? vk_find_struct(&layeredPropsList->pLayeredApis[0],
+                             PHYSICAL_DEVICE_LAYERED_API_VULKAN_PROPERTIES_KHR)
+            : nullptr;
+    VkPhysicalDeviceIDProperties* layeredIdProps =
+        layeredVkProps ? vk_find_struct(&layeredVkProps->properties, PHYSICAL_DEVICE_ID_PROPERTIES)
+                       : nullptr;
+
+    VkPhysicalDeviceIDProperties idPropsLocal = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
+    VkPhysicalDeviceVulkan11Properties* hostVk11Props =
+        vk_find_struct(pProperties, PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES);
+    VkPhysicalDeviceIDProperties* hostIdProps =
+        vk_find_struct(pProperties, PHYSICAL_DEVICE_ID_PROPERTIES);
+    if (layeredIdProps && !hostIdProps && !hostVk11Props) {
+        hostIdProps = &idPropsLocal;
+        __vk_append_struct(pProperties, &idPropsLocal);
+    }
+
     enc->vkGetPhysicalDeviceProperties2(physicalDevice, pProperties, false /* no lock */);
 
-    // Filter driver properties from the pNext chain if it was appended locally
+    // Extract driver and ID properties from the pNext chain if appended locally
     if (hostDriverProps == &driverPropsLocal) {
-        vk_filter_struct(pProperties, PHYSICAL_DEVICE_DRIVER_PROPERTIES);
+        vk_extract_struct<VkPhysicalDeviceDriverProperties>(
+            pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES);
+    }
+    if (hostIdProps == &idPropsLocal) {
+        vk_extract_struct<VkPhysicalDeviceIDProperties>(
+            pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES);
     }
 
     // Re-append extracted guest-only structures
@@ -2296,11 +2324,63 @@ void ResourceTracker::on_vkGetPhysicalDeviceProperties2(void* context,
     if (pciProps) {
         __vk_append_struct(pProperties, pciProps);
     }
+    if (layeredPropsList) {
+        __vk_append_struct(pProperties, layeredPropsList);
+    }
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     if (presentationProps) {
         __vk_append_struct(pProperties, presentationProps);
     }
 #endif
+
+    // Must populate before top-level pProperties and pNext structs are overwritten below.
+    if (layeredPropsList) {
+        if (!layeredPropsList->pLayeredApis) {
+            layeredPropsList->layeredApiCount = 1;
+        } else if (layeredPropsList->layeredApiCount > 0) {
+            layeredPropsList->layeredApiCount = 1;
+            VkPhysicalDeviceLayeredApiPropertiesKHR* layeredApiProps =
+                &layeredPropsList->pLayeredApis[0];
+            layeredApiProps->vendorID = pProperties->properties.vendorID;
+            layeredApiProps->deviceID = pProperties->properties.deviceID;
+            layeredApiProps->layeredAPI = VK_PHYSICAL_DEVICE_LAYERED_API_VULKAN_KHR;
+            memcpy(layeredApiProps->deviceName, pProperties->properties.deviceName,
+                   sizeof(layeredApiProps->deviceName));
+
+            if (layeredVkProps) {
+                layeredVkProps->properties.properties = pProperties->properties;
+                memset(&layeredVkProps->properties.properties.limits, 0,
+                       sizeof(layeredVkProps->properties.properties.limits));
+                memset(&layeredVkProps->properties.properties.sparseProperties, 0,
+                       sizeof(layeredVkProps->properties.properties.sparseProperties));
+
+                if (auto* layeredDriverProps = vk_find_struct(&layeredVkProps->properties,
+                                                              PHYSICAL_DEVICE_DRIVER_PROPERTIES)) {
+                    layeredDriverProps->driverID = hostDriverProps->driverID;
+                    memcpy(layeredDriverProps->driverName, hostDriverProps->driverName,
+                           sizeof(layeredDriverProps->driverName));
+                    memcpy(layeredDriverProps->driverInfo, hostDriverProps->driverInfo,
+                           sizeof(layeredDriverProps->driverInfo));
+                    layeredDriverProps->conformanceVersion = hostDriverProps->conformanceVersion;
+                }
+
+                if (layeredIdProps) {
+                    auto copy_id_props = [](auto* dst, const auto* src) {
+                        memcpy(dst->deviceUUID, src->deviceUUID, sizeof(dst->deviceUUID));
+                        memcpy(dst->driverUUID, src->driverUUID, sizeof(dst->driverUUID));
+                        memcpy(dst->deviceLUID, src->deviceLUID, sizeof(dst->deviceLUID));
+                        dst->deviceNodeMask = src->deviceNodeMask;
+                        dst->deviceLUIDValid = src->deviceLUIDValid;
+                    };
+                    if (hostIdProps) {
+                        copy_id_props(layeredIdProps, hostIdProps);
+                    } else if (hostVk11Props) {
+                        copy_id_props(layeredIdProps, hostVk11Props);
+                    }
+                }
+            }
+        }
+    }
 
     // Overwrite device type and driver properties
     pProperties->properties.deviceType = VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU;
