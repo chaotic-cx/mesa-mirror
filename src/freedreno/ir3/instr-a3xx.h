@@ -651,24 +651,7 @@ static inline bool
 is_sat_compatible(opc_t opc)
 {
    /* On a6xx saturation doesn't work on cat4 */
-   if (opc_cat(opc) != 2 && opc_cat(opc) != 3)
-      return false;
-
-   switch (opc) {
-   /* On a3xx and a6xx saturation doesn't work on bary.f/flat.b */
-   case OPC_BARY_F:
-   case OPC_FLAT_B:
-   /* On a6xx saturation doesn't work on sel.* */
-   case OPC_SEL_B16:
-   case OPC_SEL_B32:
-   case OPC_SEL_S16:
-   case OPC_SEL_S32:
-   case OPC_SEL_F16:
-   case OPC_SEL_F32:
-      return false;
-   default:
-      return true;
-   }
+   return is_cat2_float(opc) || is_cat3_float(opc);
 }
 
 static inline bool
