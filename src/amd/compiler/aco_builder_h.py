@@ -421,6 +421,31 @@ public:
          return vop3(aco_opcode::v_mul_lo_u32, dst, op1, op2);
    }
 
+   Result v_mul_u32_u32_u24(Definition dst, Temp tmp0, Temp tmp1)
+   {
+      assert(program->gfx_level >= GFX8 && program->gfx_level < GFX11);
+
+      /* SDWA dosen't support SGPRs on GFX8. */
+      if (program->gfx_level == GFX8) {
+         if (tmp0.regClass() == s1)
+            tmp0 = copy(def(v1), tmp0);
+         if (tmp1.regClass() == s1)
+            tmp1 = copy(def(v1), tmp1);
+      }
+
+      /* Split a[31:0] * b[23:0] into ((a[31:24] * b[7:0]) << 24) + a[23:0] * b[23:0].
+       * We only need 8 bits from the high multiplication, so use the cheapest
+       * opcode that can use SDWA to express the extracts and shift.
+       */
+      aco_opcode opcode = program->gfx_level >= GFX10 ? aco_opcode::v_mul_u32_u24 : aco_opcode::v_mul_lo_u16;
+      Result high = vop2_sdwa(opcode, def(v1), tmp0, tmp1);
+      high->sdwa().sel[0] = SubdwordSel::ubyte3;
+      high->sdwa().sel[1] = SubdwordSel::ubyte0;
+      high->sdwa().dst_sel = SubdwordSel::ubyte3;
+
+      return vop3(aco_opcode::v_mad_u32_u24, Definition(dst), tmp0, tmp1, high);
+   }
+
    Result v_mul_imm(Definition dst, Temp tmp, uint32_t imm, uint32_t uub=UINT32_MAX)
    {
       assert(tmp.type() == RegType::vgpr);
@@ -429,8 +454,11 @@ public:
       bool use_imul24 = (imm <= 0x7f'ffffu || imm >= 0xff80'0000u) && (uub <= 0x7f'ffffu || (imm & 0xffu) == 0);
       bool use_umul32_16 = imm <= UINT16_MAX;
       bool use_umul16_32 = uub <= UINT16_MAX || (imm & 0xffffu) == 0;
+      bool use_umul32_24 = imm <= 0xff'ffffu;
+      bool use_umul24_32 = uub <= 0xff'ffffu || (imm & 0xffu) == 0;
 
       bool has_lshl_add = program->gfx_level >= GFX9;
+      bool has_sdwa = program->gfx_level >= GFX8 && program->gfx_level < GFX11;
       unsigned shift_add_cost = util_bitcount(imm & ~0x1);
       if (!has_lshl_add)
          shift_add_cost += util_bitcount(imm) - 1; /* additions */
@@ -464,6 +492,10 @@ public:
          return vop3(aco_opcode::p_v_mad_u32_u32_u16, dst, src0, src1, Operand::c32(0));
       } else if (MIN2(mul_cost, shift_add_cost) > 1 && util_is_power_of_two_nonzero(imm + 1u)) {
          return vsub32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm + 1u) - 1u), tmp), tmp);
+      } else if (MIN2(mul_cost, shift_add_cost) > 2 && has_sdwa && (use_umul32_24 || use_umul24_32)) {
+         Temp src0 = use_umul32_24 ? tmp : copy(def(s1), Operand::c32(imm));
+         Temp src1 = use_umul32_24 ? copy(def(s1), Operand::c32(imm)) : tmp;
+         return v_mul_u32_u32_u24(dst, src0, src1);
       } else if (shift_add_cost < mul_cost) {
          Result res(NULL);
          Temp cur;

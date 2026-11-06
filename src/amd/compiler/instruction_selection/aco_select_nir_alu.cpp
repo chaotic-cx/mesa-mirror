@@ -1792,6 +1792,12 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             Temp src0 = get_alu_src(ctx, instr->src[swap]);
             Temp src1 = get_alu_src(ctx, instr->src[!swap]);
             bld.vop3(aco_opcode::p_v_mad_u32_u32_u16, Definition(dst), src0, src1, Operand::c32(0));
+         } else if ((src0_ub <= 0xff'ffffu || src1_ub <= 0xff'ffffu) &&
+                    ctx->program->gfx_level >= GFX8 && ctx->program->gfx_level < GFX11) {
+            bool swap = src0_ub <= 0xff'ffffu;
+            Temp src0 = get_alu_src(ctx, instr->src[swap]);
+            Temp src1 = get_alu_src(ctx, instr->src[!swap]);
+            bld.v_mul_u32_u32_u24(Definition(dst), src0, src1);
          } else {
             bld.v_mul_u32(Definition(dst), get_alu_src(ctx, instr->src[0]),
                           get_alu_src(ctx, instr->src[1]));
