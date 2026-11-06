@@ -16,15 +16,7 @@ The title should effectively distinguish this bug report from others and be spec
 
 ### System information
 
-Please post `inxi -GSC -xx` output ([fenced with triple backticks](https://docs.gitlab.com/user/markdown/#code-spans-and-blocks)) OR fill information below manually
-
-
-- OS: (`cat /etc/os-release | grep "NAME"`)
-- GPU: (`lspci -nn | grep VGA` or `lshw -C display -numeric`)
-- Kernel version: (run `uname -a`)
-- Mesa version: (`glxinfo -B | grep "OpenGL version string"`)
-- Xserver version (if applicable): (`sudo X -version`)
-- Desktop manager and compositor:
+Please post `inxi -GSC -xx` output ([fenced with triple backticks](https://docs.gitlab.com/user/markdown/#code-spans-and-blocks)).
 
 #### If applicable
 - DXVK version:
