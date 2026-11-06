@@ -1685,6 +1685,12 @@ DEFINE_ALIAS_FUNCTION(count_VkPhysicalDeviceShaderIntegerDotProductProperties,
                       count_VkPhysicalDeviceShaderIntegerDotProductPropertiesKHR)
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void count_VkPipelineLibraryCreateInfoKHR(uint32_t featureBits, VkStructureType rootType,
+                                          const VkPipelineLibraryCreateInfoKHR* toCount,
+                                          size_t* count);
+
+#endif
 #ifdef VK_KHR_synchronization2
 DEFINE_ALIAS_FUNCTION(count_VkMemoryBarrier2, count_VkMemoryBarrier2KHR)
 

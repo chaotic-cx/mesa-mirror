@@ -7436,6 +7436,33 @@ void deepcopy_VkPipelineExecutableInternalRepresentationKHR(
 }
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void deepcopy_VkPipelineLibraryCreateInfoKHR(Allocator* alloc, VkStructureType rootType,
+                                             const VkPipelineLibraryCreateInfoKHR* from,
+                                             VkPipelineLibraryCreateInfoKHR* to) {
+    *to = *from;
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = from->sType;
+    }
+    const void* from_pNext = from;
+    size_t pNext_size = 0u;
+    while (!pNext_size && from_pNext) {
+        from_pNext = static_cast<const VkBaseOutStructure*>(from_pNext)->pNext;
+        pNext_size = goldfish_vk_extension_struct_size(rootType, from_pNext);
+    }
+    to->pNext = nullptr;
+    if (pNext_size) {
+        to->pNext = (void*)alloc->alloc(pNext_size);
+        deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
+    }
+    to->pLibraries = nullptr;
+    if (from->pLibraries) {
+        to->pLibraries = (VkPipeline*)alloc->dupArray(
+            from->pLibraries, from->libraryCount * sizeof(const VkPipeline));
+    }
+}
+
+#endif
 #ifdef VK_KHR_maintenance6
 void deepcopy_VkSetDescriptorBufferOffsetsInfoEXT(Allocator* alloc, VkStructureType rootType,
                                                   const VkSetDescriptorBufferOffsetsInfoEXT* from,
@@ -10320,6 +10347,15 @@ void deepcopy_extension_struct(Allocator* alloc, VkStructureType rootType,
                     structExtension),
                 reinterpret_cast<VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR*>(
                     structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_KHR_pipeline_library
+        case VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR: {
+            deepcopy_VkPipelineLibraryCreateInfoKHR(
+                alloc, rootType,
+                reinterpret_cast<const VkPipelineLibraryCreateInfoKHR*>(structExtension),
+                reinterpret_cast<VkPipelineLibraryCreateInfoKHR*>(structExtension_out));
             break;
         }
 #endif

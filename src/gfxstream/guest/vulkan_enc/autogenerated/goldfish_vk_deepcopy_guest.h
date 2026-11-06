@@ -1838,6 +1838,12 @@ DEFINE_ALIAS_FUNCTION(deepcopy_VkPhysicalDeviceShaderIntegerDotProductProperties
                       deepcopy_VkPhysicalDeviceShaderIntegerDotProductPropertiesKHR)
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void deepcopy_VkPipelineLibraryCreateInfoKHR(Allocator* alloc, VkStructureType rootType,
+                                             const VkPipelineLibraryCreateInfoKHR* from,
+                                             VkPipelineLibraryCreateInfoKHR* to);
+
+#endif
 #ifdef VK_KHR_synchronization2
 DEFINE_ALIAS_FUNCTION(deepcopy_VkMemoryBarrier2, deepcopy_VkMemoryBarrier2KHR)
 

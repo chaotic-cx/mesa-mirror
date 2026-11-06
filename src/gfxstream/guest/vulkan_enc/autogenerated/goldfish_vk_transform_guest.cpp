@@ -5184,6 +5184,22 @@ void transform_fromhost_VkPipelineExecutableInternalRepresentationKHR(
 }
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void transform_tohost_VkPipelineLibraryCreateInfoKHR(ResourceTracker* resourceTracker,
+                                                     VkPipelineLibraryCreateInfoKHR* toTransform) {
+    if (toTransform->pNext) {
+        transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
+    }
+}
+
+void transform_fromhost_VkPipelineLibraryCreateInfoKHR(
+    ResourceTracker* resourceTracker, VkPipelineLibraryCreateInfoKHR* toTransform) {
+    if (toTransform->pNext) {
+        transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
+    }
+}
+
+#endif
 #ifdef VK_KHR_maintenance6
 void transform_tohost_VkSetDescriptorBufferOffsetsInfoEXT(
     ResourceTracker* resourceTracker, VkSetDescriptorBufferOffsetsInfoEXT* toTransform) {
@@ -7300,6 +7316,14 @@ void transform_tohost_extension_struct(ResourceTracker* resourceTracker,
             break;
         }
 #endif
+#ifdef VK_KHR_pipeline_library
+        case VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR: {
+            transform_tohost_VkPipelineLibraryCreateInfoKHR(
+                resourceTracker,
+                reinterpret_cast<VkPipelineLibraryCreateInfoKHR*>(structExtension_out));
+            break;
+        }
+#endif
 #ifdef VK_KHR_maintenance7
         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR: {
             transform_tohost_VkPhysicalDeviceMaintenance7FeaturesKHR(
@@ -8713,6 +8737,14 @@ void transform_fromhost_extension_struct(ResourceTracker* resourceTracker,
                 resourceTracker,
                 reinterpret_cast<VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR*>(
                     structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_KHR_pipeline_library
+        case VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR: {
+            transform_fromhost_VkPipelineLibraryCreateInfoKHR(
+                resourceTracker,
+                reinterpret_cast<VkPipelineLibraryCreateInfoKHR*>(structExtension_out));
             break;
         }
 #endif

@@ -513,6 +513,11 @@ size_t goldfish_vk_extension_struct_size(VkStructureType rootType, const void* s
             return sizeof(VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR);
         }
 #endif
+#ifdef VK_KHR_pipeline_library
+        case VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR: {
+            return sizeof(VkPipelineLibraryCreateInfoKHR);
+        }
+#endif
 #ifdef VK_KHR_maintenance7
         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR: {
             return sizeof(VkPhysicalDeviceMaintenance7FeaturesKHR);

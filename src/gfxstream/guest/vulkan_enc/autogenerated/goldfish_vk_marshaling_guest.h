@@ -1985,6 +1985,11 @@ DEFINE_ALIAS_FUNCTION(unmarshal_VkPhysicalDeviceShaderIntegerDotProductPropertie
                       unmarshal_VkPhysicalDeviceShaderIntegerDotProductPropertiesKHR)
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void unmarshal_VkPipelineLibraryCreateInfoKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
+                                              VkPipelineLibraryCreateInfoKHR* forUnmarshaling);
+
+#endif
 #ifdef VK_KHR_synchronization2
 DEFINE_ALIAS_FUNCTION(unmarshal_VkMemoryBarrier2, unmarshal_VkMemoryBarrier2KHR)
 

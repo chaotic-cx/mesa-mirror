@@ -1882,6 +1882,11 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_EXT_image_drm_format_modifier",
         "VK_KHR_external_memory_fd",
         "VK_EXT_robustness2",
+        "VK_EXT_fragment_density_map",
+        "VK_EXT_graphics_pipeline_library",
+        "VK_EXT_image_compression_control",
+        "VK_EXT_image_compression_control_swapchain",
+        "VK_KHR_pipeline_library",
 #endif
         // Vulkan 1.1
         "VK_KHR_16bit_storage",
@@ -8364,6 +8369,10 @@ VkResult ResourceTracker::on_vkCreateGraphicsPipelines(
     std::vector<VkGraphicsPipelineCreateInfo> localCreateInfos(pCreateInfos,
                                                                pCreateInfos + createInfoCount);
     for (VkGraphicsPipelineCreateInfo& graphicsPipelineCreateInfo : localCreateInfos) {
+        const bool isPipelineLibrary =
+            (graphicsPipelineCreateInfo.flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR) != 0 ||
+            vk_find_struct_const(&graphicsPipelineCreateInfo,
+                                 GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT) != nullptr;
         // dEQP-VK.api.pipeline.pipeline_invalid_pointers_unused_structs#graphics
         bool requireViewportState = false;
         // VUID-VkGraphicsPipelineCreateInfo-rasterizerDiscardEnable-00750
@@ -8372,7 +8381,8 @@ VkResult ResourceTracker::on_vkCreateGraphicsPipelines(
             graphicsPipelineCreateInfo.pRasterizationState->rasterizerDiscardEnable == VK_FALSE;
         // VUID-VkGraphicsPipelineCreateInfo-pViewportState-04892
 #ifdef VK_EXT_extended_dynamic_state2
-        if (!requireViewportState && graphicsPipelineCreateInfo.pDynamicState) {
+        if (!requireViewportState && graphicsPipelineCreateInfo.pRasterizationState != nullptr &&
+            graphicsPipelineCreateInfo.pDynamicState) {
             for (uint32_t i = 0; i < graphicsPipelineCreateInfo.pDynamicState->dynamicStateCount;
                  i++) {
                 if (VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE_EXT ==
@@ -8387,8 +8397,10 @@ VkResult ResourceTracker::on_vkCreateGraphicsPipelines(
             graphicsPipelineCreateInfo.pViewportState = nullptr;
         }
 
-        // It has the same requirement as for pViewportState.
-        bool shouldIncludeFragmentShaderState = requireViewportState;
+        // Partial pipeline libraries without pre-rasterization state have pRasterizationState == nullptr
+        // but may still include fragment shader or fragment output state.
+        bool shouldIncludeFragmentShaderState =
+            (graphicsPipelineCreateInfo.pRasterizationState == nullptr) || requireViewportState;
 
         // VUID-VkGraphicsPipelineCreateInfo-rasterizerDiscardEnable-00751
         if (!shouldIncludeFragmentShaderState) {
@@ -8411,7 +8423,7 @@ VkResult ResourceTracker::on_vkCreateGraphicsPipelines(
 
         // VUID-VkGraphicsPipelineCreateInfo-renderPass-06043
         // VUID-VkGraphicsPipelineCreateInfo-renderPass-06044
-        if (graphicsPipelineCreateInfo.renderPass == VK_NULL_HANDLE ||
+        if ((!isPipelineLibrary && graphicsPipelineCreateInfo.renderPass == VK_NULL_HANDLE) ||
             !shouldIncludeFragmentShaderState) {
             // VUID-VkGraphicsPipelineCreateInfo-renderPass-06053
             if (!forceDepthStencilState) {

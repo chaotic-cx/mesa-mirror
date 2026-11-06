@@ -2961,6 +2961,14 @@ DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceShaderIntegerDotProduct
                       transform_fromhost_VkPhysicalDeviceShaderIntegerDotProductPropertiesKHR)
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void transform_tohost_VkPipelineLibraryCreateInfoKHR(ResourceTracker* resourceTracker,
+                                                     VkPipelineLibraryCreateInfoKHR* toTransform);
+
+void transform_fromhost_VkPipelineLibraryCreateInfoKHR(ResourceTracker* resourceTracker,
+                                                       VkPipelineLibraryCreateInfoKHR* toTransform);
+
+#endif
 #ifdef VK_KHR_synchronization2
 DEFINE_ALIAS_FUNCTION(transform_tohost_VkMemoryBarrier2, transform_tohost_VkMemoryBarrier2KHR)
 

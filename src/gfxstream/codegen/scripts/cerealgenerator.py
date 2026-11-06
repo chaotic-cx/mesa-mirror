@@ -83,7 +83,6 @@ SUPPORTED_MODULES = {
     "VK_KHR_swapchain" : HOST_MODULES,
     "VK_NV_device_diagnostic_checkpoints": ["goldfish_vk_dispatch"],
     "VK_KHR_ray_tracing_pipeline": ["goldfish_vk_dispatch"],
-    "VK_KHR_pipeline_library": HOST_MODULES,
 }
 
 # These modules will be used when the feature is not supported.

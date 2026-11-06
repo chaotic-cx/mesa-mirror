@@ -1911,6 +1911,12 @@ DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceShaderIntegerDotProductPro
                       reservedmarshal_VkPhysicalDeviceShaderIntegerDotProductPropertiesKHR)
 
 #endif
+#ifdef VK_KHR_pipeline_library
+void reservedmarshal_VkPipelineLibraryCreateInfoKHR(
+    VulkanStreamGuest* vkStream, VkStructureType rootType,
+    const VkPipelineLibraryCreateInfoKHR* forMarshaling, uint8_t** ptr);
+
+#endif
 #ifdef VK_KHR_synchronization2
 DEFINE_ALIAS_FUNCTION(reservedmarshal_VkMemoryBarrier2, reservedmarshal_VkMemoryBarrier2KHR)
 
