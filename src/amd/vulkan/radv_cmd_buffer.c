@@ -14360,6 +14360,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
    bool need_dynamic_descriptors_offset_addr = false;
    bool need_indirect_descriptors = false;
    bool need_push_constants_upload = false;
+   VkShaderStageFlags active_stages = 0;
 
    for (unsigned s = 0; s <= MESA_SHADER_MESH; s++) {
       const struct radv_shader_object *shader_obj = cmd_buffer->state.shader_objs[s];
@@ -14397,6 +14398,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
       need_push_constants_upload |= radv_shader_need_push_constants_upload(shader);
       push_constant_size = MAX2(push_constant_size, shader->info.push_constant_size);
       dynamic_offset_count += shader_obj->dynamic_offset_count;
+      active_stages |= mesa_to_vk_shader_stage(s);
    }
 
    struct radv_shader *gs_copy_shader = cmd_buffer->state.shader_objs[MESA_SHADER_GEOMETRY]
@@ -14443,6 +14445,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
    descriptors_state->dynamic_offset_count = dynamic_offset_count;
    pc_state->need_upload = need_push_constants_upload;
    pc_state->size = align(push_constant_size, 4);
+   cmd_buffer->push_constant_stages |= active_stages;
 
    if (pdev->info.gfx_level <= GFX9) {
       cmd_buffer->state.ia_multi_vgt_param = radv_compute_ia_multi_vgt_param(device, cmd_buffer->state.shaders);
@@ -17703,6 +17706,7 @@ radv_bind_compute_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader_
    descriptors_state->dynamic_offset_count = shader_obj->dynamic_offset_count;
    pc_state->need_upload = radv_shader_need_push_constants_upload(shader);
    pc_state->size = align(shader->info.push_constant_size, 4);
+   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
 
    assert(cs->b->cdw <= cdw_max);
 }
