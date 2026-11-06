@@ -7,12 +7,14 @@
 #include "vk_log.h"
 
 #include "util/blob.h"
+#include "radv_descriptor_set.h"
 #include "radv_device.h"
 #include "radv_entrypoints.h"
 #include "radv_physical_device.h"
 #include "radv_pipeline_cache.h"
-#include "radv_pipeline_graphics.h"
+#include "radv_pipeline_layout.h"
 #include "radv_shader_compute.h"
+#include "radv_shader_graphics.h"
 #include "radv_shader_object.h"
 
 struct radv_shader_object_metadata {

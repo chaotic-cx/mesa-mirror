@@ -9,9 +9,9 @@
 #include "nir_builder.h"
 #include "radv_constants.h"
 #include "radv_nir.h"
-#include "radv_pipeline_graphics.h"
 #include "radv_shader.h"
 #include "radv_shader_args.h"
+#include "radv_shader_graphics.h"
 
 #define GET_SGPR_FIELD_NIR(arg, field)                                                                                 \
    ac_nir_unpack_arg(b, &s->args->ac, arg, field##__SHIFT, util_bitcount(field##__MASK))

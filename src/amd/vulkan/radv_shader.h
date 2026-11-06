@@ -28,6 +28,7 @@
 #include "nir/nir_shader_compiler_options.h"
 #include "spirv/spirv_info.h"
 
+#include "aco_interface.h"
 #include "aco_shader_info.h"
 
 struct radv_physical_device;
@@ -738,10 +739,13 @@ struct radv_shader *radv_compile_rt_prolog(struct radv_device *device, struct ra
 struct radv_shader_part *radv_shader_part_create(struct radv_device *device, struct radv_shader_part_binary *binary,
                                                  unsigned wave_size);
 
-struct radv_shader_part *radv_create_vs_prolog(struct radv_device *device, const struct radv_vs_prolog_key *key);
+void radv_aco_fill_compiler_options(struct aco_compiler_options *aco_info,
+                                    const struct radv_compiler_info *compiler_info,
+                                    const struct radv_shader_stage_key *stage_key,
+                                    const struct radv_graphics_state_key *gfx_state, bool should_use_wgp,
+                                    bool can_dump_shader);
 
-struct radv_shader_part *radv_create_ps_epilog(struct radv_device *device, const struct radv_ps_epilog_key *key,
-                                               struct radv_shader_part_binary **binary_out);
+void radv_aco_build_shader_part(void **bin, const aco_callback_params *params);
 
 void radv_shader_part_destroy(struct radv_device *device, struct radv_shader_part *shader_part);
 
@@ -760,10 +764,11 @@ unsigned radv_get_max_scratch_waves(const struct radv_device *device, struct rad
 
 const char *radv_get_shader_name(const struct radv_shader_info *info, mesa_shader_stage stage);
 
-unsigned radv_compute_spi_ps_input(enum amd_gfx_level gfx_level, const struct radv_graphics_state_key *gfx_state,
-                                   const struct radv_shader_info *info);
-
 bool radv_is_traversal_shader(nir_shader *nir);
+
+bool radv_is_meta_shader(nir_shader *nir);
+
+unsigned radv_get_inst_pref_size(const struct radv_compiler_info *compiler_info, unsigned exec_size);
 
 bool radv_can_dump_shader(const struct radv_compiler_info *compiler_info, nir_shader *nir);
 
@@ -822,17 +827,6 @@ get_tcs_input_vertex_stride(unsigned tcs_num_inputs)
    return stride;
 }
 
-void radv_get_tess_wg_info(const struct radv_compiler_info *compiler_info, const ac_nir_tess_io_info *io_info,
-                           unsigned tcs_vertices_out, unsigned tcs_num_input_vertices, unsigned tcs_num_lds_inputs,
-                           unsigned *num_patches_per_wg, unsigned *lds_size);
-
-void radv_lower_ngg(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *ngg_stage,
-                    const struct radv_graphics_state_key *gfx_state);
-
-bool radv_consider_culling(const struct radv_compiler_info *compiler_info, struct nir_shader *nir,
-                           uint64_t ps_inputs_read, unsigned num_vertices_per_primitive,
-                           const struct radv_shader_info *info, const struct radv_graphics_state_key *gfx_state);
-
 void radv_get_nir_options(struct radv_compiler_info *compiler_info);
 
 enum radv_rt_lowering_mode {
@@ -842,17 +836,6 @@ enum radv_rt_lowering_mode {
 };
 
 struct radv_shader_layout;
-
-void radv_shader_combine_cfg_vs_tcs(const struct radv_device *device, const struct radv_shader *vs,
-                                    const struct radv_shader *tcs, uint32_t *rsrc1_out, uint32_t *rsrc2_out);
-
-void radv_shader_combine_cfg_vs_gs(const struct radv_device *device, const struct radv_shader *vs,
-                                   const struct radv_shader *gs, uint32_t *rsrc1_out, uint32_t *rsrc2_out,
-                                   uint32_t *rsrc4_out);
-
-void radv_shader_combine_cfg_tes_gs(const struct radv_device *device, const struct radv_shader *tes,
-                                    const struct radv_shader *gs, uint32_t *rsrc1_out, uint32_t *rsrc2_out,
-                                    uint32_t *rsrc4_out);
 
 static inline const struct radv_userdata_info *
 radv_get_user_sgpr_info(const struct radv_shader *shader, int idx)
@@ -893,10 +876,5 @@ radv_shader_need_dynamic_descriptors_offset_addr(const struct radv_shader *shade
    const struct radv_userdata_info *loc = radv_get_user_sgpr_info(shader, AC_UD_DYNAMIC_DESCRIPTORS_OFFSET_ADDR);
    return loc->sgpr_idx != -1;
 }
-
-void radv_precompute_registers_hw_gs(struct radv_device *device, const struct radv_shader_info *es_info,
-                                     struct radv_shader *shader);
-
-void radv_precompute_registers_hw_ngg(struct radv_device *device, struct radv_shader *shader);
 
 #endif /* RADV_SHADER_H */

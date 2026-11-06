@@ -11,8 +11,8 @@
 #include "nir_tcs_info.h"
 #include "radv_device.h"
 #include "radv_physical_device.h"
-#include "radv_pipeline_graphics.h"
 #include "radv_shader.h"
+#include "radv_shader_graphics.h"
 
 #include "ac_nir.h"
 
