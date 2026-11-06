@@ -534,10 +534,10 @@ emit_alu_dot_4x8_as_dp2acc(struct ir3_context *ctx, nir_alu_instr *alu,
 }
 
 static bool
-all_sat_compatible(struct ir3_instruction *instrs[], unsigned n)
+all_sat_is_fsat(struct ir3_instruction *instrs[], unsigned n)
 {
    for (unsigned i = 0; i < n; i++) {
-      if (!is_sat_compatible(instrs[i]->opc))
+      if (!sat_is_fsat(instrs[i]->opc))
          return false;
    }
 
@@ -709,7 +709,7 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
        * src instruction and create a mov.  This is easier for cp
        * to eliminate.
        */
-      if (all_sat_compatible(src[0].rpts, dst_sz) &&
+      if (all_sat_is_fsat(src[0].rpts, dst_sz) &&
           is_unique_use(&alu->src[0].src)) {
          set_instr_flags(src[0].rpts, dst_sz, IR3_INSTR_SAT);
          dst = ir3_MOV_rpt(b, dst_sz, src[0], dst_type);

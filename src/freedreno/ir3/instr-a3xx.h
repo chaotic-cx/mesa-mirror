@@ -647,8 +647,9 @@ is_cat3_float(opc_t opc)
    }
 }
 
+/* Is (sat) equivalent to fsat? */
 static inline bool
-is_sat_compatible(opc_t opc)
+sat_is_fsat(opc_t opc)
 {
    /* On a6xx saturation doesn't work on cat4 */
    return is_cat2_float(opc) || is_cat3_float(opc);
