@@ -685,6 +685,10 @@ peephole_mul_omod(struct radeon_compiler *c, struct rc_instruction *inst_mul,
       }
 
       if (inst_mul->U.I.SrcReg[i].File == RC_FILE_TEMPORARY) {
+         /* The output modifier cannot apply source modifiers to the result. */
+         if (inst_mul->U.I.SrcReg[i].Abs || inst_mul->U.I.SrcReg[i].Negate)
+            return 0;
+
          if (temp_index != -1) {
             /* The instruction has two temp sources */
             return 0;
