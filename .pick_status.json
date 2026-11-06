@@ -2064,7 +2064,7 @@
         "description": "ir3: move is_cat[23]_float helper up in their file",
         "nominated": false,
         "nomination_type": 0,
-        "resolution": 4,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
