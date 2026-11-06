@@ -1079,7 +1079,6 @@ radv_image_get_first_mip_pipe_misaligned(const struct radv_device *device, const
                                          uint32_t plane_id)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const int log2_samples = util_logbase2(image->vk.samples);
    uint32_t first_mip = UINT32_MAX;
 
    /* Add a special case for mips in the metadata mip-tail for GFX11. */
@@ -1090,36 +1089,20 @@ radv_image_get_first_mip_pipe_misaligned(const struct radv_device *device, const
    }
 
    VkFormat fmt = radv_image_get_plane_format(pdev, image, plane_id);
-   int log2_bpp = util_logbase2(vk_format_get_blocksize(fmt));
-   int log2_bpp_and_samples;
+   const bool is_depth = vk_format_has_depth(image->vk.format);
+   const bool pipe_misaligned =
+      ac_surface_is_meta_pipe_misaligned(&pdev->info, vk_format_get_blocksize(fmt), image->vk.samples,
+                                         image->vk.array_layers, is_depth);
 
-   if (pdev->info.gfx_level >= GFX10_3) {
-      log2_bpp_and_samples = log2_bpp + log2_samples;
-   } else {
-      if (vk_format_has_depth(image->vk.format) && image->vk.array_layers >= 8) {
-         log2_bpp = 2;
-      }
-
-      log2_bpp_and_samples = MIN2(6, log2_bpp + log2_samples);
-   }
-
-   int num_pipes = G_0098F8_NUM_PIPES(pdev->info.gb_addr_config);
-   int overlap = MAX2(0, log2_bpp_and_samples + num_pipes - 8);
-
-   if (vk_format_has_depth(image->vk.format)) {
-      if (radv_image_is_tc_compat_htile(image) && (pdev->info.tcc_rb_non_coherent || overlap)) {
+   if (is_depth) {
+      if (radv_image_is_tc_compat_htile(image) && pipe_misaligned) {
          first_mip = 0;
       }
    } else {
-      int max_compressed_frags = G_0098F8_MAX_COMPRESSED_FRAGS(pdev->info.gb_addr_config);
-      int log2_samples_frag_diff = MAX2(0, log2_samples - max_compressed_frags);
-      int samples_overlap = MIN2(log2_samples, overlap);
-
       /* TODO: It shouldn't be necessary if the image has DCC but
        * not readable by shader.
        */
-      if ((radv_image_has_dcc(image) || radv_image_is_tc_compat_cmask(image)) &&
-          (pdev->info.tcc_rb_non_coherent || (samples_overlap > log2_samples_frag_diff))) {
+      if ((radv_image_has_dcc(image) || radv_image_is_tc_compat_cmask(image)) && pipe_misaligned) {
          first_mip = 0;
       }
    }
