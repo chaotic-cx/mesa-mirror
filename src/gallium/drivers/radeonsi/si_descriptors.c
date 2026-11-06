@@ -2661,7 +2661,11 @@ static void si_make_texture_handle_resident(struct pipe_context *ctx, uint64_t h
          struct si_texture *tex = (struct si_texture *)sview->base.texture;
 
          if (sctx->gfx_level < GFX12) {
-            if (depth_needs_decompression(tex, sview->is_stencil_sampler)) {
+            /* Unlike bound samplers, resident handles aren't updated when the texture is
+             * rendered to later, so always check depth textures for decompression. It does
+             * nothing while the texture isn't dirty.
+             */
+            if (tex->db_compatible) {
                util_dynarray_append(&sctx->resident_tex_needs_depth_decompress,
                                     tex_handle);
             }
