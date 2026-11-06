@@ -2062,14 +2062,14 @@ radv_create_gs_copy_shader(const struct radv_compiler_info *compiler_info, struc
    NIR_PASS(_, nir, ac_nir_lower_global_access, compiler_info->ac->gfx_level);
    NIR_PASS(_, nir, nir_lower_int64);
 
-   struct radv_graphics_pipeline_key key = {0};
+   struct radv_graphics_state_key empty_gfx_state = {0};
    gs_copy_debug->dump_shader = radv_can_dump_shader(compiler_info, nir);
 
    if (gs_copy_debug->dump_shader)
       simple_mtx_lock(compiler_info->debug.shader_dump_mtx);
 
    struct radv_shader_binary *gs_copy_binary =
-      radv_shader_nir_to_asm(compiler_info, &gs_copy_stage, &nir, 1, &key.gfx_state);
+      radv_shader_nir_to_asm(compiler_info, &gs_copy_stage, &nir, 1, &empty_gfx_state);
 
    char *nir_string = NULL;
    if (gs_copy_stage.key.keep_executable_info)
