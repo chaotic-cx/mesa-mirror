@@ -33,7 +33,7 @@
 #include <AvailabilityMacros.h>
 #include <sys/cdefs.h>
 
-#if defined(MAC_OS_X_VERSION_MIN_REQUIRED) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
+#if defined(MAC_OS_X_VERSION_10_12) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
 #include <os/log.h>
 
 extern os_log_t apple_glx_oslog;
