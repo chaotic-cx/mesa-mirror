@@ -400,7 +400,6 @@ vk_xfermodes3,Fail
 TransferPixelsTest,Fail
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
-dEQP-VK.info.device_memory_budget_multi_instance,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.suballocation.low_resolution_z.edge.alpha_to_coverage,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.suballocation.low_resolution_z.fuzz.10,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.suballocation.low_resolution_z.fuzz.2,Fail
