@@ -5736,3 +5736,43 @@ void ac_surface_print_info(FILE *out, const struct radeon_info *info,
                  surf->u.legacy.stencil_tile_split);
    }
 }
+
+/* Return whether CB/DB and TC access the metadata of a surface with the given layout through
+ * different L2 channels (the "pipe misaligned" metadata issue). If so, L2 must be invalidated
+ * between CB/DB writes and shader reads of the metadata on gfx10-11.5.
+ *
+ * bpe is the bytes per element of the color or depth plane.
+ */
+bool ac_surface_is_meta_pipe_misaligned(const struct radeon_info *info, unsigned bpe,
+                                        unsigned num_samples, unsigned num_layers, bool is_depth)
+{
+   assert(info->gfx_level >= GFX10 && info->gfx_level < GFX12);
+
+   if (info->tcc_rb_non_coherent)
+      return true;
+
+   const int log2_samples = util_logbase2(num_samples);
+   int log2_bpp = util_logbase2(bpe);
+   int log2_bpp_and_samples;
+
+   if (info->gfx_level >= GFX10_3) {
+      log2_bpp_and_samples = log2_bpp + log2_samples;
+   } else {
+      if (is_depth && num_layers >= 8)
+         log2_bpp = 2;
+
+      log2_bpp_and_samples = MIN2(6, log2_bpp + log2_samples);
+   }
+
+   const int num_pipes = G_0098F8_NUM_PIPES(info->gb_addr_config);
+   const int overlap = MAX2(0, log2_bpp_and_samples + num_pipes - 8);
+
+   if (is_depth)
+      return overlap > 0;
+
+   const int max_compressed_frags = G_0098F8_MAX_COMPRESSED_FRAGS(info->gb_addr_config);
+   const int log2_samples_frag_diff = MAX2(0, log2_samples - max_compressed_frags);
+   const int samples_overlap = MIN2(log2_samples, overlap);
+
+   return samples_overlap > log2_samples_frag_diff;
+}
