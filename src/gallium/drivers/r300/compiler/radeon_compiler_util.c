@@ -120,6 +120,7 @@ srcs_need_rewrite(const struct rc_opcode_info *info)
    }
    switch (info->Opcode) {
    case RC_OPCODE_DP2:
+   case RC_OPCODE_DP2A:
    case RC_OPCODE_DP3:
    case RC_OPCODE_DP4:
    case RC_OPCODE_DDX:

@@ -112,21 +112,6 @@ new_dst_reg(struct radeon_compiler *c, struct rc_instruction *inst)
 }
 
 static void
-transform_DP2(struct radeon_compiler *c, struct rc_instruction *inst)
-{
-   struct rc_src_register src0 = inst->U.I.SrcReg[0];
-   struct rc_src_register src1 = inst->U.I.SrcReg[1];
-   src0.Negate &= ~(RC_MASK_Z | RC_MASK_W);
-   src0.Swizzle &= ~(63 << (3 * 2));
-   src0.Swizzle |= (RC_SWIZZLE_ZERO << (3 * 2)) | (RC_SWIZZLE_ZERO << (3 * 3));
-   src1.Negate &= ~(RC_MASK_Z | RC_MASK_W);
-   src1.Swizzle &= ~(63 << (3 * 2));
-   src1.Swizzle |= (RC_SWIZZLE_ZERO << (3 * 2)) | (RC_SWIZZLE_ZERO << (3 * 3));
-   emit2(c, inst->Prev, RC_OPCODE_DP3, &inst->U.I, inst->U.I.DstReg, src0, src1);
-   rc_remove_instruction(inst);
-}
-
-static void
 transform_RSQ(struct radeon_compiler *c, struct rc_instruction *inst)
 {
    inst->U.I.SrcReg[0] = absolute(inst->U.I.SrcReg[0]);
@@ -152,7 +137,6 @@ int
 radeonTransformALU(struct radeon_compiler *c, struct rc_instruction *inst, void *unused)
 {
    switch (inst->U.I.Opcode) {
-   case RC_OPCODE_DP2: transform_DP2(c, inst); return 1;
    case RC_OPCODE_KILP: transform_KILP(c, inst); return 1;
    case RC_OPCODE_RSQ: transform_RSQ(c, inst); return 1;
    case RC_OPCODE_SEQ: UNREACHABLE("");
@@ -177,9 +161,16 @@ transform_r300_vertex_CMP(struct radeon_compiler *c, struct rc_instruction *inst
 static void
 transform_r300_vertex_DP2(struct radeon_compiler *c, struct rc_instruction *inst)
 {
-   struct rc_instruction *next_inst = inst->Next;
-   transform_DP2(c, inst);
-   next_inst->Prev->U.I.Opcode = RC_OPCODE_DP4;
+   struct rc_src_register src0 = inst->U.I.SrcReg[0];
+   struct rc_src_register src1 = inst->U.I.SrcReg[1];
+   src0.Negate &= ~(RC_MASK_Z | RC_MASK_W);
+   src0.Swizzle &= ~(63 << (3 * 2));
+   src0.Swizzle |= (RC_SWIZZLE_ZERO << (3 * 2)) | (RC_SWIZZLE_ZERO << (3 * 3));
+   src1.Negate &= ~(RC_MASK_Z | RC_MASK_W);
+   src1.Swizzle &= ~(63 << (3 * 2));
+   src1.Swizzle |= (RC_SWIZZLE_ZERO << (3 * 2)) | (RC_SWIZZLE_ZERO << (3 * 3));
+   emit2(c, inst->Prev, RC_OPCODE_DP4, &inst->U.I, inst->U.I.DstReg, src0, src1);
+   rc_remove_instruction(inst);
 }
 
 static void

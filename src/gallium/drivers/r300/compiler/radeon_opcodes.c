@@ -80,6 +80,12 @@ const struct rc_opcode_info rc_opcodes[MAX_RC_OPCODE] = {
       .HasDstReg = 1,
    },
    {
+      .Opcode = RC_OPCODE_DP2A,
+      .Name = "DP2A",
+      .NumSrcRegs = 3,
+      .HasDstReg = 1,
+   },
+   {
       .Opcode = RC_OPCODE_DP3,
       .Name = "DP3",
       .NumSrcRegs = 2,
@@ -425,6 +431,9 @@ rc_compute_sources_for_writemask(const struct rc_instruction *inst, unsigned int
       case RC_OPCODE_ARR:
          srcmasks[0] |= RC_MASK_X;
          break;
+      case RC_OPCODE_DP2A:
+         srcmasks[2] |= RC_MASK_Z;
+         FALLTHROUGH;
       case RC_OPCODE_DP2:
          srcmasks[0] |= RC_MASK_XY;
          srcmasks[1] |= RC_MASK_XY;

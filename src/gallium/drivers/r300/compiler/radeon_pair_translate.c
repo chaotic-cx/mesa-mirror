@@ -103,7 +103,8 @@ classify_instruction(struct rc_sub_instruction *inst, int *needrgb, int *needalp
       *needalpha = 1;
       break;
    case RC_OPCODE_DP4: *needalpha = 1; FALLTHROUGH;
-   case RC_OPCODE_DP3: *needrgb = 1; break;
+   case RC_OPCODE_DP3:
+   case RC_OPCODE_DP2A: *needrgb = 1; break;
    default: break;
    }
 }

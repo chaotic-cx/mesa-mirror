@@ -929,7 +929,6 @@ ntr_emit_alu(struct ntr_compile *c, nir_alu_instr *instr)
    static const rc_opcode op_map[] = {
       [nir_op_mov] = RC_OPCODE_MOV,
 
-      [nir_op_fdot2_replicated] = RC_OPCODE_DP2,
       [nir_op_fdot3_replicated] = RC_OPCODE_DP3,
       [nir_op_fdot4_replicated] = RC_OPCODE_DP4,
       [nir_op_ffract] = RC_OPCODE_FRC,
@@ -963,6 +962,15 @@ ntr_emit_alu(struct ntr_compile *c, nir_alu_instr *instr)
        */
 
       switch (instr->op) {
+      case nir_op_fdot2_replicated:
+         if (c->s->info.stage == MESA_SHADER_FRAGMENT) {
+            struct rc_src_register zero = {.Swizzle = RC_SWIZZLE_0000};
+            ntr_emit_alu_op3(c, RC_OPCODE_DP2A, dst, src[0], src[1], zero);
+         } else {
+            ntr_emit_alu_op2(c, RC_OPCODE_DP2, dst, src[0], src[1]);
+         }
+         break;
+
       case nir_op_fabs:
          /* Try to eliminate */
          if (!c->lower_fabs && nir_legacy_float_mod_folds(instr))

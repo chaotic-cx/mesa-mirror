@@ -72,6 +72,7 @@ translate_rgb_op(struct r300_fragment_program_compiler *c, rc_opcode opcode)
    case RC_OPCODE_CND: return R500_ALU_RGBA_OP_CND;
    case RC_OPCODE_DDX: return R500_ALU_RGBA_OP_MDH;
    case RC_OPCODE_DDY: return R500_ALU_RGBA_OP_MDV;
+   case RC_OPCODE_DP2A: return R500_ALU_RGBA_OP_D2A;
    case RC_OPCODE_DP3: return R500_ALU_RGBA_OP_DP3;
    case RC_OPCODE_DP4: return R500_ALU_RGBA_OP_DP4;
    case RC_OPCODE_FRC: return R500_ALU_RGBA_OP_FRC;
@@ -95,6 +96,7 @@ translate_alpha_op(struct r300_fragment_program_compiler *c, rc_opcode opcode)
    case RC_OPCODE_COS: return R500_ALPHA_OP_COS;
    case RC_OPCODE_DDX: return R500_ALPHA_OP_MDH;
    case RC_OPCODE_DDY: return R500_ALPHA_OP_MDV;
+   case RC_OPCODE_DP2A: return R500_ALPHA_OP_DP;
    case RC_OPCODE_DP3: return R500_ALPHA_OP_DP;
    case RC_OPCODE_DP4: return R500_ALPHA_OP_DP;
    case RC_OPCODE_EX2: return R500_ALPHA_OP_EX2;
