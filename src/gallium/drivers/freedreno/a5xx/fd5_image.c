@@ -33,6 +33,7 @@ struct fd5_image {
    uint32_t height;
    uint32_t depth;
    uint32_t pitch;
+   uint32_t pitchalign;
    uint32_t array_pitch;
    struct fd_bo *bo;
    uint32_t offset;
@@ -66,6 +67,7 @@ translate_image(struct fd5_image *img, struct pipe_image_view *pimg)
       img->buffer = true;
       img->offset = pimg->u.buf.offset;
       img->pitch = 0;
+      img->pitchalign = 0;
       img->array_pitch = 0;
 
       /* size is encoded with low 15b in WIDTH and high bits in
@@ -83,6 +85,7 @@ translate_image(struct fd5_image *img, struct pipe_image_view *pimg)
       unsigned lvl = pimg->u.tex.level;
       img->offset = fd_resource_offset(rsc, lvl, pimg->u.tex.first_layer);
       img->pitch = fd_resource_pitch(rsc, lvl);
+      img->pitchalign = rsc->layout.pitchalign - 6;
 
       img->width = u_minify(prsc->width0, lvl);
       img->height = u_minify(prsc->height0, lvl);
@@ -140,6 +143,7 @@ emit_image_tex(struct fd_ringbuffer *ring, unsigned slot, struct fd5_image *img,
    OUT_RING(ring,
             COND(img->buffer, A5XX_TEX_CONST_2_BUFFER) |
                A5XX_TEX_CONST_2_TYPE(img->type) |
+               A5XX_TEX_CONST_2_PITCHALIGN(img->pitchalign) |
                A5XX_TEX_CONST_2_PITCH(img->pitch));
    OUT_RING(ring, A5XX_TEX_CONST_3_ARRAY_PITCH(img->array_pitch));
    if (img->bo) {
