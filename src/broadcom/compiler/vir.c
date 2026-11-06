@@ -1292,8 +1292,6 @@ v3d_nir_lower_fs_early(struct v3d_compile *c)
 
         if (c->fs_key->software_blend) {
                 if (c->fs_key->sample_alpha_to_coverage) {
-                        assert(c->fs_key->msaa);
-
                         NIR_PASS(_, c->s, nir_lower_alpha_to_coverage,
                                  true, NULL);
                 }
