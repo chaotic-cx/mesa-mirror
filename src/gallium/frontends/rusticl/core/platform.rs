@@ -47,13 +47,14 @@ impl Deref for PlatformVM<'_> {
 pub struct Platform {
     dispatch: &'static cl_icd_dispatch,
     pub dispatch_data: usize,
-    pub devs: Vec<Device>,
     pub extension_string: String,
     pub extensions: Vec<cl_name_version>,
     // lifetime has to match the one of devs
     pub vm: Option<PlatformVM<'static>>,
     pub worker_queue: LazyLock<util::queue::Queue>,
     pub meta: LazyLock<Meta>,
+    // Has to be last, given we give Devices a static lifetime guarantee.
+    pub devs: Vec<Device>,
 }
 
 pub enum PerfDebugLevel {
