@@ -2014,8 +2014,8 @@ radv_declare_graphics_shaders_args(const struct radv_compiler_info *compiler_inf
 }
 
 static struct radv_shader_binary *
-radv_create_gs_copy_shader(const struct radv_compiler_info *compiler_info, struct vk_pipeline_cache *cache,
-                           struct radv_shader_stage *gs_stage, const struct radv_graphics_state_key *gfx_state,
+radv_create_gs_copy_shader(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *gs_stage,
+                           const struct radv_graphics_state_key *gfx_state,
                            struct radv_shader_debug_info *gs_copy_debug)
 {
 
@@ -2086,8 +2086,8 @@ radv_create_gs_copy_shader(const struct radv_compiler_info *compiler_info, struc
 }
 
 static void
-radv_graphics_shaders_nir_to_asm(const struct radv_compiler_info *compiler_info, struct vk_pipeline_cache *cache,
-                                 struct radv_shader_stage *stages, const struct radv_graphics_state_key *gfx_state,
+radv_graphics_shaders_nir_to_asm(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *stages,
+                                 const struct radv_graphics_state_key *gfx_state,
                                  VkShaderStageFlagBits active_nir_stages, struct radv_shader_debug_info *debug,
                                  struct radv_shader_binary **binaries, struct radv_shader_debug_info *gs_copy_debug,
                                  struct radv_shader_binary **gs_copy_binary)
@@ -2157,7 +2157,7 @@ radv_graphics_shaders_nir_to_asm(const struct radv_compiler_info *compiler_info,
 
       if (s == MESA_SHADER_GEOMETRY && !stages[s].info.is_ngg) {
          *gs_copy_binary =
-            radv_create_gs_copy_shader(compiler_info, cache, &stages[MESA_SHADER_GEOMETRY], gfx_state, gs_copy_debug);
+            radv_create_gs_copy_shader(compiler_info, &stages[MESA_SHADER_GEOMETRY], gfx_state, gs_copy_debug);
       }
 
       stages[s].feedback.duration += os_time_get_nano() - stage_start;
@@ -2779,8 +2779,8 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       radv_get_legacy_gs_info(compiler_info, NULL, &stages[MESA_SHADER_GEOMETRY].info);
 
    /* Compile NIR shaders to AMD assembly. */
-   radv_graphics_shaders_nir_to_asm(compiler_info, cache, stages, gfx_state, active_nir_stages, debug, binaries,
-                                    gs_copy_debug, gs_copy_binary);
+   radv_graphics_shaders_nir_to_asm(compiler_info, stages, gfx_state, active_nir_stages, debug, binaries, gs_copy_debug,
+                                    gs_copy_binary);
 }
 
 void
