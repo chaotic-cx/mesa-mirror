@@ -4312,6 +4312,12 @@ setup_tess_eval_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
 static void
 setup_compute_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
 {
+   if (nj->devinfo->verx10 < 125) {
+      setup_payload_dispatch_start(nj, p);
+      setup_payload_push(nj, p);
+      return;
+   }
+
    if (nj->s->prog_data->cs.uses_btd_stack_ids)
       nj->payload.u1 = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
 
