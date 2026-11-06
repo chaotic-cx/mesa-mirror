@@ -129,6 +129,14 @@ struct tu_knl {
    VkResult (*device_init)(struct tu_device *dev);
    void (*device_finish)(struct tu_device *dev);
    int (*device_get_gpu_timestamp)(struct tu_device *dev, uint64_t *ts);
+   /* Optional. Samples several time domains together, returns
+    * VK_ERROR_FEATURE_NOT_PRESENT if any of the domains is not supported.
+    */
+   VkResult (*device_get_calibrated_timestamps)(struct tu_device *dev,
+                                                uint32_t count,
+                                                const VkCalibratedTimestampInfoKHR *infos,
+                                                uint64_t *ts,
+                                                uint64_t *max_deviation);
    int (*device_get_suspend_count)(struct tu_device *dev, uint64_t *suspend_count);
    VkResult (*device_check_status)(struct tu_device *dev);
    int (*submitqueue_new)(struct tu_device *dev, struct tu_queue *queue);
@@ -294,6 +302,13 @@ tu_drm_device_finish(struct tu_device *dev);
 int
 tu_device_get_gpu_timestamp(struct tu_device *dev,
                             uint64_t *ts);
+
+VkResult
+tu_device_get_calibrated_timestamps(struct tu_device *dev,
+                                    uint32_t count,
+                                    const VkCalibratedTimestampInfoKHR *infos,
+                                    uint64_t *ts,
+                                    uint64_t *max_deviation);
 
 int
 tu_device_get_suspend_count(struct tu_device *dev,

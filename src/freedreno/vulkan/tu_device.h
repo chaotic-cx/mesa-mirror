@@ -139,6 +139,8 @@ struct tu_physical_device
    bool has_lazy_bos;
    /* Whether allocations can be aligned. */
    bool has_iova_align;
+   /* Whether the kernel can read the GPU timestamp. */
+   bool has_gpu_timestamp;
    uint64_t va_start;
    uint64_t va_size;
 

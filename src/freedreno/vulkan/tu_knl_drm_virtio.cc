@@ -1375,6 +1375,7 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    device->submitqueue_priority_count = caps.u.msm.priorities;
 
    device->has_raytracing = has_raytracing;
+   device->has_gpu_timestamp = true;
 
    device->syncobj_type = syncobj_type;
 

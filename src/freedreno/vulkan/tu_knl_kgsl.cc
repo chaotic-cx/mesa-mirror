@@ -1810,6 +1810,95 @@ fail_submit:
    return result;
 }
 
+static int
+kgsl_read_calibrated_ts(int fd, uint64_t *ts)
+{
+   uint32_t source = KGSL_CALIBRATED_TIME_DOMAIN_DEVICE;
+   struct kgsl_read_calibrated_timestamps req = {
+      .sources = (uint64_t) (uintptr_t) &source,
+      .ts = (uint64_t) (uintptr_t) ts,
+      .count = 1,
+   };
+
+   if (safe_ioctl(fd, IOCTL_KGSL_READ_CALIBRATED_TIMESTAMPS, &req))
+      return -errno;
+
+   return 0;
+}
+
+static bool
+kgsl_time_domain(VkTimeDomainKHR domain, uint32_t *source)
+{
+   switch (domain) {
+   case VK_TIME_DOMAIN_DEVICE_KHR:
+      *source = KGSL_CALIBRATED_TIME_DOMAIN_DEVICE;
+      return true;
+   case VK_TIME_DOMAIN_CLOCK_MONOTONIC_KHR:
+      *source = KGSL_CALIBRATED_TIME_DOMAIN_MONOTONIC;
+      return true;
+   case VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_KHR:
+      *source = KGSL_CALIBRATED_TIME_DOMAIN_MONOTONIC_RAW;
+      return true;
+   default:
+      return false;
+   }
+}
+
+/* KGSL samples all of the requested domains together in the kernel. */
+static VkResult
+kgsl_device_get_calibrated_timestamps(struct tu_device *dev,
+                                      uint32_t count,
+                                      const VkCalibratedTimestampInfoKHR *infos,
+                                      uint64_t *ts,
+                                      uint64_t *max_deviation)
+{
+   uint32_t sources[KGSL_CALIBRATED_TIME_DOMAIN_MAX];
+   uint64_t source_ts[KGSL_CALIBRATED_TIME_DOMAIN_MAX];
+   uint32_t source_idx[KGSL_CALIBRATED_TIME_DOMAIN_MAX];
+   uint32_t source_count = 0;
+
+   for (uint32_t i = 0; i < KGSL_CALIBRATED_TIME_DOMAIN_MAX; i++)
+      source_idx[i] = UINT32_MAX;
+
+   /* Sample each domain only once even if it is requested multiple times. */
+   for (uint32_t i = 0; i < count; i++) {
+      uint32_t source;
+      if (!kgsl_time_domain(infos[i].timeDomain, &source))
+         return VK_ERROR_FEATURE_NOT_PRESENT;
+
+      if (source_idx[source] == UINT32_MAX) {
+         source_idx[source] = source_count;
+         sources[source_count++] = source;
+      }
+   }
+
+   struct kgsl_read_calibrated_timestamps req = {
+      .sources = (uint64_t) (uintptr_t) sources,
+      .ts = (uint64_t) (uintptr_t) source_ts,
+      .count = source_count,
+   };
+
+   /* This may fail after system suspend until the GPU is woken up and KGSL reseeds the CX timer.
+    * It's rather awkward since Vulkan doesn't expect the call to fail for such reason,
+    * so while misleading, we return the only allowed error.
+    */
+   if (safe_ioctl(dev->fd, IOCTL_KGSL_READ_CALIBRATED_TIMESTAMPS, &req))
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+   for (uint32_t i = 0; i < count; i++) {
+      uint32_t source;
+      kgsl_time_domain(infos[i].timeDomain, &source);
+      ts[i] = source_ts[source_idx[source]];
+   }
+
+   /* See vk_time_max_deviation(). */
+   uint64_t max_clock_period =
+      source_idx[KGSL_CALIBRATED_TIME_DOMAIN_DEVICE] != UINT32_MAX ? dev->vk.device_time_domain_period : 1;
+   *max_deviation = req.deviation + max_clock_period;
+
+   return VK_SUCCESS;
+}
+
 static VkResult
 kgsl_device_init(struct tu_device *dev)
 {
@@ -1826,8 +1915,7 @@ kgsl_device_finish(struct tu_device *dev)
 static int
 kgsl_device_get_gpu_timestamp(struct tu_device *dev, uint64_t *ts)
 {
-   UNREACHABLE("");
-   return 0;
+   return kgsl_read_calibrated_ts(dev->fd, ts);
 }
 
 static int
@@ -1875,6 +1963,7 @@ static const struct tu_knl kgsl_knl_funcs = {
       .device_init = kgsl_device_init,
       .device_finish = kgsl_device_finish,
       .device_get_gpu_timestamp = kgsl_device_get_gpu_timestamp,
+      .device_get_calibrated_timestamps = kgsl_device_get_calibrated_timestamps,
       .device_get_suspend_count = kgsl_device_get_suspend_count,
       .device_check_status = kgsl_device_check_status,
       .submitqueue_new = kgsl_submitqueue_new,
@@ -1986,6 +2075,9 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
    device->gmem_base = gmem_iova;
 
    device->has_raytracing = tu_kgsl_get_raytracing(fd);
+
+   uint64_t ts;
+   device->has_gpu_timestamp = kgsl_read_calibrated_ts(fd, &ts) == 0;
 
    device->submitqueue_priority_count = 1;
    
