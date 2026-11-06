@@ -236,6 +236,8 @@ vk_queue_unlock(struct vk_queue *queue)
       simple_mtx_unlock(&queue->lock);
 }
 
+void vk_queue_stop_submit_thread(struct vk_queue *queue);
+
 /** Enables threaded submit on this queue
  *
  * This should be called by the driver if it wants to be able to block inside
