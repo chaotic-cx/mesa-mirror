@@ -229,9 +229,13 @@ get_image_offset(struct ir3_context *ctx, const nir_intrinsic_instr *instr,
    else
       offset = ir3_MUL_S24(b, coords[0], 0, create_uniform(b, cb + 0), 0);
    if (ncoords > 1) {
-      /* offset += coords.y * y_pitch: */
+      /* offset += coords.y * y_pitch: (where y_pitch is the layer_size from
+       * .z for 1D arrays.)
+       */
+      uint32_t pitch_index =
+         nir_intrinsic_image_dim(instr) == GLSL_SAMPLER_DIM_1D ? 2 : 1;
       offset =
-         ir3_MAD_S24(b, create_uniform(b, cb + 1), 0, coords[1], 0, offset, 0);
+         ir3_MAD_S24(b, create_uniform(b, cb + pitch_index), 0, coords[1], 0, offset, 0);
    }
    if (ncoords > 2) {
       /* offset += coords.z * z_pitch: */

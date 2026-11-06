@@ -161,6 +161,14 @@ static void
 emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
                 struct fd5_image *img, mesa_shader_stage shader)
 {
+   uint32_t height = img->height;
+
+   /* VK blob treats 1D_ARRAY images as a 2d image with the layer count as the
+    * height. Note that 1D textures do still use TEX_1D.
+    */
+   if (img->type == A5XX_TEX_1D && img->depth > 1)
+      height = img->depth;
+
    OUT_PKT7(ring, CP_LOAD_STATE4, 3 + 2);
    OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(slot) |
                      CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
@@ -172,7 +180,7 @@ emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
    OUT_RING(ring, A5XX_SSBO_1_0_FMT(img->fmt) |
                      A5XX_SSBO_1_0_SWAP(fd5_pipe2swap(img->pfmt)) |
                      A5XX_SSBO_1_0_WIDTH(img->width));
-   OUT_RING(ring, A5XX_SSBO_1_1_HEIGHT(img->height) |
+   OUT_RING(ring, A5XX_SSBO_1_1_HEIGHT(height) |
                      A5XX_SSBO_1_1_DEPTH(img->depth));
 
    OUT_PKT7(ring, CP_LOAD_STATE4, 3 + 2);

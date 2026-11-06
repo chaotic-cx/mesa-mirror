@@ -182,6 +182,15 @@ static void emit_image_tex(struct fd_ringbuffer *ring, unsigned slot,
 static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
       struct fd4_image *img, mesa_shader_stage shader)
 {
+   uint32_t height = img->height, pitch = img->pitch;
+   /* VK blob treats 1D_ARRAY images as a 2d image with the layer count as the
+    * height. Note that 1D textures do still use TEX_1D.
+    */
+   if (img->type == A4XX_TEX_1D && img->depth > 1) {
+      height = img->depth;
+      pitch = img->array_pitch;
+   }
+
    OUT_PKT3(ring, CP_LOAD_STATE4, 2 + 4);
    OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(slot) |
       CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
@@ -190,7 +199,7 @@ static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
    OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(0) |
       CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
    OUT_RELOC(ring, img->bo, img->offset, 0, 0);
-   OUT_RING(ring, A4XX_SSBO_0_1_PITCH(img->pitch));
+   OUT_RING(ring, A4XX_SSBO_0_1_PITCH(pitch));
    OUT_RING(ring, A4XX_SSBO_0_2_ARRAY_PITCH(img->array_pitch));
    OUT_RING(ring, A4XX_SSBO_0_3_CPP(img->cpp));
 
@@ -204,7 +213,7 @@ static void emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
    OUT_RING(ring, A4XX_SSBO_1_0_CPP(img->cpp) |
       A4XX_SSBO_1_0_FMT(img->fmt) |
       A4XX_SSBO_1_0_WIDTH(img->width));
-   OUT_RING(ring, A4XX_SSBO_1_1_HEIGHT(img->height) |
+   OUT_RING(ring, A4XX_SSBO_1_1_HEIGHT(height) |
       A4XX_SSBO_1_1_DEPTH(img->depth));
 }
 
