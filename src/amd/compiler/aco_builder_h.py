@@ -421,16 +421,13 @@ public:
          return vop3(aco_opcode::v_mul_lo_u32, dst, op1, op2);
    }
 
-   Result v_mul_imm(Definition dst, Temp tmp, uint32_t imm, bool tmpu24=false, bool tmpi24=false)
+   Result v_mul_imm(Definition dst, Temp tmp, uint32_t imm, uint32_t uub=UINT32_MAX)
    {
       assert(tmp.type() == RegType::vgpr);
       /* Assume 24bit if high 8 bits of tmp don't impact the result. */
-      if ((imm & 0xff) == 0) {
-         tmpu24 = true;
-         tmpi24 = true;
-      }
-      tmpu24 &= imm <= 0xffffffu;
-      tmpi24 &= imm <= 0x7fffffu || imm >= 0xff800000u;
+      bool use_umul24 = imm <= 0xff'ffffu && (uub <= 0xff'ffffu || (imm & 0xffu) == 0);
+      bool use_imul24 = (imm <= 0x7f'ffffu || imm >= 0xff80'0000u) && (uub <= 0x7f'ffffu || (imm & 0xffu) == 0);
+
       bool has_lshl_add = program->gfx_level >= GFX9;
       unsigned shift_add_cost = util_bitcount(imm & ~0x1);
       if (!has_lshl_add)
@@ -451,12 +448,12 @@ public:
          return vsub32(dst, Operand::zero(), tmp);
       } else if (util_is_power_of_two_or_zero(imm)) {
          return vop2(aco_opcode::v_lshlrev_b32, dst, Operand::c32(ffs(imm) - 1u), tmp);
-      } else if (tmpu24) {
-        Temp imm_tmp = copy(def(s1), Operand::c32(imm));
-        return vop2(aco_opcode::v_mul_u32_u24, dst, imm_tmp, tmp);
-      } else if (tmpi24) {
-        Temp imm_tmp = copy(def(s1), Operand::c32(imm));
-        return vop2(aco_opcode::v_mul_i32_i24, dst, imm_tmp, tmp);
+      } else if (use_umul24) {
+         Temp imm_tmp = copy(def(s1), Operand::c32(imm));
+         return vop2(aco_opcode::v_mul_u32_u24, dst, imm_tmp, tmp);
+      } else if (use_imul24) {
+         Temp imm_tmp = copy(def(s1), Operand::c32(imm));
+         return vop2(aco_opcode::v_mul_i32_i24, dst, imm_tmp, tmp);
       } else if (util_is_power_of_two_nonzero(imm - 1u)) {
          return vadd32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm - 1u) - 1u), tmp), tmp);
       } else if (MIN2(mul_cost, shift_add_cost) > 1 && program->gfx_level >= GFX9 && imm <= UINT16_MAX) {
@@ -491,7 +488,7 @@ public:
 
    Result v_mul24_imm(Definition dst, Temp tmp, uint32_t imm)
    {
-      return v_mul_imm(dst, tmp, imm & 0xffffffu, true);
+      return v_mul_imm(dst, tmp, imm & 0xff'ffffu, 0xff'ffffu);
    }
 
    Result copy(Definition dst, Op op) {
