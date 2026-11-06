@@ -1334,7 +1334,7 @@
         "description": "nir: Fix incorrect is_ssa replacement",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "579bc1e72e9e8676d5432d705875cc70d392d3df",
         "notes": null
