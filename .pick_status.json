@@ -4,7 +4,7 @@
         "description": "v3dv: use the image depth/stencil format for any Z/S tile buffer access",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
