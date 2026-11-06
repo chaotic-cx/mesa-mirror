@@ -1324,7 +1324,7 @@
         "description": "glx/apple: fix build on macOS < 10.12",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "24dac8d00633913ea2d54f8069abd76fa2cfa317",
         "notes": null
