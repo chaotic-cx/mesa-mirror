@@ -349,7 +349,6 @@ struct si_texture {
    bool db_compatible : 1;
    bool can_sample_z : 1;
    bool can_sample_s : 1;
-   bool need_flush_after_depth_decompression: 1;
    bool htile_pipe_misaligned : 1; /* see ac_surface_is_meta_pipe_misaligned */
    bool gfx12_force_disable_hiz : 1;
 

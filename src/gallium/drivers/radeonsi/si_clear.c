@@ -884,8 +884,6 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
                update_db_stencil_clear = true;
             }
          }
-
-         zstex->need_flush_after_depth_decompression = update_db_depth_clear && sctx->gfx_level == GFX10_3;
       }
 
       /* Update DB_DEPTH_CLEAR. */
