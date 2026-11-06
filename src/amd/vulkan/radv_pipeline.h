@@ -46,19 +46,13 @@ struct radv_pipeline {
    struct vk_pipeline_cache_object *cache_object;
 
    bool is_internal;
-   bool need_indirect_descriptors;
-   bool need_push_constants_upload;
    struct radv_shader *shaders[MESA_VULKAN_SHADER_STAGES];
    struct radv_shader *gs_copy_shader;
 
    /* Unique pipeline hash identifier. */
    uint64_t pipeline_hash;
 
-   /* Pipeline layout info. */
-   uint32_t push_constant_size;
-
    /* Dynamic buffers info. */
-   bool need_dynamic_descriptors_offset_addr;
    uint32_t dynamic_offset_count;
 };
 

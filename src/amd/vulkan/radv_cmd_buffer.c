@@ -9677,6 +9677,35 @@ radv_bind_rt_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_ray_tracin
       cmd_buffer->state.rt_stack_size = rt_pipeline->stack_size;
 }
 
+static void
+radv_update_graphics_push_constants_descriptors_state(struct radv_cmd_buffer *cmd_buffer)
+{
+   struct radv_descriptor_state *descriptors_state =
+      radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+   struct radv_push_constant_state *pc_state =
+      &cmd_buffer->push_constant_state[vk_to_bind_point(VK_PIPELINE_BIND_POINT_GRAPHICS)];
+   const VkShaderStageFlags stages = cmd_buffer->state.active_stages & RADV_GRAPHICS_STAGE_BITS;
+   bool need_dynamic_descriptors_offset_addr = false;
+   bool need_indirect_descriptors = false;
+   bool need_push_constants_upload = false;
+   uint32_t push_constant_size = 0;
+
+   radv_foreach_stage (s, stages) {
+      const struct radv_shader *shader = cmd_buffer->state.shaders[s];
+
+      need_indirect_descriptors |= radv_shader_need_indirect_descriptors(shader);
+      need_dynamic_descriptors_offset_addr |= radv_shader_need_dynamic_descriptors_offset_addr(shader);
+      need_push_constants_upload |= radv_shader_need_push_constants_upload(shader);
+      push_constant_size = MAX2(push_constant_size, shader->info.push_constant_size);
+   }
+
+   descriptors_state->need_indirect_descriptors = need_indirect_descriptors;
+   descriptors_state->need_dynamic_descriptors_offset_addr = need_dynamic_descriptors_offset_addr;
+   pc_state->need_upload = need_push_constants_upload;
+   pc_state->size = align(push_constant_size, 4);
+   cmd_buffer->push_constant_stages |= stages;
+}
+
 static ALWAYS_INLINE void
 radv_bind_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_graphics_pipeline *graphics_pipeline)
 {
@@ -9697,10 +9726,11 @@ radv_bind_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_grap
 
    radv_bind_gs_copy_shader(cmd_buffer, graphics_pipeline->base.gs_copy_shader);
 
+   radv_update_graphics_push_constants_descriptors_state(cmd_buffer);
+
    cmd_buffer->state.graphics_pipeline = graphics_pipeline;
 
    cmd_buffer->state.dirty |= RADV_CMD_DIRTY_GRAPHICS_PIPELINE;
-   cmd_buffer->push_constant_stages |= graphics_pipeline->active_stages;
 
    /* Prefetch all pipeline shaders at first draw time. */
    if (pdev->info.gfx_level >= GFX7)
@@ -9752,16 +9782,6 @@ radv_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipeline
    default:
       assert(!"invalid bind point");
       break;
-   }
-
-   if (pipelineBindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS) {
-      cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].size = pipeline->push_constant_size;
-      cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].need_upload =
-         pipeline->need_push_constants_upload;
-      cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_dynamic_descriptors_offset_addr =
-         pipeline->need_dynamic_descriptors_offset_addr;
-      cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_indirect_descriptors =
-         pipeline->need_indirect_descriptors;
    }
 
    cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].dynamic_offset_count = pipeline->dynamic_offset_count;
@@ -14376,11 +14396,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   uint32_t push_constant_size = 0, dynamic_offset_count = 0;
-   bool need_dynamic_descriptors_offset_addr = false;
-   bool need_indirect_descriptors = false;
-   bool need_push_constants_upload = false;
-   VkShaderStageFlags active_stages = 0;
+   uint32_t dynamic_offset_count = 0;
 
    for (unsigned s = 0; s <= MESA_SHADER_MESH; s++) {
       const struct radv_shader_object *shader_obj = cmd_buffer->state.shader_objs[s];
@@ -14412,13 +14428,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
       if (!shader)
          continue;
 
-      /* Compute push constants/indirect descriptors state. */
-      need_indirect_descriptors |= radv_shader_need_indirect_descriptors(shader);
-      need_dynamic_descriptors_offset_addr |= radv_shader_need_dynamic_descriptors_offset_addr(shader);
-      need_push_constants_upload |= radv_shader_need_push_constants_upload(shader);
-      push_constant_size = MAX2(push_constant_size, shader->info.push_constant_size);
       dynamic_offset_count = MAX2(dynamic_offset_count, shader_obj->dynamic_offset_count);
-      active_stages |= mesa_to_vk_shader_stage(s);
    }
 
    struct radv_shader *gs_copy_shader = cmd_buffer->state.shader_objs[MESA_SHADER_GEOMETRY]
@@ -14426,6 +14436,8 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
                                            : NULL;
 
    radv_bind_gs_copy_shader(cmd_buffer, gs_copy_shader);
+
+   radv_update_graphics_push_constants_descriptors_state(cmd_buffer);
 
    /* Determine GS info. */
    if (cmd_buffer->state.shaders[MESA_SHADER_GEOMETRY] &&
@@ -14455,17 +14467,9 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
       radv_bind_fragment_output_state(cmd_buffer, ps, NULL, 0);
    }
 
-   /* Update push constants/indirect descriptors state. */
    struct radv_descriptor_state *descriptors_state =
       radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
-   struct radv_push_constant_state *pc_state = &cmd_buffer->push_constant_state[VK_PIPELINE_BIND_POINT_GRAPHICS];
-
-   descriptors_state->need_indirect_descriptors = need_indirect_descriptors;
-   descriptors_state->need_dynamic_descriptors_offset_addr = need_dynamic_descriptors_offset_addr;
    descriptors_state->dynamic_offset_count = dynamic_offset_count;
-   pc_state->need_upload = need_push_constants_upload;
-   pc_state->size = align(push_constant_size, 4);
-   cmd_buffer->push_constant_stages |= active_stages;
 
    if (pdev->info.gfx_level <= GFX9) {
       cmd_buffer->state.ia_multi_vgt_param = radv_compute_ia_multi_vgt_param(device, cmd_buffer->state.shaders);

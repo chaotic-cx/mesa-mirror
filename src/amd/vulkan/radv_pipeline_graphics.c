@@ -3121,24 +3121,6 @@ radv_get_vgt_shader_key(const struct radv_device *device, struct radv_shader **s
 }
 
 static void
-radv_pipeline_init_shader_stages_state(const struct radv_device *device, struct radv_graphics_pipeline *pipeline)
-{
-   for (unsigned i = 0; i < MESA_VULKAN_SHADER_STAGES; i++) {
-      bool shader_exists = !!pipeline->base.shaders[i];
-      if (shader_exists || i < MESA_SHADER_COMPUTE) {
-         if (shader_exists) {
-            pipeline->base.need_indirect_descriptors |=
-               radv_shader_need_indirect_descriptors(pipeline->base.shaders[i]);
-            pipeline->base.need_push_constants_upload |=
-               radv_shader_need_push_constants_upload(pipeline->base.shaders[i]);
-            pipeline->base.need_dynamic_descriptors_offset_addr |=
-               radv_shader_need_dynamic_descriptors_offset_addr(pipeline->base.shaders[i]);
-         }
-      }
-   }
-}
-
-static void
 radv_pipeline_init_extra(struct radv_graphics_pipeline *pipeline, const VkGraphicsPipelineCreateInfoRADV *radv_info,
                          const struct vk_graphics_pipeline_state *state)
 {
@@ -3275,23 +3257,9 @@ radv_graphics_pipeline_init(struct radv_graphics_pipeline *pipeline, struct radv
       radv_pipeline_init_input_assembly_state(device, pipeline);
    radv_pipeline_init_dynamic_state(device, pipeline, &gfx_state.vk);
 
-   radv_pipeline_init_shader_stages_state(device, pipeline);
-
    pipeline->uses_out_of_order_rast = gfx_state.vk.rs->rasterization_order_amd == VK_RASTERIZATION_ORDER_RELAXED_AMD;
    pipeline->uses_vrs_attachment = radv_pipeline_uses_vrs_attachment(pipeline, &gfx_state.vk);
    pipeline->ignore_ds_state = gfx_state.vk.rp && !radv_pipeline_has_ds_attachments(gfx_state.vk.rp);
-
-   uint32_t push_constant_size = 0;
-   for (uint32_t i = 0; i < MESA_VULKAN_SHADER_STAGES; i++) {
-      const struct radv_shader *shader = pipeline->base.shaders[i];
-
-      if (!shader)
-         continue;
-
-      push_constant_size = MAX2(push_constant_size, shader->info.push_constant_size);
-   }
-
-   pipeline->base.push_constant_size = align(push_constant_size, 4);
    pipeline->base.dynamic_offset_count = gfx_state.layout.dynamic_offset_count;
 
    const VkGraphicsPipelineCreateInfoRADV *radv_info =
