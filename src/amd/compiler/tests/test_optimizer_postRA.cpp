@@ -437,8 +437,6 @@ BEGIN_TEST(optimizer_postRA.dpp)
    Temp tmp10 = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1, reg_v2), a, dpp_row_mirror);
 
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(1);
-   program->blocks[0].logical_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
    program->blocks[1].logical_preds.push_back(0);
 

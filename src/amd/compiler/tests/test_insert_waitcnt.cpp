@@ -894,8 +894,8 @@ BEGIN_TEST(insert_waitcnt.divergent_branch.no_skip)
       //! p_unit_test %0:v[4]
       bld.reset(program->create_and_insert_block());
       program->blocks[2].linear_preds.push_back(1);
-      program->blocks[2].logical_preds.push_back(1);
       program->blocks[2].logical_preds.push_back(0);
+      program->blocks[2].logical_preds.push_back(1);
       bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
       bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
 

@@ -177,8 +177,6 @@ BEGIN_TEST(optimize.output_modifiers)
    program->next_fp_mode.denorm32 = fp_denorm_keep;
    program->next_fp_mode.denorm16_64 = fp_denorm_flush;
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(1);
-   program->blocks[0].logical_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
    program->blocks[1].logical_preds.push_back(0);
 
@@ -199,8 +197,6 @@ BEGIN_TEST(optimize.output_modifiers)
    program->next_fp_mode.denorm32 = fp_denorm_flush;
    program->next_fp_mode.denorm16_64 = fp_denorm_keep;
    bld.reset(program->create_and_insert_block());
-   program->blocks[1].linear_succs.push_back(2);
-   program->blocks[1].logical_succs.push_back(2);
    program->blocks[2].linear_preds.push_back(1);
    program->blocks[2].logical_preds.push_back(1);
 
@@ -224,8 +220,6 @@ BEGIN_TEST(optimize.output_modifiers)
    program->next_fp_mode.denorm16_64 = fp_denorm_flush;
    bld.reset(program->create_and_insert_block());
    bld.is_sz_preserve = true;
-   program->blocks[2].linear_succs.push_back(3);
-   program->blocks[2].logical_succs.push_back(3);
    program->blocks[3].linear_preds.push_back(2);
    program->blocks[3].logical_preds.push_back(2);
 
@@ -1727,8 +1721,6 @@ BEGIN_TEST(optimize.fmamix_two_literals)
       //! /* logical preds: BB0, / linear preds: BB0, / kind: uniform, */
       program->next_fp_mode.denorm16_64 = fp_denorm_flush;
       bld.reset(program->create_and_insert_block());
-      program->blocks[0].linear_succs.push_back(1);
-      program->blocks[0].logical_succs.push_back(1);
       program->blocks[1].linear_preds.push_back(0);
       program->blocks[1].logical_preds.push_back(0);
 

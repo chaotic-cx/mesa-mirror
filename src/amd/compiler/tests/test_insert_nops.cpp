@@ -120,7 +120,6 @@ BEGIN_TEST(insert_nops.nsa_to_vmem_bug)
    create_mimg(true, 6, 4);
    bld.reset(program->create_and_insert_block());
    create_mubuf(4);
-   program->blocks[0].linear_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
 
    finish_insert_nops_test();
@@ -172,7 +171,6 @@ BEGIN_TEST(insert_nops.writelane_to_nsa_bug)
                  Operand(PhysReg(511), v1));
    bld.reset(program->create_and_insert_block());
    create_mimg(true, 2, 3);
-   program->blocks[0].linear_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
 
    finish_insert_nops_test();
@@ -935,7 +933,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! v_nop
    //! s_branch block:BB3
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(256), v1), Operand::zero());
    bld.sop1(aco_opcode::s_mov_b64, Definition(exec, s2), Operand::c64(-1));
@@ -946,7 +943,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! /* logical preds: / linear preds: BB0, / kind: */
    //! v1: %0:v[0] = v_mov_b32 0
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(2);
    program->blocks[2].linear_preds.push_back(0);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(256), v1), Operand::zero());
 
@@ -956,8 +952,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! s_waitcnt_depctr va_vdst(0)
    //! v1: %0:v[2] = v_max_f32 %0:v[0], %0:v[1]
    bld.reset(program->create_and_insert_block());
-   program->blocks[1].linear_succs.push_back(3);
-   program->blocks[2].linear_succs.push_back(3);
    program->blocks[3].linear_preds.push_back(1);
    program->blocks[3].linear_preds.push_back(2);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(257), v1), Operand::c32(1));
@@ -981,7 +975,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! v_nop
    //! s_branch block:BB6
    bld.reset(program->create_and_insert_block());
-   program->blocks[3].linear_succs.push_back(4);
    program->blocks[4].linear_preds.push_back(3);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(256), v1), Operand::zero());
    bld.sop1(aco_opcode::s_mov_b64, Definition(exec, s2), Operand::c64(-1));
@@ -995,7 +988,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! /* logical preds: / linear preds: BB3, / kind: */
    //! v1: %0:v[1] = v_mov_b32 1
    bld.reset(program->create_and_insert_block());
-   program->blocks[3].linear_succs.push_back(5);
    program->blocks[5].linear_preds.push_back(3);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(257), v1), Operand::c32(1));
 
@@ -1004,8 +996,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! s_waitcnt_depctr va_vdst(0)
    //! v1: %0:v[2] = v_max_f32 %0:v[0], %0:v[1]
    bld.reset(program->create_and_insert_block());
-   program->blocks[4].linear_succs.push_back(6);
-   program->blocks[5].linear_succs.push_back(6);
    program->blocks[6].linear_preds.push_back(4);
    program->blocks[6].linear_preds.push_back(5);
    bld.vop2(aco_opcode::v_max_f32, Definition(PhysReg(258), v1), Operand(PhysReg(256), v1),
@@ -1027,7 +1017,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //; for i in range(4): insert_pattern('v_nop')
    //! s_branch block:BB9
    bld.reset(program->create_and_insert_block());
-   program->blocks[6].linear_succs.push_back(7);
    program->blocks[7].linear_preds.push_back(6);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(256), v1), Operand::zero());
    bld.sop1(aco_opcode::s_mov_b64, Definition(exec, s2), Operand::c64(-1));
@@ -1041,7 +1030,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! v1: %0:v[1] = v_mov_b32 1
    //; for i in range(5): insert_pattern('v_nop')
    bld.reset(program->create_and_insert_block());
-   program->blocks[6].linear_succs.push_back(8);
    program->blocks[8].linear_preds.push_back(6);
    bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(257), v1), Operand::c32(1));
    for (unsigned i = 0; i < 5; i++)
@@ -1052,8 +1040,6 @@ BEGIN_TEST(insert_nops.valu_partial_forwarding.control_flow)
    //! s_waitcnt_depctr va_vdst(0)
    //! v1: %0:v[2] = v_max_f32 %0:v[0], %0:v[1]
    bld.reset(program->create_and_insert_block());
-   program->blocks[7].linear_succs.push_back(9);
-   program->blocks[8].linear_succs.push_back(9);
    program->blocks[9].linear_preds.push_back(7);
    program->blocks[9].linear_preds.push_back(8);
    bld.vop2(aco_opcode::v_max_f32, Definition(PhysReg(258), v1), Operand(PhysReg(256), v1),
@@ -1259,7 +1245,6 @@ BEGIN_TEST(insert_nops.valu_mask_write)
    //! /* logical preds: / linear preds: BB0, / kind: */
    //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[0-1]
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
    bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
                 Operand::zero(), Operand(PhysReg(0), s2));
@@ -1268,7 +1253,6 @@ BEGIN_TEST(insert_nops.valu_mask_write)
    //! /* logical preds: / linear preds: BB0, / kind: */
    //! v1: %0:v[0] = v_cndmask_b32 0, 0, %0:s[2-3]
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(2);
    program->blocks[2].linear_preds.push_back(0);
    bld.vop2_e64(aco_opcode::v_cndmask_b32, Definition(PhysReg(256), v1), Operand::zero(),
                 Operand::zero(), Operand(PhysReg(2), s2));
@@ -1282,8 +1266,6 @@ BEGIN_TEST(insert_nops.valu_mask_write)
    //! s_waitcnt_depctr sa_sdst(0)
    //! s1: %0:s[5] = s_mov_b32 %0:s[2]
    bld.reset(program->create_and_insert_block());
-   program->blocks[1].linear_succs.push_back(3);
-   program->blocks[2].linear_succs.push_back(3);
    program->blocks[3].linear_preds.push_back(1);
    program->blocks[3].linear_preds.push_back(2);
    bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(0), s1), Operand::zero());
@@ -1466,8 +1448,6 @@ BEGIN_TEST(insert_nops.export_priority.fallthrough_to_endpgm)
            V_008DFC_SQ_EXP_POS, false);
 
    bld.reset(program->create_and_insert_block());
-   program->blocks[0].linear_succs.push_back(1);
-   program->blocks[0].logical_succs.push_back(1);
    program->blocks[1].linear_preds.push_back(0);
    program->blocks[1].logical_preds.push_back(0);
 
