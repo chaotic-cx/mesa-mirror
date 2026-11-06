@@ -780,7 +780,8 @@ lower_descriptors_instr(nir_builder *b, nir_instr *instr, void *_state)
 bool
 radv_nir_tex_is_msaa_fbfetch(const nir_tex_instr *tex)
 {
-   return tex->input_attachment_index && tex->sampler_dim == GLSL_SAMPLER_DIM_SUBPASS_MS && !tex->texture_non_uniform;
+   return (tex->input_attachment_index || tex->input_attachment_depth || tex->input_attachment_stencil) &&
+          tex->sampler_dim == GLSL_SAMPLER_DIM_SUBPASS_MS && !tex->texture_non_uniform;
 }
 
 /* Replace the single-sampled image descriptor with the descriptor of the MSRTSS transient image if needed. */
@@ -797,10 +798,17 @@ lower_msrtss_input_attachment(nir_builder *b, nir_tex_instr *tex, void *_state)
 
    b->cursor = nir_before_instr(&tex->instr);
 
-   nir_def *index = nir_imm_int(b, tex->texture_index);
-   const int offset_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_offset);
-   if (offset_idx >= 0)
-      index = nir_iadd(b, index, tex->src[offset_idx].src.ssa);
+   nir_def *index, *in_range;
+   if (tex->input_attachment_index) {
+      index = nir_imm_int(b, tex->texture_index);
+      const int offset_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_offset);
+      if (offset_idx >= 0)
+         index = nir_iadd(b, index, tex->src[offset_idx].src.ssa);
+      in_range = nir_ult_imm(b, index, RADV_MSRTSS_MAX_INPUTS);
+   } else {
+      index = nir_imm_int(b, tex->input_attachment_depth ? RADV_MSRTSS_DEPTH_INPUT : RADV_MSRTSS_STENCIL_INPUT);
+      in_range = nir_imm_true(b);
+   }
 
    nir_def *table = get_scalar_arg(b, 1, state->args->ps_msrtss_inputs);
    nir_def *msrtss_desc;
@@ -809,18 +817,26 @@ lower_msrtss_input_attachment(nir_builder *b, nir_tex_instr *tex, void *_state)
    {
       table = convert_pointer_to_64_bit(b, state, table);
 
-      nir_def *mask = ac_nir_load_smem(b, 1, table, nir_imm_int(b, 0), 4, 0);
+      nir_def *header = ac_nir_load_smem(b, 2, table, nir_imm_int(b, 0), 4, 0);
+      nir_def *mask = nir_channel(b, header, 0);
+      nir_def *ds_shared_mask = nir_channel(b, header, 1);
       nir_def *bit = nir_ishl(b, nir_imm_int(b, 1), index);
-      nir_def *enabled =
-         nir_iand(b, nir_ult_imm(b, index, RADV_MSRTSS_MAX_INPUTS), nir_ine_imm(b, nir_iand(b, mask, bit), 0));
+      nir_def *enabled = nir_iand(b, in_range, nir_ine_imm(b, nir_iand(b, mask, bit), 0));
 
-      /* Descriptors are packed in index order.
+      /* Descriptors are packed in index order, depth before stencil on a shared index.
        * Keep in sync with radv_emit_msrtss_input_attachments().
        */
-      nir_def *slot = nir_bit_count(b, nir_iand(b, mask, nir_iadd_imm(b, bit, -1)));
+      nir_def *below = nir_iadd_imm(b, bit, -1);
+      nir_def *slot =
+         nir_iadd(b, nir_bit_count(b, nir_iand(b, mask, below)), nir_bit_count(b, nir_iand(b, ds_shared_mask, below)));
+
+      /* Stencil is the only non-float input attachment that can share an index with depth. */
+      if (tex->op != nir_texop_fragment_mask_fetch_amd && nir_alu_type_get_base_type(tex->dest_type) != nir_type_float)
+         slot = nir_iadd(b, slot, nir_bit_count(b, nir_iand(b, ds_shared_mask, bit)));
 
       /* The descriptor is loaded unconditionally, so clamp the slot to stay within the table. */
-      slot = nir_umin(b, slot, nir_iadd_imm(b, nir_bit_count(b, mask), -1));
+      nir_def *count = nir_iadd(b, nir_bit_count(b, mask), nir_bit_count(b, ds_shared_mask));
+      slot = nir_umin(b, slot, nir_iadd_imm(b, count, -1));
 
       const unsigned fmask_offset = tex->op == nir_texop_fragment_mask_fetch_amd ? 32 : 0;
       nir_def *offset = nir_imul_imm(b, slot, state->sampled_image_desc_size);

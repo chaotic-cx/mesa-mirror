@@ -11150,6 +11150,7 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
             if (!d_iview)
                return;
             d_res_iview = iview_ss;
+            ds_att.msrtss = true;
             ds_att.resolve_mode = d_att_info->resolveMode;
             /* MSRTSS implies a resolve; SAMPLE_ZERO is the only mode always supported. */
             if (ds_att.resolve_mode == VK_RESOLVE_MODE_NONE)
@@ -11185,6 +11186,7 @@ radv_cmd_buffer_begin_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
             if (!s_iview)
                return;
             s_res_iview = iview_ss;
+            ds_att.msrtss = true;
             ds_att.stencil_resolve_mode = s_att_info->resolveMode;
             if (ds_att.stencil_resolve_mode == VK_RESOLVE_MODE_NONE)
                ds_att.stencil_resolve_mode = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT;
@@ -12767,6 +12769,48 @@ radv_get_nggc_settings(struct radv_cmd_buffer *cmd_buffer)
    return nggc_settings;
 }
 
+/* Depth/stencil input attachments are read through a view of a single aspect, like in depth/stencil resolves. */
+static void
+radv_write_msrtss_input_descriptor(struct radv_device *device, uint32_t *dst, uint32_t size,
+                                   struct radv_image_view *iview, VkImageAspectFlagBits aspect)
+{
+   if (aspect == VK_IMAGE_ASPECT_COLOR_BIT) {
+      radv_write_image_descriptor(dst, size, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                  &(VkDescriptorImageInfo){.imageView = radv_image_view_to_handle(iview)});
+      return;
+   }
+
+   const VkImageViewUsage2CreateInfoKHR ds_iview_usage_info = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_2_CREATE_INFO_KHR,
+      .usage = VK_IMAGE_USAGE_2_INPUT_ATTACHMENT_BIT_KHR,
+   };
+
+   struct radv_image_view ds_iview;
+   radv_image_view_init(&ds_iview, device,
+                        &(VkImageViewCreateInfo){
+                           .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                           .pNext = &ds_iview_usage_info,
+                           .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
+                           .image = radv_image_to_handle(iview->image),
+                           .viewType = iview->vk.view_type,
+                           .format = iview->vk.format,
+                           .subresourceRange =
+                              {
+                                 .aspectMask = aspect,
+                                 .baseMipLevel = iview->vk.base_mip_level,
+                                 .levelCount = 1,
+                                 .baseArrayLayer = iview->vk.base_array_layer,
+                                 .layerCount = iview->vk.layer_count,
+                              },
+                        },
+                        NULL);
+
+   radv_write_image_descriptor(dst, size, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                               &(VkDescriptorImageInfo){.imageView = radv_image_view_to_handle(&ds_iview)});
+
+   radv_image_view_finish(&ds_iview);
+}
+
 static void
 radv_emit_msrtss_input_attachments(struct radv_cmd_buffer *cmd_buffer)
 {
@@ -12776,40 +12820,86 @@ radv_emit_msrtss_input_attachments(struct radv_cmd_buffer *cmd_buffer)
    const struct radv_rendering_state *render = &cmd_buffer->state.render;
    const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
    const uint32_t desc_size = radv_get_sampled_image_desc_size(pdev);
-   uint32_t mask = 0;
+   struct radv_image_view *iviews[32];
+   VkImageAspectFlagBits aspects[32];
+   uint32_t mask = 0, ds_shared_mask = 0;
    uint64_t va = 0;
 
    if (!ps || !ps->info.ps.reads_msrtss_inputs)
       return;
 
    for (uint32_t i = 0; i < render->color_att_count; i++) {
-      if (render->color_att[i].msrtss && d->vk.ial.color_map[i] < RADV_MSRTSS_MAX_INPUTS)
-         mask |= BITFIELD_BIT(d->vk.ial.color_map[i]);
+      const uint8_t bit = d->vk.ial.color_map[i];
+
+      if (render->color_att[i].msrtss && bit < RADV_MSRTSS_MAX_INPUTS) {
+         mask |= BITFIELD_BIT(bit);
+         iviews[bit] = render->color_att[i].iview;
+         aspects[bit] = VK_IMAGE_ASPECT_COLOR_BIT;
+      }
+   }
+
+   if (render->ds_att.msrtss && (render->ds_att.iview->vk.usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) {
+      const struct {
+         VkImageAspectFlagBits aspect;
+         uint8_t index;
+         uint8_t no_index_bit;
+      } ds[] = {
+         {VK_IMAGE_ASPECT_DEPTH_BIT, d->vk.ial.depth_att, RADV_MSRTSS_DEPTH_INPUT},
+         {VK_IMAGE_ASPECT_STENCIL_BIT, d->vk.ial.stencil_att, RADV_MSRTSS_STENCIL_INPUT},
+      };
+
+      for (uint32_t i = 0; i < ARRAY_SIZE(ds); i++) {
+         uint8_t bit;
+
+         if (!(render->ds_att_aspects & ds[i].aspect))
+            continue;
+
+         if (ds[i].index == MESA_VK_ATTACHMENT_NO_INDEX)
+            bit = ds[i].no_index_bit;
+         else if (ds[i].index < RADV_MSRTSS_MAX_INPUTS)
+            bit = ds[i].index;
+         else
+            continue;
+
+         /* Depth and stencil can share an index, e.g. with legacy render passes. */
+         if (mask & BITFIELD_BIT(bit)) {
+            assert(ds[i].aspect == VK_IMAGE_ASPECT_STENCIL_BIT && aspects[bit] == VK_IMAGE_ASPECT_DEPTH_BIT);
+            ds_shared_mask |= BITFIELD_BIT(bit);
+            continue;
+         }
+
+         mask |= BITFIELD_BIT(bit);
+         iviews[bit] = render->ds_att.iview;
+         aspects[bit] = ds[i].aspect;
+      }
    }
 
    if (mask) {
       uint32_t *table;
+      uint32_t slot = 0;
 
-      if (!radv_cmd_buffer_upload_alloc(cmd_buffer, RADV_MSRTSS_INPUTS_DESC_OFFSET + util_bitcount(mask) * desc_size,
-                                        32, &va, (void **)&table))
+      if (!radv_cmd_buffer_upload_alloc(
+             cmd_buffer,
+             RADV_MSRTSS_INPUTS_DESC_OFFSET + (util_bitcount(mask) + util_bitcount(ds_shared_mask)) * desc_size, 32,
+             &va, (void **)&table))
          return;
 
       table[0] = mask;
+      table[1] = ds_shared_mask;
 
-      /* Descriptors are packed in index order.
+      /* Descriptors are packed in index order, depth before stencil on a shared index.
        * Keep in sync with lower_msrtss_input_attachment().
        */
-      for (uint32_t i = 0; i < render->color_att_count; i++) {
-         if (!render->color_att[i].msrtss || d->vk.ial.color_map[i] >= RADV_MSRTSS_MAX_INPUTS)
-            continue;
+      u_foreach_bit (bit, mask) {
+         radv_write_msrtss_input_descriptor(device, &table[(RADV_MSRTSS_INPUTS_DESC_OFFSET + slot * desc_size) / 4],
+                                            desc_size, iviews[bit], aspects[bit]);
+         slot++;
 
-         const uint32_t slot = util_bitcount(mask & BITFIELD_MASK(d->vk.ial.color_map[i]));
-         const VkDescriptorImageInfo image_info = {
-            .imageView = radv_image_view_to_handle(render->color_att[i].iview),
-         };
-
-         radv_write_image_descriptor(&table[(RADV_MSRTSS_INPUTS_DESC_OFFSET + slot * desc_size) / 4], desc_size,
-                                     VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &image_info);
+         if (ds_shared_mask & BITFIELD_BIT(bit)) {
+            radv_write_msrtss_input_descriptor(device, &table[(RADV_MSRTSS_INPUTS_DESC_OFFSET + slot * desc_size) / 4],
+                                               desc_size, iviews[bit], VK_IMAGE_ASPECT_STENCIL_BIT);
+            slot++;
+         }
       }
    }
 

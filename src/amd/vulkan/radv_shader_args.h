@@ -67,6 +67,8 @@ enum radv_ud_index {
  *                   0 +--------------------------------+
  *                     | mask                           |
  *                   4 +--------------------------------+
+ *                     | ds_shared_mask                 |
+ *                   8 +--------------------------------+
  *                     | unused, for 32-byte alignment  |
  *                  32 +--------------------------------+
  *                     | descriptor, slot 0             |
@@ -75,11 +77,16 @@ enum radv_ud_index {
  *                     +--------------------------------+
  *                     | ...                            |
  *                     +--------------------------------+
- *                     | descriptor, slot N             |  N = popcount(mask) - 1
+ *                     | descriptor, slot N             |  N = popcount(mask) + popcount(ds_shared_mask) - 1
  *                     +--------------------------------+
+ *
+ * Bits 30 and 31 of mask are for depth/stencil input attachments without index.
+ * ds_shared_mask has the indices shared by depth and stencil: they have two consecutive descriptors, depth first.
  */
 #define RADV_MSRTSS_INPUTS_DESC_OFFSET 32
-#define RADV_MSRTSS_MAX_INPUTS         32
+#define RADV_MSRTSS_MAX_INPUTS         30
+#define RADV_MSRTSS_DEPTH_INPUT        30
+#define RADV_MSRTSS_STENCIL_INPUT      31
 
 struct radv_userdata_info {
    int8_t sgpr_idx;
