@@ -2270,7 +2270,8 @@ emit_binop(struct ntd_context *ctx, nir_alu_instr *alu,
    bool is_float_op = nir_alu_type_get_base_type(nir_op_infos[alu->op].output_type) == nir_type_float;
 
    enum dxil_opt_flags flags = 0;
-   if (is_float_op && !nir_alu_instr_is_exact(alu))
+   if (is_float_op && !nir_alu_instr_is_exact(alu) &&
+       !nir_alu_instr_is_signed_zero_inf_nan_preserve(alu))
       flags |= DXIL_UNSAFE_ALGEBRA;
 
    const struct dxil_value *v = dxil_emit_binop(&ctx->mod, opcode, op0, op1, flags);
