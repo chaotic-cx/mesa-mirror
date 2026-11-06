@@ -2054,7 +2054,7 @@
         "description": "ir3: only fold fsat to (sat) on cat2/3 float instructions",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "942341bcd0128fb9d9caf68b33f603855e2f6d69",
         "notes": null
