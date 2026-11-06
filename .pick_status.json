@@ -154,7 +154,7 @@
         "description": "r300: skip output modifier absolute or negated inputs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "e945fb04d04c33da5e77d22d739c5740a522a61e",
         "notes": null
