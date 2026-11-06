@@ -790,6 +790,9 @@ rgb_to_alpha_remap(struct schedule_state *s, struct rc_instruction *inst,
    }
 
    arg->Source = new_src_index;
+
+   /* The old RGB source may now be unused. Free its slot for later pairing. */
+   rc_pair_update_source_usage(&inst->U.P);
 }
 
 static int

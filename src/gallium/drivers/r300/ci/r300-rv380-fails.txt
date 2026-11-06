@@ -32,7 +32,6 @@ dEQP-GLES2.functional.uniform_api.info_query.nested_structs_arrays.mat4_mat2_fra
 dEQP-GLES2.functional.uniform_api.info_query.struct_in_array.mat4_mat2_both,Fail
 dEQP-GLES2.functional.uniform_api.info_query.struct_in_array.mat4_mat2_fragment,Fail
 dEQP-GLES2.functional.uniform_api.random.13,Fail
-dEQP-GLES2.functional.uniform_api.random.20,Fail
 dEQP-GLES2.functional.uniform_api.random.23,Fail
 dEQP-GLES2.functional.uniform_api.random.81,Fail
 dEQP-GLES2.functional.uniform_api.value.assigned.basic_array_assign_full.array_in_struct.mat4_mat2_both,Fail

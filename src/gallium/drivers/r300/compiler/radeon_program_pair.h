@@ -89,6 +89,8 @@ struct rc_pair_instruction_source *rc_pair_get_src(struct rc_pair_instruction *p
 
 int rc_pair_get_src_index(struct rc_pair_instruction *pair_inst,
                           struct rc_pair_instruction_source *src);
+
+void rc_pair_update_source_usage(struct rc_pair_instruction *pair);
 /*@}*/
 
 /**
