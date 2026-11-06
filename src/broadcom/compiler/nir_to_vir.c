@@ -4429,10 +4429,10 @@ ntq_emit_intrinsic(struct v3d_compile *c, nir_intrinsic_instr *instr)
 
 
         /* We only use this if alpha to coverage is enabled when using
-         * software blending.
+         * software blending. In Vulkan, alpha to coverage also applies to
+         * single-sampled rasterization, so this can be used without MSAA.
          */
         case nir_intrinsic_alpha_to_coverage:
-                assert(c->fs_key->msaa);
                 ntq_store_def(c, &instr->def, 0,
                               vir_FTOC(c, ntq_get_src(c, instr->src[0], 0)));
                 break;
