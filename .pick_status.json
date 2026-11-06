@@ -24,7 +24,7 @@
         "description": "nir/opt_large_constants: fix constant deduplication edge case",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "e810382a1e6d348530cf8fc39bfecd6d2f9b1a9c",
         "notes": null
