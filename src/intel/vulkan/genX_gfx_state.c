@@ -3591,6 +3591,13 @@ cmd_buffer_repack_gfx_state(struct anv_gfx_dynamic_state *hw_state,
          SET(tbimr, tbimr, HorizontalTileCount);
          SET(tbimr, tbimr, TBIMRBatchSize);
          SET(tbimr, tbimr, TileBoxCheck);
+#if GFX_VERx10 >= 350
+         /* Bspec 56050 (r66625) HSD 14020415808*/
+         tbimr.PolyTriggerWidth =
+            pdevice->drirc.perf.tbimr_poly_trigger_width;
+         tbimr.PolyTriggerHeight =
+            pdevice->drirc.perf.tbimr_poly_trigger_height;
+#endif
       }
    }
 #endif
