@@ -815,7 +815,7 @@ vk_queue_start_submit_thread(struct vk_queue *queue)
    return VK_SUCCESS;
 }
 
-static void
+void
 vk_queue_stop_submit_thread(struct vk_queue *queue)
 {
    vk_queue_drain(queue);
