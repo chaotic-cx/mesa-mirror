@@ -602,12 +602,21 @@ d3d12_video_decoder_dxva_picparams_from_pipe_picparams_av1(
          dxvaStructure.film_grain.scaling_points_cr[i][0] = pipe_av1->picture_parameter.film_grain_info.point_cr_value[i];
          dxvaStructure.film_grain.scaling_points_cr[i][1] = pipe_av1->picture_parameter.film_grain_info.point_cr_scaling[i];
       }
+      /* VA-API delivers the AR coefficients as signed values in [-128, 127]
+       * (va_dec_av1.h: int8_t ar_coeffs_y[24]), but the DXVA AV1 picture
+       * parameters carry the raw bitstream syntax element ar_coeffs_*_plus_128
+       * in an unsigned field. Re-apply the +128 bias on the way out, otherwise
+       * every AR coefficient is off by 128 and the grain loses its spatial
+       * correlation. */
       for (uint32_t i = 0; i < 24; i++) {
-         dxvaStructure.film_grain.ar_coeffs_y[i] = pipe_av1->picture_parameter.film_grain_info.ar_coeffs_y[i];
+         dxvaStructure.film_grain.ar_coeffs_y[i] =
+            (uint8_t) (pipe_av1->picture_parameter.film_grain_info.ar_coeffs_y[i] + 128);
       }
       for (uint32_t i = 0; i < 25; i++) {
-         dxvaStructure.film_grain.ar_coeffs_cb[i] = pipe_av1->picture_parameter.film_grain_info.ar_coeffs_cb[i];
-         dxvaStructure.film_grain.ar_coeffs_cr[i] = pipe_av1->picture_parameter.film_grain_info.ar_coeffs_cr[i];
+         dxvaStructure.film_grain.ar_coeffs_cb[i] =
+            (uint8_t) (pipe_av1->picture_parameter.film_grain_info.ar_coeffs_cb[i] + 128);
+         dxvaStructure.film_grain.ar_coeffs_cr[i] =
+            (uint8_t) (pipe_av1->picture_parameter.film_grain_info.ar_coeffs_cr[i] + 128);
       }
       dxvaStructure.film_grain.cb_mult      = pipe_av1->picture_parameter.film_grain_info.cb_mult;
       dxvaStructure.film_grain.cb_luma_mult = pipe_av1->picture_parameter.film_grain_info.cb_luma_mult;
