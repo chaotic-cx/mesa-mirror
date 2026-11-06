@@ -573,10 +573,20 @@ merge_presub_sources(struct rc_pair_instruction *dst_full, struct rc_pair_sub_in
 
    info = rc_get_opcode_info(dst_full->RGB.Opcode);
 
-   if (dst_sub->Src[RC_PAIR_PRESUB_SRC].Used)
-      return 0;
-
    srcp_regs = rc_presubtract_src_reg_count(src.Src[RC_PAIR_PRESUB_SRC].Index);
+   /* Both instructions can share an identical presubtract operation. */
+   if (dst_sub->Src[RC_PAIR_PRESUB_SRC].Used) {
+      if (dst_sub->Src[RC_PAIR_PRESUB_SRC].Index != src.Src[RC_PAIR_PRESUB_SRC].Index)
+         return 0;
+
+      for (srcp_src = 0; srcp_src < srcp_regs; srcp_src++) {
+         if (dst_sub->Src[srcp_src].File != src.Src[srcp_src].File ||
+             dst_sub->Src[srcp_src].Index != src.Src[srcp_src].Index)
+            return 0;
+      }
+      return 1;
+   }
+
    for (srcp_src = 0; srcp_src < srcp_regs; srcp_src++) {
       unsigned int arg;
       int free_source;
