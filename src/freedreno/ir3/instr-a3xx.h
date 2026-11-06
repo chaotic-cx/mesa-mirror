@@ -610,6 +610,44 @@ typedef enum {
 } cat6_desc_mode_t;
 
 static inline bool
+is_cat2_float(opc_t opc)
+{
+   switch (opc) {
+   case OPC_ADD_F:
+   case OPC_MIN_F:
+   case OPC_MAX_F:
+   case OPC_MUL_F:
+   case OPC_SIGN_F:
+   case OPC_CMPS_F:
+   case OPC_ABSNEG_F:
+   case OPC_CMPV_F:
+   case OPC_FLOOR_F:
+   case OPC_CEIL_F:
+   case OPC_RNDNE_F:
+   case OPC_RNDAZ_F:
+   case OPC_TRUNC_F:
+      return true;
+
+   default:
+      return false;
+   }
+}
+
+static inline bool
+is_cat3_float(opc_t opc)
+{
+   switch (opc) {
+   case OPC_MAD_F16:
+   case OPC_MAD_F32:
+   case OPC_SEL_F16:
+   case OPC_SEL_F32:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static inline bool
 is_sat_compatible(opc_t opc)
 {
    /* On a6xx saturation doesn't work on cat4 */
@@ -786,44 +824,6 @@ is_isam(opc_t opc)
    case OPC_ISAM:
    case OPC_ISAML:
    case OPC_ISAMM:
-      return true;
-   default:
-      return false;
-   }
-}
-
-static inline bool
-is_cat2_float(opc_t opc)
-{
-   switch (opc) {
-   case OPC_ADD_F:
-   case OPC_MIN_F:
-   case OPC_MAX_F:
-   case OPC_MUL_F:
-   case OPC_SIGN_F:
-   case OPC_CMPS_F:
-   case OPC_ABSNEG_F:
-   case OPC_CMPV_F:
-   case OPC_FLOOR_F:
-   case OPC_CEIL_F:
-   case OPC_RNDNE_F:
-   case OPC_RNDAZ_F:
-   case OPC_TRUNC_F:
-      return true;
-
-   default:
-      return false;
-   }
-}
-
-static inline bool
-is_cat3_float(opc_t opc)
-{
-   switch (opc) {
-   case OPC_MAD_F16:
-   case OPC_MAD_F32:
-   case OPC_SEL_F16:
-   case OPC_SEL_F32:
       return true;
    default:
       return false;
