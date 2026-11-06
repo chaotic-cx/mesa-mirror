@@ -2138,9 +2138,14 @@ bool is_scalar_alu(struct ir3_instruction *instr,
 static inline bool
 is_ss_producer(struct ir3_instruction *instr)
 {
-   foreach_dst (dst, instr) {
-      if (dst->flags & (IR3_REG_SHARED | IR3_REG_UNIFORM))
-         return true;
+   /* Non-ALU instructions (e.g., ldc.u) may write to shared registers without
+    * needing (ss).
+    */
+   if (is_alu(instr)) {
+      foreach_dst (dst, instr) {
+         if (dst->flags & (IR3_REG_SHARED | IR3_REG_UNIFORM))
+            return true;
+      }
    }
 
    if (instr->block->in_early_preamble && writes_addr1(instr))
