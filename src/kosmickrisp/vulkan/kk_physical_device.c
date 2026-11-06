@@ -1108,7 +1108,7 @@ kk_parse_environment_options(struct kk_physical_device *pdev)
    for (unsigned n; n = strcspn(list, ","), *list; list += MAX2(1, n)) {
       if (n == all_len && !strncmp(list, all_workarounds, n)) {
          settings->disabled_workarounds = UINT64_MAX;
-         break;
+         return;
       }
 
       int index = atoi(list);
