@@ -9741,8 +9741,10 @@ radv_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipeline
    cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].need_upload =
       pipeline->need_push_constants_upload;
    cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].dynamic_offset_count = pipeline->dynamic_offset_count;
-   cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_dynamic_descriptors_offset_addr =
-      pipeline->need_dynamic_descriptors_offset_addr;
+   if (pipelineBindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS) {
+      cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_dynamic_descriptors_offset_addr =
+         pipeline->need_dynamic_descriptors_offset_addr;
+   }
    cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_indirect_descriptors =
       pipeline->need_indirect_descriptors;
 
@@ -17702,7 +17704,6 @@ radv_bind_compute_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader_
    struct radv_push_constant_state *pc_state = &cmd_buffer->push_constant_state[VK_PIPELINE_BIND_POINT_COMPUTE];
 
    descriptors_state->need_indirect_descriptors = radv_shader_need_indirect_descriptors(shader);
-   descriptors_state->need_dynamic_descriptors_offset_addr = radv_shader_need_dynamic_descriptors_offset_addr(shader);
    descriptors_state->dynamic_offset_count = shader_obj->dynamic_offset_count;
    pc_state->need_upload = radv_shader_need_push_constants_upload(shader);
    pc_state->size = align(shader->info.push_constant_size, 4);
