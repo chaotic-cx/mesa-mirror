@@ -1178,6 +1178,13 @@ static struct si_texture *si_texture_create_object(struct pipe_screen *screen,
    if (tex->surface.flags & RADEON_SURF_TC_COMPATIBLE_HTILE) {
       assert(sscreen->info.gfx_level < GFX12);
 
+      if (sscreen->info.gfx_level >= GFX10) {
+         tex->htile_pipe_misaligned =
+            ac_surface_is_meta_pipe_misaligned(&sscreen->info, tex->surface.bpe,
+                                               base->nr_storage_samples, util_num_layers(base, 0),
+                                               true);
+      }
+
       /* On GFX8, HTILE uses different tiling depending on the TC_COMPATIBLE_HTILE
        * setting, so we have to enable it if we enabled it at allocation.
        *

@@ -390,7 +390,7 @@ static void si_decompress_depth(struct si_context *sctx, struct si_texture *tex,
        * when we don't decompress but TC-compatible planes are dirty.
        */
       si_make_DB_shader_coherent(sctx, tex->buffer.b.b.nr_samples, inplace_planes & PIPE_MASK_S,
-                                 tc_compat_htile);
+                                 tc_compat_htile, tex->htile_pipe_misaligned);
    }
    /* set_framebuffer_state takes care of coherency for single-sample.
     * The DB->CB copy uses CB for the final writes.
