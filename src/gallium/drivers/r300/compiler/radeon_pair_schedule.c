@@ -982,6 +982,7 @@ try_convert_and_pair(struct schedule_state *s, struct schedule_instruction **ins
 {
    struct schedule_instruction *list_ptr = *inst_list;
    while (list_ptr && *inst_list && (*inst_list)->NextReady) {
+      struct schedule_instruction *next = list_ptr->NextReady;
       int paired = 0;
       if (list_ptr->Instruction->U.P.Alpha.Opcode != RC_OPCODE_NOP &&
           list_ptr->Instruction->U.P.RGB.Opcode != RC_OPCODE_REPL_ALPHA) {
@@ -1008,7 +1009,7 @@ try_convert_and_pair(struct schedule_state *s, struct schedule_instruction **ins
       }
       if (!paired) {
       next:
-         list_ptr = list_ptr->NextReady;
+         list_ptr = next;
       }
    }
 }
