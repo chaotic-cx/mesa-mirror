@@ -14397,7 +14397,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
       need_dynamic_descriptors_offset_addr |= radv_shader_need_dynamic_descriptors_offset_addr(shader);
       need_push_constants_upload |= radv_shader_need_push_constants_upload(shader);
       push_constant_size = MAX2(push_constant_size, shader->info.push_constant_size);
-      dynamic_offset_count += shader_obj->dynamic_offset_count;
+      dynamic_offset_count = MAX2(dynamic_offset_count, shader_obj->dynamic_offset_count);
       active_stages |= mesa_to_vk_shader_stage(s);
    }
 
