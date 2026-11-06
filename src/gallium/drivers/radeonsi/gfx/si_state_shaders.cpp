@@ -3306,10 +3306,8 @@ bool si_update_ngg(struct si_context *sctx)
       if (sctx->screen->info.has_vgt_flush_ngg_legacy_bug && !new_ngg) {
          si_set_barrier_flags(sctx, SI_BARRIER_EVENT_VGT_FLUSH);
 
-         if (sctx->gfx_level == GFX10) {
-            /* Workaround for https://gitlab.freedesktop.org/mesa/mesa/-/issues/2941 */
-            si_flush_gfx_cs(sctx, RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
-         }
+         /* Workaround for https://gitlab.freedesktop.org/mesa/mesa/-/issues/2941 */
+         si_flush_gfx_cs(sctx, RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
       }
 
       sctx->ngg = new_ngg;
