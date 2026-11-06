@@ -1851,6 +1851,19 @@ cmd_buffer_decide_global_ez_enable(struct v3dv_cmd_buffer *cmd_buffer)
       return false;
    }
 
+#if V3D_VERSION == 42
+   /* Using early-Z in a render pass split in a suspend/resume chain can
+    * violate the early-Z constraints on V3D 4.2, so disable it for the whole
+    * chain.
+    */
+   if (state->suspending || state->resuming) {
+      perf_debug("Suspending or resuming a render pass disables early-Z tests.\n");
+      job->first_ez_state = V3D_EZ_DISABLED;
+      job->ez_state = V3D_EZ_DISABLED;
+      return false;
+   }
+#endif
+
    /* GFXH-1918: the early-z buffer may load incorrect depth values if the
     * frame has odd width or height, or if the buffer is 16-bit and
     * multisampled.
