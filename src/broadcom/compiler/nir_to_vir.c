@@ -426,6 +426,14 @@ emit_tmu_general_atomic_writes(struct v3d_compile *c,
         }
 }
 
+static bool
+scratch_store_needs_redirect(struct v3d_compile *c, nir_intrinsic_instr *instr)
+{
+        return c->s->info.stage == MESA_SHADER_FRAGMENT &&
+               instr->intrinsic == nir_intrinsic_store_scratch &&
+               vir_in_nonuniform_control_flow(c);
+}
+
 /**
  * For any TMU general instruction:
  *
@@ -464,6 +472,36 @@ emit_tmu_general_address_write(struct v3d_compile *c,
                 tmua = vir_reg(QFILE_MAGIC, V3D_QPU_WADDR_TMUA);
         else
                 tmua = vir_reg(QFILE_MAGIC, V3D_QPU_WADDR_TMUAU);
+
+        /* Fragment shader scratch stores are done per-quad so helper
+         * invocations write their scratch too. In non-uniform control flow
+         * the per-quad write can't be conditional, since it would also be
+         * done for the inactive lanes of the quad, so instead we redirect
+         * the inactive lanes to a dummy scratch dword of their own.
+         */
+        if (scratch_store_needs_redirect(c, instr)) {
+                struct qreg addr = base_offset;
+                if (const_offset != 0 || dynamic_src) {
+                        if (const_offset != 0)
+                                addr = vir_ADD(c, addr, vir_uniform_ui(c, const_offset));
+                        if (dynamic_src) {
+                                addr = vir_ADD(c, addr,
+                                               ntq_get_src(c, instr->src[offset_src], 0));
+                        }
+                } else {
+                        addr = vir_MOV(c, addr);
+                }
+                struct qreg dummy =
+                        vir_ADD(c, c->spill_base,
+                                vir_uniform_ui(c, V3D_CHANNELS *
+                                                  c->s->scratch_size));
+                vir_MOV_cond(c, V3D_QPU_COND_IFNA, addr, dummy);
+                struct qinst *tmu = vir_MOV_dest(c, tmua, addr);
+                tmu->uniform =
+                        vir_get_uniform_index(c, QUNIFORM_CONSTANT, config);
+                tmu->ldtmu_count = dest_components;
+                return;
+        }
 
         struct qinst *tmu;
         if (dynamic_src) {
@@ -653,12 +691,23 @@ ntq_emit_tmu_general(struct v3d_compile *c, nir_intrinsic_instr *instr,
 
                         /* Only load per-quad if we can't skip helper
                          * invocations.
+                         *
+                         * Scratch is private to each invocation, so helper
+                         * invocations must also be able to write it, or they
+                         * would read back garbage (see
+                         * emit_tmu_general_address_write for the non-uniform
+                         * control flow case).
                          */
-                        uint32_t perquad =
-                                is_load &&
+                        bool load_perquad =
                                 c->s->info.stage == MESA_SHADER_FRAGMENT &&
+                                is_load &&
                                 nir_intrinsic_has_access(instr) &&
-                                !(nir_intrinsic_access(instr) & ACCESS_SKIP_HELPERS) ?
+                                !(nir_intrinsic_access(instr) & ACCESS_SKIP_HELPERS);
+                        bool store_perquad =
+                                c->s->info.stage == MESA_SHADER_FRAGMENT &&
+                                instr->intrinsic == nir_intrinsic_store_scratch;
+                        uint32_t perquad =
+                                load_perquad || store_perquad ?
                                 GENERAL_TMU_LOOKUP_PER_QUAD :
                                 GENERAL_TMU_LOOKUP_PER_PIXEL;
                         config = 0xffffff00 | tmu_op << 3 | perquad;
@@ -5071,6 +5120,9 @@ nir_to_vir(struct v3d_compile *c)
         if (c->s->scratch_size) {
                 v3d_setup_spill_base(c);
                 c->spill_size += V3D_CHANNELS * c->s->scratch_size;
+                /* Dummy dword for scratch stores from inactive lanes */
+                if (c->s->info.stage == MESA_SHADER_FRAGMENT)
+                        c->spill_size += V3D_CHANNELS * sizeof(uint32_t);
         }
 
         switch (c->s->info.stage) {
