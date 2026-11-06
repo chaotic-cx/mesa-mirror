@@ -2146,7 +2146,8 @@ is_ss_producer(struct ir3_instruction *instr)
    if (instr->block->in_early_preamble && writes_addr1(instr))
       return true;
 
-   return is_sfu(instr) || is_local_mem_load(instr) || instr->opc == OPC_SHFL;
+   return is_sfu(instr) || is_local_mem_load(instr) ||
+          is_local_atomic(instr->opc) || instr->opc == OPC_SHFL;
 }
 
 static inline bool
@@ -2196,7 +2197,7 @@ is_sy_producer(struct ir3_instruction *instr)
 {
    return is_tex_or_prefetch(instr) ||
       (is_load(instr) && !is_local_mem_load(instr)) ||
-      is_atomic(instr->opc);
+      (is_atomic(instr->opc) && !is_local_atomic(instr->opc));
 }
 
 static inline bool
