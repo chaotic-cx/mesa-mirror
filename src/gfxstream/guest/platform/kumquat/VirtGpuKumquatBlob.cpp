@@ -25,7 +25,7 @@ VirtGpuKumquatResource::~VirtGpuKumquatResource() {
 
     int ret = virtgpu_kumquat_resource_unref(mVirtGpu, &unref);
     if (ret) {
-        mesa_loge("Closed failed with : [%s, blobHandle %u, resourceHandle: %u]", strerror(errno),
+        mesa_loge("Closed failed with : [%s, blobHandle %u, resourceHandle: %u]", strerror(-ret),
                   mBlobHandle, mResourceHandle);
     }
 }
@@ -57,7 +57,7 @@ VirtGpuResourceMappingPtr VirtGpuKumquatResource::createMapping() {
 
         ret = virtgpu_kumquat_resource_export(mVirtGpu, &resource_export);
         if (ret) {
-            mesa_loge("External memory export from kumquat failed: %s", strerror(errno));
+            mesa_loge("External memory export from kumquat failed: %s", strerror(-ret));
             return nullptr;
         }
 
@@ -73,7 +73,7 @@ VirtGpuResourceMappingPtr VirtGpuKumquatResource::createMapping() {
 
         ret = mapper->map(&mapData);
         if (ret < 0) {
-            mesa_loge("Mapping failed with %s for resource %u blob %u", strerror(errno),
+            mesa_loge("Mapping failed with %s for resource %u blob %u", strerror(-ret),
                       mResourceHandle, mBlobHandle);
             return nullptr;
         }
@@ -83,7 +83,7 @@ VirtGpuResourceMappingPtr VirtGpuKumquatResource::createMapping() {
     } else {
         ret = virtgpu_kumquat_resource_map(mVirtGpu, &map);
         if (ret < 0) {
-            mesa_loge("Mapping failed with %s for resource %u blob %u", strerror(errno),
+            mesa_loge("Mapping failed with %s for resource %u blob %u", strerror(-ret),
                       mResourceHandle, mBlobHandle);
             return nullptr;
         }
@@ -101,7 +101,7 @@ int VirtGpuKumquatResource::exportBlob(struct VirtGpuExternalHandle& handle) {
 
     ret = virtgpu_kumquat_resource_export(mVirtGpu, &exp);
     if (ret) {
-        mesa_loge("Failed to export blob with %s", strerror(errno));
+        mesa_loge("Failed to export blob with %s", strerror(-ret));
         return ret;
     }
 
@@ -119,7 +119,7 @@ int VirtGpuKumquatResource::wait() {
 
     ret = virtgpu_kumquat_wait(mVirtGpu, &wait);
     if (ret < 0) {
-        mesa_loge("Wait failed with %s", strerror(errno));
+        mesa_loge("Wait failed with %s", strerror(-ret));
         return ret;
     }
 
@@ -139,7 +139,7 @@ int VirtGpuKumquatResource::transferToHost(uint32_t x, uint32_t y, uint32_t w, u
 
     ret = virtgpu_kumquat_transfer_to_host(mVirtGpu, &xfer);
     if (ret < 0) {
-        mesa_loge("Transfer to host failed with %s", strerror(errno));
+        mesa_loge("Transfer to host failed with %s", strerror(-ret));
         return ret;
     }
 
@@ -159,7 +159,7 @@ int VirtGpuKumquatResource::transferFromHost(uint32_t x, uint32_t y, uint32_t w,
 
     ret = virtgpu_kumquat_transfer_from_host(mVirtGpu, &xfer);
     if (ret < 0) {
-        mesa_loge("Transfer from host failed with %s", strerror(errno));
+        mesa_loge("Transfer from host failed with %s", strerror(-ret));
         return ret;
     }
 

@@ -211,29 +211,31 @@ int32_t DrmVirtGpuDevice::init(int32_t descriptor) {
 #endif
 
     auto capset = getCapset();
-    get_caps.cap_set_id = static_cast<uint32_t>(capset);
-    switch (capset) {
-        case kCapsetGfxStreamVulkan:
-            get_caps.size = sizeof(struct vulkanCapset);
-            get_caps.addr = (uint64_t)(uintptr_t)&mCaps.vulkanCapset;
-            break;
-        case kCapsetGfxStreamGles:
-            get_caps.size = sizeof(struct glesCapset);
-            get_caps.addr = (uint64_t)(uintptr_t)&mCaps.glesCapset;
-            break;
-        case kCapsetGfxStreamComposer:
-            get_caps.size = sizeof(struct composerCapset);
-            get_caps.addr = (uint64_t)(uintptr_t)&mCaps.composerCapset;
-            break;
-        default:
-            get_caps.size = 0;
-    }
+    if (capset != kCapsetNone) {
+        get_caps.cap_set_id = static_cast<uint32_t>(capset);
+        switch (capset) {
+            case kCapsetGfxStreamVulkan:
+                get_caps.size = sizeof(struct vulkanCapset);
+                get_caps.addr = (uint64_t)(uintptr_t)&mCaps.vulkanCapset;
+                break;
+            case kCapsetGfxStreamGles:
+                get_caps.size = sizeof(struct glesCapset);
+                get_caps.addr = (uint64_t)(uintptr_t)&mCaps.glesCapset;
+                break;
+            case kCapsetGfxStreamComposer:
+                get_caps.size = sizeof(struct composerCapset);
+                get_caps.addr = (uint64_t)(uintptr_t)&mCaps.composerCapset;
+                break;
+            default:
+                get_caps.size = 0;
+        }
 
-    ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_GET_CAPS, &get_caps);
-    if (ret) {
-        // Don't fail get capabilities just yet, AEMU doesn't use this API
-        // yet (b/272121235);
-        mesa_loge("DRM_IOCTL_VIRTGPU_GET_CAPS failed with %s", strerror(errno));
+        ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_GET_CAPS, &get_caps);
+        if (ret) {
+            // Don't fail get capabilities just yet, AEMU doesn't use this API
+            // yet (b/272121235);
+            mesa_logw("DRM_IOCTL_VIRTGPU_GET_CAPS failed with %s", strerror(errno));
+        }
     }
 
     // We always need an ASG blob in some cases, so always define blobAlignment
