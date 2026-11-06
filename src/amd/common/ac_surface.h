@@ -607,6 +607,9 @@ bool ac_surface_supports_dcc_image_stores(enum amd_gfx_level gfx_level,
 void ac_compute_surface_modifier(const struct radeon_info *info, struct radeon_surf *surf,
                                  unsigned samples);
 
+bool ac_surface_is_meta_pipe_misaligned(const struct radeon_info *info, unsigned bpe,
+                                        unsigned num_samples, unsigned num_layers, bool is_depth);
+
 #ifdef __cplusplus
 }
 #endif
