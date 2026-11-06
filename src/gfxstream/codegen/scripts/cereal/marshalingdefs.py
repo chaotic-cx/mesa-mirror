@@ -379,11 +379,9 @@ memcpy(*ptr, (uint64_t*)&{newInputVarName}->accelerationStructureReference, size
 VkAccelerationStructureInstanceKHRWithoutBitFields* {newInputVarName} = (VkAccelerationStructureInstanceKHRWithoutBitFields*)({inputVarName});
 reservedunmarshal_VkTransformMatrixKHR({streamVarName}, {rootTypeVarName}, (VkTransformMatrixKHR*)(&{newInputVarName}->transform), ptr);
 for (uint32_t i = 0; i < 2; i++) {{
-    memcpy((uint32_t*)&({newInputVarName}->dwords[i]), *ptr, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    readStreamBytes(ptr, &{newInputVarName}->dwords[i], sizeof(uint32_t));
 }}
-memcpy((uint64_t*)&{newInputVarName}->accelerationStructureReference, *ptr, sizeof(uint64_t));
-*ptr += sizeof(uint64_t);
+readStreamBytes(ptr, &{newInputVarName}->accelerationStructureReference, sizeof(uint64_t));
 """,
     },
     "VkAccelerationStructureMatrixMotionInstanceNV": {
@@ -430,11 +428,9 @@ VkAccelerationStructureMatrixMotionInstanceNVWithoutBitFields* {newInputVarName}
 reservedunmarshal_VkTransformMatrixKHR({streamVarName}, {rootTypeVarName}, (VkTransformMatrixKHR*)(&{newInputVarName}->transformT0), ptr);
 reservedunmarshal_VkTransformMatrixKHR({streamVarName}, {rootTypeVarName}, (VkTransformMatrixKHR*)(&{newInputVarName}->transformT1), ptr);
 for (uint32_t i = 0; i < 2; i++) {{
-    memcpy((uint32_t*)&({newInputVarName}->dwords[i]), *ptr, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    readStreamBytes(ptr, &{newInputVarName}->dwords[i], sizeof(uint32_t));
 }}
-memcpy((uint64_t*)&{newInputVarName}->accelerationStructureReference, *ptr, sizeof(uint64_t));
-*ptr += sizeof(uint64_t);
+readStreamBytes(ptr, &{newInputVarName}->accelerationStructureReference, sizeof(uint64_t));
 """,
     },
     "VkAccelerationStructureSRTMotionInstanceNV": {
@@ -481,24 +477,17 @@ VkAccelerationStructureSRTMotionInstanceNVWithoutBitFields* {newInputVarName} = 
 reservedunmarshal_VkSRTDataNV({streamVarName}, {rootTypeVarName}, (VkSRTDataNV*)(&{newInputVarName}->transformT0), ptr);
 reservedunmarshal_VkSRTDataNV({streamVarName}, {rootTypeVarName}, (VkSRTDataNV*)(&{newInputVarName}->transformT1), ptr);
 for (uint32_t i = 0; i < 2; i++) {{
-    memcpy((uint32_t*)&({newInputVarName}->dwords[i]), *ptr, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    readStreamBytes(ptr, &{newInputVarName}->dwords[i], sizeof(uint32_t));
 }}
-memcpy((uint64_t*)&{newInputVarName}->accelerationStructureReference, *ptr, sizeof(uint64_t));
-*ptr += sizeof(uint64_t);
+readStreamBytes(ptr, &{newInputVarName}->accelerationStructureReference, sizeof(uint64_t));
 """,
     },
     "VkDescriptorBufferInfo": {
         "common":"",
         "reservedunmarshaling": """
-            uint64_t cgen_var_0;
-            memcpy((uint64_t*)&cgen_var_0, *ptr, 1 * 8);
-            *ptr += 1 * 8;
-            *(VkBuffer*)&forUnmarshaling->buffer = (VkBuffer)try_unbox_VkBuffer(Boxed<VkBuffer>::fromRaw(*&cgen_var_0));
-            memcpy((VkDeviceSize*)&forUnmarshaling->offset, *ptr, sizeof(VkDeviceSize));
-            *ptr += sizeof(VkDeviceSize);
-            memcpy((VkDeviceSize*)&forUnmarshaling->range, *ptr, sizeof(VkDeviceSize));
-            *ptr += sizeof(VkDeviceSize);
+            forUnmarshaling->buffer = try_unbox_VkBuffer(Boxed<VkBuffer>::fromRaw(readStreamVal<uint64_t>(ptr)));
+            readStreamBytes(ptr, &forUnmarshaling->offset, sizeof(VkDeviceSize));
+            readStreamBytes(ptr, &forUnmarshaling->range, sizeof(VkDeviceSize));
         """
     },
     "VkXcbSurfaceCreateInfoKHR": {

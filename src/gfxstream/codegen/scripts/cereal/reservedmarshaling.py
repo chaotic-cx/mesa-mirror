@@ -45,6 +45,11 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         self.processSimple = "write" if self.direction == "write" else "read"
         self.forApiOutput = forApiOutput
 
+        # Host unmarshaling uses the inline read helpers (readStreamBytes,
+        # get*WithStreamPtr, readStreamHandle(s)) declared in the host
+        # goldfish_vk_reserved_marshaling.h.
+        self.useReadHelpers = self.direction == "read" and self.variant == "host"
+
         self.checked = False
 
         self.streamVarName = streamVarName
@@ -96,6 +101,10 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
             self.cgen.stmt("writeStreamBytes(%s, %s, %s)" % (varname, toStreamExpr, sizeExpr))
             return
 
+        if self.useReadHelpers and not toBe:
+            self.cgen.stmt("readStreamBytes(%s, %s%s, %s)" % (varname, cast, toStreamExpr, sizeExpr))
+            return
+
         if self.direction == "write":
             self.cgen.stmt("memcpy(*%s, %s%s, %s)" % (varname, cast, toStreamExpr, sizeExpr))
         else:
@@ -132,7 +141,11 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
 
     def genStreamCall(self, vulkanType, toStreamExpr, sizeExpr):
         varname = self.ptrVar
-        cast = self.makeCastExpr(self.getTypeForStreaming(vulkanType))
+        if self.useReadHelpers and not vulkanType.isConst:
+            # readStreamBytes() takes a void*, so a cast is only needed to drop const.
+            cast = ""
+        else:
+            cast = self.makeCastExpr(self.getTypeForStreaming(vulkanType))
 
         # Guard memcpy operations against zero-size arrays, to avoid undefined behavior
         lenAccess = self.lenAccessor(vulkanType)
@@ -159,6 +172,24 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
                     self.cgen.stmt("putBe32WithStreamPtr(%s, (uint32_t)%s)" % (varname, access))
                 elif streamSize == 8:
                     self.cgen.stmt("putBe64WithStreamPtr(%s, (uint64_t)%s)" % (varname, access))
+            return
+
+        if self.useReadHelpers:
+            streamSize = self.cgen.countPrimitive(self.typeInfo, vulkanType)
+            getFunc = {
+                1: "getByteWithStreamPtr",
+                2: "getBe16WithStreamPtr",
+                4: "getBe32WithStreamPtr",
+                8: "getBe64WithStreamPtr",
+            }[streamSize]
+            valueType = self.cgen.makeCTypeDecl(vulkanType.getForNonConstAccess(), useParamName=False)
+            isPointer = vulkanType.pointerIndirectionLevels > 0 or \
+                self.typeInfo.typeCategories.get(vulkanType.typeName) == "funcpointer"
+            if vulkanType.pointerIndirectionLevels == 0 and vulkanType.isConst:
+                # e.g. an element of a const array; cast away const to assign it.
+                access = "*(%s*)&%s" % (valueType, access)
+            self.cgen.stmt("%s = (%s)%s%s(%s)" % (
+                access, valueType, "(uintptr_t)" if isPointer else "", getFunc, varname))
             return
 
         self.cgen.memcpyPrimitive(
@@ -206,6 +237,31 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
                 self.cgen.stmt("writeStreamVal(%s, %s)" % (self.ptrVar, mapExpr))
                 self.cgen.endFor()
                 self.cgen.endIf()
+            return
+
+        if self.useReadHelpers:
+            if vulkanType.isConst:
+                access = "%s%s" % (self.makeCastExpr(vulkanType.getForNonConstAccess()), access)
+
+            # Maps a raw 64-bit stream value to a handle. Like the read path
+            # below, unbox_* takes a Boxed<T> rather than a raw handle.
+            def mapRawHandle(rawExpr):
+                if self.handlemapPrefix == "unbox_":
+                    return "%s(Boxed<%s>::fromRaw(%s))" % (mapFunc, vulkanType.typeName, rawExpr)
+                return "%s((%s)%s)" % (mapFunc, vulkanType.typeName, rawExpr)
+
+            if "1" == lenAccess:
+                if "" == self.handlemapPrefix:
+                    readExpr = "readStreamHandle<%s>(%s)" % (vulkanType.typeName, self.ptrVar)
+                else:
+                    readExpr = mapRawHandle("readStreamVal<uint64_t>(%s)" % self.ptrVar)
+                lhs = access[1:] if access.startswith("&") else "*%s" % access
+                self.cgen.stmt("%s = %s" % (lhs, readExpr))
+            else:
+                args = [self.ptrVar, access, lenAccess]
+                if "" != self.handlemapPrefix:
+                    args.append("[](uint64_t handle) { return %s; }" % mapRawHandle("handle"))
+                self.cgen.stmt("readStreamHandles(%s)" % ", ".join(args))
             return
 
         handle64Var = self.cgen.var()
@@ -557,8 +613,11 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
             forIncr = "++%s" % loopVar
             self.cgen.beginFor(forInit, forCond, forIncr)
 
-        accessWithCast = "%s(%s)" % (self.makeCastExpr(
-            self.getTypeForStreaming(vulkanType)), access)
+        if self.useReadHelpers and not vulkanType.isConst:
+            accessWithCast = access
+        else:
+            accessWithCast = "%s(%s)" % (self.makeCastExpr(
+                self.getTypeForStreaming(vulkanType)), access)
 
         callParams = [self.streamVarName, self.rootTypeVarName, accessWithCast, self.ptrVar]
 
@@ -675,7 +734,14 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         self.cgen.stmt("%s = %s" % (self.rootTypeVarName, sTypeAccess))
         self.cgen.endIf()
 
-        if self.direction == "read" and self.dynAlloc:
+        if self.useReadHelpers and self.dynAlloc:
+            # pNext is "const void*" for most structs; only the base structs need a cast.
+            cast = "" if vulkanType.typeName == "void" else \
+                self.makeCastExpr(vulkanType.getForNonConstAccess())
+            self.cgen.stmt("%s = %s%s(%s, %s, %s)" % (
+                access, cast, self.marshalPrefix + "pNext",
+                self.streamVarName, self.rootTypeVarName, self.ptrVar))
+        elif self.direction == "read" and self.dynAlloc:
             self.cgen.stmt("uint32_t %s" % sizeVar)
 
             self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)", "&" + sizeVar, "sizeof(uint32_t)", toBe = True, actualSize = 4)
@@ -885,10 +951,91 @@ inline void putStringArrayWithStreamPtr(uint8_t** ptr, const char* const* string
     }
 }
 """)
+        if self.variant == "host":
+            self.module.appendHeader("""
+inline void readStreamBytes(uint8_t** ptr, void* buffer, size_t size) {
+    memcpy(buffer, *ptr, size);
+    *ptr += size;
+}
+
+template <typename T>
+inline T readStreamVal(uint8_t** ptr) {
+    T val;
+    memcpy(&val, *ptr, sizeof(T));
+    *ptr += sizeof(T);
+    return val;
+}
+
+inline uint8_t getByteWithStreamPtr(uint8_t** ptr) {
+    return readStreamVal<uint8_t>(ptr);
+}
+
+inline uint16_t getBe16WithStreamPtr(uint8_t** ptr) {
+    uint16_t val = readStreamVal<uint16_t>(ptr);
+    gfxstream::Stream::fromBe16((uint8_t*)&val);
+    return val;
+}
+
+inline uint32_t getBe32WithStreamPtr(uint8_t** ptr) {
+    uint32_t val = readStreamVal<uint32_t>(ptr);
+    gfxstream::Stream::fromBe32((uint8_t*)&val);
+    return val;
+}
+
+inline uint64_t getBe64WithStreamPtr(uint8_t** ptr) {
+    uint64_t val = readStreamVal<uint64_t>(ptr);
+    gfxstream::Stream::fromBe64((uint8_t*)&val);
+    return val;
+}
+
+// Handles are streamed as 64-bit values in host byte order.
+template <typename T>
+inline T readStreamHandle(uint8_t** ptr) {
+    return (T)readStreamVal<uint64_t>(ptr);
+}
+
+// Reads |count| handles into |handles|.
+template <typename T>
+inline void readStreamHandles(uint8_t** ptr, T* handles, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) {
+        handles[i] = readStreamHandle<T>(ptr);
+    }
+}
+
+// Reads |count| handles into |handles|. Non-null handles are mapped by
+// |unbox|, which receives the raw 64-bit stream value.
+template <typename T, typename UnboxFn>
+inline void readStreamHandles(uint8_t** ptr, T* handles, uint32_t count, UnboxFn unbox) {
+    for (uint32_t i = 0; i < count; ++i) {
+        uint64_t handle = readStreamVal<uint64_t>(ptr);
+        handles[i] = handle ? (T)unbox(handle) : VK_NULL_HANDLE;
+    }
+}
+""")
         if self.variant != "host":
             self.module.appendImpl(self.cgenImpl.makeFuncDecl(self.extensionMarshalPrototype))
         if self.variant != "guest":
             self.module.appendImpl(self.cgenImpl.makeFuncDecl(self.extensionUnmarshalPrototype))
+            self.module.appendImpl("""
+// Unmarshals a pNext chain: a big-endian size followed, if non-zero, by the
+// extension struct, which is allocated from |vkStream|.
+static void* reservedunmarshal_pNext(VulkanStream* vkStream, VkStructureType rootType,
+                                     uint8_t** ptr) {
+    uint32_t pNextSize = getBe32WithStreamPtr(ptr);
+    if (!pNextSize) {
+        return nullptr;
+    }
+    VkStructureType extType;
+    readStreamBytes(ptr, &extType, sizeof(VkStructureType));
+    void* pNext = nullptr;
+    vkStream->alloc(&pNext, goldfish_vk_extension_struct_size_with_stream_features(
+                                vkStream->getFeatureBits(), rootType, &extType));
+    *(VkStructureType*)pNext = extType;
+    reservedunmarshal_extension_struct(vkStream, rootType, pNext, ptr);
+    return pNext;
+}
+
+""")
 
     def onBeginFeature(self, featureName, featureType):
         VulkanWrapperGenerator.onBeginFeature(self, featureName, featureType)
