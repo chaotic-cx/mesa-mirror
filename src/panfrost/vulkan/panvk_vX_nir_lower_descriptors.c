@@ -302,7 +302,11 @@ build_res_index(nir_builder *b, uint32_t set, uint32_t binding,
       get_set_layout(set, ctx);
    const struct panvk_descriptor_set_binding_layout *bind_layout =
       &set_layout->bindings[binding];
-   uint32_t array_size = bind_layout->desc_count;
+   /* note: IUB uses desc_count to represent the size, not arrays. */
+   uint32_t array_size =
+      bind_layout->type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK
+         ? 1
+         : bind_layout->desc_count;
    nir_address_format addr_fmt = addr_format_for_type(bind_layout->type, ctx);
    uint32_t desc_idx = shader_desc_idx(set, binding, NO_SUBDESC, ctx);
 
@@ -1122,8 +1126,13 @@ record_binding(struct lower_desc_ctx *ctx, unsigned set, unsigned binding,
    };
    uint32_t *entry = _mesa_hash_table_u64_search(ctx->ht, src.ht_key);
    uint32_t old_desc_count = (uintptr_t)entry;
+   /* with an IUB, we only need to copy the buffer descriptor. */
+   const uint32_t binding_desc_count =
+      binding_layout->type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK
+         ? 1
+         : binding_layout->desc_count;
    uint32_t new_desc_count =
-      max_idx == UINT32_MAX ? binding_layout->desc_count : max_idx + 1;
+      max_idx == UINT32_MAX ? binding_desc_count : max_idx + 1;
 
    assert(new_desc_count <= binding_layout->desc_count);
 
