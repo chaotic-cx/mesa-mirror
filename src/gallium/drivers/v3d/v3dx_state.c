@@ -30,6 +30,7 @@
 #include "util/u_math.h"
 #include "util/u_memory.h"
 #include "util/half_float.h"
+#include "util/format/format_utils.h"
 #include "util/u_helpers.h"
 #include "util/u_upload_mgr.h"
 
@@ -695,6 +696,7 @@ v3d_upload_sampler_state_variant(void *map,
                         case V3D_SAMPLER_STATE_32_UNORM:
                         case V3D_SAMPLER_STATE_32_A_UNORM:
                         case V3D_SAMPLER_STATE_32_LA_UNORM:
+                        case V3D_SAMPLER_STATE_32_DEPTH_UNORM:
                                 for (int i = 0; i < 4; i++)
                                         border.f[i] = CLAMP(border.f[i], 0, 1);
                                 break;
@@ -759,6 +761,30 @@ v3d_upload_sampler_state_variant(void *map,
                                 border.ui[1] = _mesa_float_to_half(border.f[1]);
                                 border.ui[2] = _mesa_float_to_half(border.f[2]);
                                 border.ui[3] = _mesa_float_to_half(border.f[3]);
+                        } else {
+                                /* With a 32-bit return, the 16-bit
+                                 * normalized formats expect the border
+                                 * color in the texture's native 16-bit
+                                 * integer encoding. Unorm depth formats
+                                 * (V3D_SAMPLER_STATE_32_DEPTH_UNORM) keep
+                                 * it as a 32-bit float.
+                                 */
+                                switch (variant) {
+                                case V3D_SAMPLER_STATE_32_UNORM:
+                                case V3D_SAMPLER_STATE_32_A_UNORM:
+                                case V3D_SAMPLER_STATE_32_LA_UNORM:
+                                        for (int i = 0; i < 4; i++)
+                                                border.ui[i] = _mesa_float_to_unorm(border.f[i], 16);
+                                        break;
+                                case V3D_SAMPLER_STATE_32_SNORM:
+                                case V3D_SAMPLER_STATE_32_A_SNORM:
+                                case V3D_SAMPLER_STATE_32_LA_SNORM:
+                                        for (int i = 0; i < 4; i++)
+                                                border.i[i] = _mesa_float_to_snorm(border.f[i], 16);
+                                        break;
+                                default:
+                                        break;
+                                }
                         }
 #endif
                         sampler.border_color_word_0 = border.ui[0];
@@ -1157,6 +1183,17 @@ v3d_create_sampler_view(struct pipe_context *pctx, struct pipe_resource *prsc,
                         so->sampler_variant += (V3D_SAMPLER_STATE_F16_SNORM -
                                                 V3D_SAMPLER_STATE_F16);
                 }
+
+#if V3D_VERSION == 42
+                /* Unorm depth formats need their border color kept as a
+                 * float on V3D 4.2, so they can't share the 16-bit unorm
+                 * color variant.
+                 */
+                if (so->sampler_variant == V3D_SAMPLER_STATE_32_UNORM &&
+                    util_format_has_depth(desc)) {
+                        so->sampler_variant = V3D_SAMPLER_STATE_32_DEPTH_UNORM;
+                }
+#endif
         }
 
         /* V3D still doesn't support sampling from raster textures, so we will

@@ -10,30 +10,6 @@ shaders@point-vertex-id gl_vertexid gl_instanceid divisor,Fail
 shaders@point-vertex-id gl_vertexid gl_instanceid,Fail
 shaders@point-vertex-id gl_vertexid,Fail
 spec@!opengl 1.0@gl-1.0-user-clip-all-planes,Fail
-spec@!opengl 1.1@texwrap formats bordercolor,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_INTENSITY12- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_INTENSITY16- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_LUMINANCE12- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_LUMINANCE12_ALPHA12- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_LUMINANCE12_ALPHA4- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_LUMINANCE16- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_LUMINANCE16_ALPHA16- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_RGB12- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_RGB16- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_RGBA12- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor-swizzled@GL_RGBA16- swizzled- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_INTENSITY12- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_INTENSITY16- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_LUMINANCE12- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_LUMINANCE12_ALPHA12- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_LUMINANCE12_ALPHA4- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_LUMINANCE16- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_LUMINANCE16_ALPHA16- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_RGB12- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_RGB16- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_RGBA12- border color only,Fail
-spec@!opengl 1.1@texwrap formats bordercolor@GL_RGBA16- border color only,Fail
 spec@arb_depth_buffer_float@fbo-generatemipmap-formats,Fail
 spec@arb_depth_buffer_float@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32F NPOT,Fail
 spec@arb_depth_buffer_float@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32F,Fail
@@ -107,24 +83,6 @@ spec@ext_texture_integer@texwrap formats bordercolor@GL_ALPHA32I_EXT- border col
 spec@ext_texture_integer@texwrap formats bordercolor@GL_ALPHA32UI_EXT- border color only,Fail
 spec@ext_texture_integer@texwrap formats bordercolor@GL_ALPHA8I_EXT- border color only,Fail
 spec@ext_texture_integer@texwrap formats bordercolor@GL_ALPHA8UI_EXT- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_ALPHA16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_INTENSITY16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_LUMINANCE16_ALPHA16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_LUMINANCE16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_R16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_RG16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_RGB16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor-swizzled@GL_RGBA16_SNORM- swizzled- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_ALPHA16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_INTENSITY16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_LUMINANCE16_ALPHA16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_LUMINANCE16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_R16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_RG16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_RGB16_SNORM- border color only,Fail
-spec@ext_texture_snorm@texwrap formats bordercolor@GL_RGBA16_SNORM- border color only,Fail
 spec@glsl-1.10@execution@glsl-fs-inline-explosion,Crash
 spec@glsl-1.10@execution@glsl-vs-inline-explosion,Crash
 spec@glsl-1.10@execution@loops@glsl-fs-unroll-explosion,Crash
@@ -145,14 +103,6 @@ spec@ext_texture_lod_bias@lodbias,Fail
 
 # https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/1192
 spec@glsl-1.20@execution@fs-underflow-mul-compare-zero,Fail
-
-# https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/1136
-spec@arb_texture_rg@texwrap formats bordercolor,Fail
-spec@arb_texture_rg@texwrap formats bordercolor-swizzled,Fail
-spec@arb_texture_rg@texwrap formats bordercolor-swizzled@GL_R16- swizzled- border color only,Fail
-spec@arb_texture_rg@texwrap formats bordercolor-swizzled@GL_RG16- swizzled- border color only,Fail
-spec@arb_texture_rg@texwrap formats bordercolor@GL_R16- border color only,Fail
-spec@arb_texture_rg@texwrap formats bordercolor@GL_RG16- border color only,Fail
 
 # Driver is not handling VERT_{ATTRIB,BIT}_EDGEFLAG at all
 spec@!opengl 1.0@gl-1.0-edgeflag,Fail
