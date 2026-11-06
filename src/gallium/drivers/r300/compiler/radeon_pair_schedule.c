@@ -891,10 +891,14 @@ convert_rgb_to_alpha(struct schedule_state *s, struct schedule_instruction *sche
    /* Even though we checked that we can convert to alpha previously, it is
     * possible that another rgb source of the reader instructions was already
     * converted to alpha and we thus have no longer free alpha sources.
+    * An operand reading both RGB and alpha can reuse RGB source 2 while earlier
+    * alpha sources remain free, so check all three.
     */
    for (i = 0; i < sched_inst->GlobalReaders.ReaderCount; i++) {
       struct rc_reader reader = sched_inst->GlobalReaders.Readers[i];
-      if (reader.Inst->U.P.Alpha.Src[2].Used)
+      if (reader.Inst->U.P.Alpha.Src[0].Used &&
+          reader.Inst->U.P.Alpha.Src[1].Used &&
+          reader.Inst->U.P.Alpha.Src[2].Used)
          return 0;
    }
 
