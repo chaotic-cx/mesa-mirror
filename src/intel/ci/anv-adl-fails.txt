@@ -457,11 +457,7 @@ GStreamer-H.265-Vulkan@WPP_AND_TILE_HIGH_TP_444_8BIT_RExt_Apple_2,Crash
 GStreamer-H.265-Vulkan@WPP_HIGH_TP_444_8BIT_RExt_Apple_2,Crash
 GStreamer-H.265-Vulkan@Zero_and_One_Palette_Size_A_Canon_2,Crash
 GStreamer-VP9-Vulkan@vp90-2-05-resize.ivf,Fail
-GStreamer-VP9-Vulkan@vp90-2-11-size-351x287.webm,Fail
-GStreamer-VP9-Vulkan@vp90-2-11-size-352x287.webm,Fail
 GStreamer-VP9-Vulkan@vp90-2-18-resize.ivf,Fail
-GStreamer-VP9-Vulkan@vp90-2-21-resize_inter_320x180_5_3-4.webm,Fail
-GStreamer-VP9-Vulkan@vp90-2-21-resize_inter_320x180_7_3-4.webm,Fail
 GStreamer-VP9-Vulkan@vp90-2-22-svc_1280x720_3.ivf,Crash
 GStreamer-VP9-Vulkan@vp91-2-04-yuv422.webm,Crash
 GStreamer-VP9-Vulkan@vp91-2-04-yuv444.webm,Crash
