@@ -232,9 +232,6 @@ sync_update(struct ir3_legalize_state *state, struct ir3_compiler *compiler,
 
    bool n_is_scalar_alu = is_scalar_alu(n, compiler);
 
-   if (is_sfu(n) || n->opc == OPC_SHFL)
-      regmask_set(&state->needs_ss, n->dsts[0]);
-
    foreach_dst (dst, n) {
       if (dst->flags & IR3_REG_SHARED) {
          if (n_is_scalar_alu) {
@@ -252,25 +249,16 @@ sync_update(struct ir3_legalize_state *state, struct ir3_compiler *compiler,
       }
    }
 
-   if (is_tex_or_prefetch(n) && !has_dummy_dst(n)) {
-      regmask_set(&state->needs_sy, n->dsts[0]);
-   } else if ((n->opc == OPC_RESINFO || n->opc == OPC_RESBASE) && !has_dummy_dst(n)) {
+   /* The scalar ALU case for ss-producers is handled above. */
+   if (!n_is_scalar_alu && is_ss_producer(n)) {
       regmask_set(&state->needs_ss, n->dsts[0]);
-   } else if (is_load(n)) {
-      if (is_local_mem_load(n))
-         regmask_set(&state->needs_ss, n->dsts[0]);
-      else
-         regmask_set(&state->needs_sy, n->dsts[0]);
-   } else if (is_atomic(n->opc)) {
-      if (is_bindless_atomic(n->opc)) {
-         regmask_set(&state->needs_sy, n->srcs[2]);
-      } else if (is_global_a3xx_atomic(n->opc) ||
-                 is_global_a6xx_atomic(n->opc)) {
-         regmask_set(&state->needs_sy, n->dsts[0]);
-      } else {
-         regmask_set(&state->needs_ss, n->dsts[0]);
-      }
-   } else if (n->opc == OPC_PUSH_CONSTS_LOAD_MACRO) {
+   }
+
+   if (is_sy_producer(n)) {
+      regmask_set(&state->needs_sy, n->dsts[0]);
+   }
+
+   if (n->opc == OPC_PUSH_CONSTS_LOAD_MACRO) {
       unsigned const_dst = n->push_consts.dst_base;
       unsigned const_size = n->push_consts.src_size * 2;
       BITSET_SET_COUNT(state->needs_ss_for_const, const_dst, const_size);
