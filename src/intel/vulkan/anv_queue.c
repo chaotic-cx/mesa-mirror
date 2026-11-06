@@ -121,16 +121,29 @@ anv_queue_init(struct anv_device *device, struct anv_queue *queue,
 }
 
 void
+anv_queue_drain(struct anv_queue *queue)
+{
+   if (queue->vk.submit.mode == VK_QUEUE_SUBMIT_MODE_THREADED)
+      vk_queue_stop_submit_thread(&queue->vk);
+
+   if (queue->init_submit)
+      anv_async_submit_wait(queue->init_submit);
+
+   if (queue->init_companion_submit)
+      anv_async_submit_wait(queue->init_companion_submit);
+}
+
+/* Callers may have to call anv_queue_drain() first if there's the possibility
+ * that work has ever been submitted to the queue.
+ */
+void
 anv_queue_finish(struct anv_queue *queue)
 {
-   if (queue->init_submit) {
-      anv_async_submit_wait(queue->init_submit);
+   if (queue->init_submit)
       anv_async_submit_destroy(queue->init_submit);
-   }
-   if (queue->init_companion_submit) {
-      anv_async_submit_wait(queue->init_companion_submit);
+
+   if (queue->init_companion_submit)
       anv_async_submit_destroy(queue->init_companion_submit);
-   }
 
    if (queue->sync)
       vk_sync_destroy(&queue->device->vk, queue->sync);
