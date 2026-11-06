@@ -169,6 +169,8 @@ libradv_files = files(
   'radv_event.h',
   'radv_formats.c',
   'radv_formats.h',
+  'radv_graphics_state.c',
+  'radv_graphics_state.h',
   'radv_host_image_copy.c',
   'radv_image.c',
   'radv_image.h',
