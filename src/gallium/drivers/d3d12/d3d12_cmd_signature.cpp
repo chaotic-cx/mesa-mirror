@@ -65,7 +65,7 @@ ID3D12CommandSignature *
 d3d12_get_cmd_signature(struct d3d12_context *ctx,
                             const struct d3d12_cmd_signature_key *key)
 {
-   struct hash_entry *entry = _mesa_hash_table_search(ctx->cmd_signature_cache, &key);
+   struct hash_entry *entry = _mesa_hash_table_search(ctx->cmd_signature_cache, key);
    
    if (!entry) {
       struct d3d12_cmd_signature *data =
