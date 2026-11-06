@@ -898,6 +898,16 @@ ntr_emit_scalar(struct ntr_compile *c, rc_opcode op, struct ntr_alu_dst dst,
    }
 }
 
+/* NIR terminate_if is scalar, so expand to R300/R400 KIL's vec4 input here. */
+static bool
+ntr_should_expand_kil_compare(struct ntr_compile *c, nir_def *def)
+{
+   nir_alu_instr *alu = nir_def_as_alu_or_null(def);
+   return !c->compiler->is_r500 && alu && alu->op == nir_op_fcsel_ge &&
+          is_only_used_by_terminate_if(alu) &&
+          nir_src_is_const(alu->src[1].src) && nir_src_is_const(alu->src[2].src);
+}
+
 static void
 ntr_emit_alu(struct ntr_compile *c, nir_alu_instr *instr)
 {
@@ -1024,6 +1034,16 @@ ntr_emit_alu(struct ntr_compile *c, nir_alu_instr *instr)
          break;
 
       case nir_op_fcsel_ge:
+         /* R300/R400 KIL needs a full vec4 and treats -0 as negative. */
+         if (ntr_should_expand_kil_compare(c, &instr->def)) {
+            dst.reg.WriteMask = RC_MASK_XYZW;
+            src[0] = ntr_scalar(src[0], 0);
+            for (unsigned i = 1; i < 3; i++) {
+               src[i] = nir_src_comp_as_float(instr->src[i].src, instr->src[i].swizzle[0]) == 0.0 ?
+                        (struct rc_src_register) {.Swizzle = RC_SWIZZLE_0000} :
+                        ntr_negate(ntr_scalar(src[i], 0));
+            }
+         }
          /* Implement this as if !(src0 < 0.0) was identical to src0 >= 0.0. */
          ntr_emit_alu_op3(c, RC_OPCODE_CMP, dst, src[0], src[2], src[1]);
          break;
@@ -1230,7 +1250,11 @@ ntr_emit_intrinsic(struct ntr_compile *c, nir_intrinsic_instr *instr)
    case nir_intrinsic_terminate_if: {
       struct rc_src_register cond = ntr_scalar(ntr_get_src(c, instr->src[0]), 0);
       /* For !native_integers, the bool got lowered to 1.0 or 0.0. */
-      ntr_KILL_IF(c, ntr_negate(cond));
+      if (ntr_should_expand_kil_compare(c, instr->src[0].ssa))
+         cond.Swizzle = RC_SWIZZLE_XYZW;
+      else
+         cond = ntr_negate(cond);
+      ntr_KILL_IF(c, cond);
       break;
    }
       /* In TGSI we don't actually generate the barycentric coords, and
