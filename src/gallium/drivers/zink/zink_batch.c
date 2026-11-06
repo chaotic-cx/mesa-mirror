@@ -1086,7 +1086,7 @@ batch_reference_resource_move_internal(struct zink_batch_state *bs, struct zink_
    bs->buffer_indices_hashlist[hash] = idx & 0x7fff;
    bs->last_added_obj = res->obj;
    if (!(res->base.b.flags & PIPE_RESOURCE_FLAG_SPARSE)) {
-      bs->resource_size += res->obj->size;
+      bs->resource_size += bo->base.size;
    } else {
       /* Sparse backing pages are not directly referenced by the batch as
        * there can be a lot of them.
