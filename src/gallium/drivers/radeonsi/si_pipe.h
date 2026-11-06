@@ -350,6 +350,7 @@ struct si_texture {
    bool can_sample_z : 1;
    bool can_sample_s : 1;
    bool need_flush_after_depth_decompression: 1;
+   bool htile_pipe_misaligned : 1; /* see ac_surface_is_meta_pipe_misaligned */
    bool gfx12_force_disable_hiz : 1;
 
    /* We need to track DCC dirtiness, because st/dri usually calls
@@ -707,6 +708,7 @@ struct si_framebuffer {
    bool any_dst_linear;
    bool CB_has_shader_readable_metadata;
    bool DB_has_shader_readable_metadata;
+   bool DB_meta_pipe_misaligned;
    bool all_DCC_pipe_aligned;
    bool has_dcc_msaa;
    bool disable_vrs_flat_shading;
@@ -1834,13 +1836,16 @@ static inline void si_make_CB_shader_coherent(struct si_context *sctx, unsigned 
 }
 
 static inline void si_make_DB_shader_coherent(struct si_context *sctx, unsigned num_samples,
-                                              bool include_stencil, bool shaders_read_metadata)
+                                              bool include_stencil, bool shaders_read_metadata,
+                                              bool meta_pipe_misaligned)
 {
    sctx->barrier_flags |= AC_BARRIER_SYNC_AND_INV_DB | AC_BARRIER_INV_VMEM;
    sctx->force_shader_coherency.with_db = false;
 
    if (sctx->gfx_level >= GFX10 && sctx->gfx_level < GFX12) {
-      if (sctx->screen->info.tcc_rb_non_coherent)
+      /* DB and TC access pipe-misaligned metadata through different L2 channels. */
+      if (sctx->screen->info.tcc_rb_non_coherent ||
+          (shaders_read_metadata && meta_pipe_misaligned))
          sctx->barrier_flags |= AC_BARRIER_INV_L2;
       else if (shaders_read_metadata)
          sctx->barrier_flags |= AC_BARRIER_INV_L2_METADATA;
