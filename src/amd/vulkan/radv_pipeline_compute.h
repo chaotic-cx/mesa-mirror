@@ -13,36 +13,11 @@
 
 #include "radv_pipeline.h"
 
-struct radv_physical_device;
-struct radv_shader_binary;
-struct radv_shader_debug_info;
-struct radv_shader_info;
-
 struct radv_compute_pipeline {
    struct radv_pipeline base;
 };
 
 RADV_DECL_PIPELINE_DOWNCAST(compute, RADV_PIPELINE_COMPUTE)
-
-struct radv_compute_shader_metadata {
-   uint32_t wave32;
-   uint32_t grid_base_sgpr;
-   uint32_t push_const_sgpr;
-   uint64_t inline_push_const_mask;
-   uint32_t indirect_descriptors_sgpr;
-   uint32_t heap_resource_sgpr;
-   uint32_t heap_sampler_sgpr;
-   uint32_t cs_state_sgpr;
-};
-
-uint32_t radv_get_compute_resource_limits(const struct radv_physical_device *pdev, const struct radv_shader_info *info);
-
-void radv_get_compute_shader_metadata(const struct radv_device *device, const struct radv_shader *cs,
-                                      struct radv_compute_shader_metadata *metadata);
-
-struct radv_shader_binary *radv_compile_cs(const struct radv_compiler_info *compiler_info,
-                                           struct radv_shader_stage *cs_stage, bool is_internal,
-                                           struct radv_shader_debug_info *dbg);
 
 VkResult radv_compute_pipeline_create(VkDevice _device, VkPipelineCache _cache,
                                       const VkComputePipelineCreateInfo *pCreateInfo,

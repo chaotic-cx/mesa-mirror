@@ -30,6 +30,7 @@
 #endif
 #include "radv_sdma.h"
 #include "radv_shader_args.h"
+#include "radv_shader_compute.h"
 
 #include "ac_binary.h"
 #include "ac_nir.h"
@@ -2157,29 +2158,6 @@ radv_precompute_registers_hw_fs(struct radv_device *device, struct radv_shader *
       info->ps.writes_z, info->ps.writes_stencil, info->ps.writes_sample_mask, info->ps.writes_mrt0_alpha_to_mrtz);
 
    radv_precompute_ps_inputs(pdev, shader);
-}
-
-static void
-radv_precompute_registers_hw_cs(struct radv_device *device, struct radv_shader *shader)
-{
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-   const struct radv_shader_info *info = &shader->info;
-   struct radv_shader_regs *regs = &shader->regs;
-
-   regs->cs.compute_resource_limits = radv_get_compute_resource_limits(pdev, info);
-   if (pdev->info.gfx_level >= GFX12) {
-      regs->cs.compute_num_thread_x = S_00B81C_NUM_THREAD_FULL_GFX12(info->cs.block_size[0]);
-      regs->cs.compute_num_thread_y = S_00B820_NUM_THREAD_FULL_GFX12(info->cs.block_size[1]);
-
-      if (info->cs.derivative_group == DERIVATIVE_GROUP_QUADS) {
-         regs->cs.compute_num_thread_x |= S_00B81C_INTERLEAVE_BITS_X(1);
-         regs->cs.compute_num_thread_y |= S_00B820_INTERLEAVE_BITS_Y(1);
-      }
-   } else {
-      regs->cs.compute_num_thread_x = S_00B81C_NUM_THREAD_FULL_GFX6(info->cs.block_size[0]);
-      regs->cs.compute_num_thread_y = S_00B820_NUM_THREAD_FULL_GFX6(info->cs.block_size[1]);
-   }
-   regs->cs.compute_num_thread_z = S_00B824_NUM_THREAD_FULL(info->cs.block_size[2]);
 }
 
 static void

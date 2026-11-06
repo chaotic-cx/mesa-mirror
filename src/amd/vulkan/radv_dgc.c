@@ -11,6 +11,7 @@
 #include "radv_cs.h"
 #include "radv_entrypoints.h"
 #include "radv_pipeline_rt.h"
+#include "radv_shader_compute.h"
 #include "radv_shader_object.h"
 
 #include "ac_rgp.h"
