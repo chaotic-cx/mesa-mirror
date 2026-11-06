@@ -1270,6 +1270,8 @@ VkResult anv_CreateDevice(
  fail_meta_device:
    vk_meta_device_finish(&device->vk, &device->meta_device);
  fail_utrace:
+   for (uint32_t i = 0; i < device->queue_count; i++)
+      anv_queue_drain(&device->queues[i]);
    anv_device_utrace_finish(device);
  fail_queues:
    for (uint32_t i = 0; i < device->queue_count; i++)
@@ -1390,6 +1392,9 @@ void anv_DestroyDevice(
                             _device, &device->vk.alloc);
    }
    vk_meta_device_finish(&device->vk, &device->meta_device);
+
+   for (uint32_t i = 0; i < device->queue_count; i++)
+      anv_queue_drain(&device->queues[i]);
 
    anv_device_utrace_finish(device);
 
