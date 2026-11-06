@@ -427,6 +427,8 @@ public:
       /* Assume 24bit if high 8 bits of tmp don't impact the result. */
       bool use_umul24 = imm <= 0xff'ffffu && (uub <= 0xff'ffffu || (imm & 0xffu) == 0);
       bool use_imul24 = (imm <= 0x7f'ffffu || imm >= 0xff80'0000u) && (uub <= 0x7f'ffffu || (imm & 0xffu) == 0);
+      bool use_umul32_16 = imm <= UINT16_MAX;
+      bool use_umul16_32 = uub <= UINT16_MAX || (imm & 0xffffu) == 0;
 
       bool has_lshl_add = program->gfx_level >= GFX9;
       unsigned shift_add_cost = util_bitcount(imm & ~0x1);
@@ -456,9 +458,10 @@ public:
          return vop2(aco_opcode::v_mul_i32_i24, dst, imm_tmp, tmp);
       } else if (util_is_power_of_two_nonzero(imm - 1u)) {
          return vadd32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm - 1u) - 1u), tmp), tmp);
-      } else if (MIN2(mul_cost, shift_add_cost) > 1 && program->gfx_level >= GFX9 && imm <= UINT16_MAX) {
-         Temp imm_tmp = copy(def(s1), Operand::c32(imm));
-         return vop3(aco_opcode::p_v_mad_u32_u32_u16, dst, tmp, imm_tmp, Operand::c32(0));
+      } else if (MIN2(mul_cost, shift_add_cost) > 1 && program->gfx_level >= GFX9 && (use_umul32_16 || use_umul16_32)) {
+         Temp src0 = use_umul32_16 ? tmp : copy(def(s1), Operand::c32(imm));
+         Temp src1 = use_umul32_16 ? copy(def(s1), Operand::c32(imm)) : tmp;
+         return vop3(aco_opcode::p_v_mad_u32_u32_u16, dst, src0, src1, Operand::c32(0));
       } else if (MIN2(mul_cost, shift_add_cost) > 1 && util_is_power_of_two_nonzero(imm + 1u)) {
          return vsub32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm + 1u) - 1u), tmp), tmp);
       } else if (shift_add_cost < mul_cost) {
