@@ -240,9 +240,6 @@ static void
 v3d_qpu_disasm_sig_addr(struct disasm_state *disasm,
                         const struct v3d_qpu_instr *instr)
 {
-        if (disasm->devinfo->ver < 41)
-                return;
-
         if (!instr->sig_magic)
                 append(disasm, ".rf%d", instr->sig_addr);
         else {

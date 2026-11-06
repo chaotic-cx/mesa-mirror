@@ -5060,12 +5060,6 @@ nir_to_vir(struct v3d_compile *c)
                 }
                 break;
         case MESA_SHADER_COMPUTE:
-                /* Set up the TSO for barriers, assuming we do some. */
-                if (c->devinfo->ver < 42) {
-                        vir_BARRIERID_dest(c, vir_reg(QFILE_MAGIC,
-                                                      V3D_QPU_WADDR_SYNC));
-                }
-
                 if (c->devinfo->ver == 42) {
                         c->cs_payload[0] = vir_MOV(c, vir_reg(QFILE_REG, 0));
                         c->cs_payload[1] = vir_MOV(c, vir_reg(QFILE_REG, 2));

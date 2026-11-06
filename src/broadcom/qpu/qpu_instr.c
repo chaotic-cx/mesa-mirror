@@ -31,12 +31,7 @@ const char *
 v3d_qpu_magic_waddr_name(const struct v3d_device_info *devinfo,
                          enum v3d_qpu_waddr waddr)
 {
-        /* V3D 4.x UNIFA aliases TMU in V3D 3.x in the table below */
-        if (devinfo->ver < 40 && waddr == V3D_QPU_WADDR_TMU)
-                return "tmu";
-
-        /* V3D 7.x QUAD and REP aliases R5 and R5REPT in the table below
-         */
+        /* V3D 7.x QUAD and REP aliases R5 and R5REPT in the table below */
         if (devinfo->ver >= 71 && waddr == V3D_QPU_WADDR_QUAD)
                 return "quad";
 
@@ -634,17 +629,10 @@ bool
 v3d_qpu_magic_waddr_is_tmu(const struct v3d_device_info *devinfo,
                            enum v3d_qpu_waddr waddr)
 {
-        if (devinfo->ver >= 40) {
-                return ((waddr >= V3D_QPU_WADDR_TMUD &&
-                         waddr <= V3D_QPU_WADDR_TMUAU) ||
-                       (waddr >= V3D_QPU_WADDR_TMUC &&
-                        waddr <= V3D_QPU_WADDR_TMUHSLOD));
-        } else {
-                return ((waddr >= V3D_QPU_WADDR_TMU &&
-                         waddr <= V3D_QPU_WADDR_TMUAU) ||
-                       (waddr >= V3D_QPU_WADDR_TMUC &&
-                        waddr <= V3D_QPU_WADDR_TMUHSLOD));
-        }
+        return ((waddr >= V3D_QPU_WADDR_TMUD &&
+                 waddr <= V3D_QPU_WADDR_TMUAU) ||
+               (waddr >= V3D_QPU_WADDR_TMUC &&
+                waddr <= V3D_QPU_WADDR_TMUHSLOD));
 }
 
 bool
@@ -952,7 +940,7 @@ v3d_qpu_writes_r3(const struct v3d_device_info *devinfo,
         if (qpu_writes_magic_waddr_explicitly(devinfo, inst, V3D_QPU_WADDR_R3))
                 return true;
 
-        return (devinfo->ver < 41 && inst->sig.ldvary) || inst->sig.ldvpm;
+        return inst->sig.ldvpm;
 }
 
 bool
@@ -1092,9 +1080,6 @@ bool
 v3d_qpu_sig_writes_address(const struct v3d_device_info *devinfo,
                            const struct v3d_qpu_sig *sig)
 {
-        if (devinfo->ver < 41)
-                return false;
-
         return (sig->ldunifrf ||
                 sig->ldunifarf ||
                 sig->ldvary ||
