@@ -35,6 +35,15 @@
 #include "panvk_priv_bo.h"
 #include "panvk_sampler.h"
 
+static uint32_t
+get_desc_index(const struct panvk_descriptor_set_binding_layout *layout,
+               uint32_t elem)
+{
+   assert(!vk_descriptor_type_is_dynamic(layout->type));
+
+   return layout->desc_idx + elem * panvk_get_desc_stride(layout);
+}
+
 static const void *
 get_desc_slot_ptr(struct panvk_descriptor_set *set, uint32_t binding,
                   uint32_t elem)
@@ -42,7 +51,7 @@ get_desc_slot_ptr(struct panvk_descriptor_set *set, uint32_t binding,
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
 
-   uint32_t offset = panvk_get_desc_index(binding_layout, elem);
+   uint32_t offset = get_desc_index(binding_layout, elem);
 
    assert(offset < set->layout->desc_count);
 
@@ -57,7 +66,7 @@ write_desc_data(struct panvk_descriptor_set *set, uint32_t binding,
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
 
-   uint32_t index = panvk_get_desc_index(binding_layout, elem);
+   uint32_t index = get_desc_index(binding_layout, elem);
 
    assert(index < set->layout->desc_count);
    assert(index + DIV_ROUND_UP(desc_size, PANVK_DESCRIPTOR_SIZE) <=
@@ -562,7 +571,7 @@ panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
 
    /* The first element is the buffer descriptor. */
    uint32_t iub_data_offset =
-      panvk_get_desc_index(binding_layout, 1) * PANVK_DESCRIPTOR_SIZE;
+      get_desc_index(binding_layout, 1) * PANVK_DESCRIPTOR_SIZE;
    uint64_t iub_data_dev = set->descs.dev + iub_data_offset;
    uint32_t iub_desc_count = panvk_get_iub_desc_count(
       has_variable_count ? variable_count : binding_layout->desc_count);

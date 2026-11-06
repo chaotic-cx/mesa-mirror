@@ -18,8 +18,6 @@
 #include "util/mesa-blake3.h"
 
 #include "genxml/gen_macros.h"
-#include "panvk_image.h"
-#include "panvk_sampler.h"
 
 #define PANVK_DESCRIPTOR_SIZE         32
 #define MAX_DYNAMIC_UNIFORM_BUFFERS   16
@@ -146,71 +144,6 @@ panvk_get_iub_size(uint32_t desc_count)
    /* Bifrost needs an adjustment for the extra buffer descriptor. */
    assert(desc_count >= (PAN_ARCH < 9 ? 1 : 0));
    return (desc_count - (PAN_ARCH < 9 ? 1 : 0)) * PANVK_DESCRIPTOR_SIZE;
-}
-
-struct panvk_subdesc_info {
-   VkDescriptorType type;
-   uint8_t plane;
-};
-
-#define IMPLICIT_SUBDESC_TYPE (VkDescriptorType)-1
-#define NO_SUBDESC (struct panvk_subdesc_info){ \
-   .type = IMPLICIT_SUBDESC_TYPE, \
-}
-#define TEX_SUBDESC(__plane) (struct panvk_subdesc_info){ \
-   .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, \
-   .plane = __plane, \
-}
-#define SAMPLER_SUBDESC(__plane) (struct panvk_subdesc_info){ \
-   .type = VK_DESCRIPTOR_TYPE_SAMPLER, \
-   .plane = __plane, \
-}
-
-static inline struct panvk_subdesc_info
-get_tex_subdesc_info(VkDescriptorType type, uint8_t plane)
-{
-   return (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-      ? TEX_SUBDESC(plane) : NO_SUBDESC;
-}
-
-static inline struct panvk_subdesc_info
-get_sampler_subdesc_info(VkDescriptorType type, uint8_t plane)
-{
-   return (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-      ? SAMPLER_SUBDESC(plane) : NO_SUBDESC;
-}
-
-static inline uint32_t
-get_subdesc_idx(const struct panvk_descriptor_set_binding_layout *layout,
-                uint32_t element, struct panvk_subdesc_info subdesc)
-{
-   if (layout->type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-      return 0;
-
-   uint32_t subdesc_idx = 0;
-   if (layout->immutable_samplers) {
-      if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER) {
-         const struct panvk_sampler *sampler =
-            layout->immutable_samplers[element];
-         const uint32_t tex_desc_count =
-            panvk_image_get_tex_count(PAN_ARCH, sampler->vk.format);
-         subdesc_idx =
-            tex_desc_count + MIN2(sampler->desc_count - 1, subdesc.plane);
-      } else if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
-         subdesc_idx = MIN2(subdesc.plane, layout->textures_per_desc - 1);
-   } else {
-      subdesc_idx = subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER;
-   }
-   return subdesc_idx;
-}
-
-static inline uint32_t
-panvk_get_desc_index(const struct panvk_descriptor_set_binding_layout *layout,
-                     uint32_t elem)
-{
-   assert(!vk_descriptor_type_is_dynamic(layout->type));
-
-   return layout->desc_idx + elem * panvk_get_desc_stride(layout);
 }
 
 #endif /* PANVK_VX_DESCRIPTOR_SET_LAYOUT_H */

@@ -28,6 +28,62 @@
 #define VALHALL_RESOURCE_TABLE_IDX 62
 #endif
 
+struct panvk_subdesc_info {
+   VkDescriptorType type;
+   uint8_t plane;
+};
+
+#define IMPLICIT_SUBDESC_TYPE (VkDescriptorType)-1
+#define NO_SUBDESC (struct panvk_subdesc_info){ \
+   .type = IMPLICIT_SUBDESC_TYPE, \
+}
+#define TEX_SUBDESC(__plane) (struct panvk_subdesc_info){ \
+   .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, \
+   .plane = __plane, \
+}
+#define SAMPLER_SUBDESC(__plane) (struct panvk_subdesc_info){ \
+   .type = VK_DESCRIPTOR_TYPE_SAMPLER, \
+   .plane = __plane, \
+}
+
+static inline struct panvk_subdesc_info
+get_tex_subdesc_info(VkDescriptorType type, uint8_t plane)
+{
+   return (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+      ? TEX_SUBDESC(plane) : NO_SUBDESC;
+}
+
+static inline struct panvk_subdesc_info
+get_sampler_subdesc_info(VkDescriptorType type, uint8_t plane)
+{
+   return (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+      ? SAMPLER_SUBDESC(plane) : NO_SUBDESC;
+}
+
+static inline uint32_t
+get_subdesc_idx(const struct panvk_descriptor_set_binding_layout *layout,
+                uint32_t element, struct panvk_subdesc_info subdesc)
+{
+   if (layout->type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+      return 0;
+
+   uint32_t subdesc_idx = 0;
+   if (layout->immutable_samplers) {
+      if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER) {
+         const struct panvk_sampler *sampler =
+            layout->immutable_samplers[element];
+         const uint32_t tex_desc_count =
+            panvk_image_get_tex_count(PAN_ARCH, sampler->vk.format);
+         subdesc_idx =
+            tex_desc_count + MIN2(sampler->desc_count - 1, subdesc.plane);
+      } else if (subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+         subdesc_idx = MIN2(subdesc.plane, layout->textures_per_desc - 1);
+   } else {
+      subdesc_idx = subdesc.type == VK_DESCRIPTOR_TYPE_SAMPLER;
+   }
+   return subdesc_idx;
+}
+
 struct lower_desc_map {
    /* The index of the map serves as the table offset, the value of the
     * entry is a COPY_DESC_HANDLE() encoding the source set, and the
