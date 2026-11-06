@@ -257,14 +257,17 @@ lower_scratch_to_scalar(nir_shader *nir)
    return nir_lower_mem_access_bit_sizes(nir, &lower_scratch_mem_access_options);
 }
 
-/* a bit annoying that compute-shader and normal shader state objects
- * aren't a bit more aligned.
- */
-void *
-ir3_shader_compute_state_create(struct pipe_context *pctx,
-                                const struct pipe_compute_state *cso)
+static void *
+ir3_shader_state_create_from_nir(struct fd_context *ctx, nir_shader *nir,
+                                 uint32_t req_local_mem)
 {
-   struct fd_context *ctx = fd_context(pctx);
+   bool is_compute = nir->info.stage == MESA_SHADER_COMPUTE ||
+                     nir->info.stage == MESA_SHADER_KERNEL;
+
+   NIR_PASS(_, nir, ir3_nir_lower_io_gallium, ctx->screen->gen >= 6 /* lower_to_bindless */);
+
+   if (is_compute)
+      NIR_PASS(_, nir, lower_scratch_to_scalar);
 
    enum ir3_wavesize_option api_wavesize = IR3_SINGLE_OR_DOUBLE;
    enum ir3_wavesize_option real_wavesize = IR3_SINGLE_OR_DOUBLE;
@@ -273,111 +276,18 @@ ir3_shader_compute_state_create(struct pipe_context *pctx,
       if (!ctx->screen->info->props.supports_double_threadsize) {
          api_wavesize = IR3_SINGLE_ONLY;
          real_wavesize = IR3_SINGLE_ONLY;
-      } else if (cso->ir_type != PIPE_SHADER_IR_NIR ||
-                 ((nir_shader *)cso->prog)->info.stage != MESA_SHADER_KERNEL) {
+      } else if (nir->info.stage != MESA_SHADER_KERNEL) {
          /* GL has no ALLOW_VARYING_SUBGROUP_SIZE_BIT. Match Turnip's fixed-
           * subgroup-size path: set api_wavesize to IR3_DOUBLE_ONLY so
           * nir_lower_subgroups bakes GL_SUBGROUP_SIZE_KHR as a constant.
-          * CL's get_sub_group_size() must be the real wave size instead.
+          * CL's get_sub_group_size() must return the real wave size instead.
           */
          api_wavesize = IR3_DOUBLE_ONLY;
       }
    }
 
-   const struct ir3_shader_options ir3_options = {
-      /* TODO: force to single on a6xx with legacy ballot extension that uses
-       * 64-bit masks
-       */
-      .api_wavesize = api_wavesize,
-      .real_wavesize = real_wavesize,
-   };
-
-   struct ir3_compiler *compiler = ctx->screen->compiler;
-   nir_shader *nir;
-
-   if (cso->ir_type == PIPE_SHADER_IR_NIR) {
-      /* we take ownership of the reference: */
-      nir = (nir_shader *)cso->prog;
-   } else {
-      assert(cso->ir_type == PIPE_SHADER_IR_TGSI);
-      if (ir3_shader_debug & IR3_DBG_DISASM) {
-         tgsi_dump(cso->prog, 0);
-      }
-      nir = tgsi_to_nir(cso->prog, pctx->screen, false);
-   }
-
-   NIR_PASS(_, nir, ir3_nir_lower_io_gallium, ctx->screen->gen >= 6 /* lower_to_bindless */);
-   NIR_PASS(_, nir, lower_scratch_to_scalar);
-
    struct ir3_shader *shader =
-      ir3_shader_from_nir(compiler, nir, &ir3_options);
-   shader->cs.req_local_mem = cso->static_shared_mem;
-
-   struct ir3_shader_state *hwcso = calloc(1, sizeof(*hwcso));
-
-   util_queue_fence_init(&hwcso->ready);
-   hwcso->shader = shader;
-
-   /* Immediately compile a standard variant.  We have so few variants in our
-    * shaders, that doing so almost eliminates draw-time recompiles.  (This
-    * is also how we get data from shader-db's ./run)
-    */
-
-   if (initial_variants_synchronous(ctx)) {
-      static struct ir3_shader_key key; /* static is implicitly zeroed */
-      ir3_shader_variant(shader, key, false, &ctx->debug);
-      shader->initial_variants_done = true;
-   } else {
-      struct fd_screen *screen = ctx->screen;
-      util_queue_add_job(&screen->compile_queue, hwcso, &hwcso->ready,
-                         create_initial_compute_variants_async, NULL, 0);
-   }
-
-   return hwcso;
-}
-
-void *
-ir3_shader_state_create(struct pipe_context *pctx,
-                        const struct pipe_shader_state *cso)
-{
-   struct fd_context *ctx = fd_context(pctx);
-   struct ir3_compiler *compiler = ctx->screen->compiler;
-   struct ir3_shader_state *hwcso = calloc(1, sizeof(*hwcso));
-
-   /*
-    * Convert to nir (if necessary):
-    */
-
-   nir_shader *nir;
-   if (cso->type == PIPE_SHADER_IR_NIR) {
-      /* we take ownership of the reference: */
-      nir = cso->ir.nir;
-   } else {
-      assert(cso->type == PIPE_SHADER_IR_TGSI);
-      if (ir3_shader_debug & IR3_DBG_DISASM) {
-         tgsi_dump(cso->tokens, 0);
-      }
-      nir = tgsi_to_nir(cso->tokens, pctx->screen, false);
-   }
-
-   NIR_PASS(_, nir, ir3_nir_lower_io_gallium, ctx->screen->gen >= 6 /* lower_to_bindless */);
-
-   enum ir3_wavesize_option api_wavesize = IR3_SINGLE_OR_DOUBLE;
-   enum ir3_wavesize_option real_wavesize = IR3_SINGLE_OR_DOUBLE;
-
-   if (ctx->screen->gen >= 6 && !ctx->screen->info->props.supports_double_threadsize) {
-      api_wavesize = IR3_SINGLE_ONLY;
-      real_wavesize = IR3_SINGLE_ONLY;
-   }
-
-   /*
-    * Create ir3_shader:
-    *
-    * This part is cheap, it doesn't compile initial variants
-    */
-
-   hwcso->shader =
-      ir3_shader_from_nir(compiler, nir, &(struct ir3_shader_options){
+      ir3_shader_from_nir(ctx->screen->compiler, nir, &(struct ir3_shader_options){
                               /* TODO: force to single on a6xx with legacy
                                * ballot extension that uses 64-bit masks
                                */
@@ -385,22 +295,69 @@ ir3_shader_state_create(struct pipe_context *pctx,
                               .real_wavesize = real_wavesize,
                           });
 
-   /*
-    * Create initial variants to avoid draw-time stalls.  This is
-    * normally done asynchronously, unless debug is enabled (which
-    * will be the case for shader-db)
-    */
+   if (is_compute)
+      shader->cs.req_local_mem = req_local_mem;
 
+   struct ir3_shader_state *hwcso = calloc(1, sizeof(*hwcso));
    util_queue_fence_init(&hwcso->ready);
+   hwcso->shader = shader;
 
    if (initial_variants_synchronous(ctx)) {
-      create_initial_variants(hwcso, &ctx->debug);
+      if (is_compute) {
+         static struct ir3_shader_key key; /* static is implicitly zeroed */
+         ir3_shader_variant(shader, key, false, &ctx->debug);
+         shader->initial_variants_done = true;
+      } else {
+         create_initial_variants(hwcso, &ctx->debug);
+      }
    } else {
       util_queue_add_job(&ctx->screen->compile_queue, hwcso, &hwcso->ready,
-                         create_initial_variants_async, NULL, 0);
+                         is_compute ? create_initial_compute_variants_async
+                                    : create_initial_variants_async,
+                         NULL, 0);
    }
 
    return hwcso;
+}
+
+void *
+ir3_shader_compute_state_create(struct pipe_context *pctx,
+                                const struct pipe_compute_state *cso)
+{
+   struct fd_context *ctx = fd_context(pctx);
+   nir_shader *nir;
+
+   if (cso->ir_type == PIPE_SHADER_IR_NIR) {
+      /* we take ownership of the reference: */
+      nir = (nir_shader *)cso->prog;
+   } else {
+      assert(cso->ir_type == PIPE_SHADER_IR_TGSI);
+      if (ir3_shader_debug & IR3_DBG_DISASM)
+         tgsi_dump(cso->prog, 0);
+      nir = tgsi_to_nir(cso->prog, pctx->screen, false);
+   }
+
+   return ir3_shader_state_create_from_nir(ctx, nir, cso->static_shared_mem);
+}
+
+void *
+ir3_shader_state_create(struct pipe_context *pctx,
+                        const struct pipe_shader_state *cso)
+{
+   struct fd_context *ctx = fd_context(pctx);
+   nir_shader *nir;
+
+   if (cso->type == PIPE_SHADER_IR_NIR) {
+      /* we take ownership of the reference: */
+      nir = cso->ir.nir;
+   } else {
+      assert(cso->type == PIPE_SHADER_IR_TGSI);
+      if (ir3_shader_debug & IR3_DBG_DISASM)
+         tgsi_dump(cso->tokens, 0);
+      nir = tgsi_to_nir(cso->tokens, pctx->screen, false);
+   }
+
+   return ir3_shader_state_create_from_nir(ctx, nir, 0);
 }
 
 void
