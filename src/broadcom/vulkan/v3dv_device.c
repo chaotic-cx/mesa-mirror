@@ -849,11 +849,17 @@ compute_heap_size(struct v3dv_instance *instance)
 #endif
 }
 
+/* VkPhysicalDeviceMemoryBudgetPropertiesEXT::heapUsage is the memory used by
+ * the whole process, so it has to account for allocations made through any
+ * instance. There is only one V3D in the system, so a single counter is enough.
+ */
+static alignas(8) uint64_t process_heap_used;
+
 static uint64_t
 compute_memory_budget(struct v3dv_physical_device *device)
 {
    uint64_t heap_size = device->memory.memoryHeaps[0].size;
-   uint64_t heap_used = p_atomic_read(&device->heap_used);
+   uint64_t heap_used = p_atomic_read(&process_heap_used);
 
 #if !USE_V3D_SIMULATOR
    /* Let's not incite the app to starve the system: report at most 90% of
@@ -1838,7 +1844,7 @@ v3dv_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice,
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
          VkPhysicalDeviceMemoryBudgetPropertiesEXT *p =
             (VkPhysicalDeviceMemoryBudgetPropertiesEXT *) ext;
-         p->heapUsage[0] = device->heap_used;
+         p->heapUsage[0] = p_atomic_read(&process_heap_used);
          p->heapBudget[0] = compute_memory_budget(device);
 
          /* The heapBudget and heapUsage values must be zero for array elements
@@ -2252,7 +2258,7 @@ device_free(struct v3dv_device *device, struct v3dv_device_memory *mem)
       device_free_wsi_dumb(device->pdevice->display_fd, mem->bo->dumb_handle);
    }
 
-   p_atomic_add(&device->pdevice->heap_used, -((int64_t)mem->bo->size));
+   p_atomic_add(&process_heap_used, -((int64_t)mem->bo->size));
 
    v3dv_bo_free(device, mem->bo, vk_object_to_u64_handle(&mem->vk.base));
 }
@@ -2463,7 +2469,7 @@ v3dv_AllocateMemory(VkDevice _device,
     * maxMemoryAllocationSize must succeed. Accept one extra page over
     * the limit, which covers any sub-page padding after alignment.
     */
-   uint64_t heap_used = p_atomic_read(&pdevice->heap_used);
+   uint64_t heap_used = p_atomic_read(&process_heap_used);
    if (unlikely(alloc_size > MAX_MEMORY_ALLOCATION_SIZE + 4096u ||
       heap_used + alloc_size > pdevice->memory.memoryHeaps[0].size)) {
       vk_device_memory_report_emit(&device->vk, VK_ERROR_OUT_OF_DEVICE_MEMORY,
@@ -2553,7 +2559,7 @@ v3dv_AllocateMemory(VkDevice _device,
       return vk_error(device, result);
    }
 
-   heap_used = p_atomic_add_return(&pdevice->heap_used, mem->bo->size);
+   heap_used = p_atomic_add_return(&process_heap_used, mem->bo->size);
    if (heap_used > pdevice->memory.memoryHeaps[0].size) {
       free_memory(device, mem, pAllocator);
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
