@@ -230,6 +230,41 @@ radv_cmd_set_rasterizer_discard_enable(struct radv_cmd_buffer *cmd_buffer, bool 
    state->dirty_dynamic |= RADV_DYNAMIC_RASTERIZER_DISCARD_ENABLE;
 }
 
+static bool
+radv_vgt_outprim_is_point(unsigned vgt_outprim_type)
+{
+   return vgt_outprim_type == V_028A6C_POINTLIST;
+}
+
+static bool
+radv_vgt_outprim_is_line(unsigned vgt_outprim_type)
+{
+   return vgt_outprim_type == V_028A6C_LINESTRIP;
+}
+
+static bool
+radv_vgt_outprim_is_triangle(unsigned vgt_outprim_type)
+{
+   return vgt_outprim_type == V_028A6C_TRISTRIP;
+}
+
+static bool
+radv_polygon_mode_is_point(unsigned polygon_mode)
+{
+   return polygon_mode == V_028814_X_DRAW_POINTS;
+}
+
+static bool
+radv_polygon_mode_is_line(unsigned polygon_mode)
+{
+   return polygon_mode == V_028814_X_DRAW_LINES;
+}
+
+static bool
+radv_primitive_topology_is_line_list(unsigned primitive_topology)
+{
+   return primitive_topology == V_008958_DI_PT_LINELIST || primitive_topology == V_008958_DI_PT_LINELIST_ADJ;
+}
 ALWAYS_INLINE static bool
 radv_raster_prim_is_point(const struct radv_cmd_buffer *cmd_buffer)
 {

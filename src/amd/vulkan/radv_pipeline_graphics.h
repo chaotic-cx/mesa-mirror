@@ -112,42 +112,6 @@ radv_pipeline_has_stage(const struct radv_graphics_pipeline *pipeline, mesa_shad
    return pipeline->base.shaders[stage];
 }
 
-static inline bool
-radv_vgt_outprim_is_point(unsigned vgt_outprim_type)
-{
-   return vgt_outprim_type == V_028A6C_POINTLIST;
-}
-
-static inline bool
-radv_vgt_outprim_is_line(unsigned vgt_outprim_type)
-{
-   return vgt_outprim_type == V_028A6C_LINESTRIP;
-}
-
-static inline bool
-radv_vgt_outprim_is_triangle(unsigned vgt_outprim_type)
-{
-   return vgt_outprim_type == V_028A6C_TRISTRIP;
-}
-
-static inline bool
-radv_polygon_mode_is_point(unsigned polygon_mode)
-{
-   return polygon_mode == V_028814_X_DRAW_POINTS;
-}
-
-static inline bool
-radv_polygon_mode_is_line(unsigned polygon_mode)
-{
-   return polygon_mode == V_028814_X_DRAW_LINES;
-}
-
-static inline bool
-radv_primitive_topology_is_line_list(unsigned primitive_topology)
-{
-   return primitive_topology == V_008958_DI_PT_LINELIST || primitive_topology == V_008958_DI_PT_LINELIST_ADJ;
-}
-
 void radv_destroy_graphics_pipeline(struct radv_device *device, struct radv_graphics_pipeline *pipeline);
 
 void radv_destroy_graphics_lib_pipeline(struct radv_device *device, struct radv_graphics_lib_pipeline *pipeline);

@@ -11,7 +11,7 @@
 #include "radv_graphics_state.h"
 #include "radv_physical_device.h"
 
-static inline uint32_t
+static uint32_t
 radv_translate_blend_function(VkBlendOp op)
 {
    switch (op) {
@@ -30,7 +30,7 @@ radv_translate_blend_function(VkBlendOp op)
    }
 }
 
-static inline uint32_t
+static uint32_t
 radv_translate_blend_factor(enum amd_gfx_level gfx_level, VkBlendFactor factor)
 {
    switch (factor) {
@@ -79,7 +79,7 @@ radv_translate_blend_factor(enum amd_gfx_level gfx_level, VkBlendFactor factor)
    }
 }
 
-static inline uint32_t
+static uint32_t
 radv_translate_blend_opt_factor(VkBlendFactor factor, bool is_alpha)
 {
    switch (factor) {
@@ -102,7 +102,7 @@ radv_translate_blend_opt_factor(VkBlendFactor factor, bool is_alpha)
    }
 }
 
-static inline uint32_t
+static uint32_t
 radv_translate_blend_opt_function(VkBlendOp op)
 {
    switch (op) {
@@ -121,7 +121,7 @@ radv_translate_blend_opt_function(VkBlendOp op)
    }
 }
 
-static inline bool
+static bool
 radv_blend_factor_uses_dst(VkBlendFactor factor)
 {
    return factor == VK_BLEND_FACTOR_DST_COLOR || factor == VK_BLEND_FACTOR_DST_ALPHA ||
@@ -133,7 +133,7 @@ radv_blend_factor_uses_dst(VkBlendFactor factor)
  * Get rid of DST in the blend factors by commuting the operands:
  *    func(src * DST, dst * 0) ---> func(src * 0, dst * SRC)
  */
-void
+static void
 radv_blend_remove_dst(VkBlendOp *func, VkBlendFactor *src_factor, VkBlendFactor *dst_factor, VkBlendFactor expected_dst,
                       VkBlendFactor replacement_src)
 {

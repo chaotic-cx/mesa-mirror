@@ -261,9 +261,6 @@ radv_normalize_blend_factor(VkBlendOp op, VkBlendFactor *src_factor, VkBlendFact
    }
 }
 
-void radv_blend_remove_dst(VkBlendOp *func, VkBlendFactor *src_factor, VkBlendFactor *dst_factor,
-                           VkBlendFactor expected_dst, VkBlendFactor replacement_src);
-
 void radv_get_viewport_xform(const VkViewport *viewport, float scale[3], float translate[3]);
 
 void radv_translate_blend_equation(const struct radv_physical_device *pdev, VkBlendOp eqRGB, VkBlendFactor srcRGB,
