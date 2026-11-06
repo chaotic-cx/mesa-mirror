@@ -465,8 +465,8 @@ try_splitting_single_channel(struct radeon_compiler *c, struct rc_instruction *i
 static bool
 try_splitting_instruction(struct radeon_compiler *c, struct rc_instruction *inst)
 {
-   /* Adding more output instructions in FS is bad for performance. */
-   if (inst->U.I.DstReg.File == RC_FILE_OUTPUT)
+   /* Output MOVs can be combined by the later CMP merge pass. */
+   if (inst->U.I.DstReg.File == RC_FILE_OUTPUT && inst->U.I.Opcode != RC_OPCODE_MOV)
       return false;
 
    /* When only single channel of the swizzle is wrong, like xwzw,

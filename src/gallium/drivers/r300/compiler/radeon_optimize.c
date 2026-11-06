@@ -913,6 +913,47 @@ have_shared_source(struct rc_instruction *inst1, struct rc_instruction *inst2)
    return shared_src;
 }
 
+/* Merge two MOVs by selecting between native R300/R400 swizzles. */
+static bool
+merge_movs_cmp(struct radeon_compiler *c, struct rc_instruction *inst, struct rc_instruction *cur)
+{
+   struct rc_sub_instruction *alu[2] = {&inst->U.I, &cur->U.I};
+   struct rc_src_register src[2];
+   unsigned wmask = alu[0]->DstReg.WriteMask | alu[1]->DstReg.WriteMask;
+
+   /* A separate alpha move can already share an instruction with RGB. */
+   if (!(alu[0]->DstReg.WriteMask & RC_MASK_XYZ) ||
+       !(alu[1]->DstReg.WriteMask & RC_MASK_XYZ) ||
+       c->Program.Constants.Count >= c->max_constants)
+      return false;
+
+   for (unsigned i = 0; i < 2; i++) {
+      if (alu[i]->WriteALUResult || alu[i]->PreSub.Opcode != RC_PRESUB_NONE ||
+          alu[i]->Omod != RC_OMOD_MUL_1 ||
+          !c->SwizzleCaps->IsNative(RC_OPCODE_CMP, alu[i]->SrcReg[0]))
+         return false;
+
+      /* Keep unselected source components unused. */
+      src[i] = alu[i]->SrcReg[0];
+   }
+
+   /* Select each component without adding zero to the source values. */
+   float select[4];
+   for (unsigned chan = 0; chan < 4; chan++)
+      select[chan] = alu[0]->DstReg.WriteMask & (1 << chan) ? -1.0f : 0.0f;
+   cur->U.I.SrcReg[0] = (struct rc_src_register) {
+      .File = RC_FILE_CONSTANT,
+      .Index = rc_constants_add_immediate_vec4(&c->Program.Constants, select),
+      .Swizzle = RC_SWIZZLE_XYZW,
+   };
+   cur->U.I.SrcReg[1] = src[0];
+   cur->U.I.SrcReg[2] = src[1];
+   cur->U.I.DstReg.WriteMask = wmask;
+   cur->U.I.Opcode = RC_OPCODE_CMP;
+   rc_remove_instruction(inst);
+   return true;
+}
+
 /**
  * Merges two MOVs writing different channels of the same destination register
  * with the use of the constant swizzles.
@@ -920,6 +961,9 @@ have_shared_source(struct rc_instruction *inst1, struct rc_instruction *inst2)
 static bool
 merge_movs(struct radeon_compiler *c, struct rc_instruction *inst, struct rc_instruction *cur)
 {
+   if (!c->is_r500 && c->type == RC_FRAGMENT_PROGRAM)
+      return merge_movs_cmp(c, inst, cur);
+
    /* We can merge two MOVs into MOV if one of them is from inline constant,
     * i.e., constant swizzles and RC_FILE_NONE).
     *
@@ -1205,6 +1249,11 @@ merge_channels(struct radeon_compiler *c, struct rc_instruction *inst)
       if (opcode->IsFlowControl)
          return;
 
+      /* R300/R400 runs after presubtract folding; don't cross those reads. */
+      if (!c->is_r500 && c->type == RC_FRAGMENT_PROGRAM &&
+          cur->U.I.PreSub.Opcode != RC_PRESUB_NONE)
+         return;
+
       /* Stop when the original destination is overwritten */
       if (orig_dst_reg == cur->U.I.DstReg.Index && orig_dst_file == cur->U.I.DstReg.File &&
           (orig_dst_wmask & cur->U.I.DstReg.WriteMask) != 0)
@@ -1233,6 +1282,9 @@ merge_channels(struct radeon_compiler *c, struct rc_instruction *inst)
             if (merge_movs(c, inst, cur))
                return;
          }
+
+         if (!c->is_r500 && c->type == RC_FRAGMENT_PROGRAM)
+            continue;
 
          /* Skip the merge if one of the instructions writes just w channel
           * and we are compiling a fragment shader. We can pair-schedule it together
@@ -1444,6 +1496,19 @@ optimize_A0_loads(struct radeon_compiler *c)
       } else if (cur->U.I.Opcode == RC_OPCODE_ROUND) {
          transform_vertex_ROUND(c, cur);
       }
+   }
+}
+
+/* Run after presubtract folding so merging MOVs does not prevent it. */
+void
+rc_merge_movs(struct radeon_compiler *c, void *user)
+{
+   struct rc_instruction *inst = c->Program.Instructions.Next;
+   while (inst != &c->Program.Instructions) {
+      struct rc_instruction *cur = inst;
+      inst = inst->Next;
+      if (cur->U.I.Opcode == RC_OPCODE_MOV && cur->U.I.PreSub.Opcode == RC_PRESUB_NONE)
+         merge_channels(c, cur);
    }
 }
 
