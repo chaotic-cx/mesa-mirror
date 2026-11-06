@@ -40,9 +40,6 @@ uint32_t radv_get_compute_resource_limits(const struct radv_physical_device *pde
 void radv_get_compute_shader_metadata(const struct radv_device *device, const struct radv_shader *cs,
                                       struct radv_compute_pipeline_metadata *metadata);
 
-void radv_compute_pipeline_init(struct radv_compute_pipeline *pipeline, const struct radv_pipeline_layout *layout,
-                                struct radv_shader *shader);
-
 struct radv_shader_binary *radv_compile_cs(const struct radv_compiler_info *compiler_info,
                                            struct radv_shader_stage *cs_stage, bool is_internal,
                                            struct radv_shader_debug_info *dbg);

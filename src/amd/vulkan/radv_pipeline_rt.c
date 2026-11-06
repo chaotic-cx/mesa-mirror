@@ -1439,7 +1439,8 @@ radv_rt_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkRayTra
       compute_rt_stack_size(pCreateInfo, pipeline);
       compile_rt_prolog(device, pipeline);
 
-      radv_compute_pipeline_init(&pipeline->base, pipeline_layout, pipeline->prolog);
+      if (pipeline_layout)
+         pipeline->base.base.dynamic_offset_count = pipeline_layout->dynamic_offset_count;
    }
 
    /* write shader VAs into group handles */

@@ -9437,6 +9437,10 @@ radv_bind_task_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_shad
 static void
 radv_bind_rt_prolog(struct radv_cmd_buffer *cmd_buffer, struct radv_shader *rt_prolog)
 {
+   struct radv_push_constant_state *pc_state =
+      &cmd_buffer->push_constant_state[vk_to_bind_point(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR)];
+   struct radv_descriptor_state *descriptors_state =
+      radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
    struct radv_cmd_stream *cs = cmd_buffer->cs;
 
    cmd_buffer->state.rt_prolog = rt_prolog;
@@ -9445,6 +9449,11 @@ radv_bind_rt_prolog(struct radv_cmd_buffer *cmd_buffer, struct radv_shader *rt_p
    const unsigned max_scratch_waves = radv_get_max_scratch_waves(device, rt_prolog);
    cmd_buffer->queue_state.compute_scratch_waves_wanted =
       MAX2(cmd_buffer->queue_state.compute_scratch_waves_wanted, max_scratch_waves);
+
+   descriptors_state->need_indirect_descriptors = radv_shader_need_indirect_descriptors(rt_prolog);
+   pc_state->need_upload = radv_shader_need_push_constants_upload(rt_prolog);
+   pc_state->size = align(rt_prolog->info.push_constant_size, 4);
+   cmd_buffer->push_constant_stages |= RADV_RT_STAGE_BITS;
 
    cmd_buffer->queue_state.shader_upload_seq = MAX2(cmd_buffer->queue_state.shader_upload_seq, rt_prolog->upload_seq);
 
@@ -9558,12 +9567,22 @@ radv_bind_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader *shader,
       radv_bind_task_shader(cmd_buffer, shader);
       break;
    case MESA_SHADER_COMPUTE: {
+      struct radv_push_constant_state *pc_state =
+         &cmd_buffer->push_constant_state[vk_to_bind_point(VK_PIPELINE_BIND_POINT_COMPUTE)];
+      struct radv_descriptor_state *descriptors_state =
+         radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+
       cmd_buffer->queue_state.compute_scratch_size_per_wave_needed =
          MAX2(cmd_buffer->queue_state.compute_scratch_size_per_wave_needed, shader->config.scratch_bytes_per_wave);
 
       const unsigned max_stage_waves = radv_get_max_scratch_waves(device, shader);
       cmd_buffer->queue_state.compute_scratch_waves_wanted =
          MAX2(cmd_buffer->queue_state.compute_scratch_waves_wanted, max_stage_waves);
+
+      descriptors_state->need_indirect_descriptors = radv_shader_need_indirect_descriptors(shader);
+      pc_state->need_upload = radv_shader_need_push_constants_upload(shader);
+      pc_state->size = align(shader->info.push_constant_size, 4);
+      cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
       break;
    }
    case MESA_SHADER_INTERSECTION:
@@ -9625,7 +9644,6 @@ radv_bind_compute_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_compu
 
    cmd_buffer->state.compute_pipeline = compute_pipeline;
    cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COMPUTE_PIPELINE;
-   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
    cmd_buffer->state.prefetch_L2_mask |= RADV_PREFETCH_CS;
 }
 
@@ -9652,7 +9670,6 @@ radv_bind_rt_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_ray_tracin
 
    cmd_buffer->state.rt_pipeline = rt_pipeline;
    cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAY_TRACING_PIPELINE;
-   cmd_buffer->push_constant_stages |= RADV_RT_STAGE_BITS;
    cmd_buffer->state.prefetch_L2_mask |= RADV_PREFETCH_RT;
 
    /* Bind the stack size when it's not dynamic. */
@@ -9737,16 +9754,17 @@ radv_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipeline
       break;
    }
 
-   cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].size = pipeline->push_constant_size;
-   cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].need_upload =
-      pipeline->need_push_constants_upload;
-   cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].dynamic_offset_count = pipeline->dynamic_offset_count;
    if (pipelineBindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS) {
+      cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].size = pipeline->push_constant_size;
+      cmd_buffer->push_constant_state[vk_to_bind_point(pipelineBindPoint)].need_upload =
+         pipeline->need_push_constants_upload;
       cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_dynamic_descriptors_offset_addr =
          pipeline->need_dynamic_descriptors_offset_addr;
+      cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_indirect_descriptors =
+         pipeline->need_indirect_descriptors;
    }
-   cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].need_indirect_descriptors =
-      pipeline->need_indirect_descriptors;
+
+   cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].dynamic_offset_count = pipeline->dynamic_offset_count;
 
    radv_mark_descriptors_dirty(cmd_buffer, pipelineBindPoint);
 }
@@ -17698,16 +17716,9 @@ radv_bind_compute_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader_
 
    radv_emit_compute_shader(pdev, cs, shader, true);
 
-   /* Update push constants/indirect descriptors state. */
    struct radv_descriptor_state *descriptors_state =
       radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE);
-   struct radv_push_constant_state *pc_state = &cmd_buffer->push_constant_state[VK_PIPELINE_BIND_POINT_COMPUTE];
-
-   descriptors_state->need_indirect_descriptors = radv_shader_need_indirect_descriptors(shader);
    descriptors_state->dynamic_offset_count = shader_obj->dynamic_offset_count;
-   pc_state->need_upload = radv_shader_need_push_constants_upload(shader);
-   pc_state->size = align(shader->info.push_constant_size, 4);
-   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
 
    assert(cs->b->cdw <= cdw_max);
 }

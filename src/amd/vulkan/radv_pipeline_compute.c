@@ -75,18 +75,6 @@ radv_get_compute_shader_metadata(const struct radv_device *device, const struct 
    metadata->cs_state_sgpr = radv_get_user_sgpr(cs, AC_UD_CS_STATE);
 }
 
-void
-radv_compute_pipeline_init(struct radv_compute_pipeline *pipeline, const struct radv_pipeline_layout *layout,
-                           struct radv_shader *shader)
-{
-   pipeline->base.need_indirect_descriptors |= radv_shader_need_indirect_descriptors(shader);
-   pipeline->base.need_push_constants_upload |= radv_shader_need_push_constants_upload(shader);
-
-   pipeline->base.push_constant_size = align(shader->info.push_constant_size, 4);
-   if (layout)
-      pipeline->base.dynamic_offset_count = layout->dynamic_offset_count;
-}
-
 struct radv_shader_binary *
 radv_compile_cs(const struct radv_compiler_info *compiler_info, struct radv_shader_stage *cs_stage, bool is_internal,
                 struct radv_shader_debug_info *dbg)
@@ -298,7 +286,8 @@ radv_compute_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkC
       return result;
    }
 
-   radv_compute_pipeline_init(pipeline, pipeline_layout, pipeline->base.shaders[MESA_SHADER_COMPUTE]);
+   if (pipeline_layout)
+      pipeline->base.dynamic_offset_count = pipeline_layout->dynamic_offset_count;
 
    radv_pipeline_report_pso_history(device, &pipeline->base);
 
