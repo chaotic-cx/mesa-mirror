@@ -252,6 +252,7 @@ merge_requests:
         '^src/gbm/': ['gbm']
         '^src/gfxstream/': ['gfxstream']
         '^src/glx/': ['GLX']
+        '^src/glx/apple/': ['macOS']
         '^src/imagination/': ['powervr']
         '^src/intel/blorp/': ['blorp']
         '^src/intel/common/': ['intel']
