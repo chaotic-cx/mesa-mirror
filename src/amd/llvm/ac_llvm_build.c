@@ -3509,12 +3509,13 @@ struct ac_llvm_pointer ac_build_main(const struct ac_shader_args *args, struct a
    LLVMTypeRef arg_types[AC_MAX_ARGS];
    enum ac_arg_regfile arg_regfiles[AC_MAX_ARGS];
 
-   /* ring_offsets doesn't have a corresponding function parameter because LLVM can allocate it
-    * itself for scratch memory purposes and gives us access through llvm.amdgcn.implicit.buffer.ptr
-    */
+   /* If LLVM reserves ring_offsets, read them through llvm.amdgcn.implicit.buffer.ptr. */
+   const bool implicit_ring_offsets =
+      args->ring_offsets.used && ac_llvm_reserves_ring_offsets(ctx->gfx_level);
+
    unsigned arg_count = 0;
    for (unsigned i = 0; i < args->arg_count; i++) {
-      if (args->ring_offsets.used && i == args->ring_offsets.arg_index) {
+      if (implicit_ring_offsets && i == args->ring_offsets.arg_index) {
          ctx->ring_offsets_index = i;
          continue;
       }
@@ -3545,7 +3546,7 @@ struct ac_llvm_pointer ac_build_main(const struct ac_shader_args *args, struct a
       }
    }
 
-   if (args->ring_offsets.used) {
+   if (implicit_ring_offsets) {
       ctx->ring_offsets =
          ac_build_intrinsic(ctx, "llvm.amdgcn.implicit.buffer.ptr",
                             LLVMPointerTypeInContext(ctx->context, AC_ADDR_SPACE_CONST), NULL, 0, 0);

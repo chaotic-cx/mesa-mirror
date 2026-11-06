@@ -90,6 +90,12 @@ void ac_destroy_backend_optimizer(struct ac_backend_optimizer *beo);
 bool ac_compile_module_to_elf(struct ac_backend_optimizer *beo, LLVMModuleRef module,
                               char **pelf_buffer, size_t *pelf_size);
 
+/* LLVM 24+ no longer reserves s[0:1] for ring offsets with architected flat scratch. */
+static inline bool ac_llvm_reserves_ring_offsets(enum amd_gfx_level gfx_level)
+{
+   return LLVM_VERSION_MAJOR < 24 || gfx_level < GFX11;
+}
+
 static inline bool ac_has_vec3_support(enum amd_gfx_level chip, bool use_format)
 {
    /* GFX6 only supports vec3 with load/store format. */
