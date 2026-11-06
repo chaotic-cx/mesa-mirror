@@ -777,6 +777,7 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
 
          /* Update the framebuffer state to reflect the change. */
          sctx->framebuffer.DB_has_shader_readable_metadata = true;
+         sctx->framebuffer.DB_meta_pipe_misaligned = zstex->htile_pipe_misaligned;
          sctx->framebuffer.dirty_zsbuf = true;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.framebuffer);
 
