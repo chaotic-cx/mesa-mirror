@@ -36,6 +36,10 @@ u_memstream_open(struct u_memstream *mem, char **bufp, size_t *sizep)
 {
 #ifdef _GAMING_XBOX
    int err = tmpfile_s(&mem->f);
+   if (err == 0) {
+      *bufp = NULL;
+      *sizep = 0;
+   }
    mem->bufp = bufp;
    mem->sizep = sizep;
 
