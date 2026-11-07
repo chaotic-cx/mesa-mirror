@@ -260,7 +260,7 @@ public:
       uint32_t typeId, storageClass;
       const spv_parsed_operand_t *op;
 
-      assert(ins->num_operands == 3);
+      assert(ins->num_operands >= 2);
 
       op = &ins->operands[0];
       assert(op->type == SPV_OPERAND_TYPE_RESULT_ID);
@@ -640,6 +640,7 @@ public:
          parser->curKernel = NULL;
          break;
       case SpvOpTypePointer:
+      case SpvOpTypeUntypedPointerKHR:
          parser->parseTypePointer(ins);
          break;
       case SpvOpTypeImage:

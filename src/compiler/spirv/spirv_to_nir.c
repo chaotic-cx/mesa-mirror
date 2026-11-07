@@ -6365,6 +6365,7 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
       break;
 
    case SpvOpVariable:
+   case SpvOpUntypedVariableKHR:
    case SpvOpLoad:
    case SpvOpStore:
    case SpvOpCopyMemory:
