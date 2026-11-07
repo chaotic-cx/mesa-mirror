@@ -504,7 +504,8 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          vk_find_struct(pCapabilities->pNext, VIDEO_ENCODE_H265_CAPABILITIES_KHR);
 
       if (ext) {
-         ext->flags = VK_VIDEO_ENCODE_H265_CAPABILITY_PER_PICTURE_TYPE_MIN_MAX_QP_BIT_KHR;
+         ext->flags = VK_VIDEO_ENCODE_H265_CAPABILITY_PER_PICTURE_TYPE_MIN_MAX_QP_BIT_KHR |
+                      VK_VIDEO_ENCODE_H265_CAPABILITY_MULTIPLE_SLICE_SEGMENTS_PER_TILE_BIT_KHR;
          ext->maxLevelIdc = STD_VIDEO_H265_LEVEL_IDC_5_1;
          ext->ctbSizes = VK_VIDEO_ENCODE_H265_CTB_SIZE_32_BIT_KHR |
                          VK_VIDEO_ENCODE_H265_CTB_SIZE_64_BIT_KHR;
@@ -517,7 +518,7 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          ext->maxL1ReferenceCount = 1;
          ext->minQp = 10;
          ext->maxQp = 51;
-         ext->maxSliceSegmentCount = 128;
+         ext->maxSliceSegmentCount = ANV_HUC_HEVC_BRC_MAX_NUM_SLICES;
          ext->maxTiles.width = 1;
          ext->maxTiles.height = 1;
          ext->maxSubLayerCount = 1;

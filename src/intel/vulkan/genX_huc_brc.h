@@ -888,7 +888,6 @@ anv_h264_brc_emit_huc_update(struct anv_cmd_buffer *cmd,
 /* HEVC encoding from here */
 #define ANV_HUC_HEVC_BRC_INIT_KERNEL_DESCRIPTOR   8
 #define ANV_HUC_HEVC_BRC_UPDATE_KERNEL_DESCRIPTOR 9
-#define ANV_HUC_HEVC_BRC_MAX_NUM_SLICES           70
 #define ANV_HUC_HEVC_BRC_REENCODE_MASK            (1u << 31)
 #define ANV_HUC_HEVC_BRC_ERROR_MASK               (1u << 28)
 #define ANV_HUC_HEVC_BRC_FLAG_ACQP                0

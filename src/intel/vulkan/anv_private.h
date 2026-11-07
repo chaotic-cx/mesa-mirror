@@ -7040,6 +7040,8 @@ struct anv_vid_mem {
 #define ANV_VIDEO_H264_MAX_NUM_REF_FRAME 16
 #define ANV_VIDEO_H265_MAX_NUM_REF_FRAME 16
 #define ANV_VIDEO_H265_HCP_NUM_REF_FRAME 8
+/* The most slice segments the HuC HEVC BRC kernels handle. */
+#define ANV_HUC_HEVC_BRC_MAX_NUM_SLICES 70
 #define ANV_MAX_H265_CTB_SIZE 64
 #define ANV_MAX_VP9_CTB_SIZE 64
 #define ANV_VP9_SCALE_FACTOR_SHIFT 14
