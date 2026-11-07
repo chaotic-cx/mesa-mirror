@@ -635,6 +635,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_texel_buffer_alignment            = true,
       .EXT_tooling_info                      = true,
       .EXT_transform_feedback                = true,
+      .EXT_vertex_address_binding_unrestricted = true,
       .EXT_vertex_attribute_divisor          = true,
       .EXT_vertex_input_dynamic_state        = true,
       .EXT_ycbcr_2plane_444_formats          = true,
@@ -1321,6 +1322,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_KHR_extended_flags */
       .extendedFlags = true,
+
+      /* VK_EXT_vertex_address_binding_unrestricted */
+      .vertexAddressBindingUnrestricted = true,
    };
 
    /* The new DOOM and Wolfenstein games require depthBounds without
