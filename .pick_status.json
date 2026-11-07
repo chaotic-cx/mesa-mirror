@@ -474,7 +474,7 @@
         "description": "freedreno/a5xx: correct a505, a506 and a510 entries",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3e36cf699eb071c4d72a7b008398d341c5e55e47",
         "notes": null
