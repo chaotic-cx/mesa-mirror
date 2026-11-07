@@ -1634,7 +1634,7 @@
         "description": "util: Initialize memstream outputs on Xbox",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3136d1c8c68aa11ececf3f109975a3ae06db66a7",
         "notes": null
