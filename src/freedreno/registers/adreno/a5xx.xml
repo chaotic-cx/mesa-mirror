@@ -2645,24 +2645,25 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 	<!-- either blob is doing it wrong, or this is not per-stage anymore: -->
 	<reg64 offset="0xe706" name="TPL1_TP_BORDER_COLOR_BASE_ADDR" type="address"/>
 
-	<!--
-	These carry the same information as the CP_LOAD_STATE4 packets, but as
-	a pointer to a table in memory rather than a payload: the texture pipe
-	fetches descriptors itself.
-
-	A TEX_CONST entry is twelve dwords but the table strides by sixteen,
-	and the table address is taken at a 64 byte granularity.
-	 -->
+	<!-- bounds on the TPL1_*_TEX_COUNT table accesses. max 128. -->
 	<reg32 offset="0xe700" name="TPL1_VS_TEX_COUNT" type="uint"/>
 	<reg32 offset="0xe701" name="TPL1_HS_TEX_COUNT" type="uint"/>
 	<reg32 offset="0xe702" name="TPL1_DS_TEX_COUNT" type="uint"/>
 	<reg32 offset="0xe703" name="TPL1_GS_TEX_COUNT" type="uint"/>
 
+	<!-- Sampler tables, 16 byte stride and 8 byte alignment-->
 	<reg64 offset="0xe722" name="TPL1_VS_TEX_SAMP" type="address"/>
 	<reg64 offset="0xe724" name="TPL1_HS_TEX_SAMP" type="address"/>
 	<reg64 offset="0xe726" name="TPL1_DS_TEX_SAMP" type="address"/>
 	<reg64 offset="0xe728" name="TPL1_GS_TEX_SAMP" type="address"/>
 
+	<!--
+		These carry the same information as the CP_LOAD_STATE4 packets,
+		but as a pointer to a table in memory rather than a payload: the
+		texture pipe fetches descriptors itself.  The descriptors have a
+		64 byte stride and 64 byte alignment, maximum of 128 entriea
+		(texture indices get masked to 7 bits)
+	-->
 	<reg64 offset="0xe72a" name="TPL1_VS_TEX_CONST" type="address"/>
 	<reg64 offset="0xe72c" name="TPL1_HS_TEX_CONST" type="address"/>
 	<reg64 offset="0xe72e" name="TPL1_DS_TEX_CONST" type="address"/>
