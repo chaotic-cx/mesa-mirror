@@ -569,6 +569,98 @@ emit_ssbos(struct fd_context *ctx, struct fd_ringbuffer *ring,
    }
 }
 
+/* The graphics stages share SB4_UBO's UBO state.  These are the a5xx blob's
+ * DST_OFFs for the VS and FS base addresses (in UBOs) and sizes (in units of
+ * 4 UBOs).
+ */
+#define FD5_VS_UBO_ADDR_DST_OFF 0
+#define FD5_VS_UBO_SIZE_DST_OFF 0
+#define FD5_FS_UBO_ADDR_DST_OFF 80
+#define FD5_FS_UBO_SIZE_DST_OFF 16
+
+/* Uploads the base addresses and sizes of the UBOs that the shader's ldc
+ * instructions read (the UBO loads that weren't pushed to constants by
+ * ir3_emit_user_consts()).
+ */
+static void
+emit_ubos(struct fd_context *ctx, struct fd_ringbuffer *ring,
+          enum a4xx_state_block sb, uint32_t addr_dst_off,
+          uint32_t size_dst_off, struct fd_constbuf_stateobj *constbuf,
+          const struct ir3_shader_variant *v)
+{
+   const struct ir3_const_state *const_state = ir3_const_state(v);
+   unsigned count = const_state->num_ubos;
+
+   if (count == 0)
+      return;
+
+   struct fd_bo *bos[count];
+   uint32_t offsets[count];
+   uint32_t sizes[count];
+
+   for (unsigned i = 0; i < count; i++) {
+      if (i == const_state->consts_ubo.idx) {
+         bos[i] = v->bo;
+         offsets[i] = v->info.constant_data_offset;
+         sizes[i] = v->constant_data_size;
+         continue;
+      }
+
+      struct pipe_constant_buffer *cb = &constbuf->cb[i];
+
+      ir3_upload_user_constbuf(ctx, cb);
+
+      if ((constbuf->enabled_mask & (1 << i)) && cb->buffer) {
+         bos[i] = fd_resource(cb->buffer)->bo;
+         offsets[i] = cb->buffer_offset;
+         sizes[i] = cb->buffer_size;
+      } else {
+         bos[i] = NULL;
+         offsets[i] = 0;
+         sizes[i] = 0;
+      }
+   }
+
+   OUT_PKT7(ring, CP_LOAD_STATE4, 3 + 2 * count);
+   OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(addr_dst_off) |
+                     CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
+                     CP_LOAD_STATE4_0_STATE_BLOCK(sb) |
+                     CP_LOAD_STATE4_0_NUM_UNIT(count));
+   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(ST4_UBO) |
+                     CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
+   OUT_RING(ring, CP_LOAD_STATE4_2_EXT_SRC_ADDR_HI(0));
+   for (unsigned i = 0; i < count; i++) {
+      if (bos[i]) {
+         OUT_RELOC(ring, bos[i], offsets[i], 0, 0);
+      } else {
+         OUT_RING(ring, 0x00000000);
+         OUT_RING(ring, 0x00000000);
+      }
+   }
+
+   /* The sizes are 16-bit counts of vec4s, 4 UBOs per unit.  ldc loads at
+    * or past the size return 0, so a size of 0 makes unbound UBOs read 0.
+    */
+   unsigned size_units = DIV_ROUND_UP(count, 4);
+   OUT_PKT7(ring, CP_LOAD_STATE4, 3 + 2 * size_units);
+   OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(size_dst_off) |
+                     CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
+                     CP_LOAD_STATE4_0_STATE_BLOCK(sb) |
+                     CP_LOAD_STATE4_0_NUM_UNIT(size_units));
+   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(ST4_CONSTANTS) |
+                     CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
+   OUT_RING(ring, CP_LOAD_STATE4_2_EXT_SRC_ADDR_HI(0));
+   for (unsigned i = 0; i < size_units * 2; i++) {
+      uint32_t dword = 0;
+      for (unsigned j = 0; j < 2; j++) {
+         unsigned ubo = i * 2 + j;
+         if (ubo < count)
+            dword |= MIN2(DIV_ROUND_UP(sizes[ubo], 16), 0xffff) << (16 * j);
+      }
+      OUT_RING(ring, dword);
+   }
+}
+
 void
 fd5_emit_vertex_bufs(struct fd_ringbuffer *ring, struct fd5_emit *emit)
 {
@@ -1053,7 +1145,21 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
    if (needs_border)
       emit_border_color(ctx, ring);
 
+   if (reload || (ctx->dirty_shader[MESA_SHADER_VERTEX] &
+                  (FD_DIRTY_SHADER_PROG | FD_DIRTY_SHADER_CONST))) {
+      emit_ubos(ctx, ring, SB4_UBO, FD5_VS_UBO_ADDR_DST_OFF,
+                FD5_VS_UBO_SIZE_DST_OFF, &ctx->constbuf[MESA_SHADER_VERTEX],
+                vp);
+   }
+
    if (!emit->binning_pass) {
+      if (reload || (ctx->dirty_shader[MESA_SHADER_FRAGMENT] &
+                     (FD_DIRTY_SHADER_PROG | FD_DIRTY_SHADER_CONST))) {
+         emit_ubos(ctx, ring, SB4_UBO, FD5_FS_UBO_ADDR_DST_OFF,
+                   FD5_FS_UBO_SIZE_DST_OFF,
+                   &ctx->constbuf[MESA_SHADER_FRAGMENT], fp);
+      }
+
       if (reload || (ctx->dirty_shader[MESA_SHADER_FRAGMENT] & FD_DIRTY_SHADER_SSBO))
          emit_ssbos(ctx, ring, SB4_SSBO, &ctx->shaderbuf[MESA_SHADER_FRAGMENT],
                   fp);
@@ -1098,6 +1204,10 @@ fd5_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
    OUT_RING(ring, ctx->shaderimg[MESA_SHADER_COMPUTE].enabled_mask
                      ? ~0
                      : ctx->tex[MESA_SHADER_COMPUTE].num_textures);
+
+   if (dirty & (FD_DIRTY_SHADER_PROG | FD_DIRTY_SHADER_CONST))
+      emit_ubos(ctx, ring, SB4_CS_UBO, 0, 0, &ctx->constbuf[MESA_SHADER_COMPUTE],
+                cp);
 
    if (dirty & FD_DIRTY_SHADER_SSBO)
       emit_ssbos(ctx, ring, SB4_CS_SSBO, &ctx->shaderbuf[MESA_SHADER_COMPUTE],

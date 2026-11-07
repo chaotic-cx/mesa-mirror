@@ -185,6 +185,22 @@ ir3_emit_user_consts(const struct ir3_shader_variant *v,
    }
 }
 
+/* If we have user pointers (constbuf 0, aka GL uniforms), upload them to a
+ * buffer now, and save it in the constbuf so that we don't have to reupload
+ * until they get changed.
+ */
+static inline void
+ir3_upload_user_constbuf(struct fd_context *ctx, struct pipe_constant_buffer *cb)
+{
+   if (cb->user_buffer) {
+      struct pipe_context *pctx = &ctx->base;
+      u_upload_data_ref(pctx->stream_uploader, 0, cb->buffer_size, 64,
+                        cb->user_buffer, &cb->buffer_offset, &cb->buffer);
+      cb->user_buffer = NULL;
+   }
+}
+
+/* UBO base addresses for LDG-based UBO access (rather than LDC). */
 static inline void
 ir3_emit_ubos(struct fd_context *ctx, const struct ir3_shader_variant *v,
               struct fd_ringbuffer *ring, struct fd_constbuf_stateobj *constbuf)
@@ -193,14 +209,9 @@ ir3_emit_ubos(struct fd_context *ctx, const struct ir3_shader_variant *v,
    uint32_t offset =
       const_state->allocs.consts[IR3_CONST_ALLOC_UBO_PTRS].offset_vec4;
 
-   /* a6xx+ uses UBO state and ldc instead of pointers emitted in
-    * const state and ldg:
-    */
-   if (ctx->screen->gen >= 6)
-      return;
-
    if (ir3_const_can_upload(&const_state->allocs, IR3_CONST_ALLOC_UBO_PTRS,
                             v->constlen)) {
+      assert(!v->compiler->has_ldc_ubos);
       uint32_t params = const_state->num_ubos;
       uint32_t offsets[params];
       struct fd_bo *bos[params];
@@ -214,16 +225,7 @@ ir3_emit_ubos(struct fd_context *ctx, const struct ir3_shader_variant *v,
 
          struct pipe_constant_buffer *cb = &constbuf->cb[i];
 
-         /* If we have user pointers (constbuf 0, aka GL uniforms), upload
-          * them to a buffer now, and save it in the constbuf so that we
-          * don't have to reupload until they get changed.
-          */
-         if (cb->user_buffer) {
-            struct pipe_context *pctx = &ctx->base;
-            u_upload_data_ref(pctx->stream_uploader, 0, cb->buffer_size, 64,
-                          cb->user_buffer, &cb->buffer_offset, &cb->buffer);
-            cb->user_buffer = NULL;
-         }
+         ir3_upload_user_constbuf(ctx, cb);
 
          if ((constbuf->enabled_mask & (1 << i)) && cb->buffer) {
             offsets[i] = cb->buffer_offset;

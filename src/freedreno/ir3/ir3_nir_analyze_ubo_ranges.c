@@ -631,7 +631,7 @@ ir3_nir_analyze_ubo_ranges(nir_shader *nir, struct ir3_shader_variant *v)
    struct ir3_ubo_analysis_state *state = &const_state->ubo_state;
    struct ir3_compiler *compiler = v->compiler;
 
-   if (compiler->gen < 6 && const_state->num_ubos > 0) {
+   if (!compiler->has_ldc_ubos && const_state->num_ubos > 0) {
       uint32_t ptrs_vec4 =
          align(const_state->num_ubos * ir3_pointer_size(compiler), 4) / 4;
       ir3_const_reserve_space(&const_state->allocs, IR3_CONST_ALLOC_UBO_PTRS,
@@ -728,11 +728,11 @@ ir3_nir_lower_ubo_loads(nir_shader *nir, struct ir3_shader_variant *v)
    if (!v->binning_pass) {
       ir3_const_state_mut(v)->num_ubos = num_ubos;
 
-      if (compiler->gen < 6)
+      if (!compiler->has_ldc_ubos)
          ir3_const_free_reserved_space(&ir3_const_state_mut(v)->allocs,
                                        IR3_CONST_ALLOC_UBO_PTRS);
 
-      if (compiler->gen < 6 && const_state->num_ubos > 0) {
+      if (!compiler->has_ldc_ubos && const_state->num_ubos > 0) {
          uint32_t upload_ptrs_vec4 =
             align(const_state->num_ubos * ir3_pointer_size(compiler), 4) / 4;
          ir3_const_alloc(&ir3_const_state_mut(v)->allocs,

@@ -216,6 +216,11 @@ struct ir3_compiler {
    /* True if preamble instructions (shps, shpe, etc.) are supported */
    bool has_preamble;
 
+   /* Whether UBO loads that aren't pushed to constants use ldc (and
+    * nir_lower_ubo_vec4), rather than ldg from IR3_CONST_ALLOC_UBO_PTRS.
+    */
+   bool has_ldc_ubos;
+
    /* Where the shared consts start in constants file, in vec4's. */
    uint16_t shared_consts_base_offset;
 

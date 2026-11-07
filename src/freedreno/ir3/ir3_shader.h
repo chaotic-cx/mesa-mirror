@@ -215,7 +215,7 @@ enum ir3_const_alloc_type {
    IR3_CONST_ALLOC_PREAMBLE = 5,
    /* Vulkan, inline uniforms loaded into consts in the preamble.*/
    IR3_CONST_ALLOC_GLOBAL = 6,
-   /* OpenGL, pre-a6xx; pointers to UBOs */
+   /* OpenGL, pre-a5xx; pointers to UBOs */
    IR3_CONST_ALLOC_UBO_PTRS = 7,
    /* OpenGL, TFBO addresses only for vs on a3xx/a4xx */
    IR3_CONST_ALLOC_TFBO = 8,
