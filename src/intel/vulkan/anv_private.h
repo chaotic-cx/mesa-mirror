@@ -4787,6 +4787,20 @@ struct anv_cmd_state {
    enum anv_pipe_bits                           pending_pipe_bits;
 
    /**
+    * Tracks whether constant cache invalidation for the fragment shader stage
+    * has been delayed.
+    *
+    * Pushed UBO ranges (3DSTATE_CONSTANT_* buffer pointers) are fetched by
+    * the front end of the pipeline, ahead of the raster/pixel stages. To
+    * avoid a barrier with the TOP waiting stages that costs us some
+    * performance, we delay the push constant invalidation for the fragment
+    * stage until we detect a fragment shader with a push range other then
+    * push constants data.
+    */
+   bool                                         deferred_constant_cache_inval;
+   unsigned                                     deferred_constant_cache_stage;
+
+   /**
     * Whether the last programmed STATE_BASE_ADDRESS references
     * anv_device::dynamic_state_pool or anv_device::dynamic_state_pool_db for
     * the dynamic state heap.

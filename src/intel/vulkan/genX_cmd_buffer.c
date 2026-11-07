@@ -1930,16 +1930,6 @@ emit_resource_barrier(struct anv_batch *batch,
    }
 #endif
 
-   /* Pushed UBO ranges (3DSTATE_CONSTANT_* buffer pointers) are fetched by
-    * the front end of the pipeline, ahead of the raster/pixel stages. A
-    * barrier making memory visible to fragment shader uniform reads must
-    * therefore wait at the top of the pipe. The other shader stages that
-    * can push UBOs already map to RESOURCE_BARRIER_STAGE_TOP.
-    */
-   if ((bits & ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT) &&
-       (dst_stages & VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT))
-      wait_stages = RESOURCE_BARRIER_STAGE_TOP;
-
    if (wait_stages == RESOURCE_BARRIER_STAGE_NONE)
       wait_stages = RESOURCE_BARRIER_STAGE_TOP;
 
@@ -2042,6 +2032,19 @@ genX(emit_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer,
    if (can_use_resource_barrier(device->info, batch->engine_class,
                                 src_stages, dst_stages, bits,
                                 signal_addr, wait_addr)) {
+
+      if (batch->engine_class == INTEL_ENGINE_CLASS_RENDER &&
+          (bits & ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT) &&
+          (dst_stages & VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT) &&
+          (dst_stages & ~(VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
+                          VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                          VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR)) == 0) {
+         bits &= ~ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT;
+         cmd_buffer->state.deferred_constant_cache_stage =
+            resource_barrier_signal_stage(batch->engine_class, src_stages);
+         cmd_buffer->state.deferred_constant_cache_inval = true;
+      }
+
       emit_resource_barrier(batch, device->info,
                             src_stages, dst_stages, bits,
                             signal_addr, wait_addr);
@@ -2457,6 +2460,22 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
    }
 #endif
 }
+
+#if GFX_VER >= 20
+void
+genX(cmd_buffer_emit_deferred_constant_cache_inval)(struct anv_cmd_buffer *cmd_buffer)
+{
+   anv_batch_emit(&cmd_buffer->batch, GENX(RESOURCE_BARRIER), barrier) {
+      barrier.ResourceBarrierBody.BarrierType = RESOURCE_BARRIER_TYPE_IMMEDIATE;
+      barrier.ResourceBarrierBody.SignalStage = cmd_buffer->state.deferred_constant_cache_stage;
+      barrier.ResourceBarrierBody.WaitStage = RESOURCE_BARRIER_STAGE_TOP;
+      barrier.ResourceBarrierBody.ConstantCache = true;
+
+      anv_dump_rsc_barrier_body(barrier.ResourceBarrierBody,
+                                "deferred constant invalidation");
+   }
+}
+#endif
 
 static inline struct anv_state
 emit_dynamic_buffer_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
@@ -4431,6 +4450,10 @@ genX(CmdExecuteCommands)(
    genX(cmd_buffer_apply_pipe_flushes)(container);
 
    genX(cmd_buffer_flush_generated_draws)(container);
+
+#if GFX_VER >= 20
+   genX(cmd_buffer_flush_deferred_constant_cache_inval)(container);
+#endif
 
    UNUSED enum anv_shader_binding_mode binding_mode =
       container->state.current_binding_mode;

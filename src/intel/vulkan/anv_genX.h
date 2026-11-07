@@ -189,6 +189,19 @@ genX(cmd_buffer_set_coarse_pixel_active)(struct anv_cmd_buffer *cmd_buffer,
 #endif
 }
 
+#if GFX_VERx10 >= 200
+void genX(cmd_buffer_emit_deferred_constant_cache_inval)(struct anv_cmd_buffer *cmd_buffer);
+
+static inline void
+genX(cmd_buffer_flush_deferred_constant_cache_inval)(struct anv_cmd_buffer *cmd_buffer)
+{
+   if (cmd_buffer->state.deferred_constant_cache_inval) {
+      genX(cmd_buffer_emit_deferred_constant_cache_inval)(cmd_buffer);
+      cmd_buffer->state.deferred_constant_cache_inval = false;
+   }
+}
+#endif
+
 void
 genX(setup_autostrip_state)(struct anv_cmd_buffer *cmd_buffer, bool enable);
 

@@ -513,6 +513,7 @@ cmd_buffer_flush_gfx_push_constants(struct anv_cmd_buffer *cmd_buffer,
       unsigned buffer_count = 0;
       flushed |= mesa_to_vk_shader_stage(stage);
       UNUSED uint32_t max_push_range = 0;
+      UNUSED bool has_ubo_push_buffer = false;
 
       struct anv_address buffers[4] = {};
       if (anv_gfx_has_stage(gfx, stage)) {
@@ -541,6 +542,14 @@ cmd_buffer_flush_gfx_push_constants(struct anv_cmd_buffer *cmd_buffer,
             }
 #endif
 
+#if GFX_VER >= 20
+            has_ubo_push_buffer |=
+               range->set < MAX_SETS ||
+               (bind_map->binding_mode == ANV_SHADER_BINDING_MODE_BUFFER &&
+                range->set == ANV_DESCRIPTOR_SET_DESCRIPTORS) ||
+               range->set == ANV_DESCRIPTOR_SET_PUSH_POINTER;
+#endif
+
             buffers[i] = get_push_range_address(cmd_buffer, shader, range);
             max_push_range = MAX2(max_push_range, range->length);
             buffer_count++;
@@ -562,6 +571,11 @@ cmd_buffer_flush_gfx_push_constants(struct anv_cmd_buffer *cmd_buffer,
          nobuffer_stages |= 1 << stage;
          continue;
       }
+
+#if GFX_VER >= 20
+      if (stage == MESA_SHADER_FRAGMENT && has_ubo_push_buffer)
+         genX(cmd_buffer_flush_deferred_constant_cache_inval)(cmd_buffer);
+#endif
 
       /* The Constant Buffer Read Length field from 3DSTATE_CONSTANT_ALL
        * contains only 5 bits, so we can only use it for buffers smaller than
