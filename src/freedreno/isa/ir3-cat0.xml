@@ -186,6 +186,10 @@ SOFTWARE.
 </bitset>
 
 <bitset name="kill" extends="#instruction-cat0-1src">
+	<doc>
+		In a compute shader (tested on a530-a740), terminates the fiber.
+		In a fragment shader (tested on a618), demotes to a helper invocation.
+	</doc>
 	<pattern low="49" high="51">xx0</pattern>  <!-- OPC_HI -->
 	<pattern low="55" high="58">0101</pattern> <!-- OPC -->
 </bitset>
