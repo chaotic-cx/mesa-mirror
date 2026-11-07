@@ -72,113 +72,41 @@ add_gpus([
 add_gpus([
         GPUId(505),
         GPUId(506),
-    ], GPUInfo(
-        CHIP.A5XX,
-        gmem_align_w = 64,  gmem_align_h = 32,
-        tile_align_w = 64,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
-        tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
-        num_vsc_pipes = 16,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 1,
-        wave_granularity = 1,
-        fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
-        highest_bank_bit = 14,
-        threadsize_base = 32,
-        reg_size_vec4 = 64,
-    ))
+    ], A5xxGPUInfo(num_sp_cores = 1, highest_bank_bit = 14,
+                   reg_size_vec4 = 64,
+                   wave_granularity = 1))
 
 add_gpus([
         GPUId(508),
-    ], GPUInfo(
-        CHIP.A5XX,
-        gmem_align_w = 64,  gmem_align_h = 32,
-        tile_align_w = 64,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
-        tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
-        num_vsc_pipes = 16,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 1,
-        wave_granularity = 2,
-        fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
-        highest_bank_bit = 14,
-        threadsize_base = 32,
-        reg_size_vec4 = 64,
-    ))
+    ], A5xxGPUInfo(num_sp_cores = 1, highest_bank_bit = 14,
+                   reg_size_vec4 = 64,
+                   wave_granularity = 2))
 
 # FIXME: measure on the hardware
 add_gpus([
         GPUId(510),
-    ], GPUInfo(
-        CHIP.A5XX,
-        gmem_align_w = 64,  gmem_align_h = 32,
-        tile_align_w = 64,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
-        tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
-        num_vsc_pipes = 16,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 2,
-        wave_granularity = 1,
-        fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
-        highest_bank_bit = 14,
-        threadsize_base = 32,
-        reg_size_vec4 = 64,
-    ))
+    ], A5xxGPUInfo(num_sp_cores = 2, highest_bank_bit = 14,
+                   reg_size_vec4 = 64,
+                   wave_granularity = 1))
 
 add_gpus([
         GPUId(509),
         GPUId(512),
-    ], GPUInfo(
-        CHIP.A5XX,
-        gmem_align_w = 64,  gmem_align_h = 32,
-        tile_align_w = 64,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
-        tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
-        num_vsc_pipes = 16,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 2,
-        wave_granularity = 1,
-        fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
-        highest_bank_bit = 14,
-        threadsize_base = 32,
-        reg_size_vec4 = 96,
-    ))
+    ], A5xxGPUInfo(num_sp_cores = 2, highest_bank_bit = 14,
+                   reg_size_vec4 = 96,
+                   wave_granularity = 1))
 
 add_gpus([
         GPUId(530),
-    ], GPUInfo(
-        CHIP.A5XX,
-        gmem_align_w = 64,  gmem_align_h = 32,
-        tile_align_w = 64,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
-        tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
-        num_vsc_pipes = 16,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 4,
-        wave_granularity = 2,
-        fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
-        highest_bank_bit = 15,
-        threadsize_base = 32,
-        reg_size_vec4 = 64,
-    ))
+    ], A5xxGPUInfo(num_sp_cores = 4, highest_bank_bit = 15,
+                   reg_size_vec4 = 64,
+                   wave_granularity = 2))
 
 add_gpus([
         GPUId(540),
-    ], GPUInfo(
-        CHIP.A5XX,
-        gmem_align_w = 64,  gmem_align_h = 32,
-        tile_align_w = 64,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
-        tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
-        num_vsc_pipes = 16,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 4,
-        wave_granularity = 2,
-        fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
-        highest_bank_bit = 15,
-        threadsize_base = 32,
-        reg_size_vec4 = 96,
-    ))
+    ], A5xxGPUInfo(num_sp_cores = 4, highest_bank_bit = 15,
+                   reg_size_vec4 = 96,
+                   wave_granularity = 2))
 
 # Props could be modified with env var:
 #  FD_DEV_FEATURES=%feature_name%=%value%:%feature_name%=%value%:...
