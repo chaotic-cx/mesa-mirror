@@ -1103,7 +1103,7 @@ fd5_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       emit_ssbos(ctx, ring, SB4_CS_SSBO, &ctx->shaderbuf[MESA_SHADER_COMPUTE],
                  cp);
 
-   if (dirty & FD_DIRTY_SHADER_IMAGE)
+   if (dirty & (FD_DIRTY_SHADER_PROG | FD_DIRTY_SHADER_IMAGE))
       fd5_emit_images(ctx, ring, MESA_SHADER_COMPUTE, cp);
 }
 

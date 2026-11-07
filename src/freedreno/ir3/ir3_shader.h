@@ -217,24 +217,20 @@ enum ir3_const_alloc_type {
    IR3_CONST_ALLOC_GLOBAL = 6,
    /* OpenGL, pre-a6xx; pointers to UBOs */
    IR3_CONST_ALLOC_UBO_PTRS = 7,
-   /* OpenGL, a5xx only; needed to calculate pixel offset, but only
-    * for images that have image_{load,store,size,atomic*} intrinsics.
-    */
-   IR3_CONST_ALLOC_IMAGE_DIMS = 8,
    /* OpenGL, TFBO addresses only for vs on a3xx/a4xx */
-   IR3_CONST_ALLOC_TFBO = 9,
+   IR3_CONST_ALLOC_TFBO = 8,
    /* Common, stage-dependent primitive params:
     *  vs, gs: uvec4(primitive_stride, vertex_stride, 0, 0)
     *  hs, ds: uvec4(primitive_stride, vertex_stride,
     *                patch_stride, patch_vertices_in)
     *          uvec4(tess_param_base, tess_factor_base)
     */
-   IR3_CONST_ALLOC_PRIMITIVE_PARAM = 10,
+   IR3_CONST_ALLOC_PRIMITIVE_PARAM = 9,
    /* Common, mapping from varying location to offset. */
-   IR3_CONST_ALLOC_PRIMITIVE_MAP = 11,
+   IR3_CONST_ALLOC_PRIMITIVE_MAP = 10,
    /* For SSBO emulation */
-   IR3_CONST_ALLOC_BINDLESS_BASE_ADDRS = 12,
-   IR3_CONST_ALLOC_MAX = 13,
+   IR3_CONST_ALLOC_BINDLESS_BASE_ADDRS = 11,
+   IR3_CONST_ALLOC_MAX = 12,
 };
 
 struct ir3_const_allocation {
@@ -259,17 +255,6 @@ ir3_const_can_upload(const struct ir3_const_allocations *const_alloc,
    return const_alloc->consts[type].size_vec4 > 0 &&
           const_alloc->consts[type].offset_vec4 < shader_const_size_vec4;
 }
-
-struct ir3_const_image_dims {
-   uint32_t mask;  /* bitmask of images that have image_store */
-   uint32_t count; /* number of consts allocated */
-   /* three const allocated per image which has image_store:
-      *  + cpp         (bytes per pixel)
-      *  + pitch       (y pitch)
-      *  + array_pitch (z pitch)
-      */
-   uint32_t off[IR3_MAX_SHADER_IMAGES];
-};
 
 struct ir3_imm_const_state {
    unsigned size;
@@ -303,8 +288,6 @@ struct ir3_const_state {
    struct ir3_driver_ubo primitive_map_ubo, primitive_param_ubo;
 
    struct ir3_const_allocations allocs;
-
-   struct ir3_const_image_dims image_dims;
 
    /* State of ubo access lowered to push consts: */
    struct ir3_ubo_analysis_state ubo_state;

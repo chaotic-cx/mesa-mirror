@@ -56,7 +56,6 @@ translate_image(struct fd5_image *img, struct pipe_image_view *pimg)
    img->fmt = fd5_pipe2tex(format);
    img->type = fd5_tex_type(prsc->target);
    img->srgb = util_format_is_srgb(format);
-   img->cpp = rsc->layout.cpp;
    img->bo = rsc->bo;
 
    /* Treat cube textures as 2d-array: */
@@ -66,6 +65,7 @@ translate_image(struct fd5_image *img, struct pipe_image_view *pimg)
    if (prsc->target == PIPE_BUFFER) {
       img->buffer = true;
       img->offset = pimg->u.buf.offset;
+      img->cpp = util_format_get_blocksize(format);
       img->pitch = 0;
       img->pitchalign = 0;
       img->array_pitch = 0;
@@ -75,11 +75,12 @@ translate_image(struct fd5_image *img, struct pipe_image_view *pimg)
        */
       img->width = fd_clamp_buffer_size(format, pimg->u.buf.size,
                                         A4XX_MAX_TEXEL_BUFFER_ELEMENTS_UINT) /
-                   util_format_get_blocksize(format);
+                   img->cpp;
       img->height = 0;
       img->depth = 0;
    } else {
       img->buffer = false;
+      img->cpp = rsc->layout.cpp;
 
       unsigned lvl = pimg->u.tex.level;
       img->offset = fd_resource_offset(rsc, lvl, pimg->u.tex.first_layer);
@@ -174,13 +175,15 @@ static void
 emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
                 struct fd5_image *img, mesa_shader_stage shader)
 {
-   uint32_t width = img->width, height = img->height;
+   uint32_t width = img->width, height = img->height, pitch = img->pitch;
 
    /* VK blob treats 1D_ARRAY images as a 2d image with the layer count as the
     * height. Note that 1D textures do still use TEX_1D.
     */
-   if (img->type == A5XX_TEX_1D && img->depth > 1)
+   if (img->type == A5XX_TEX_1D && img->depth > 1) {
       height = img->depth;
+      pitch = img->array_pitch;
+   }
 
    /* Unlike the texture descriptor's, the SSBO descriptor's WIDTH is 16 bits,
     * and the blob splits a buffer's element count at bit 16 there, which is
@@ -190,6 +193,24 @@ emit_image_ssbo(struct fd_ringbuffer *ring, unsigned slot,
       width = img->width & MASK(16);
       height = img->width >> 16;
    }
+
+   /* With SSBO_CONSTS_ENABLE, this state shows up in the shader's consts at
+    * c448 + slot, where ldib/stib/atomic emission picks up the pitches and cpp
+    * to compute the image's byte offset, like the blob.  The base address
+    * comes from the ST4_UBO state below instead, so it's left as 0.
+    */
+   OUT_PKT7(ring, CP_LOAD_STATE4, 3 + 4);
+   OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(slot) |
+                     CP_LOAD_STATE4_0_STATE_SRC(SS4_DIRECT) |
+                     CP_LOAD_STATE4_0_STATE_BLOCK(imgsb[shader]) |
+                     CP_LOAD_STATE4_0_NUM_UNIT(1));
+   OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(ST4_SHADER) |
+                     CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
+   OUT_RING(ring, CP_LOAD_STATE4_2_EXT_SRC_ADDR_HI(0));
+   OUT_RING(ring, A5XX_SSBO_0_0_BASE_LO(0));
+   OUT_RING(ring, A5XX_SSBO_0_1_PITCH(pitch));
+   OUT_RING(ring, A5XX_SSBO_0_2_ARRAY_PITCH(img->array_pitch));
+   OUT_RING(ring, A5XX_SSBO_0_3_CPP(img->cpp));
 
    OUT_PKT7(ring, CP_LOAD_STATE4, 3 + 2);
    OUT_RING(ring, CP_LOAD_STATE4_0_DST_OFF(slot) |

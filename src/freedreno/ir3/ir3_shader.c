@@ -1090,8 +1090,6 @@ ir3_const_alloc_type_to_string(enum ir3_const_alloc_type type)
       return "global";
    case IR3_CONST_ALLOC_UBO_PTRS:
       return "ubo_ptrs";
-   case IR3_CONST_ALLOC_IMAGE_DIMS:
-      return "image_dims";
    case IR3_CONST_ALLOC_TFBO:
       return "tfbo";
    case IR3_CONST_ALLOC_PRIMITIVE_PARAM:

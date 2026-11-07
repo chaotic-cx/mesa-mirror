@@ -18,8 +18,8 @@
  *
  * [ base address, pitch, array_pitch, cpp ]
  *
- * These mirror the values uploaded to A4XX_SSBO_0 state. For A5XX, these are
- * uploaded manually by the driver.
+ * These mirror the values uploaded to A4XX_SSBO_0/A5XX_SSBO_0 state (on a5xx,
+ * with HLSQ_MODE_CNTL and SP_MODE_CNTL's SSBO_CONSTS_ENABLE set).
  */
 #define A4XX_SSBO_CB_BASE(i) (0x700 + ((i) << 2))
 
@@ -209,25 +209,14 @@ get_image_offset(struct ir3_context *ctx, const nir_intrinsic_instr *instr,
    unsigned ncoords = ir3_get_image_coords(instr, NULL);
 
    /* to calculate the byte offset (yes, uggg) we need (up to) three
-    * const values to know the bytes per pixel, and y and z stride:
+    * const values to know the bytes per pixel, and y and z stride, which
+    * the image's descriptor provides (images follow the SSBOs in the UAV
+    * slots):
     */
-   unsigned cb;
-   if (ctx->compiler->gen > 4) {
-      const struct ir3_const_state *const_state = ir3_const_state(ctx->so);
-      assert(const_state->image_dims.mask & (1 << index));
-
-      cb = ir3_const_reg(const_state, IR3_CONST_ALLOC_IMAGE_DIMS, 0) +
-         const_state->image_dims.off[index];
-   } else {
-      index += ctx->s->info.num_ssbos;
-      cb = A4XX_SSBO_CB_BASE(index);
-   }
+   unsigned cb = A4XX_SSBO_CB_BASE(ctx->s->info.num_ssbos + index);
 
    /* offset = coords.x * bytes_per_pixel: */
-   if (ctx->compiler->gen == 4)
-      offset = ir3_MUL_S24(b, coords[0], 0, create_uniform(b, cb + 3), 0);
-   else
-      offset = ir3_MUL_S24(b, coords[0], 0, create_uniform(b, cb + 0), 0);
+   offset = ir3_MUL_S24(b, coords[0], 0, create_uniform(b, cb + 3), 0);
    if (ncoords > 1) {
       /* offset += coords.y * y_pitch: (where y_pitch is the layer_size from
        * .z for 1D arrays.)
