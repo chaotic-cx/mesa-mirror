@@ -48,6 +48,9 @@ struct panvk_image {
    /* If an image can track validity of CRC even when external access is
     * possible. */
    bool crc_safe_external;
+
+   /* Whether this image is part of a WSI swapchain. */
+   bool wsi_swapchain_image;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(panvk_image, vk.base, VkImage,

@@ -11,6 +11,7 @@
 #include "panvk_device.h"
 #include "panvk_device_memory.h"
 #include "panvk_entrypoints.h"
+#include "panvk_image.h"
 
 #include "pan_props.h"
 
@@ -122,6 +123,31 @@ panvk_AllocateMemory(VkDevice _device,
       if (!mem->bo) {
          result = panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto err_destroy_mem;
+      }
+
+      const VkMemoryDedicatedAllocateInfo *dedicated_info =
+         vk_find_struct_const(pAllocateInfo->pNext,
+                              MEMORY_DEDICATED_ALLOCATE_INFO);
+
+      const struct wsi_memory_allocate_info *wsi_info =
+         vk_find_struct_const(pAllocateInfo->pNext,
+                              WSI_MEMORY_ALLOCATE_INFO_MESA);
+
+      if (dedicated_info && dedicated_info->image) {
+         VK_FROM_HANDLE(panvk_image, image, dedicated_info->image);
+         if (image->wsi_swapchain_image) {
+            const struct pan_image_props *props = &image->planes[0].image.props;
+            char label[128];
+            snprintf(label, sizeof(label),
+                     "WSI swapchain image format=%s extent=%ux%u modifier=0x%" PRIx64,
+                     util_format_short_name(props->format),
+                     props->extent_px.width,
+                     props->extent_px.height,
+                     props->modifier);
+            pan_kmod_set_bo_label(device->kmod.dev, mem->bo, label);
+         }
+      } else if (wsi_info && dedicated_info && dedicated_info->buffer) {
+         pan_kmod_set_bo_label(device->kmod.dev, mem->bo, "WSI blit buffer");
       }
    }
 

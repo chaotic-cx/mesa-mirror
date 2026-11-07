@@ -652,6 +652,11 @@ panvk_image_init(struct panvk_image *image,
    /* Needs to happen early for some panvk_image_ helpers to work. */
    image->plane_count = get_plane_count(image);
 
+   const struct wsi_image_create_info *wsi_info =
+      vk_find_struct_const(pCreateInfo->pNext, WSI_IMAGE_CREATE_INFO_MESA);
+
+   image->wsi_swapchain_image = (wsi_info != NULL);
+
    /* Add any create/usage flags that might be needed for meta operations.
     * This is run before the modifier selection because some
     * usage/create_flags influence the modifier selection logic. */
