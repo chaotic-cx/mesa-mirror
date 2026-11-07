@@ -6832,7 +6832,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
 #endif
                     }
 #endif
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
                     if (semInfo.syncFd.value_or(-1) >= 0) {
                         post_wait_sync_fds.push_back(semInfo.syncFd.value());
                         signalSemsToRemove.push_back(semaphore);
@@ -6902,7 +6902,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
     if (input_result != VK_SUCCESS) return input_result;
 
     int externalFenceFdToSignal = -1;
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
     {
         std::unique_lock<std::recursive_mutex> lock(mLock);
         if (fence != VK_NULL_HANDLE) {
