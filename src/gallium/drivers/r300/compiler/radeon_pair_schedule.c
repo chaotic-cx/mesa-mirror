@@ -354,21 +354,33 @@ calc_score_readers(struct schedule_instruction *sinst)
    }
 }
 
+static unsigned
+presub_read_mask(struct rc_pair_sub_instruction *sub)
+{
+   unsigned mask = 0;
+   const struct rc_opcode_info *info = rc_get_opcode_info(sub->Opcode);
+
+   for (unsigned i = 0; i < info->NumSrcRegs; i++) {
+      if (sub->Arg[i].Source == RC_PAIR_PRESUB_SRC)
+         mask |= rc_swizzle_to_writemask(sub->Arg[i].Swizzle);
+   }
+   return mask;
+}
+
 static bool
 sub_instruction_reads_presub_from_prev(struct rc_pair_sub_instruction *sub,
-                                       int prev_rgb_index, int prev_alpha_index)
+                                       struct rc_pair_sub_instruction *prev, unsigned read_mask)
 {
    unsigned int num_src;
 
-   if (!sub->Src[RC_PAIR_PRESUB_SRC].Used)
+   if (!(read_mask & prev->WriteMask))
       return false;
 
    num_src = rc_presubtract_src_reg_count(sub->Src[RC_PAIR_PRESUB_SRC].Index);
    for (unsigned int i = 0; i < num_src; i++) {
       unsigned int index = sub->Src[i].Index;
 
-      if (sub->Src[i].File == RC_FILE_TEMPORARY &&
-          (index == prev_rgb_index || index == prev_alpha_index))
+      if (sub->Src[i].File == RC_FILE_TEMPORARY && index == prev->DestIndex)
          return true;
    }
 
@@ -378,31 +390,23 @@ sub_instruction_reads_presub_from_prev(struct rc_pair_sub_instruction *sub,
 static bool
 instruction_reads_presub_from_prev(struct rc_instruction *inst)
 {
-   int prev_rgb_index, prev_alpha_index;
    struct rc_instruction *prev = inst->Prev;
 
    /* We don't need a nop if the previous instruction is a TEX. */
    if (inst->Type != RC_INSTRUCTION_PAIR || prev->Type != RC_INSTRUCTION_PAIR)
       return false;
 
-   /* -1 marks an unwritten bank and cannot match a valid temporary index. */
-   if (prev->U.P.RGB.WriteMask)
-      prev_rgb_index = prev->U.P.RGB.DestIndex;
-   else
-      prev_rgb_index = -1;
-   if (prev->U.P.Alpha.WriteMask)
-      prev_alpha_index = prev->U.P.Alpha.DestIndex;
-   else
-      prev_alpha_index = -1;
+   if (!inst->U.P.RGB.Src[RC_PAIR_PRESUB_SRC].Used &&
+       !inst->U.P.Alpha.Src[RC_PAIR_PRESUB_SRC].Used)
+      return false;
 
-   /* Check the previous rgb instruction */
-   if (sub_instruction_reads_presub_from_prev(&inst->U.P.RGB, prev_rgb_index,
-                                             prev_alpha_index))
-      return true;
+   /* Either ALU can read RGB or alpha presubtract components. */
+   unsigned read_mask = presub_read_mask(&inst->U.P.RGB) | presub_read_mask(&inst->U.P.Alpha);
 
-   /* Check the previous alpha instruction. */
-   return sub_instruction_reads_presub_from_prev(&inst->U.P.Alpha, prev_rgb_index,
-                                                prev_alpha_index);
+   return sub_instruction_reads_presub_from_prev(&inst->U.P.RGB, &prev->U.P.RGB,
+                                                read_mask & RC_MASK_XYZ) ||
+          sub_instruction_reads_presub_from_prev(&inst->U.P.Alpha, &prev->U.P.Alpha,
+                                                read_mask & RC_MASK_W);
 }
 
 /**
