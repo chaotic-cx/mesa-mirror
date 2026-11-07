@@ -3713,8 +3713,10 @@ genX(batch_emit_wa_14018283232)(struct anv_batch *batch)
       barrier.ResourceBarrierBody = (struct GENX(RESOURCE_BARRIER_BODY)) {
          .BarrierType = RESOURCE_BARRIER_TYPE_IMMEDIATE,
          .SignalStage = RESOURCE_BARRIER_STAGE_COLOR,
-            .WaitStage = RESOURCE_BARRIER_STAGE_PIXEL,
+         .WaitStage = RESOURCE_BARRIER_STAGE_PIXEL,
       };
+
+      anv_dump_rsc_barrier_body(barrier.ResourceBarrierBody, "Wa_14018283232");
    }
 }
 #endif

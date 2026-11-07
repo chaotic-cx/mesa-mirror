@@ -1643,96 +1643,6 @@ genX(invalidate_aux_map)(struct anv_batch *batch,
 }
 
 #if GFX_VER >= 20
-ALWAYS_INLINE static void
-anv_dump_rsc_stage(struct log_stream *stream,
-                   const enum GENX(RESOURCE_BARRIER_STAGE) stage)
-{
-   u_foreach_bit(bit, stage) {
-      switch(1 << bit) {
-         case RESOURCE_BARRIER_STAGE_NONE:
-            mesa_log_stream_printf(stream, "None,");
-            break;
-         case RESOURCE_BARRIER_STAGE_TOP:
-            mesa_log_stream_printf(stream, "Top,");
-            break;
-         case RESOURCE_BARRIER_STAGE_COLOR:
-            mesa_log_stream_printf(stream, "Color,");
-            break;
-         case RESOURCE_BARRIER_STAGE_GPGPU:
-            mesa_log_stream_printf(stream, "GPGPU,");
-            break;
-         case RESOURCE_BARRIER_STAGE_GEOM:
-            mesa_log_stream_printf(stream, "Geometry,");
-            break;
-         case RESOURCE_BARRIER_STAGE_RASTER:
-            mesa_log_stream_printf(stream, "Raster,");
-            break;
-         case RESOURCE_BARRIER_STAGE_DEPTH:
-            mesa_log_stream_printf(stream, "Depth,");
-            break;
-         case RESOURCE_BARRIER_STAGE_PIXEL:
-            mesa_log_stream_printf(stream, "Pixel,");
-            break;
-         case RESOURCE_BARRIER_STAGE_COLORANDCOMPUTE:
-            mesa_log_stream_printf(stream, "ColorAndCompute,");
-            break;
-         case RESOURCE_BARRIER_STAGE_GEOMETRYANDCOMPUTE:
-            mesa_log_stream_printf(stream, "GeometryAndCompute,");
-            break;
-         default:
-            UNREACHABLE("Unknown barrier stage");
-      }
-   }
-}
-
-ALWAYS_INLINE static void
-anv_dump_rsc_barrier_body(const struct GENX(RESOURCE_BARRIER_BODY) body) {
-   if (!INTEL_DEBUG(DEBUG_PIPE_CONTROL))
-      return;
-
-   struct log_stream *stream = mesa_log_streami();
-
-   mesa_log_stream_printf(
-      stream, "rb : Type=%s ",
-      body.BarrierType == RESOURCE_BARRIER_TYPE_IMMEDIATE ? "Immediate" :
-      body.BarrierType == RESOURCE_BARRIER_TYPE_SIGNAL ? "Signal" :
-      body.BarrierType == RESOURCE_BARRIER_TYPE_WAIT ? "Wait" : "Unknown");
-
-   if (body.SignalStage) {
-      mesa_log_stream_printf(stream, " Signal=");
-      anv_dump_rsc_stage(stream, body.SignalStage);
-   }
-
-   if (body.WaitStage) {
-      mesa_log_stream_printf(stream, " Wait=");
-      anv_dump_rsc_stage(stream, body.WaitStage);
-   }
-
-   mesa_log_stream_printf(stream, " Flags=");
-   if (body.L1DataportCacheInvalidate)
-      mesa_log_stream_printf(stream, "+l1-dc-inval,");
-   if (body.DepthCache)
-      mesa_log_stream_printf(stream, "+ds-flush,");
-   if (body.ColorCache)
-      mesa_log_stream_printf(stream, "+rt-flush,");
-   if (body.L1DataportUAVFlush)
-      mesa_log_stream_printf(stream, "+l1-dp-uav-flush,");
-   if (body.TextureRO)
-      mesa_log_stream_printf(stream, "+tex-inval,");
-   if (body.StateRO)
-      mesa_log_stream_printf(stream, "+state-inval,");
-   if (body.VFRO)
-      mesa_log_stream_printf(stream, "+vf-inval,");
-   if (body.AMFS)
-      mesa_log_stream_printf(stream, "+amfs,");
-   if (body.ConstantCache)
-      mesa_log_stream_printf(stream, "+const-inval,");
-
-   mesa_log_stream_printf(stream, "\n");
-
-   mesa_log_stream_destroy(stream);
-}
-
 static inline enum intel_ds_stages
 resource_barrier_stage_to_ds(uint8_t stages)
 {
@@ -2076,7 +1986,7 @@ emit_resource_barrier(struct anv_batch *batch,
       barrier.ResourceBarrierBody.ConstantCache =
          bits & ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT;
 
-      anv_dump_rsc_barrier_body(barrier.ResourceBarrierBody);
+      anv_dump_rsc_barrier_body(barrier.ResourceBarrierBody, "emission");
    }
 
    trace_intel_end_barrier(batch->trace,
