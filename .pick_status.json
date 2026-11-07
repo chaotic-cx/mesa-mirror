@@ -214,7 +214,7 @@
         "description": "gfxstream: guard Goldfish sync fd collection in queue submit",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a1ac0bedfca1371436773493652c38b24d1ab7be",
         "notes": null
