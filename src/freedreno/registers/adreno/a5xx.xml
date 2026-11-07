@@ -1530,7 +1530,9 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 		<bitfield name="LMLOADKILLDIS" pos="18" type="boolean"/>
 	</reg32>
 	<reg32 offset="0x0e05" name="HLSQ_ADDR_MODE_CNTL" type="a5xx_address_mode"/>
-	<reg32 offset="0x0e06" name="HLSQ_MODE_CNTL"/> <!-- always 00000001? -->
+	<reg32 offset="0x0e06" name="HLSQ_MODE_CNTL">
+		<bitfield name="SSBO_CONSTS_ENABLE" pos="0" type="boolean"/>
+	</reg32>
 	<reg32 offset="0x0e10" name="HLSQ_PERFCTR_HLSQ_SEL_0" type="a5xx_hlsq_perfcounter_select"/>
 	<reg32 offset="0x0e11" name="HLSQ_PERFCTR_HLSQ_SEL_1" type="a5xx_hlsq_perfcounter_select"/>
 	<reg32 offset="0x0e12" name="HLSQ_PERFCTR_HLSQ_SEL_2" type="a5xx_hlsq_perfcounter_select"/>
@@ -1595,6 +1597,8 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<reg32 offset="0x0ec0" name="SP_DBG_ECO_CNTL"/>
 	<reg32 offset="0x0ec1" name="SP_ADDR_MODE_CNTL" type="a5xx_address_mode"/>
 	<reg32 offset="0x0ec2" name="SP_MODE_CNTL">
+		<!-- SSBO_CONSTS_ENABLE should match the bit in HLSQ_MODE_CNTL. -->
+		<bitfield name="SSBO_CONSTS_ENABLE" pos="4" type="boolean"/>
 		<bitfield name="F16_NO_INF" pos="1" type="boolean"/>
 	</reg32>
 	<reg32 offset="0x0ed0" name="SP_PERFCTR_SP_SEL_0"  type="a5xx_sp_perfcounter_select"/>

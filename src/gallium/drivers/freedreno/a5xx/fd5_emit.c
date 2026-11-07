@@ -1217,7 +1217,10 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_RING(ring, 0x0000001f); /* PC_MODE_CNTL */
 
    OUT_PKT4(ring, REG_A5XX_SP_MODE_CNTL, 1);
-   OUT_RING(ring, 0x0000001c); /* SP_MODE_CNTL */
+   /* SSBO_CONSTS_ENABLE makes the image descriptors visible to the shader's
+    * offset math at c448.
+    */
+   OUT_RING(ring, A5XX_SP_MODE_CNTL_SSBO_CONSTS_ENABLE | 0xc);
 
    OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
    OUT_RING(ring, fd5_sp_dbg_eco_cntl(ctx->screen));
@@ -1240,7 +1243,7 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
             COND(fd5_lm_load_kill_disabled(ctx->screen), BIT(23)));
 
    OUT_PKT4(ring, REG_A5XX_HLSQ_MODE_CNTL, 1);
-   OUT_RING(ring, 0x00000001); /* HLSQ_MODE_CNTL */
+   OUT_RING(ring, A5XX_HLSQ_MODE_CNTL_SSBO_CONSTS_ENABLE);
 
    OUT_PKT4(ring, REG_A5XX_VPC_MODE_CNTL, 1);
    OUT_RING(ring, 0x00000000); /* VPC_MODE_CNTL */
