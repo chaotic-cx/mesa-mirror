@@ -235,6 +235,8 @@ struct tu_autotune {
    struct rp_latency_tracker {
       std::vector<uint64_t> recent_latency_timestamps_ns; /* Timestamps of recent latency events */
       rp_latency_info info;
+
+      void remove_old_timestamps(uint64_t now);
    };
 
    /* Global map tracking RPs that have caused preemption latency */
