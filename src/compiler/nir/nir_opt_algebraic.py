@@ -746,6 +746,10 @@ optimizations.extend([
    (('ishl', ('iadd(is_used_once)', ('iadd(is_used_once)', a, '#b'), c), '#d'),
     ('iadd', ('ishl', ('iadd', a, c), d), ('ishl', b, d))),
 
+   # (d - a * b) + a * c => d + a * (c - b)
+   (('iadd', ('iadd(is_used_once)', d, ('ineg(is_used_once)', ('imul(is_used_once)', a, b))), ('imul(is_used_once)', a, c)),
+    ('iadd', d, ('imul', a, ('iadd', c, ('ineg', b))))),
+
    # Comparison simplifications
    (('inot', ('flt(is_used_once)', 'a(is_a_number)', 'b(is_a_number)')), ('fge', a, b)),
    (('inot', ('fge(is_used_once)', 'a(is_a_number)', 'b(is_a_number)')), ('flt', a, b)),
