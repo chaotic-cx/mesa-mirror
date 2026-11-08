@@ -1854,7 +1854,7 @@
         "description": "tu/autotune: Order dropping an RP history reference before its reaping",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "40ffc052afff7a40da99b398c09594c3ff2d40ed",
         "notes": null
