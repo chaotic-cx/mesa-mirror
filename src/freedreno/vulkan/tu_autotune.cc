@@ -1439,6 +1439,17 @@ tu_autotune::supports_preempt_latency_tracking() const
 }
 
 void
+tu_autotune::rp_latency_tracker::remove_old_timestamps(uint64_t now)
+{
+   constexpr uint64_t LATENCY_WINDOW_NS = 2'000'000'000; /* 2s */
+
+   recent_latency_timestamps_ns.erase(
+      std::remove_if(recent_latency_timestamps_ns.begin(), recent_latency_timestamps_ns.end(),
+                     [&](uint64_t ts) { return (now - ts) > LATENCY_WINDOW_NS; }),
+      recent_latency_timestamps_ns.end());
+}
+
+void
 tu_autotune::cleanup_latency_tracking()
 {
    constexpr uint64_t CLEANUP_INTERVAL_NS = 10'000'000'000;         /* 10s */
@@ -1470,6 +1481,7 @@ tu_autotune::cleanup_latency_tracking()
       }
 
       /* Remove tracking entry if no recent latency events and flag is cleared. */
+      tracker.remove_old_timestamps(now);
       if (tracker.recent_latency_timestamps_ns.empty() && !tracker.info.seen_latency_spike) {
          it = rp_latency_tracking.erase(it);
       } else {
@@ -1523,8 +1535,7 @@ tu_autotune::process_entries()
 void
 tu_autotune::process_batch_preempt_data(rp_entry_batch &batch)
 {
-   constexpr uint64_t LATENCY_THRESHOLD_US = 1500;       /* 1.5ms */
-   constexpr uint64_t LATENCY_WINDOW_NS = 2'000'000'000; /* 2s */
+   constexpr uint64_t LATENCY_THRESHOLD_US = 1500; /* 1.5ms */
 
    if (!batch.preempt_latency.allocated)
       return;
@@ -1562,12 +1573,7 @@ tu_autotune::process_batch_preempt_data(rp_entry_batch &batch)
 
    auto &tracker = rp_latency_tracking[gpu_data.preemption_latency_rp_hash];
    tracker.recent_latency_timestamps_ns.push_back(now);
-
-   /* Remove old timestamps outside the window. */
-   tracker.recent_latency_timestamps_ns.erase(
-      std::remove_if(tracker.recent_latency_timestamps_ns.begin(), tracker.recent_latency_timestamps_ns.end(),
-                     [&](uint64_t ts) { return (now - ts) > LATENCY_WINDOW_NS; }),
-      tracker.recent_latency_timestamps_ns.end());
+   tracker.remove_old_timestamps(now);
 
    /* Mark as latency-sensitive if 2+ occurrences in window. */
    if (tracker.recent_latency_timestamps_ns.size() >= 2) {
