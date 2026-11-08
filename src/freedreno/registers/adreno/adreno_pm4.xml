@@ -718,8 +718,6 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<doc>Load state, a4xx+</doc>
 	<enum name="a4xx_state_block">
 		<!--
-		unknown: 0x7 and 0xf <- seen in compute shader
-
 		STATE_BLOCK = 0x6, STATE_TYPE = 0x2 possibly used for preemption?
 		Seen in some GL shaders.  Payload is NUM_UNIT dwords, and it contains
 		the gpuaddr of the following shader constants block.  DST_OFF seems
@@ -757,6 +755,23 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
 		<value name="SB4_GS_TEX"    value="0x3"/>
 		<value name="SB4_FS_TEX"    value="0x4"/>
 		<value name="SB4_CS_TEX"    value="0x5"/>
+		<!--
+		UBO state for ldc, like the SSBO blocks below.  ST4_CONSTANTS is
+		the sizes, 16 bits per UBO (four per unit), and the graphics
+		stages share SB4_UBO, with the blobs putting the VS sizes at
+		DST_OFF 0 and the FS sizes at DST_OFF 16.  The a4xx and a5xx
+		blobs both write sizes in bytes, but on a5xx they actually count
+		vec4s, and ldc loads at or past the size return 0 (a4xx's units
+		and bounds checking are unverified).
+
+		On a5xx, ST4_UBO is a 64-bit base address per UBO (one per
+		unit), with the blob putting the FS addresses at DST_OFF 80.
+		The a4xx blob doesn't load ST4_UBO: a4xx's ldc takes the UBO
+		address in a register, which the blob loads from UBO pointers in
+		the const file.
+		 -->
+		<value name="SB4_UBO"       value="0x6"/>
+		<value name="SB4_CS_UBO"    value="0x7"/>
 		<value name="SB4_VS_SHADER" value="0x8"/>
 		<value name="SB4_HS_SHADER" value="0x9"/>
 		<value name="SB4_DS_SHADER" value="0xa"/>
