@@ -677,8 +677,9 @@ create_output_aliases(struct ir3_shader_variant *v, struct ir3_instruction *end)
       unsigned rt = output->slot - FRAG_RESULT_DATA0;
 
       foreach_src_n (comp_src, comp, src_instr) {
-         if (!(comp_src->flags & (IR3_REG_IMMED | IR3_REG_CONST))) {
-            /* Only const and immediate values can be aliased. */
+         if (!(comp_src->flags & (IR3_REG_IMMED | IR3_REG_CONST)) ||
+             (comp_src->flags & IR3_REG_RELATIV)) {
+            /* Only (non-relative) const and immediate values can be aliased. */
             continue;
          }
 

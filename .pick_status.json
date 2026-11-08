@@ -1504,7 +1504,7 @@
         "description": "ir3: don't emit alias.rt for relative const movs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0aa9678d4d0ea0303e907bd3a4b362c08121ae89",
         "notes": null
