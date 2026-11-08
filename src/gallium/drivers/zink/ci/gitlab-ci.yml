@@ -250,7 +250,7 @@ zink-radv-polaris10-valve:
   extends:
     - .radv-zink-test-valve
     - .polaris10-test-valve-kws
-    - .zink-radv-valve-manual-rules
+    - .zink-radv-rusticl-valve-manual-rules
   timeout: 20m
   variables:
     HWCI_START_WESTON: 1
@@ -262,7 +262,7 @@ zink-radv-navi10-valve:
   extends:
     - .radv-zink-test-valve
     - .navi10-test-valve-mupuf
-    - .zink-radv-valve-manual-rules
+    - .zink-radv-rusticl-valve-manual-rules
   timeout: 17m
   variables:
     HWCI_START_WESTON: 1
@@ -300,7 +300,7 @@ zink-radv-navi31-valve:
   extends:
     - .radv-zink-test-valve
     - .navi31-test-valve
-    - .zink-radv-valve-rules
+    - .zink-radv-rusticl-valve-rules
   timeout: 15m
   variables:
     HWCI_START_WESTON: 1
@@ -311,7 +311,7 @@ zink-radv-navi31-valve-asan:
   extends:
     - .radv-zink-test-valve-asan
     - .navi31-test-valve
-    - .zink-radv-valve-manual-rules
+    - .zink-radv-rusticl-valve-manual-rules
   timeout: 15m
   variables:
     HWCI_START_WESTON: 1
@@ -322,7 +322,7 @@ zink-radv-gfx1201-valve:
   extends:
     - .radv-zink-test-valve
     - .gfx1201-test-valve
-    - .zink-radv-valve-rules
+    - .zink-radv-rusticl-valve-rules
   timeout: 15m
   variables:
     HWCI_START_WESTON: 1

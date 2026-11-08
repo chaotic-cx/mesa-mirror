@@ -211,6 +211,27 @@
     - !reference [.radv-valve-manual-rules, rules]
     - !reference [.zink-common-manual-rules, rules]
 
+.zink-radv-rusticl-valve-rules:
+  extends: .zink-radv-valve-rules
+  rules:
+    - !reference [.enforce-hw-jobs-zink-rules, rules]
+    - !reference [.enforce-hw-jobs-radv-rules, rules]
+    - !reference [.test, rules]
+    - !reference [.radv-valve-rules, rules]
+    - !reference [.zink-common-rules, rules]
+    - !reference [.rusticl-rules, rules]
+
+.zink-radv-rusticl-valve-manual-rules:
+  stage: layered-backends-nightly
+  extends: .no-auto-retry
+  rules:
+    - !reference [.enforce-hw-jobs-zink-rules, rules]
+    - !reference [.enforce-hw-jobs-radv-rules, rules]
+    - !reference [.test, rules]
+    - !reference [.radv-valve-manual-rules, rules]
+    - !reference [.zink-common-manual-rules, rules]
+    - !reference [.rusticl-manual-rules, rules]
+
 .zink-test:
   variables:
     MESA_LOADER_DRIVER_OVERRIDE: "zink"
