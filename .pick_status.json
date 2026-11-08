@@ -1844,7 +1844,7 @@
         "description": "tu/autotune: Remove latency tracking entries once their spikes are old",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3fcec4762f3fec551c00da52f349c83443152159",
         "notes": null
