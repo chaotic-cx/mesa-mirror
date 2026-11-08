@@ -334,3 +334,9 @@ spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp@sRGB decode full 
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp@sRGB decode full precision,Fail
 spec@oes_shader_io_blocks@compiler@layout-location-aliasing.vert,Fail
+
+# https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/1309
+spec@arb_shading_language_packing@execution@built-in-functions@fs-packunorm2x16,Fail
+spec@arb_shading_language_packing@execution@built-in-functions@vs-packunorm2x16,Fail
+spec@glsl-es-3.00@execution@built-in-functions@fs-packunorm2x16,Fail
+spec@glsl-es-3.00@execution@built-in-functions@vs-packunorm2x16,Fail

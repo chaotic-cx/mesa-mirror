@@ -2337,9 +2337,7 @@ opt_shader(const struct pipe_screen *screen,
 
    lower_vector_derefs(shader, linalloc);
 
-   lower_packing_builtins(shader->ir, exts->ARB_shading_language_packing,
-                          exts->ARB_gpu_shader5,
-                          consts->GLSLHasHalfFloatPacking);
+   lower_packing_builtins(shader->ir, consts->GLSLHasHalfFloatPacking);
    do_mat_op_to_vec(shader->ir);
 
    lower_instructions(shader->ir, consts->ForceGLSLAbsSqrt,

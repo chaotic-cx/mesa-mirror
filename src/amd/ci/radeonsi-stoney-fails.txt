@@ -147,3 +147,9 @@ spec@ext_transform_feedback2@draw-auto offset,Fail
 
 # Since switching to test-gl container based rootfs
 spec@arb_shader_texture_lod@execution@arb_shader_texture_lod-texgradcube,Fail
+
+# https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/1309
+spec@arb_shading_language_packing@execution@built-in-functions@fs-packunorm2x16,Fail
+spec@arb_shading_language_packing@execution@built-in-functions@vs-packunorm2x16,Fail
+spec@glsl-es-3.00@execution@built-in-functions@fs-packunorm2x16,Fail
+spec@glsl-es-3.00@execution@built-in-functions@vs-packunorm2x16,Fail

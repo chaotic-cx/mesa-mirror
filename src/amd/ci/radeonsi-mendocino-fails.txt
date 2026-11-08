@@ -413,3 +413,9 @@ spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_transform_feedback2@draw-auto offset,Fail
 
+# https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/1309
+spec@arb_shading_language_packing@execution@built-in-functions@fs-packunorm2x16,Fail
+spec@arb_shading_language_packing@execution@built-in-functions@vs-packunorm2x16,Fail
+spec@glsl-es-3.00@execution@built-in-functions@fs-packunorm2x16,Fail
+spec@glsl-es-3.00@execution@built-in-functions@vs-packunorm2x16,Fail
+
