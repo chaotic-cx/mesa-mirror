@@ -22,4 +22,3 @@ cl_khr_external_memory on iris, radeonsi, zink
 cl_khr_external_memory_dma_buf on iris, radeonsi, zink
 cl_khr_external_memory_opaque_fd on iris, radeonsi, zink
 cl_arm_memory_import_dma_buf on rusticl
-cl_khr_icd_unloadable on rusticl

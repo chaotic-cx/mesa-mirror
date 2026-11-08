@@ -62,7 +62,6 @@ unsafe impl CLInfo<cl_platform_info> for cl_platform_id {
                     &[]
                 })
             }
-            CL_PLATFORM_UNLOADABLE_KHR => v.write::<cl_bool>(CL_TRUE),
             CL_PLATFORM_VENDOR => v.write::<&CStr>(c"Mesa/X.org"),
             // OpenCL<space><major_version.minor_version><space><platform-specific information>
             CL_PLATFORM_VERSION => v.write::<&CStr>(c"OpenCL 3.1 "),

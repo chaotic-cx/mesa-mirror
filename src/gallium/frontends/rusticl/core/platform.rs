@@ -253,8 +253,7 @@ impl Platform {
         };
 
         // Add all platform extensions we don't expect devices to advertise.
-        add_ext(2, 0, 1, "cl_khr_icd");
-        add_ext(1, 0, 0, "cl_khr_icd_unloadable");
+        add_ext(2, 0, 0, "cl_khr_icd");
 
         let mut exts;
         if let Some((first, rest)) = self.devs.split_first() {
@@ -277,25 +276,6 @@ impl Platform {
         }
 
         self.extension_string = exts_str.join(" ");
-    }
-
-    /// Called when rusticl gets unloaded through e.g. dlclose
-    ///
-    /// # Safety
-    ///
-    /// This is dropping objects with a static lifetime, therefore care must be taken to not call it
-    /// at a time where any externally reachable objects are alive.
-    unsafe extern "C" fn deinit() {
-        // SAFETY: this is called on library fini and therefore should not have concurrent accesses.
-        //         However, the safety of a concurrent access isn't our only concern. The static
-        //         Platform object acts as a anchor point for our static lifetimes (devices) and
-        //         hence we need to make sure that we drop things in an order that doesn't cause
-        //         random use-after-free accesses. As devices are dropped last, we are fine for now.
-        unsafe {
-            // We don't really have to do much else as the drop handler is going to destroy all
-            // state.
-            PLATFORM = Platform::new();
-        }
     }
 
     /// Updates the dispatch_data of the platform and all devices.
@@ -402,10 +382,3 @@ macro_rules! rusticl_warn_once {
         });
     };
 }
-
-// Rust does not clean up statics on teardown, so we need to register a fini function that gets run
-// once rusticl gets unloaded by the ICD loader. Given this is inherently unsafe care must be taken
-// to not dlclose when any CL objects are still alive. However, this isn't our problem.
-#[link_section = ".fini_array"]
-#[used]
-pub static RUSTICL_DEINIT: unsafe extern "C" fn() = Platform::deinit;
