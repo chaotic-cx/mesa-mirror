@@ -29,6 +29,7 @@
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
 #include "dev/intel_debug.h"
+#include "git_sha1.h"
 #include "intel/compiler/intel_nir.h"
 #include "util/macros.h"
 
@@ -404,6 +405,20 @@ compile_shader(struct anv_device *device,
 
    void *temp_ctx = ralloc_context(NULL);
 
+   debug_archiver *archiver = NULL;
+   if (INTEL_DEBUG(DEBUG_MDA)) {
+      blake3_hash hash;
+      char hash_str[BLAKE3_HEX_LEN];
+      _mesa_blake3_compute(hash_key, hash_key_size, hash);
+      _mesa_blake3_format(hash_str, hash);
+
+      const char *archive_name =
+         ralloc_asprintf(temp_ctx, "%s.%s", hash_str, name);
+      archiver = debug_archiver_open(temp_ctx, archive_name,
+                                     PACKAGE_VERSION MESA_GIT_SHA1);
+      debug_archiver_set_prefix(archiver, _mesa_shader_stage_to_abbrev(stage));
+   }
+
    const intel_shader_bin *bin;
    struct anv_shader_internal *kernel = NULL;
    if (stage == MESA_SHADER_FRAGMENT) {
@@ -417,6 +432,7 @@ compile_shader(struct anv_device *device,
          .collect_register_pressure = true,
          .log_data = device,
          .debug_flag = DEBUG_WM,
+         .archiver = archiver,
       };
       bin = brw_compile(compiler, &params);
    } else {
@@ -431,6 +447,7 @@ compile_shader(struct anv_device *device,
          .collect_register_pressure = true,
          .log_data = device,
          .debug_flag = DEBUG_CS,
+         .archiver = archiver,
          .cs = {
             .dispatch = dispatch,
             .push = cs_push,
@@ -438,6 +455,8 @@ compile_shader(struct anv_device *device,
       };
       bin = brw_compile(compiler, &params);
    }
+
+   debug_archiver_close(archiver);
 
    assert(bin != NULL);
    if (bin == NULL)
