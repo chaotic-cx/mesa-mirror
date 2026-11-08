@@ -1331,7 +1331,9 @@ tu_autotune::rp_history_handle::~rp_history_handle()
       return;
 
    history->last_use_ts.store(os_time_get_nano(), std::memory_order_relaxed);
-   ASSERTED uint32_t old_refcount = history->refcount.fetch_sub(1, std::memory_order_relaxed);
+
+   /* Release, so that the reaper can't free the history before the accesses through this handle. */
+   ASSERTED uint32_t old_refcount = history->refcount.fetch_sub(1, std::memory_order_release);
    assert(old_refcount != 0); /* Underflow check. */
 }
 
@@ -1415,7 +1417,7 @@ tu_autotune::reap_old_rp_histories()
 
    for (auto it = candidates.begin(); it != partition_end; ++it) {
       rp_history &history = (*it)->second;
-      if (history.refcount.load(std::memory_order_relaxed) == 0) {
+      if (history.refcount.load(std::memory_order_acquire) == 0) {
          at_log_base("reaping RP history %016" PRIx64, history.hash);
          rp_histories.erase(*it);
       }
