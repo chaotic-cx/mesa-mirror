@@ -974,6 +974,10 @@ Intel driver environment variables
    ``PID`` is the process ID. If directory creation fails, use the current
    directory.
 
+   Archives being written have a unique ``.tmp-XXXXXX`` suffix before
+   ``.mda.tar`` and are renamed to their final names when closed. Incomplete
+   archives keep their temporary names and can still be inspected with ``mda``.
+
 .. envvar:: MDA_PREFIX
 
    Prefix added to the mda.tar filenames generated when using INTEL_DEBUG=mda.

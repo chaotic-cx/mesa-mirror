@@ -31,6 +31,7 @@ if with_tests
       'mda_tests',
       [
         'tar_test.cpp',
+        'debug_archiver_test.cpp',
         'slice_test.cpp',
         'mda_test.cpp',
       ],

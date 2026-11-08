@@ -10,9 +10,13 @@
 #include "util/os_file.h"
 #include "util/os_time.h"
 #include "util/ralloc.h"
+#include "util/rand_xor.h"
 #include "util/u_debug.h"
 #include "util/u_process.h"
 
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -25,6 +29,7 @@ struct debug_archiver
    tar_writer *tw;
    char *prefix;
    char *archive_path;
+   char *temporary_path;
    char *mda_dir_in_archive;
 };
 
@@ -95,6 +100,14 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
       output_dir = ".";
    }
 
+   char *absolute_output_dir = realpath(output_dir, NULL);
+   output_dir = absolute_output_dir ? ralloc_strdup(da, absolute_output_dir) : NULL;
+   free(absolute_output_dir);
+   if (!output_dir) {
+      ralloc_free(da);
+      return NULL;
+   }
+
    if (prefix) {
       if (!strcmp(prefix, "timestamp")) {
          struct tm tm_buf;
@@ -127,9 +140,47 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
       ralloc_asprintf(da, "%s.%s", prefix, name) : name;
    da->mda_dir_in_archive = ralloc_asprintf(da, "%s.mda", filename);
    da->archive_path = ralloc_asprintf(da, "%s/%s.mda.tar", output_dir, filename);
+   /* Leave room for the temporary suffix without splitting UTF-8. */
+   size_t temporary_len = strlen(filename);
+   long stem_max = pathconf(output_dir, _PC_NAME_MAX) -
+                   (long)strlen(".tmp-XXXXXX.mda.tar");
+   if (stem_max >= 0 && temporary_len > (size_t)stem_max) {
+      temporary_len = stem_max;
+      while (temporary_len &&
+             ((unsigned char)filename[temporary_len] & 0xc0) == 0x80)
+         temporary_len--;
+   }
+   da->temporary_path =
+      ralloc_asprintf(da, "%s/%.*s.tmp-XXXXXX.mda.tar", output_dir,
+                      (int)temporary_len, filename);
 
-   da->f = fopen(da->archive_path, "wb+");
+   /* Keep concurrent writers separate and incomplete archives discoverable. */
+   uint64_t seed[2];
+   s_rand_xorshift128plus(seed, true);
+   char *unique = da->temporary_path + strlen(da->temporary_path) -
+                  strlen("XXXXXX.mda.tar");
+   int fd = -1;
+   for (unsigned attempt = 0; attempt < 128; attempt++) {
+      static const char chars[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+      uint64_t value = rand_xorshift128plus(seed);
+      for (unsigned i = 0; i < 6; i++) {
+         unique[i] = chars[value % (sizeof(chars) - 1)];
+         value /= sizeof(chars) - 1;
+      }
+
+      fd = open(da->temporary_path, O_CREAT | O_EXCL | O_RDWR, 0666);
+      if (fd >= 0 || errno != EEXIST)
+         break;
+   }
+   if (fd < 0) {
+      ralloc_free(da);
+      return NULL;
+   }
+
+   da->f = fdopen(fd, "wb+");
    if (!da->f) {
+      close(fd);
+      unlink(da->temporary_path);
       ralloc_free(da);
       return NULL;
    }
@@ -144,7 +195,7 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
    tar_writer_finish_file(da->tw);
    if (da->tw->error) {
       fclose(da->f);
-      unlink(da->archive_path);
+      unlink(da->temporary_path);
       ralloc_free(da);
       return NULL;
    }
@@ -199,7 +250,9 @@ void
 debug_archiver_close(debug_archiver *da)
 {
    if (da != NULL) {
-      fclose(da->f);
+      const bool error = da->tw->error || ferror(da->f);
+      if (fclose(da->f) == 0 && !error)
+         rename(da->temporary_path, da->archive_path);
       ralloc_free(da);
    }
 }
