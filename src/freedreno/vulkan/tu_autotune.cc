@@ -1005,7 +1005,7 @@ struct tu_autotune::rp_history {
    uint32_t duplicates; /* The amount of times we've seen this RP, used for identifying repeated RPs. */
 
    std::atomic<uint32_t> refcount = 0; /* Reference count to prevent deletion when active. */
-   std::atomic<uint64_t> last_use_ts;  /* Last time the reference count was updated, in monotonic nanoseconds. */
+   std::atomic<uint64_t> last_use_ts;  /* Last time a reference was dropped, in monotonic nanoseconds. */
 
    rp_history(uint64_t hash): hash(hash), last_use_ts(os_time_get_nano()), profiled(hash)
    {
@@ -1375,7 +1375,6 @@ tu_autotune::rp_history_handle::~rp_history_handle()
 tu_autotune::rp_history_handle::rp_history_handle(rp_history &history): history(&history)
 {
    history.refcount.fetch_add(1, std::memory_order_relaxed);
-   history.last_use_ts.store(os_time_get_nano(), std::memory_order_relaxed);
 }
 
 tu_autotune::rp_history_handle
@@ -1392,9 +1391,9 @@ tu_autotune::find_rp_history(const rp_key &key)
 tu_autotune::rp_history_handle
 tu_autotune::find_or_create_rp_history(const rp_key &key)
 {
-   rp_history *existing = find_rp_history(key);
+   rp_history_handle existing = find_rp_history(key);
    if (existing)
-      return *existing;
+      return existing;
 
    /* If we reach here, we have to create a new history. */
    std::unique_lock lock(rp_mutex);
@@ -1907,7 +1906,8 @@ tu_autotune::get_optimal_mode(struct tu_cmd_buffer *cmd_buffer, rp_ctx_t *rp_ctx
    else
       key = cb_ctx.generate_rp_key(pass, framebuffer, cmd_buffer);
 
-   rp_history &history = *find_or_create_rp_history(key);
+   rp_history_handle history_handle = find_or_create_rp_history(key);
+   rp_history &history = *history_handle;
    if (config.test(mod_flag::PREEMPT_OPTIMIZE)) {
       if (!latency_info && !key_opt)
          latency_info = get_rp_latency_info(key.hash, true);
@@ -1927,7 +1927,7 @@ tu_autotune::get_optimal_mode(struct tu_cmd_buffer *cmd_buffer, rp_ctx_t *rp_ctx
          history.preempt_optimize.mark_as_latency_sensitive();
       }
    }
-   *rp_ctx = cb_ctx.attach_rp_entry(device, history, config, rp_state->drawcall_count);
+   *rp_ctx = cb_ctx.attach_rp_entry(device, std::move(history_handle), config, rp_state->drawcall_count);
 
    if (config.test(mod_flag::PREEMPT_OPTIMIZE) && history.preempt_optimize.is_latency_sensitive()) {
       /* Try to mitigate the risk of high preemption latency by always using GMEM, which should break up any larger
