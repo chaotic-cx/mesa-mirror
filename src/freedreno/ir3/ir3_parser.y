@@ -1187,6 +1187,12 @@ cat6_bindless_ldc: cat6_bindless_ldc_opc '.' cat6_bindless_ldc_middle ',' cat6_r
                       /* TODO cleanup ir3 src order: */
                       swap(instr->srcs[0], instr->srcs[1]);
                    }
+                   /* a4xx, with the UBO address in a register: */
+|                  cat6_bindless_ldc_opc '.' cat6_bindless_ldc_middle ',' 'g' '[' src ']' ',' cat6_reg_or_immed ',' cat6_reg_or_immed {
+                      instr->cat6.type = TYPE_U32;
+                      /* srcs are (UBO, offset, address), as in ir3-cat6.xml: */
+                      swap(instr->srcs[0], instr->srcs[2]);
+                   }
 
 const_dst:        integer { new_src(0, IR3_REG_IMMED)->iim_val = $1; }
 |                 T_A1 { new_src(0, IR3_REG_IMMED)->iim_val = 0; instr->flags |= IR3_INSTR_A1EN; }

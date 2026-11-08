@@ -799,6 +799,88 @@ TODO rename UAV src to "UAV" so disasm_field_cb can find it easily?
 	<pattern low="54" high="58">11101</pattern>  <!-- OPC -->
 </bitset>
 
+<bitset name="#instruction-cat6-a3xx-ldc" extends="#instruction-cat6">
+	<doc>
+		LoaD Constant - UBO load, in the a3xx-style encoding.
+
+		The offset (in vec4s) and UBO fields are in the same place as
+		a6xx's, with the UBO's immediate flag in bit 53 as for ldgb's
+		UAV.  Uniform and dynamically uniform UBO indexing produce the
+		same instruction, displayed as "uniform".  Truly nonuniform UBO
+		indexing hasn't been seen: the blobs are Vulkan 1.0 without
+		descriptor indexing, so they never need it, and it's unknown
+		whether a register UBO index may diverge within a wave.
+	</doc>
+	<derived name="TYPE_SIZE" expr="#cat6-type-size" type="uint"/>
+	<derived name="MODE" type="#cat6-src-mode">
+		<expr>{UBO_IM} ? 0 : 1</expr>
+	</derived>
+
+	<field   low="12" high="13" name="TYPE_SIZE_MINUS_ONE" type="uint"/>
+	<field   pos="23"           name="SRC1_IM" type="bool"/>
+	<field   low="24" high="31" name="SRC1" type="#cat6-src">
+		<param name="SRC1_IM" as="SRC_IM"/>
+	</field>
+	<field   low="32" high="39" name="DST" type="#reg-gpr"/>
+	<pattern pos="40"          >0</pattern>
+	<field   low="41" high="48" name="UBO" type="#cat6-src">
+		<param name="UBO_IM" as="SRC_IM"/>
+	</field>
+	<pattern low="49" high="51">011</pattern>      <!-- TYPE -->
+	<pattern pos="52"          >0</pattern>
+	<field   pos="53"           name="UBO_IM" type="bool"/>
+	<pattern low="54" high="58">11110</pattern>  <!-- OPC -->
+	<encode>
+		<map name="TYPE_SIZE_MINUS_ONE">src->cat6.iim_val - 1</map>
+		<map name="SRC1">src->srcs[1]</map>
+		<map name="SRC1_IM">!!(src->srcs[1]->flags &amp; IR3_REG_IMMED)</map>
+		<map name="UBO">src->srcs[0]</map>
+		<map name="UBO_IM">!!(src->srcs[0]->flags &amp; IR3_REG_IMMED)</map>
+	</encode>
+</bitset>
+
+<bitset name="ldc" extends="#instruction-cat6-a3xx-ldc">
+	<doc>
+		a4xx's ldc also takes the UBO's address (plus the offset in
+		bytes, in the blob's shaders) in a register, SRC2, which the
+		a4xx blob loads from the UBO pointers it uploads to the const
+		file.  The UBO (whose size the a4xx blob still uploads to
+		SB4_UBO/SB4_CS_UBO, presumably for bounds checking) and offset
+		operands are as on a5xx.  Bit 0 is always set, as for a4xx's
+		ldgb.
+	</doc>
+	<gen min="400" max="499"/>
+	<display>
+		{SY}{JP}{NAME}.offset{OFFSET}.{TYPE_SIZE}.{MODE} {DST}, g[{SRC2}], {SRC1}, {UBO}
+	</display>
+	<derived name="OFFSET" expr="#false" type="uint"/>
+	<pattern pos="0"           >1</pattern>
+	<pattern low="1"  high="11">00000000000</pattern>
+	<field   low="14" high="21" name="SRC2" type="#reg-gpr"/>
+	<pattern pos="22"          >0</pattern>
+	<encode>
+		<map name="SRC2">src->srcs[2]</map>
+	</encode>
+</bitset>
+
+<bitset name="ldc" extends="#instruction-cat6-a3xx-ldc">
+	<doc>
+		a5xx's ldc gets the UBO's address from the SB4_UBO/SB4_CS_UBO
+		state instead of a register.
+	</doc>
+	<gen min="500" max="599"/>
+	<display>
+		{SY}{JP}{NAME}.offset{OFFSET}.{TYPE_SIZE}.{MODE} {DST}, {SRC1}, {UBO}
+	</display>
+	<pattern pos="0"           >0</pattern>
+	<field   low="1"  high="2"  name="OFFSET" type="uint"/>
+	<pattern low="3"  high="11">000000000</pattern>
+	<pattern low="14" high="22">000000000</pattern>
+	<encode>
+		<map name="OFFSET">src->cat6.d</map>
+	</encode>
+</bitset>
+
 <bitset name="#instruction-cat6-a3xx-atomic" extends="#instruction-cat6">
 	<doc>
 		Base for atomic instructions (I think mostly a4xx+, as

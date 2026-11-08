@@ -459,12 +459,24 @@ static const struct test {
    INSTR_6XX(c0260000_00c78080, "ldc.offset0.1.nonuniform r0.x, 0, r0.x"), /* ldc.1.mode2.base0 r0.x, 0, r0.x */
    INSTR_6XX(c0260201_00c78080, "ldc.offset0.1.nonuniform r0.y, 0, r0.y"), /* ldc.1.mode2.base0 r0.y, 0, r0.y */
 
-   /* a4xx-a5xx has the exact same instrs in
-    * dEQP-GLES31.functional.shaders.opaque_type_indexing.ubo.(dynamically_)uniform_fragment
-    * with no change based on the mode. Note that we can't decode this yet.
+   /* a4xx's ldc also takes the UBO address in a register.  Uniform and
+    * dynamically uniform UBO indices produce the same instructions, as on
+    * a5xx.
     */
-   /* INSTR_4XX(c7860000_00810001), */ /* ldc.1 r0.x, g[r1.x], 0, r0.x */
-   /* INSTR_5XX(c7860000_00800000), */ /* ldc.a.1 r0.x, g[r0.x], 0, r0.x */
+   /* dEQP-GLES31.functional.shaders.opaque_type_indexing.ubo.dynamically_uniform_fragment */
+   INSTR_4XX(c7860000_00810001, "ldc.offset0.1.uniform r0.x, g[r1.x], 0, r0.x"), /* ldc.1 r0.x,g[r1.x], 0, r0.x */
+   /* dEQP-GLES31.functional.shaders.opaque_type_indexing.ubo.dynamically_uniform_vertex */
+   INSTR_4XX(c7860804_00820001, "ldc.offset0.1.uniform r1.x, g[r2.x], 0, r1.x"), /* ldc.1 r1.x,g[r2.x], 0, r1.x */
+   /* dEQP-VK.robustness.buffer_access.compute.scalar_copy.r32_uint.oob_uniform_read.range_32_bytes */
+   INSTR_4XX(c7a6000c_0301f001, "ldc.offset0.4.imm r3.x, g[r1.w], r0.w, 0"), /* ldc.4 r3.x,g[r1.w], r0.w, 0 */
+   INSTR_4XX(c7a6000c_04027001, "ldc.offset0.4.imm r3.x, g[r2.y], r1.x, 0"), /* ldc.4 r3.x,g[r2.y], r1.x, 0 */
+
+   /* dEQP-VK.robustness.buffer_access.compute.scalar_copy.r32_uint.oob_uniform_read.range_32_bytes */
+   INSTR_5XX(c7a6000b_05003000, "ldc.offset0.4.imm r2.w, r1.y, 0"), /* ldc.4.mode0.base0 r2.w, r0.x, r1.y, 0 */
+   /* dEQP-VK.glsl.opaque_type_indexing.ubo.uniform_compute */
+   INSTR_5XX(c7860e05_00800000, "ldc.offset0.1.uniform r1.y, 0, r1.w"), /* ldc.1.mode0.base0 r1.y, r0.x, 0, r1.w */
+   /* D3D compiler: .w load from UBO 5, start component in bits 1-2 */
+   INSTR_5XX(c7a60a07_00800006, "ldc.offset3.1.imm r1.w, 0, 5"),
 
    /* custom */
    INSTR_6XX(c0260201_ffc78080, "ldc.offset0.1.nonuniform r0.y, 255, r0.y"), /* ldc.1.mode2.base0 r0.y, 255, r0.y */
