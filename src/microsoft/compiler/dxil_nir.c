@@ -3045,3 +3045,58 @@ dxil_nir_pad_tes_input_signature(nir_shader *tes, const nir_shader *tcs)
 
    return added;
 }
+
+static nir_def *
+fp32_ordered_key(nir_builder *b, nir_def *bits)
+{
+   nir_def *sign = nir_ishr_imm(b, bits, 31);
+   nir_def *mask = nir_ior_imm(b, sign, 0x80000000u);
+   return nir_ixor(b, bits, mask);
+}
+
+static bool
+lower_fp32_compare_select(nir_builder *b, nir_alu_instr *sel, void *data)
+{
+   if (sel->op != nir_op_bcsel || sel->def.num_components != 1 ||
+       sel->def.bit_size != 32)
+      return false;
+
+   nir_instr *cond = nir_def_instr(sel->src[0].src.ssa);
+   if (cond->type != nir_instr_type_alu)
+      return false;
+
+   nir_alu_instr *cmp = nir_instr_as_alu(cond);
+   if ((cmp->op != nir_op_flt && cmp->op != nir_op_fge) ||
+       cmp->def.num_components != 1 || cmp->src[0].src.ssa->bit_size != 32)
+      return false;
+
+   if (!(nir_alu_srcs_equal(cmp, sel, 0, 1) && nir_alu_srcs_equal(cmp, sel, 1, 2)) &&
+       !(nir_alu_srcs_equal(cmp, sel, 1, 1) && nir_alu_srcs_equal(cmp, sel, 0, 2)))
+      return false;
+
+   b->cursor = nir_before_instr(&sel->instr);
+   nir_def *a = nir_ssa_for_alu_src(b, cmp, 0);
+   nir_def *c = nir_ssa_for_alu_src(b, cmp, 1);
+   nir_def *abs_a = nir_iand_imm(b, a, 0x7fffffffu);
+   nir_def *abs_c = nir_iand_imm(b, c, 0x7fffffffu);
+   nir_def *ordered = nir_iand(b, nir_ule_imm(b, abs_a, 0x7f800000u),
+                                nir_ule_imm(b, abs_c, 0x7f800000u));
+   nir_def *both_zero = nir_ieq_imm(b, nir_ior(b, abs_a, abs_c), 0);
+   nir_def *key_a = fp32_ordered_key(b, a);
+   nir_def *key_c = fp32_ordered_key(b, c);
+   nir_def *test;
+   if (cmp->op == nir_op_fge)
+      test = nir_ior(b, both_zero, nir_uge(b, key_a, key_c));
+   else
+      test = nir_iand(b, nir_inot(b, both_zero), nir_ult(b, key_a, key_c));
+
+   nir_src_rewrite(&sel->src[0].src, nir_iand(b, ordered, test));
+   return true;
+}
+
+bool
+dxil_nir_lower_fp32_compare_select(nir_shader *s)
+{
+   return nir_shader_alu_pass(s, lower_fp32_compare_select,
+                             nir_metadata_control_flow, NULL);
+}

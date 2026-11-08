@@ -422,6 +422,7 @@ dzn_pipeline_compile_shader(struct dzn_device *device,
       container_of(device->vk.physical, struct dzn_physical_device, vk);
    struct nir_to_dxil_options opts = {
       .environment = DXIL_ENVIRONMENT_VULKAN,
+      .lower_fp32_compare_select = pdev->desc.vendor_id == 0x10de,
       .lower_int16 = !pdev->options4.Native16BitShaderOpsSupported &&
       /* Don't lower 16-bit types if they can only come from min-precision */
          (device->vk.enabled_extensions.KHR_shader_float16_int8 ||

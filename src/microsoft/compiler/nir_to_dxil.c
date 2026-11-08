@@ -6696,6 +6696,9 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
       return false;
 
    NIR_PASS(_, s, dxil_nir_lower_sysval_to_load_input, ctx->system_value);
+   /* Must run after optimize_nir(), whose nir_opt_peephole_select folds if/phi into bcsel */
+   if (opts->lower_fp32_compare_select)
+      NIR_PASS(_, s, dxil_nir_lower_fp32_compare_select);
    NIR_PASS(_, s, nir_opt_dce);
 
    /* This needs to be after any copy prop is done to prevent these movs from being erased */
