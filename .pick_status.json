@@ -394,7 +394,7 @@
         "description": "rusticl: fix the contiguous-rows check in sw_copy",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a382fb08a4bbbc7c6e7838e3aa93100120af5a27",
         "notes": null
