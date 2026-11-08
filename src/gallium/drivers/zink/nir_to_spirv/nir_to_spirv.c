@@ -2002,6 +2002,13 @@ emit_alu(struct ntv_context *ctx, nir_alu_instr *alu)
       atype = nir_type_float; \
       break;
 
+#define BUILTIN_UNOPU(nir_op, spirv_op) \
+   case nir_op: \
+      assert(nir_op_infos[alu->op].num_inputs == 1); \
+      result = emit_builtin_unop(ctx, spirv_op, get_def_type(ctx, &alu->def, nir_type_uint), src[0]); \
+      atype = nir_type_uint; \
+      break;
+
    BUILTIN_UNOP(nir_op_iabs, GLSLstd450SAbs)
    BUILTIN_UNOP(nir_op_fabs, GLSLstd450FAbs)
    BUILTIN_UNOP(nir_op_fsqrt, GLSLstd450Sqrt)
@@ -2021,13 +2028,18 @@ emit_alu(struct ntv_context *ctx, nir_alu_instr *alu)
    BUILTIN_UNOP(nir_op_find_lsb, GLSLstd450FindILsb)
    BUILTIN_UNOP(nir_op_ifind_msb, GLSLstd450FindSMsb)
 
-   case nir_op_pack_half_2x16:
-      assert(nir_op_infos[alu->op].num_inputs == 1);
-      result = emit_builtin_unop(ctx, GLSLstd450PackHalf2x16, get_def_type(ctx, &alu->def, nir_type_uint), src[0]);
-      break;
-
+   BUILTIN_UNOPU(nir_op_pack_half_2x16, GLSLstd450PackHalf2x16)
+   BUILTIN_UNOPU(nir_op_pack_snorm_2x16, GLSLstd450PackSnorm2x16)
+   BUILTIN_UNOPU(nir_op_pack_unorm_2x16, GLSLstd450PackUnorm2x16)
+   BUILTIN_UNOPU(nir_op_pack_snorm_4x8, GLSLstd450PackSnorm4x8)
+   BUILTIN_UNOPU(nir_op_pack_unorm_4x8, GLSLstd450PackUnorm4x8)
+   BUILTIN_UNOPF(nir_op_unpack_snorm_2x16, GLSLstd450UnpackSnorm2x16)
+   BUILTIN_UNOPF(nir_op_unpack_unorm_2x16, GLSLstd450UnpackUnorm2x16)
+   BUILTIN_UNOPF(nir_op_unpack_snorm_4x8, GLSLstd450UnpackSnorm4x8)
+   BUILTIN_UNOPF(nir_op_unpack_unorm_4x8, GLSLstd450UnpackUnorm4x8)
    BUILTIN_UNOPF(nir_op_unpack_half_2x16, GLSLstd450UnpackHalf2x16)
 #undef BUILTIN_UNOP
+#undef BUILTIN_UNOPU
 #undef BUILTIN_UNOPF
 
    case nir_op_frcp:
