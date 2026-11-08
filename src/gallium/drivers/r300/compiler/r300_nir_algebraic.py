@@ -68,7 +68,7 @@ r300_nir_prepare_presubtract = [
         (('fmul', 'a(is_ubo_or_input)', 2.0), ('fadd', a, a)),
 ]
 
-for multiplier in [2.0, 4.0, 8.0, 16.0, 0.5, 0.25, 0.125, 0.0625]:
+for multiplier in [2.0, 4.0, 8.0, 0.5, 0.25, 0.125]:
     r300_nir_prepare_presubtract.extend([
         (('fmul', a, ('fmul(is_used_once)', 'b(is_ubo_or_input)', multiplier)), ('fmul', multiplier, ('fmul', a, b))),
 ])
