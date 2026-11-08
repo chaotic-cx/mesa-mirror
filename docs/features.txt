@@ -630,7 +630,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_EXT_depth_bias_control                             DONE (anv, hk, lvp, nvk, panvk, radv, vn)
   VK_EXT_depth_clamp_control                            DONE (anv, hasvk, nvk, panvk, radv, tu, vn)
   VK_EXT_depth_clamp_zero_one                           DONE (anv, hasvk, nvk, panvk, pvr, radv, tu, v3dv/vc7+, vn)
-  VK_EXT_depth_clip_control                             DONE (anv, hasvk, hk, kk, lvp, nvk, panvk, radv, tu, v3dv, vn)
+  VK_EXT_depth_clip_control                             DONE (anv, dzn, hasvk, hk, kk, lvp, nvk, panvk, radv, tu, v3dv, vn)
   VK_EXT_depth_clip_enable                              DONE (anv, hasvk, hk, kk, lvp, nvk, panvk, pvr, radv, tu, v3dv/vc7+, vn)
   VK_EXT_depth_range_unrestricted                       DONE (anv/gen20+, nvk, radv, lvp, vn)
   VK_EXT_descriptor_buffer                              DONE (anv, lvp, nvk, radv, tu)

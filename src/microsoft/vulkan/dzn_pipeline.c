@@ -202,6 +202,7 @@ to_dxil_shader_stage(VkShaderStageFlagBits in)
 }
 
 struct dzn_nir_options {
+   bool depth_clip_negative_one_to_one;
    enum dxil_spirv_yz_flip_mode yz_flip_mode;
    uint16_t y_flip_mask, z_flip_mask;
    bool force_sample_rate_shading;
@@ -263,6 +264,7 @@ dzn_pipeline_get_nir_shader(struct dzn_device *device,
          .y_mask = options->y_flip_mask,
          .z_mask = options->z_flip_mask,
       },
+      .depth_clip_negative_one_to_one = options->depth_clip_negative_one_to_one,
       .declared_read_only_images_as_srvs = !device->bindless,
       .inferred_read_only_images_as_srvs = !device->bindless,
       .force_sample_rate_shading = options->force_sample_rate_shading,
@@ -809,8 +811,13 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
       info->pRasterizationState &&
       info->pRasterizationState->polygonMode == VK_POLYGON_MODE_POINT &&
       !(active_stage_mask & (1 << MESA_SHADER_GEOMETRY));
+   const mesa_shader_stage depth_clip_stage = last_raster_stage;
    if (pipeline->use_gs_for_polygon_mode_point)
       last_raster_stage = MESA_SHADER_GEOMETRY;
+
+   const VkPipelineViewportDepthClipControlCreateInfoEXT *depth_clip = vp_info ?
+      vk_find_struct_const(vp_info->pNext, PIPELINE_VIEWPORT_DEPTH_CLIP_CONTROL_CREATE_INFO_EXT) : NULL;
+   const bool depth_clip_negative_one_to_one = depth_clip && depth_clip->negativeOneToOne;
 
    enum dxil_spirv_yz_flip_mode yz_flip_mode = DXIL_SPIRV_YZ_FLIP_NONE;
    uint16_t y_flip_mask = 0, z_flip_mask = 0;
@@ -850,6 +857,7 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
       _mesa_blake3_init(&pipeline_hash_ctx);
       _mesa_blake3_update(&pipeline_hash_ctx, &device->bindless, sizeof(device->bindless));
       _mesa_blake3_update(&pipeline_hash_ctx, attribs_hash, sizeof(attribs_hash));
+      _mesa_blake3_update(&pipeline_hash_ctx, &depth_clip_negative_one_to_one, sizeof(depth_clip_negative_one_to_one));
       _mesa_blake3_update(&pipeline_hash_ctx, &yz_flip_mode, sizeof(yz_flip_mode));
       _mesa_blake3_update(&pipeline_hash_ctx, &y_flip_mask, sizeof(y_flip_mask));
       _mesa_blake3_update(&pipeline_hash_ctx, &z_flip_mask, sizeof(z_flip_mask));
@@ -897,6 +905,8 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
          }
          if (stage == MESA_SHADER_VERTEX)
             _mesa_blake3_update(&nir_hash_ctx, attribs_hash, sizeof(attribs_hash));
+         if (stage == depth_clip_stage)
+            _mesa_blake3_update(&nir_hash_ctx, &depth_clip_negative_one_to_one, sizeof(depth_clip_negative_one_to_one));
          if (stage == last_raster_stage) {
             _mesa_blake3_update(&nir_hash_ctx, &yz_flip_mode, sizeof(yz_flip_mode));
             _mesa_blake3_update(&nir_hash_ctx, &y_flip_mask, sizeof(y_flip_mask));
@@ -908,6 +918,7 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
       }
 
       struct dzn_nir_options options = {
+         .depth_clip_negative_one_to_one = stage == depth_clip_stage && depth_clip_negative_one_to_one,
          .yz_flip_mode = stage == last_raster_stage ? yz_flip_mode : DXIL_SPIRV_YZ_FLIP_NONE,
          .y_flip_mask = y_flip_mask,
          .z_flip_mask = z_flip_mask,

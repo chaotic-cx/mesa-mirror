@@ -181,6 +181,9 @@ struct dxil_spirv_runtime_conf {
       uint16_t z_mask;
    } yz_flip;
 
+   // Remap clip-space Z from [-w, w] to [0, w]
+   bool depth_clip_negative_one_to_one;
+
    // The caller supports read-only images to be turned into SRV accesses,
    // which allows us to run the nir_opt_access() pass
    bool declared_read_only_images_as_srvs;

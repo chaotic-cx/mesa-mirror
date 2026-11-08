@@ -23,3 +23,4 @@ cl_khr_external_memory_dma_buf on iris, radeonsi, zink
 cl_khr_external_memory_opaque_fd on iris, radeonsi, zink
 cl_arm_memory_import_dma_buf on rusticl
 VK_EXT_vertex_address_binding_unrestricted on RADV
+VK_EXT_depth_clip_control on dzn
