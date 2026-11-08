@@ -1267,10 +1267,10 @@ emit_intrinsic_load_ubo(struct ir3_context *ctx, nir_intrinsic_instr *intr,
                         struct ir3_instruction **dst)
 {
    struct ir3_builder *b = &ctx->build;
-   struct ir3_instruction *base_lo, *base_hi, *addr, *src0, *src1;
+   struct ir3_instruction *base, *addr, *src0, *src1;
    const struct ir3_const_state *const_state = ir3_const_state(ctx->so);
    unsigned ubo = ir3_const_reg(const_state, IR3_CONST_ALLOC_UBO_PTRS, 0);
-   const unsigned ptrsz = ir3_pointer_size(ctx->compiler);
+   assert(ir3_pointer_size(ctx->compiler) == 1);
 
    int off = 0;
 
@@ -1278,17 +1278,13 @@ emit_intrinsic_load_ubo(struct ir3_context *ctx, nir_intrinsic_instr *intr,
    src0 = ir3_get_src(ctx, &intr->src[0])[0];
    if (is_same_type_mov(src0, false) &&
        (src0->srcs[0]->flags & IR3_REG_IMMED)) {
-      base_lo = create_uniform(b, ubo + (src0->srcs[0]->iim_val * ptrsz));
-      base_hi = create_uniform(b, ubo + (src0->srcs[0]->iim_val * ptrsz) + 1);
+      base = create_uniform(b, ubo + (src0->srcs[0]->iim_val));
    } else {
-      base_lo = create_uniform_indirect(b, ubo, TYPE_U32,
-                                        ir3_get_addr0(ctx, src0, ptrsz));
-      base_hi = create_uniform_indirect(b, ubo + 1, TYPE_U32,
-                                        ir3_get_addr0(ctx, src0, ptrsz));
+      base = create_uniform_indirect(b, ubo, TYPE_U32,
+                                        ir3_get_addr0(ctx, src0, 1));
    }
 
-   /* note: on 32bit gpu's base_hi is ignored and DCE'd */
-   addr = base_lo;
+   addr = base;
 
    if (nir_src_is_const(intr->src[1])) {
       off += nir_src_as_uint(intr->src[1]);
@@ -1308,20 +1304,6 @@ emit_intrinsic_load_ubo(struct ir3_context *ctx, nir_intrinsic_instr *intr,
       unsigned off2 = off + (intr->num_components * 4) - 1024;
       addr = ir3_ADD_S(b, addr, 0, create_immed(b, off2), 0);
       off -= off2;
-   }
-
-   if (ptrsz == 2) {
-      struct ir3_instruction *carry;
-
-      /* handle 32b rollover, ie:
-       *   if (addr < base_lo)
-       *      base_hi++
-       */
-      carry = ir3_CMPS_U(b, addr, 0, base_lo, 0);
-      carry->cat2.condition = IR3_COND_LT;
-      base_hi = ir3_ADD_S(b, base_hi, 0, carry, 0);
-
-      addr = ir3_collect(b, addr, base_hi);
    }
 
    for (int i = 0; i < intr->num_components; i++) {
