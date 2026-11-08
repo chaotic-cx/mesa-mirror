@@ -514,15 +514,36 @@ BEGIN_TEST(ilp_sched.fallback_pending_input)
    }
 END_TEST
 
+BEGIN_TEST(ilp_sched.stores)
+   for (amd_gfx_level gfx : {GFX9, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      /* Move stores across independent ALU, preserving memory order and the data read. */
+      //>> global_store_dword %0:v[0-1], s1: undef, %0:v[2]
+      //! global_store_dword %0:v[0-1], s1: undef, %0:v[2] offset:4
+      //! v1: %0:v[4] = v_mov_b32 0
+      //! v1: %0:v[2] = v_mov_b32 0
+      bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(260), v1), Operand::zero());
+      bld.global(aco_opcode::global_store_dword, Operand(PhysReg(256), v2), Operand(s1),
+                 Operand(PhysReg(258), v1));
+      bld.global(aco_opcode::global_store_dword, Operand(PhysReg(256), v2), Operand(s1),
+                 Operand(PhysReg(258), v1), 4);
+      bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(258), v1), Operand::zero());
+
+      finish_schedule_ilp_test();
+   }
+END_TEST
+
 BEGIN_TEST(ilp_sched.ordered_boundary)
    for (amd_gfx_level gfx : {GFX9, GFX12}) {
       if (!setup_cs(NULL, gfx))
          continue;
 
       program->args_pending_vmem.emplace_back(PhysReg(256), v2);
-      /* Preserve the ordering of ALU around the call. */
-      //>> ds_add_u32 %0:v[0], %0:v[1], %0:m0 storage:shared semantics:volatile,atomic,rmw
-      //! v1: %0:v[4] = v_add_f32 %0:v[12], %0:v[13]
+      /* Fill the volatile atomic's wait without crossing the call. */
+      //>> v1: %0:v[4] = v_add_f32 %0:v[12], %0:v[13]
+      //! ds_add_u32 %0:v[0], %0:v[1], %0:m0 storage:shared semantics:volatile,atomic,rmw
       //! s2: %0:s[0-1] = s_swappc_b64 %0:s[2-3]
       //! v1: %0:v[5] = v_mul_f32 %0:v[12], %0:v[13]
       Instruction* instr = bld.ds(aco_opcode::ds_add_u32, Operand(PhysReg(256), v1),

@@ -630,7 +630,7 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
       entry.next_non_reorderable = UINT8_MAX;
 
       /* Just don't reorder these at all. */
-      if (!is_memory_instr(instr) || instr->definitions.empty() || ctx.is_vopd) {
+      if (!is_memory_instr(instr) || ctx.is_vopd) {
          /* Add all previous instructions as dependencies. */
          entry.dependency_mask = ctx.active_mask & ~ctx.non_reorder_mask;
          if (!ctx.is_vopd)
