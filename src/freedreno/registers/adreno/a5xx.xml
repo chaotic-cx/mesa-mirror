@@ -2505,6 +2505,13 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		<bitfield name="HALFREGFOOTPRINT" low="4" high="9" type="uint"/>
 		<bitfield name="FULLREGFOOTPRINT" low="10" high="15" type="uint"/>
 		<bitfield name="VARYING" pos="16" type="boolean"/>
+		<bitfield name="LODPIXMASK" pos="17" type="boolean">
+			<doc>
+				Enable ALL helper invocations in a quad. Necessary for
+				fine derivatives and quad subgroup ops.  Set by the blob
+				for fine derivatives.
+			</doc>
+		</bitfield>
 		<bitfield name="PIXLODENABLE" pos="20" type="boolean"/>
 		<!-- seems to be nesting level for flow control:.. -->
 		<bitfield name="BRANCHSTACK" low="24" high="31" type="uint"/>
