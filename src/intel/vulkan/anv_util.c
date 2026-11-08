@@ -631,6 +631,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .nir = null_ahs_nir,
             .key = &null_return_key.key.base,
             .log_data = device,
+            .archiver = debug_archiver,
          };
          bin = brw_compile(device->physical->compiler, &params);
          error_str = params.error_str;
