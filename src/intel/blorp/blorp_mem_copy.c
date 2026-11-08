@@ -289,6 +289,10 @@ blorp_mem_copy(struct blorp_batch *batch,
     */
    assert(isl_dev->info->ver >= 9);
 
+   /* Skip empty copy. */
+   if (size == 0)
+      return;
+
    /* We could add a blitter path for this, but it would be mostly the same
     * thing as what blorp_blit already does, so just defer to it.
     */
