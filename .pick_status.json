@@ -574,7 +574,7 @@
         "description": "vc4: compute the clip window after the predraw blits",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "03f434abd4fef66ced55cb937a72ec8aa512511a",
         "notes": null
