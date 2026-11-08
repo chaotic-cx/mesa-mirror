@@ -781,7 +781,7 @@ fn sw_copy(
 ) {
     let pixel_size = pixel_size as usize;
     for z in 0..region[2] {
-        if src_row_pitch == dst_row_pitch && region[1] * pixel_size == src_row_pitch {
+        if src_row_pitch == dst_row_pitch && region[0] * pixel_size == src_row_pitch {
             unsafe {
                 ptr::copy(
                     src.byte_add(
