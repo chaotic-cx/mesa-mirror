@@ -307,10 +307,3 @@ Images (clCopyImage 3D)@3Dto2Darray,Fail
 Basic@get_enqueued_local_size,Fail
 Basic@get_global_linear_id,Fail
 Basic@get_local_linear_id,Fail
-
-#
-# OpenCL-CTS uprev
-#
-
-Basic,Fail
-Basic@enqueue_map_image,Fail
