@@ -934,7 +934,7 @@
         "description": "freedreno/a5xx: clear the whole border color entry",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ed9152e2c1a2474a3cd89cabd50ec0fcd4f2ace5",
         "notes": null

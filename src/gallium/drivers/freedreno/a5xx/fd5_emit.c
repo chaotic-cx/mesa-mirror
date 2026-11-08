@@ -175,6 +175,8 @@ setup_border_colors(struct fd_texture_stateobj *tex,
       struct pipe_sampler_state *sampler = tex->samplers[i];
       union pipe_color_union *bc;
 
+      memset(e, 0, sizeof(*e));
+
       if (!sampler)
          continue;
 
@@ -183,12 +185,6 @@ setup_border_colors(struct fd_texture_stateobj *tex,
       enum pipe_format format = sampler->border_color_format;
       const struct util_format_description *desc =
          util_format_description(format);
-
-      e->rgb565 = 0;
-      e->rgb5a1 = 0;
-      e->rgba4 = 0;
-      e->rgb10a2 = 0;
-      e->z24 = 0;
 
       for (j = 0; j < 4; j++) {
          int c = desc->swizzle[j];
@@ -274,11 +270,6 @@ setup_border_colors(struct fd_texture_stateobj *tex,
                e->z24 = f_u * 0xffffff;
          }
       }
-
-#if MESA_DEBUG
-      memset(&e->__pad0, 0, sizeof(e->__pad0));
-      memset(&e->__pad1, 0, sizeof(e->__pad1));
-#endif
    }
 }
 
