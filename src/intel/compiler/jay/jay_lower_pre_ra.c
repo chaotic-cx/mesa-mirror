@@ -18,12 +18,9 @@
 /**
  * Vectors need to be allocated to contiguous registers. This means that a value
  * cannot appear in multiple channels of an instruction, as register allocation
- * would need to assign the same value to locations <X+i> and <X+j>. Scalars
- * don't have this restriction, except for SENDs because the hardware bans
- * repeated sources.
+ * would need to assign the same value to locations <X+i> and <X+j>.
  *
- * If a value appears in multiple positions, we emit copies so that each
- * can be register allocated in the correct position.
+ * If a value appears in multiple positions, we emit copies to legalize.
  */
 static void
 lower_contiguous_sources(jay_builder *b, jay_inst *I)
@@ -33,6 +30,18 @@ lower_contiguous_sources(jay_builder *b, jay_inst *I)
 
    jay_foreach_src(I, s) {
       if (jay_num_values(I->src[s]) > 1 || I->op == JAY_OPCODE_SEND) {
+         bool duplicate_vector = false;
+         for (unsigned i = 0; i < s; ++i) {
+            duplicate_vector |= jay_defs_equivalent(I->src[s], I->src[i]);
+         }
+
+         /* If the whole vector is reused as-is, there's no RA implication.
+          * However, for SENDs the hardware bans repeated sources.
+          */
+         if (duplicate_vector && I->op != JAY_OPCODE_SEND) {
+            continue;
+         }
+
          jay_foreach_index(I->src[s], c, index) {
             /* Search for the index */
             unsigned i;
