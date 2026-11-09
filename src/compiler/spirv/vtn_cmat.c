@@ -128,14 +128,15 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       SpvMemoryAccessMask access = SpvMemoryAccessMaskNone;
       if (count > 6) {
          unsigned idx = 6, alignment;
-         SpvScope scope;
+         SpvScope scope = SpvScopeInvocation;
          vtn_get_mem_operands(b, w, count, &idx, &access, &alignment, NULL, &scope);
          vtn_emit_make_visible_barrier(b, access, scope, src->mode);
       }
 
       nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_bitcast");
       nir_cmat_load(&b->nb, &dst->def, vtn_pointer_to_ssa(b, src), stride,
-                    .matrix_layout = vtn_matrix_layout_to_glsl(layout));
+                    .matrix_layout = vtn_matrix_layout_to_glsl(layout),
+                    .access = src->access | vtn_access_from_spirv(access));
       vtn_push_var_ssa(b, w[2], dst->var);
       break;
    }
@@ -151,17 +152,20 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       const SpvCooperativeMatrixLayout layout = vtn_constant_uint(b, w[3]);
       nir_def *stride = count > 4 ? vtn_get_nir_ssa(b, w[4]) : nir_imm_zero(&b->nb, 1, 32);
 
-      nir_deref_instr *src = vtn_get_cmat_deref(b, w[2]);
-      nir_cmat_store(&b->nb, vtn_pointer_to_ssa(b, dest), &src->def, stride,
-                     .matrix_layout = vtn_matrix_layout_to_glsl(layout));
-
       SpvMemoryAccessMask access = SpvMemoryAccessMaskNone;
+      SpvScope scope = SpvScopeInvocation;
       if (count > 5) {
          unsigned idx = 5, alignment;
-         SpvScope scope;
          vtn_get_mem_operands(b, w, count, &idx, &access, &alignment, &scope, NULL);
-         vtn_emit_make_available_barrier(b, access, scope, dest->mode);
       }
+
+      nir_deref_instr *src = vtn_get_cmat_deref(b, w[2]);
+      nir_cmat_store(&b->nb, vtn_pointer_to_ssa(b, dest), &src->def, stride,
+                     .matrix_layout = vtn_matrix_layout_to_glsl(layout),
+                     .access = dest->access | vtn_access_from_spirv(access));
+
+      if (count > 5)
+         vtn_emit_make_available_barrier(b, access, scope, dest->mode);
 
       break;
    }

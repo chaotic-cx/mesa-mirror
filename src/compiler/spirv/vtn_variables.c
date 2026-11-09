@@ -2650,8 +2650,8 @@ vtn_get_mem_operands(struct vtn_builder *b, const uint32_t *w, unsigned count,
    return true;
 }
 
-static enum gl_access_qualifier
-spv_access_to_gl_access(SpvMemoryAccessMask access)
+enum gl_access_qualifier
+vtn_access_from_spirv(SpvMemoryAccessMask access)
 {
    unsigned result = 0;
 
@@ -2991,8 +2991,8 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
       vtn_emit_make_visible_barrier(b, src_access, src_scope, src->mode);
 
       vtn_variable_copy(b, dest, src,
-                        spv_access_to_gl_access(dest_access),
-                        spv_access_to_gl_access(src_access));
+                        vtn_access_from_spirv(dest_access),
+                        vtn_access_from_spirv(src_access));
 
       vtn_emit_make_available_barrier(b, dest_access, dest_scope, dest->mode);
       break;
@@ -3024,8 +3024,8 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
                                    vtn_pointer_to_deref(b, dest),
                                    vtn_pointer_to_deref(b, src),
                                    size,
-                                   spv_access_to_gl_access(dest_access),
-                                   spv_access_to_gl_access(src_access));
+                                   vtn_access_from_spirv(dest_access),
+                                   vtn_access_from_spirv(src_access));
 
       vtn_emit_make_available_barrier(b, dest_access, dest_scope, dest->mode);
       break;
@@ -3049,7 +3049,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
 
       vtn_emit_make_visible_barrier(b, access, scope, src->mode);
 
-      vtn_push_ssa_value(b, w[2], vtn_variable_load(b, src, spv_access_to_gl_access(access)));
+      vtn_push_ssa_value(b, w[2], vtn_variable_load(b, src, vtn_access_from_spirv(access)));
       break;
    }
 
@@ -3149,7 +3149,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
       dest = vtn_align_pointer(b, dest, alignment);
 
       struct vtn_ssa_value *src = vtn_ssa_value(b, w[2]);
-      vtn_variable_store(b, src, dest, spv_access_to_gl_access(access));
+      vtn_variable_store(b, src, dest, vtn_access_from_spirv(access));
 
       vtn_emit_make_available_barrier(b, access, scope, dest->mode);
       break;
