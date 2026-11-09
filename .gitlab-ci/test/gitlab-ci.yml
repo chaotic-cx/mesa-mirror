@@ -83,6 +83,7 @@ lint-test:
     - !reference [.never-post-merge-rules, rules]
     - !reference [.no_scheduled_pipelines-rules, rules]
     - !reference [.no_downstream_pipeline-rules, rules]
+    - !reference [.common-rules, rules]
     # merge pipeline
     - if: $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: &lint_files
