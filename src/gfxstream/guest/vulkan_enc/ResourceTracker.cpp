@@ -857,7 +857,23 @@ static void collectAllPendingDescriptorSetsBottomUp(const std::vector<VkCommandB
 
 static void commitDescriptorSetUpdates(void* context, VkQueue queue,
                                        const std::unordered_set<VkDescriptorSet>& sets) {
+    if (sets.empty()) return;
+
     VkEncoder* enc = (VkEncoder*)context;
+
+    std::vector<ReifiedDescriptorSet*> sortedReified;
+    sortedReified.reserve(sets.size());
+    for (auto set : sets) {
+        sortedReified.push_back(gfxstream_vk_descriptor_set_from_handle(set)->reified);
+    }
+    std::sort(sortedReified.begin(), sortedReified.end());
+    sortedReified.erase(std::unique(sortedReified.begin(), sortedReified.end()),
+                        sortedReified.end());
+    std::vector<std::unique_lock<std::recursive_mutex>> reifiedLocks;
+    reifiedLocks.reserve(sortedReified.size());
+    for (auto* r : sortedReified) {
+        reifiedLocks.emplace_back(r->lock);
+    }
 
     std::unordered_map<VkDescriptorPool, uint32_t> poolSet;
     std::vector<VkDescriptorPool> pools;
@@ -870,6 +886,7 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
 
     uint32_t poolIndex = 0;
     uint32_t currentWriteIndex = 0;
+    bool hasPendingAllocations = false;
     for (auto set : sets) {
         ReifiedDescriptorSet* reified = gfxstream_vk_descriptor_set_from_handle(set)->reified;
         VkDescriptorPool pool = reified->pool;
@@ -888,6 +905,9 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
 
         poolIds.push_back(reified->poolId);
         setLayouts.push_back(setLayout);
+        if (reified->allocationPending) {
+            hasPendingAllocations = true;
+        }
         pendingAllocations.push_back(reified->allocationPending ? 1 : 0);
         writeStartingIndices.push_back(currentWriteIndex);
 
@@ -897,12 +917,19 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
             uint32_t binding = i;
             auto& bindingWrite = writes.bindings[i];
 
-            if (auto* elementWrites = std::get_if<std::vector<DescriptorBindingElementWrite>>(
-                    &bindingWrite.elements)) {
-                for (size_t j = 0; j < elementWrites->size(); ++j) {
-                    auto& write = (*elementWrites)[j];
+            if (auto* elementWrites =
+                    std::get_if<DescriptorBindingSparseWrite>(&bindingWrite.elements)) {
+                for (uint32_t j : elementWrites->dirtyIndices) {
+                    auto elemIt = elementWrites->elements.find(j);
+                    if (elemIt == elementWrites->elements.end()) continue;
+                    auto& write = elemIt->second;
+                    if (!write.pendingWrite) continue;
+                    write.pendingWrite = false;
 
-                    if (write.type == DescriptorWriteType::Empty) continue;
+                    if (write.type == DescriptorWriteType::Empty) {
+                        elementWrites->elements.erase(elemIt);
+                        continue;
+                    }
 
                     uint32_t dstArrayElement = 0;
                     uint32_t descriptorCount = 1;
@@ -941,7 +968,7 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
                                 resourcesAlive &= !write.samplerAlive.expired();
                             }
                             if (!resourcesAlive) {
-                                write.type = DescriptorWriteType::Empty;
+                                elementWrites->elements.erase(elemIt);
                                 continue;
                             }
                             dstArrayElement = j;
@@ -951,7 +978,7 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
                         case DescriptorWriteType::BufferInfo:
                             if (write.bufferInfo.buffer != VK_NULL_HANDLE &&
                                 write.alive.expired()) {
-                                write.type = DescriptorWriteType::Empty;
+                                elementWrites->elements.erase(elemIt);
                                 continue;
                             }
                             dstArrayElement = j;
@@ -959,7 +986,7 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
                             break;
                         case DescriptorWriteType::BufferView:
                             if (write.bufferView != VK_NULL_HANDLE && write.alive.expired()) {
-                                write.type = DescriptorWriteType::Empty;
+                                elementWrites->elements.erase(elemIt);
                                 continue;
                             }
                             dstArrayElement = j;
@@ -991,10 +1018,8 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
 
                     writesForHost.push_back(forHost);
                     ++currentWriteIndex;
-
-                    // Set it back to empty.
-                    write.type = DescriptorWriteType::Empty;
                 }
+                elementWrites->dirtyIndices.clear();
             } else if (auto* blockWrite =
                            std::get_if<DescriptorInlineUniformBlockWrite>(&bindingWrite.elements)) {
                 if (!blockWrite->pendingWrite) continue;
@@ -1027,8 +1052,8 @@ static void commitDescriptorSetUpdates(void* context, VkQueue queue,
         }
     }
 
-    // Skip out if there's nothing to VkWriteDescriptorSet home about.
-    if (writesForHost.empty()) {
+    // Skip out if there's nothing to VkWriteDescriptorSet or allocate on the host.
+    if (writesForHost.empty() && !hasPendingAllocations) {
         return;
     }
 
@@ -1332,19 +1357,27 @@ void ResourceTracker::unregister_VkDescriptorSetLayout(VkDescriptorSetLayout set
 void ResourceTracker::freeDescriptorSetsIfHostAllocated(VkEncoder* enc, VkDevice device,
                                                         uint32_t descriptorSetCount,
                                                         const VkDescriptorSet* sets) {
+    std::vector<VkDescriptorSet> hostAllocatedSets;
+    VkDescriptorPool pool = VK_NULL_HANDLE;
     for (uint32_t i = 0; i < descriptorSetCount; ++i) {
         struct goldfish_VkDescriptorSet* ds = gfxstream_vk_descriptor_set_from_handle(sets[i]);
         if (ds->reified->allocationPending) {
             unregister_VkDescriptorSet(sets[i]);
             delete_gfxstream_vk_descriptor_set(sets[i]);
         } else {
-            enc->vkFreeDescriptorSets(device, ds->reified->pool, 1, &sets[i], false /* no lock */);
+            pool = ds->reified->pool;
+            hostAllocatedSets.push_back(sets[i]);
         }
+    }
+    if (!hostAllocatedSets.empty()) {
+        enc->vkFreeDescriptorSets(device, pool, (uint32_t)hostAllocatedSets.size(),
+                                  hostAllocatedSets.data(), true /* do lock */);
     }
 }
 
 void ResourceTracker::clearDescriptorPoolAndUnregisterDescriptorSets(void* context, VkDevice device,
                                                                      VkDescriptorPool pool) {
+    std::lock_guard<std::recursive_mutex> lock(mLock);
     std::vector<VkDescriptorSet> toClear =
         clearDescriptorPool(pool, mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate);
 
@@ -5550,10 +5583,11 @@ VkResult ResourceTracker::on_vkResetDescriptorPool(void* context, VkResult, VkDe
 VkResult ResourceTracker::on_vkAllocateDescriptorSets(
     void* context, VkResult, VkDevice device, const VkDescriptorSetAllocateInfo* pAllocateInfo,
     VkDescriptorSet* pDescriptorSets) {
+    std::lock_guard<std::recursive_mutex> lock(mLock);
     VkEncoder* enc = (VkEncoder*)context;
     auto ci = pAllocateInfo;
     auto sets = pDescriptorSets;
-    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
+    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate && !hasVariableDescriptorCountLayout(ci)) {
         // Using the pool ID's we collected earlier from the host
         VkResult poolAllocResult = validateAndApplyVirtualDescriptorSetAllocation(ci, sets);
 
@@ -5572,13 +5606,41 @@ VkResult ResourceTracker::on_vkAllocateDescriptorSets(
             ++dsl->layoutInfo->refcount;
         }
     } else {
+        if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
+            VkResult validateRes = validateDescriptorSetAllocation(ci);
+            if (validateRes != VK_SUCCESS) return validateRes;
+        }
+
         VkResult allocRes = enc->vkAllocateDescriptorSets(device, ci, sets, true /* do lock */);
 
-        if (allocRes != VK_SUCCESS) return allocRes;
+        if (allocRes != VK_SUCCESS) {
+            for (uint32_t i = 0; i < ci->descriptorSetCount; ++i) {
+                if (sets[i]) {
+                    unregister_VkDescriptorSet(sets[i]);
+                    delete_gfxstream_vk_descriptor_set(sets[i]);
+                    sets[i] = VK_NULL_HANDLE;
+                }
+            }
+            return allocRes;
+        }
+
+        const auto* varDescCountAllocInfo =
+            vk_find_struct_const(ci->pNext, DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO);
 
         for (uint32_t i = 0; i < ci->descriptorSetCount; ++i) {
-            applyDescriptorSetAllocation(ci->descriptorPool, ci->pSetLayouts[i]);
-            fillDescriptorSetInfoForPool(ci->descriptorPool, ci->pSetLayouts[i], sets[i]);
+            const uint32_t* varCount =
+                (varDescCountAllocInfo && varDescCountAllocInfo->descriptorSetCount > i &&
+                 varDescCountAllocInfo->pDescriptorCounts)
+                    ? &varDescCountAllocInfo->pDescriptorCounts[i]
+                    : nullptr;
+            applyDescriptorSetAllocation(ci->descriptorPool, ci->pSetLayouts[i], varCount);
+            fillDescriptorSetInfoForPool(ci->descriptorPool, ci->pSetLayouts[i], sets[i],
+                                         /*allocatedFromPoolIds=*/false, varCount);
+            if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
+                struct goldfish_VkDescriptorSetLayout* dsl =
+                    gfxstream_vk_descriptor_set_layout_from_handle(ci->pSetLayouts[i]);
+                ++dsl->layoutInfo->refcount;
+            }
         }
     }
 
@@ -5639,17 +5701,20 @@ VkResult ResourceTracker::on_vkFreeDescriptorSets(void* context, VkResult, VkDev
         }
 
         if (toActuallyFree.empty()) return VK_SUCCESS;
+
+        if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
+            // In the batched set update case, decrement refcount on the set layout
+            // under mLock and only free on host if we satisfied a pending
+            // allocation on the host.
+            for (uint32_t i = 0; i < toActuallyFree.size(); ++i) {
+                VkDescriptorSetLayout setLayout =
+                    gfxstream_vk_descriptor_set_from_handle(toActuallyFree[i])->reified->setLayout;
+                decDescriptorSetLayoutRef(context, device, setLayout, nullptr);
+            }
+        }
     }
 
     if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
-        // In the batched set update case, decrement refcount on the set layout
-        // and only free on host if we satisfied a pending allocation on the
-        // host.
-        for (uint32_t i = 0; i < toActuallyFree.size(); ++i) {
-            VkDescriptorSetLayout setLayout =
-                gfxstream_vk_descriptor_set_from_handle(toActuallyFree[i])->reified->setLayout;
-            decDescriptorSetLayoutRef(context, device, setLayout, nullptr);
-        }
         freeDescriptorSetsIfHostAllocated(enc, device, (uint32_t)toActuallyFree.size(),
                                           toActuallyFree.data());
     } else {
@@ -5663,6 +5728,7 @@ VkResult ResourceTracker::on_vkFreeDescriptorSets(void* context, VkResult, VkDev
 VkResult ResourceTracker::on_vkCreateDescriptorSetLayout(
     void* context, VkResult, VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo,
     const VkAllocationCallbacks* pAllocator, VkDescriptorSetLayout* pSetLayout) {
+    std::lock_guard<std::recursive_mutex> lock(mLock);
     VkEncoder* enc = (VkEncoder*)context;
 
     VkResult res = enc->vkCreateDescriptorSetLayout(device, pCreateInfo, pAllocator, pSetLayout,
@@ -5675,6 +5741,14 @@ VkResult ResourceTracker::on_vkCreateDescriptorSetLayout(
     dsl->layoutInfo = new DescriptorSetLayoutInfo;
     for (uint32_t i = 0; i < pCreateInfo->bindingCount; ++i) {
         dsl->layoutInfo->bindings.push_back(pCreateInfo->pBindings[i]);
+    }
+    const auto* bindingFlagsCi =
+        vk_find_struct_const(pCreateInfo->pNext, DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+    if (bindingFlagsCi && bindingFlagsCi->pBindingFlags) {
+        const uint32_t flagsCount =
+            std::min(bindingFlagsCi->bindingCount, pCreateInfo->bindingCount);
+        dsl->layoutInfo->bindingFlags.assign(bindingFlagsCi->pBindingFlags,
+                                             bindingFlagsCi->pBindingFlags + flagsCount);
     }
     dsl->layoutInfo->refcount = 1;
 
@@ -6543,6 +6617,7 @@ uint32_t ResourceTracker::syncEncodersForQueue(VkQueue queue, VkEncoder* current
 template <class VkSubmitInfoType>
 void ResourceTracker::flushStagingStreams(void* context, VkQueue queue, uint32_t submitCount,
                                           const VkSubmitInfoType* pSubmits) {
+    std::lock_guard<std::recursive_mutex> lock(mLock);
     std::vector<VkCommandBuffer> toFlush;
     for (uint32_t i = 0; i < submitCount; ++i) {
         for (uint32_t j = 0; j < getCommandBufferCount(pSubmits[i]); ++j) {
@@ -8317,6 +8392,7 @@ void ResourceTracker::on_vkCmdClearColorImage(void* context, VkCommandBuffer com
 void ResourceTracker::on_vkDestroyDescriptorSetLayout(void* context, VkDevice device,
                                                       VkDescriptorSetLayout descriptorSetLayout,
                                                       const VkAllocationCallbacks* pAllocator) {
+    std::lock_guard<std::recursive_mutex> lock(mLock);
     decDescriptorSetLayoutRef(context, device, descriptorSetLayout, pAllocator);
 }
 

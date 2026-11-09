@@ -10,17 +10,51 @@
 
 #include "Resources.h"
 #include "util/log.h"
+#include "vk_util.h"
 
 namespace gfxstream {
 namespace vk {
 
 void clearReifiedDescriptorSet(ReifiedDescriptorSet* set) {
+    std::lock_guard<std::recursive_mutex> lock(set->lock);
     set->pool = VK_NULL_HANDLE;
     set->setLayout = VK_NULL_HANDLE;
     set->poolId = -1;
     set->allocationPending = false;
+    set->allocatedFromPoolIds = false;
     set->allWrites.bindings.clear();
     set->pendingWriteArrayRanges.clear();
+}
+
+static std::vector<VkDescriptorSetLayoutBinding> getEffectiveLayoutBindings(
+    const DescriptorSetLayoutInfo& layoutInfo, const uint32_t* variableDescriptorCount) {
+    std::vector<VkDescriptorSetLayoutBinding> bindings = layoutInfo.bindings;
+    for (size_t i = 0; i < bindings.size(); ++i) {
+        if (i < layoutInfo.bindingFlags.size() &&
+            (layoutInfo.bindingFlags[i] & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
+            bindings[i].descriptorCount =
+                variableDescriptorCount
+                    ? std::min(*variableDescriptorCount, bindings[i].descriptorCount)
+                    : 0;
+        }
+    }
+    return bindings;
+}
+
+bool hasVariableDescriptorCountLayout(const VkDescriptorSetAllocateInfo* pAllocateInfo) {
+    if (!pAllocateInfo || !pAllocateInfo->pSetLayouts) return false;
+    for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
+        if (!pAllocateInfo->pSetLayouts[i]) continue;
+        const auto* dsl =
+            gfxstream_vk_descriptor_set_layout_from_handle(pAllocateInfo->pSetLayouts[i]);
+        if (!dsl || !dsl->layoutInfo) continue;
+        for (VkDescriptorBindingFlags flags : dsl->layoutInfo->bindingFlags) {
+            if (flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& layoutBindings,
@@ -42,12 +76,9 @@ void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& l
             blockWrite.bytes.resize(binding.descriptorCount, 0);
             bindingWrite.elements = std::move(blockWrite);
         } else {
-            std::vector<DescriptorBindingElementWrite> elementWrites(binding.descriptorCount);
-            for (DescriptorBindingElementWrite& write : elementWrites) {
-                write.type = DescriptorWriteType::Empty;
-                write.dstArrayElement = 0;
-            }
-            bindingWrite.elements = std::move(elementWrites);
+            DescriptorBindingSparseWrite sparseWrite;
+            sparseWrite.descriptorCount = binding.descriptorCount;
+            bindingWrite.elements = std::move(sparseWrite);
         }
     }
 }
@@ -141,22 +172,39 @@ static void forEachDescriptorBindingElement(
         uint32_t startArrayElement,
         uint32_t count,
         Fn&& fn) {
+    static const DescriptorBindingElementWrite kEmptyElement{};
     uint32_t currBinding = startBinding;
     uint32_t currArrayElement = startArrayElement;
     uint32_t i = 0;
     while (i < count && currBinding < table.bindings.size()) {
-        auto* elements = std::get_if<std::vector<DescriptorBindingElementWrite>>(
-            &table.bindings[currBinding].elements);
-        if (!elements) {
+        auto* sparse =
+            std::get_if<DescriptorBindingSparseWrite>(&table.bindings[currBinding].elements);
+        if (!sparse) {
             ++currBinding;
             continue;
         }
-        if (currArrayElement >= elements->size()) {
-            currArrayElement -= static_cast<uint32_t>(elements->size());
+        if (currArrayElement >= sparse->descriptorCount) {
+            currArrayElement -= sparse->descriptorCount;
             ++currBinding;
             continue;
         }
-        fn(table.bindings[currBinding], (*elements)[currArrayElement], i);
+        if constexpr (Dir == CopyDirection::WriteToTable) {
+            auto& entry = sparse->elements[currArrayElement];
+            const bool wasPending = entry.pendingWrite;
+            fn(table.bindings[currBinding], entry, i);
+            if (entry.type == DescriptorWriteType::Empty) {
+                sparse->elements.erase(currArrayElement);
+            } else {
+                entry.pendingWrite = true;
+                if (!wasPending) {
+                    sparse->dirtyIndices.push_back(currArrayElement);
+                }
+            }
+        } else {
+            auto it = sparse->elements.find(currArrayElement);
+            fn(table.bindings[currBinding],
+               it != sparse->elements.end() ? it->second : kEmptyElement, i);
+        }
         ++i;
         ++currArrayElement;
     }
@@ -187,17 +235,21 @@ static void writeDescriptorBindingElements(DescriptorWriteTable& table, uint32_t
 }
 
 static void initializeReifiedDescriptorSet(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
-                                           ReifiedDescriptorSet* set) {
+                                           ReifiedDescriptorSet* set, bool allocationPending,
+                                           const uint32_t* variableDescriptorCount = nullptr) {
     set->pendingWriteArrayRanges.clear();
 
     const auto& layoutInfo =
         *(gfxstream_vk_descriptor_set_layout_from_handle(setLayout)->layoutInfo);
 
-    initDescriptorWriteTable(layoutInfo.bindings, set->allWrites);
+    std::vector<VkDescriptorSetLayoutBinding> effectiveBindings =
+        getEffectiveLayoutBindings(layoutInfo, variableDescriptorCount);
 
-    for (size_t i = 0; i < layoutInfo.bindings.size(); ++i) {
+    initDescriptorWriteTable(effectiveBindings, set->allWrites);
+
+    for (size_t i = 0; i < effectiveBindings.size(); ++i) {
         // Bindings can be sparsely defined
-        const auto& binding = layoutInfo.bindings[i];
+        const auto& binding = effectiveBindings[i];
         uint32_t bindingIndex = binding.binding;
         if (set->bindingIsImmutableSampler.size() <= bindingIndex) {
             set->bindingIsImmutableSampler.resize(bindingIndex + 1, false);
@@ -211,8 +263,8 @@ static void initializeReifiedDescriptorSet(VkDescriptorPool pool, VkDescriptorSe
 
     set->pool = pool;
     set->setLayout = setLayout;
-    set->allocationPending = true;
-    set->bindings = layoutInfo.bindings;
+    set->allocationPending = allocationPending;
+    set->bindings = std::move(effectiveBindings);
 }
 
 bool isDescriptorTypeImageInfo(VkDescriptorType descType) {
@@ -244,6 +296,7 @@ bool isDescriptorTypeAccelerationStructure(VkDescriptorType descType) {
 }
 
 void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescriptorSet* toWrite) {
+    std::lock_guard<std::recursive_mutex> lock(toWrite->lock);
     VkDescriptorType descType = write->descriptorType;
     uint32_t dstBinding = write->dstBinding;
     uint32_t dstArrayElement = write->dstArrayElement;
@@ -285,6 +338,13 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
 
 void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDescriptorSet* src,
                               ReifiedDescriptorSet* dst) {
+    std::unique_lock<std::recursive_mutex> srcLock(src->lock, std::defer_lock);
+    std::unique_lock<std::recursive_mutex> dstLock(dst->lock, std::defer_lock);
+    if (src == dst) {
+        srcLock.lock();
+    } else {
+        std::lock(srcLock, dstLock);
+    }
     const DescriptorWriteTable& srcTable = src->allWrites;
     DescriptorWriteTable& dstTable = dst->allWrites;
 
@@ -316,6 +376,7 @@ void doEmulatedDescriptorImageInfoWriteFromTemplate(VkDescriptorType descType, u
                                                     uint32_t dstArrayElement, uint32_t count,
                                                     const VkDescriptorImageInfo* imageInfos,
                                                     ReifiedDescriptorSet* set) {
+    std::lock_guard<std::recursive_mutex> lock(set->lock);
     forEachDescriptorBindingElement<CopyDirection::WriteToTable>(
         set->allWrites, binding, dstArrayElement, count,
         [&](DescriptorBindingWrite& bindingWrite, DescriptorBindingElementWrite& entry,
@@ -334,6 +395,7 @@ void doEmulatedDescriptorBufferInfoWriteFromTemplate(VkDescriptorType descType, 
                                                      uint32_t dstArrayElement, uint32_t count,
                                                      const VkDescriptorBufferInfo* bufferInfos,
                                                      ReifiedDescriptorSet* set) {
+    std::lock_guard<std::recursive_mutex> lock(set->lock);
     forEachDescriptorBindingElement<CopyDirection::WriteToTable>(
         set->allWrites, binding, dstArrayElement, count,
         [&](DescriptorBindingWrite& bindingWrite, DescriptorBindingElementWrite& entry,
@@ -350,6 +412,7 @@ void doEmulatedDescriptorBufferViewWriteFromTemplate(VkDescriptorType descType, 
                                                      uint32_t dstArrayElement, uint32_t count,
                                                      const VkBufferView* bufferViews,
                                                      ReifiedDescriptorSet* set) {
+    std::lock_guard<std::recursive_mutex> lock(set->lock);
     forEachDescriptorBindingElement<CopyDirection::WriteToTable>(
         set->allWrites, binding, dstArrayElement, count,
         [&](DescriptorBindingWrite& bindingWrite, DescriptorBindingElementWrite& entry,
@@ -366,6 +429,7 @@ void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descTyp
                                                         uint32_t dstArrayElement, uint32_t count,
                                                         const void* pData,
                                                         ReifiedDescriptorSet* set) {
+    std::lock_guard<std::recursive_mutex> lock(set->lock);
     (void)descType;
     writeInlineUniformBlockBytes(set->allWrites, binding, dstArrayElement, pData, count);
 }
@@ -419,7 +483,7 @@ static void freeBindingFeasible(const VkDescriptorSetLayoutBinding& binding,
     poolState.used -= binding.descriptorCount;
 }
 
-static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo) {
+VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo) {
     VkDescriptorPool pool = pAllocateInfo->descriptorPool;
     DescriptorPoolAllocationInfo* poolInfo =
         gfxstream_vk_descriptor_pool_from_handle(pool)->allocInfo;
@@ -441,6 +505,9 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
     std::vector<DescriptorPoolAllocationInfo::DescriptorCountInfo> descriptorCountCopy =
         poolInfo->descriptorCountInfo;
 
+    const auto* varDescCountAllocInfo = vk_find_struct_const(
+        pAllocateInfo->pNext, DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO);
+
     for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
         if (!pAllocateInfo->pSetLayouts[i]) {
             mesa_logd("%s: Error: Tried to allocate a descriptor set with null set layout.\n",
@@ -455,7 +522,15 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
-        for (const auto& binding : setLayoutInfo->bindings) {
+        const uint32_t* varCount =
+            (varDescCountAllocInfo && varDescCountAllocInfo->descriptorSetCount > i &&
+             varDescCountAllocInfo->pDescriptorCounts)
+                ? &varDescCountAllocInfo->pDescriptorCounts[i]
+                : nullptr;
+        auto effectiveBindings = getEffectiveLayoutBindings(*setLayoutInfo, varCount);
+
+        for (const auto& binding : effectiveBindings) {
+            if (binding.descriptorCount == 0) continue;
             bool success = false;
             for (auto& pool : descriptorCountCopy) {
                 if (!isBindingFeasibleForAlloc(pool, binding)) continue;
@@ -473,13 +548,16 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
     return VK_SUCCESS;
 }
 
-void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout) {
+void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+                                  const uint32_t* variableDescriptorCount) {
     auto allocInfo = gfxstream_vk_descriptor_pool_from_handle(pool)->allocInfo;
     auto setLayoutInfo = gfxstream_vk_descriptor_set_layout_from_handle(setLayout)->layoutInfo;
 
     ++allocInfo->usedSets;
 
-    for (const auto& binding : setLayoutInfo->bindings) {
+    auto effectiveBindings = getEffectiveLayoutBindings(*setLayoutInfo, variableDescriptorCount);
+    for (const auto& binding : effectiveBindings) {
+        if (binding.descriptorCount == 0) continue;
         for (auto& countForPool : allocInfo->descriptorCountInfo) {
             if (!isBindingFeasibleForAlloc(countForPool, binding)) continue;
             allocBindingFeasible(binding, countForPool);
@@ -500,6 +578,7 @@ static void removeDescriptorSetAllocation(
     --allocInfo->usedSets;
 
     for (const auto& binding : bindings) {
+        if (binding.descriptorCount == 0) continue;
         for (auto& countForPool : allocInfo->descriptorCountInfo) {
             if (!isBindingFeasibleForFree(countForPool, binding)) continue;
             freeBindingFeasible(binding, countForPool);
@@ -509,20 +588,25 @@ static void removeDescriptorSetAllocation(
 }
 
 void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
-                                  VkDescriptorSet set) {
+                                  VkDescriptorSet set, bool allocatedFromPoolIds,
+                                  const uint32_t* variableDescriptorCount) {
     DescriptorPoolAllocationInfo* allocInfo =
         gfxstream_vk_descriptor_pool_from_handle(pool)->allocInfo;
 
     ReifiedDescriptorSet* newReified = new ReifiedDescriptorSet;
     newReified->poolId = gfxstream_vk_descriptor_set_to_host_u64(set);
-    newReified->allocationPending = true;
+    newReified->allocatedFromPoolIds = allocatedFromPoolIds;
+    newReified->allocationPending = allocatedFromPoolIds;
 
     gfxstream_vk_descriptor_set_from_handle(set)->reified = newReified;
 
-    allocInfo->allocedPoolIds.insert(newReified->poolId);
+    if (allocatedFromPoolIds) {
+        allocInfo->allocedPoolIds.insert(newReified->poolId);
+    }
     allocInfo->allocedSets.insert(set);
 
-    initializeReifiedDescriptorSet(pool, setLayout, newReified);
+    initializeReifiedDescriptorSet(pool, setLayout, newReified, allocatedFromPoolIds,
+                                   variableDescriptorCount);
 }
 
 VkResult validateAndApplyVirtualDescriptorSetAllocation(
@@ -531,8 +615,17 @@ VkResult validateAndApplyVirtualDescriptorSetAllocation(
 
     if (validateRes != VK_SUCCESS) return validateRes;
 
+    const auto* varDescCountAllocInfo = vk_find_struct_const(
+        pAllocateInfo->pNext, DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO);
+
     for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
-        applyDescriptorSetAllocation(pAllocateInfo->descriptorPool, pAllocateInfo->pSetLayouts[i]);
+        const uint32_t* varCount =
+            (varDescCountAllocInfo && varDescCountAllocInfo->descriptorSetCount > i &&
+             varDescCountAllocInfo->pDescriptorCounts)
+                ? &varDescCountAllocInfo->pDescriptorCounts[i]
+                : nullptr;
+        applyDescriptorSetAllocation(pAllocateInfo->descriptorPool, pAllocateInfo->pSetLayouts[i],
+                                     varCount);
     }
 
     VkDescriptorPool pool = pAllocateInfo->descriptorPool;
@@ -554,7 +647,13 @@ VkResult validateAndApplyVirtualDescriptorSetAllocation(
         VkDescriptorSet newSet = create_gfxstream_vk_descriptor_set(id);
         pSets[i] = newSet;
 
-        fillDescriptorSetInfoForPool(pool, pAllocateInfo->pSetLayouts[i], newSet);
+        const uint32_t* varCount =
+            (varDescCountAllocInfo && varDescCountAllocInfo->descriptorSetCount > i &&
+             varDescCountAllocInfo->pDescriptorCounts)
+                ? &varDescCountAllocInfo->pDescriptorCounts[i]
+                : nullptr;
+        fillDescriptorSetInfoForPool(pool, pAllocateInfo->pSetLayouts[i], newSet,
+                                     /*allocatedFromPoolIds=*/true, varCount);
     }
 
     return VK_SUCCESS;
@@ -567,18 +666,21 @@ bool removeDescriptorSetFromPool(VkDescriptorSet set, bool usePoolIds) {
     DescriptorPoolAllocationInfo* allocInfo =
         gfxstream_vk_descriptor_pool_from_handle(pool)->allocInfo;
 
-    if (usePoolIds) {
+    const bool fromPoolIds = usePoolIds && reified->allocatedFromPoolIds;
+    if (fromPoolIds) {
         // Look for the set's pool Id in the pool. If not found, then this wasn't really allocated,
         // and bail.
         if (allocInfo->allocedPoolIds.find(reified->poolId) == allocInfo->allocedPoolIds.end()) {
             return false;
         }
+    } else if (allocInfo->allocedSets.find(set) == allocInfo->allocedSets.end()) {
+        return false;
     }
 
     const std::vector<VkDescriptorSetLayoutBinding>& bindings = reified->bindings;
     removeDescriptorSetAllocation(pool, bindings);
 
-    if (usePoolIds) {
+    if (fromPoolIds) {
         allocInfo->freePoolIds.push_back(reified->poolId);
         allocInfo->allocedPoolIds.erase(reified->poolId);
     }
@@ -589,7 +691,9 @@ bool removeDescriptorSetFromPool(VkDescriptorSet set, bool usePoolIds) {
 
 std::vector<VkDescriptorSet> clearDescriptorPool(VkDescriptorPool pool, bool usePoolIds) {
     std::vector<VkDescriptorSet> toClear;
-    for (auto set : gfxstream_vk_descriptor_pool_from_handle(pool)->allocInfo->allocedSets) {
+    auto* dp = gfxstream_vk_descriptor_pool_from_handle(pool);
+    if (!dp || !dp->allocInfo) return toClear;
+    for (auto set : dp->allocInfo->allocedSets) {
         toClear.push_back(set);
     }
 

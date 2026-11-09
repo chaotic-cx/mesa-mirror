@@ -7,6 +7,8 @@
 #include <vulkan/vulkan.h>
 
 #include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -24,6 +26,7 @@ enum DescriptorWriteType {
 
 struct DescriptorBindingElementWrite {
     DescriptorWriteType type = DescriptorWriteType::Empty;
+    bool pendingWrite = false;
     uint32_t dstArrayElement = 0;  // Only used for accelerationStructure.
 
     union {
@@ -35,6 +38,12 @@ struct DescriptorBindingElementWrite {
 
     std::weak_ptr<bool> alive;
     std::weak_ptr<bool> samplerAlive;
+};
+
+struct DescriptorBindingSparseWrite {
+    uint32_t descriptorCount = 0;
+    std::unordered_map<uint32_t, DescriptorBindingElementWrite> elements;
+    std::vector<uint32_t> dirtyIndices;
 };
 
 struct DescriptorInlineUniformBlockWrite {
@@ -49,10 +58,10 @@ struct DescriptorBindingWrite {
         // Unused / unconfigured binding.
         std::monostate,
         // The writes of non-inline uniform descriptors.
-        std::vector<DescriptorBindingElementWrite>,
+        DescriptorBindingSparseWrite,
         // The writes of inline uniform descriptors.
-        DescriptorInlineUniformBlockWrite
-    > elements;
+        DescriptorInlineUniformBlockWrite>
+        elements;
 };
 
 // All of the writes for a given descriptor.
@@ -68,10 +77,12 @@ struct DescriptorWriteArrayRange {
 using DescriptorWriteDstArrayRangeTable = std::vector<std::vector<DescriptorWriteArrayRange>>;
 
 struct ReifiedDescriptorSet {
+    mutable std::recursive_mutex lock;
     VkDescriptorPool pool;
     VkDescriptorSetLayout setLayout;
     uint64_t poolId;
     bool allocationPending;
+    bool allocatedFromPoolIds = false;
 
     // Indexed first by binding number
     DescriptorWriteTable allWrites;
@@ -92,7 +103,7 @@ struct DescriptorPoolAllocationInfo {
 
     // TODO: This should be in a single fancy data structure of some kind.
     std::vector<uint64_t> freePoolIds;
-    std::unordered_set<uint32_t> allocedPoolIds;
+    std::unordered_set<uint64_t> allocedPoolIds;
     std::unordered_set<VkDescriptorSet> allocedSets;
     uint32_t maxSets;
     uint32_t usedSets;
@@ -108,6 +119,7 @@ struct DescriptorPoolAllocationInfo {
 
 struct DescriptorSetLayoutInfo {
     std::vector<VkDescriptorSetLayoutBinding> bindings;
+    std::vector<VkDescriptorBindingFlags> bindingFlags;
     uint32_t refcount;
 };
 
@@ -146,9 +158,13 @@ void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descTyp
                                                         const void* pData,
                                                         ReifiedDescriptorSet* set);
 
-void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout);
+bool hasVariableDescriptorCountLayout(const VkDescriptorSetAllocateInfo* pAllocateInfo);
+VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo);
+void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+                                  const uint32_t* variableDescriptorCount = nullptr);
 void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
-                                  VkDescriptorSet set);
+                                  VkDescriptorSet set, bool allocatedFromPoolIds = true,
+                                  const uint32_t* variableDescriptorCount = nullptr);
 VkResult validateAndApplyVirtualDescriptorSetAllocation(
     const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets);
 
