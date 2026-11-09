@@ -2171,6 +2171,28 @@ tu6_emit_xs(struct tu_crb &crb,
 {
    if (!xs) {
       /* shader stage disabled */
+      if (CHIP >= A8XX) {
+         switch (stage) {
+         case MESA_SHADER_VERTEX:
+            crb.add(A6XX_SP_VS_BASE());
+            break;
+         case MESA_SHADER_TESS_CTRL:
+            crb.add(A6XX_SP_HS_BASE());
+            break;
+         case MESA_SHADER_TESS_EVAL:
+            crb.add(A6XX_SP_DS_BASE());
+            break;
+         case MESA_SHADER_GEOMETRY:
+            crb.add(A6XX_SP_GS_BASE());
+            break;
+         case MESA_SHADER_FRAGMENT:
+            crb.add(A6XX_SP_PS_BASE());
+            break;
+         case MESA_SHADER_COMPUTE:
+            crb.add(A6XX_SP_CS_BASE());
+            break;
+         }
+      }
       return;
    }
 
