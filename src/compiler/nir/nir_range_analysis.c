@@ -2007,15 +2007,15 @@ get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
       break;
    }
    case nir_op_ishl: {
-      uint32_t src1 = MIN2(src[1], q.scalar.def->bit_size - 1u);
-      if (util_last_bit64(src[0]) + src1 <= q.scalar.def->bit_size) /* check overflow */
-         *result = src[0] << src1;
-      *result = MIN2(*result, max);
-
       nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
       if (nir_scalar_is_const(src1_scalar)) {
-         uint32_t const_val = 1u << (nir_scalar_as_uint(src1_scalar) & (q.scalar.def->bit_size - 1u));
-         *result = MIN2(*result, max / const_val * const_val);
+         uint32_t const_val = nir_scalar_as_uint(src1_scalar);
+         *result = uub_shl_const(q.scalar.def->bit_size, max, src[0], const_val);
+      } else {
+         uint32_t src1 = MIN2(src[1], q.scalar.def->bit_size - 1u);
+         if (util_last_bit64(src[0]) + src1 <= q.scalar.def->bit_size) /* check overflow */
+            *result = src[0] << src1;
+         *result = MIN2(*result, max);
       }
       break;
    }
@@ -2054,9 +2054,7 @@ get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
       break;
    }
    case nir_op_iadd:
-      if (src[0] + src[1] >= src[0]) /* check overflow */
-         *result = src[0] + src[1];
-      *result = MIN2(*result, max);
+      *result = uub_iadd(max, src[0], src[1]);
       break;
    case nir_op_umod:
       *result = src[1] ? src[1] - 1 : 0;
