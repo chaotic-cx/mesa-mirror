@@ -361,7 +361,7 @@ fedora-release:
       -D panfrost-rust=true
       -D shared-llvm=enabled
     UNWIND: "disabled"
-    VULKAN_DRIVERS: "amd,asahi,broadcom,freedreno,imagination,intel,intel_hasvk"
+    VULKAN_DRIVERS: "amd,asahi,broadcom,freedreno,imagination,intel,intel_hasvk,nouveau"
 
 debian-android:
   extends:
