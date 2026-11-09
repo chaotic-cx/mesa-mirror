@@ -233,6 +233,9 @@ if ! missingdeps=$(ninja -t missingdeps); then
   fi
 fi
 
+section_switch ninja-build-times "ninja: longest build times"
+../bin/ninja_build_stats.py -n 100 .ninja_log
+
 section_switch meson-install "meson: install"
 ninja install
 cd ..
