@@ -181,6 +181,7 @@ struct radv_graphics_state_key {
       bool alpha_to_one_enable : 1;
       uint8_t rasterization_samples;
       uint8_t ps_iter_samples; /* 0 if dynamic */
+      float min_sample_shading;
    } ms;
 
    struct vs {

@@ -850,7 +850,6 @@ gather_shader_info_fs(enum amd_gfx_level gfx_level, const nir_shader *nir,
        nir->info.fs.stencil_back_layout == FRAG_STENCIL_LAYOUT_NONE);
    info->ps.post_depth_coverage = nir->info.fs.post_depth_coverage;
    info->ps.depth_layout = nir->info.fs.depth_layout;
-   info->ps.uses_sample_shading = nir->info.fs.uses_sample_shading;
    info->ps.writes_memory = nir->info.writes_memory;
    info->ps.uses_fbfetch_output = nir->info.fs.uses_fbfetch_output;
    info->ps.has_pcoord = nir->info.inputs_read & VARYING_BIT_PNTC;
@@ -889,6 +888,29 @@ gather_shader_info_fs(enum amd_gfx_level gfx_level, const nir_shader *nir,
 
    info->ps.pops_is_per_sample =
       info->ps.pops && (nir->info.fs.sample_interlock_ordered || nir->info.fs.sample_interlock_unordered);
+
+   /* From the Vulkan 1.1.129 spec, 26.7. Sample Shading:
+    *
+    * "Sample shading is enabled for a graphics pipeline:
+    *
+    * - If the interface of the fragment shader entry point of the
+    *   graphics pipeline includes an input variable decorated
+    *   with SampleId or SamplePosition. In this case
+    *   minSampleShadingFactor takes the value 1.0.
+    * - Else if the sampleShadingEnable member of the
+    *   VkPipelineMultisampleStateCreateInfo structure specified
+    *   when creating the graphics pipeline is set to VK_TRUE. In
+    *   this case minSampleShadingFactor takes the value of
+    *   VkPipelineMultisampleStateCreateInfo::minSampleShading.
+    *
+    * Otherwise, sample shading is considered disabled."
+    */
+   info->ps.uses_sample_shading = nir->info.fs.uses_sample_shading || gfx_state->ms.sample_shading_enable;
+   if (nir->info.fs.uses_sample_shading) {
+      info->ps.min_sample_shading = 1.0f;
+   } else if (gfx_state->ms.sample_shading_enable) {
+      info->ps.min_sample_shading = gfx_state->ms.min_sample_shading;
+   }
 
    info->ps.spi_ps_input_ena = radv_compute_spi_ps_input(gfx_level, gfx_state, info);
    info->ps.spi_ps_input_addr = info->ps.spi_ps_input_ena;

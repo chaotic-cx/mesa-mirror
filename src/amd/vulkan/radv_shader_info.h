@@ -210,6 +210,7 @@ struct radv_shader_info {
       uint32_t colors_written; /* Mask of outputs written */
       uint32_t spi_shader_col_format;
       uint32_t cb_shader_mask;
+      float min_sample_shading;
       uint8_t color0_written;
       bool load_provoking_vtx : 1;
       bool load_rasterization_prim : 1;

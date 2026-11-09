@@ -376,7 +376,6 @@ struct radv_cmd_state {
    unsigned spi_shader_z_format;
    unsigned cb_shader_mask;
 
-   struct radv_multisample_state ms;
    uint32_t num_rast_samples;
 
    /* Custom blend mode for internal operations. */

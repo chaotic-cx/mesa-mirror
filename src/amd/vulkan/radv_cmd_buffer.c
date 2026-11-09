@@ -2469,15 +2469,9 @@ radv_is_sample_shading_enabled(struct radv_cmd_buffer *cmd_buffer, float *min_sa
    if (min_sample_shading)
       *min_sample_shading = 1.0f;
 
-   /* If the PS requires sample shading for inputs,
-    * min_sample_shading is overwritten to 1.0.
-    */
-   if (ps && ps->info.ps.uses_sample_shading)
-      return true;
-
-   if (cmd_buffer->state.ms.sample_shading_enable) {
+   if (ps && ps->info.ps.uses_sample_shading) {
       if (min_sample_shading)
-         *min_sample_shading = cmd_buffer->state.ms.min_sample_shading;
+         *min_sample_shading = ps->info.ps.min_sample_shading;
       return true;
    }
 
@@ -9028,31 +9022,6 @@ radv_mark_descriptors_dirty(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPo
 }
 
 static void
-radv_bind_multisample_state(struct radv_cmd_buffer *cmd_buffer, const struct radv_multisample_state *ms)
-{
-   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-
-   if (cmd_buffer->state.ms.sample_shading_enable != ms->sample_shading_enable) {
-      cmd_buffer->state.ms.sample_shading_enable = ms->sample_shading_enable;
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAST_SAMPLES_STATE | RADV_CMD_DIRTY_MSAA_STATE;
-      if (pdev->info.gfx_level >= GFX10_3)
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_FSR_STATE;
-      if (pdev->info.gfx_level >= GFX9)
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
-   }
-
-   if (ms->sample_shading_enable) {
-      if (cmd_buffer->state.ms.min_sample_shading != ms->min_sample_shading) {
-         cmd_buffer->state.ms.min_sample_shading = ms->min_sample_shading;
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAST_SAMPLES_STATE | RADV_CMD_DIRTY_MSAA_STATE;
-         if (pdev->info.gfx_level >= GFX9)
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
-      }
-   }
-}
-
-static void
 radv_bind_custom_blend_mode(struct radv_cmd_buffer *cmd_buffer, unsigned custom_blend_mode)
 {
    /* Re-emit CB_COLOR_CONTROL when the custom blending mode changes. */
@@ -9391,6 +9360,12 @@ radv_bind_fragment_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_
          cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
    }
 
+   if (!previous_ps || previous_ps->info.ps.min_sample_shading != ps->info.ps.min_sample_shading) {
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAST_SAMPLES_STATE | RADV_CMD_DIRTY_MSAA_STATE;
+      if (gfx_level >= GFX9)
+         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_BINNING_STATE;
+   }
+
    if (gfx_level >= GFX10_3 && (!previous_ps || previous_ps->info.ps.disallow_force_vrs_per_vertex !=
                                                    ps->info.ps.disallow_force_vrs_per_vertex))
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_FSR_STATE;
@@ -9675,8 +9650,6 @@ radv_bind_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_grap
    const struct radv_shader *ps = radv_get_shader(graphics_pipeline->base.shaders, MESA_SHADER_FRAGMENT);
 
    radv_bind_fragment_output_state(cmd_buffer, ps, NULL, graphics_pipeline->custom_blend_mode);
-
-   radv_bind_multisample_state(cmd_buffer, &graphics_pipeline->ms);
 
    radv_bind_custom_blend_mode(cmd_buffer, graphics_pipeline->custom_blend_mode);
 
@@ -17633,8 +17606,6 @@ radv_reset_pipeline_state(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPoin
          cmd_buffer->state.gs_copy_shader = NULL;
          cmd_buffer->state.last_vgt_shader = NULL;
          cmd_buffer->state.emitted_vs_prolog = NULL;
-         cmd_buffer->state.ms.sample_shading_enable = false;
-         cmd_buffer->state.ms.min_sample_shading = 1.0f;
          cmd_buffer->state.uses_out_of_order_rast = false;
          cmd_buffer->state.uses_vrs_attachment = false;
          cmd_buffer->state.force_vrs_per_vertex = false;

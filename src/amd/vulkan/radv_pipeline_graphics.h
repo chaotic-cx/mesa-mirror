@@ -112,11 +112,6 @@ struct radv_dynamic_state {
    struct radv_blend_equation_state blend_eq;
 };
 
-struct radv_multisample_state {
-   bool sample_shading_enable;
-   float min_sample_shading;
-};
-
 struct radv_ia_multi_vgt_param_helpers {
    uint32_t base;
    bool partial_es_wave;
@@ -140,7 +135,6 @@ struct radv_graphics_pipeline {
 
    struct radv_dynamic_state dynamic_state;
 
-   struct radv_multisample_state ms;
    struct radv_ia_multi_vgt_param_helpers ia_multi_vgt_param;
 
    /* Last pre-PS API stage */

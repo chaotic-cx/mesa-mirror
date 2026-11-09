@@ -157,35 +157,6 @@ radv_pipeline_uses_vrs_attachment(const struct radv_graphics_pipeline *pipeline,
    return (create_flags & VK_PIPELINE_CREATE_2_RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR) != 0;
 }
 
-static void
-radv_pipeline_init_multisample_state(const struct radv_device *device, struct radv_graphics_pipeline *pipeline,
-                                     const VkGraphicsPipelineCreateInfo *pCreateInfo,
-                                     const struct vk_graphics_pipeline_state *state)
-{
-   struct radv_multisample_state *ms = &pipeline->ms;
-
-   /* From the Vulkan 1.1.129 spec, 26.7. Sample Shading:
-    *
-    * "Sample shading is enabled for a graphics pipeline:
-    *
-    * - If the interface of the fragment shader entry point of the
-    *   graphics pipeline includes an input variable decorated
-    *   with SampleId or SamplePosition. In this case
-    *   minSampleShadingFactor takes the value 1.0.
-    * - Else if the sampleShadingEnable member of the
-    *   VkPipelineMultisampleStateCreateInfo structure specified
-    *   when creating the graphics pipeline is set to VK_TRUE. In
-    *   this case minSampleShadingFactor takes the value of
-    *   VkPipelineMultisampleStateCreateInfo::minSampleShading.
-    *
-    * Otherwise, sample shading is considered disabled."
-    */
-   if (state->ms && state->ms->sample_shading_enable) {
-      ms->sample_shading_enable = true;
-      ms->min_sample_shading = state->ms->min_sample_shading;
-   }
-}
-
 static uint64_t
 radv_dynamic_state_mask(VkDynamicState state)
 {
@@ -1683,6 +1654,8 @@ radv_generate_graphics_state_key(const struct radv_compiler_info *compiler_info,
 
    if (state->ms) {
       key.ms.sample_shading_enable = state->ms->sample_shading_enable;
+      if (state->ms->sample_shading_enable)
+         key.ms.min_sample_shading = state->ms->min_sample_shading;
       key.ms.max_sample_shading_enable = state->ms->sample_shading_enable && state->ms->min_sample_shading == 1;
 
       if (!BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES) &&
@@ -3310,8 +3283,6 @@ radv_graphics_pipeline_init(struct radv_graphics_pipeline *pipeline, struct radv
    }
 
    pipeline->base.pipeline_hash = *(uint64_t *)pipeline->base.blake3;
-
-   radv_pipeline_init_multisample_state(device, pipeline, pCreateInfo, &gfx_state.vk);
 
    if (!radv_pipeline_has_stage(pipeline, MESA_SHADER_MESH))
       radv_pipeline_init_input_assembly_state(device, pipeline);
