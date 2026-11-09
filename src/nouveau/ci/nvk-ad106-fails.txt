@@ -3696,8 +3696,6 @@ dEQP-VK.wsi.direct.present_timing.time_domain.calibration.query_performance_coun
 dEQP-VK.wsi.direct.present_timing.time_domain.calibration.swapchain_local,Fail
 dEQP-VK.wsi.direct.present_timing.time_domain.properties.properties,Fail
 
-dEQP-VK.api.fill_and_update_buffer.dedicated_alloc.fill_buffer_vk_whole_size_device_address,Crash
-
 dEQP-VK.image.swapchain_mutable.direct.2d.b8g8r8a8_srgb_b8g8r8a8_snorm_clear_copy_format_list,Fail
 dEQP-VK.image.swapchain_mutable.direct.2d.b8g8r8a8_srgb_b8g8r8a8_snorm_copy_copy_format_list,Fail
 dEQP-VK.image.swapchain_mutable.direct.2d.b8g8r8a8_unorm_b8g8r8a8_snorm_clear_copy_format_list,Fail
