@@ -2764,8 +2764,9 @@ optimizations.extend([
     'options->lower_extract_word'),
 
     (('pack_unorm_2x16', 'v'),
-     ('pack_uvec2_to_uint',
-        ('f2u32', ('fround_even', ('fmul', ('fsat', 'v'), 65535.0)))),
+     ('ior',
+        ('f2u32(vec2).x', ('fround_even', ('fmul', ('fsat', 'v'), 65535.0))),
+        ('ishl', ('f2u32(vec2).y', ('fround_even', ('fmul', ('fsat', 'v'), 65535.0))), 16)),
      'options->lower_pack_unorm_2x16 && !options->vectorize_vec2_16bit'),
 
     (('pack_unorm_2x16', 'v'),
@@ -2774,8 +2775,13 @@ optimizations.extend([
      'options->lower_pack_unorm_2x16 && options->vectorize_vec2_16bit'),
 
     (('pack_unorm_4x8', 'v'),
-     ('pack_uvec4_to_uint',
-        ('f2u32', ('fround_even', ('fmul', ('fsat', 'v'), 255.0)))),
+     ('ior',
+      ('ior',
+        ('f2u32(vec4).x', ('fround_even', ('fmul', ('fsat', 'v'), 255.0))),
+        ('ishl', ('f2u32(vec4).y', ('fround_even', ('fmul', ('fsat', 'v'), 255.0))), 8)),
+      ('ior',
+        ('ishl', ('f2u32(vec4).z', ('fround_even', ('fmul', ('fsat', 'v'), 255.0))), 16),
+        ('ishl', ('f2u32(vec4).w', ('fround_even', ('fmul', ('fsat', 'v'), 255.0))), 24))),
      'options->lower_pack_unorm_4x8 && !options->has_pack_32_4x8'),
 
     (('pack_unorm_4x8', 'v'),
@@ -2784,8 +2790,9 @@ optimizations.extend([
      'options->lower_pack_unorm_4x8 && options->has_pack_32_4x8'),
 
     (('pack_snorm_2x16', 'v'),
-     ('pack_uvec2_to_uint',
-        ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 32767.0)))),
+     ('ior',
+        ('extract_u16(vec2).x', ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 32767.0))), 0),
+        ('ishl', ('extract_u16(vec2).y', ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 32767.0))), 0), 16)),
      'options->lower_pack_snorm_2x16 && !options->vectorize_vec2_16bit'),
 
     (('pack_snorm_2x16', 'v'),
@@ -2794,8 +2801,13 @@ optimizations.extend([
      'options->lower_pack_snorm_2x16 && options->vectorize_vec2_16bit'),
 
     (('pack_snorm_4x8', 'v'),
-     ('pack_uvec4_to_uint',
-        ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 127.0)))),
+     ('ior',
+      ('ior',
+        ('extract_u8(vec4).x', ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 127.0))), 0),
+        ('ishl', ('extract_u8(vec4).y', ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 127.0))), 0), 8)),
+      ('ior',
+        ('ishl', ('extract_u8(vec4).z', ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 127.0))), 0), 16),
+        ('ishl', ('extract_u8(vec4).w', ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 127.0))), 0), 24))),
      'options->lower_pack_snorm_4x8 && !options->has_pack_32_4x8'),
 
     (('pack_snorm_4x8', 'v'),
