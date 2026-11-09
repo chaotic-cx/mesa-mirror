@@ -42,6 +42,7 @@ class VkDecoderSnapshot {
 
     VkSnapshotApiCallHandle createApiCallInfo();
     void destroyApiCallInfoIfUnused(VkSnapshotApiCallHandle handle);
+    bool hasApiCall(VkSnapshotApiCallHandle handle) const;
 
     // Performs bookkeeping to track that a given api call created the given VkObject handles.
     // This is a public function so that `VkDecoderGlobalState` can inform snapshot of any
@@ -95,6 +96,11 @@ class VkDecoderSnapshot::Impl {
         return mReconstruction.destroyApiCallInfoIfUnused(apiCallHandle);
     }
 
+    bool hasApiCall(VkSnapshotApiCallHandle apiCallHandle) const {
+        std::lock_guard<std::mutex> lock(mReconstructionMutex);
+        return mReconstruction.hasApiCall(apiCallHandle);
+    }
+
     void addOrderedBoxedHandlesCreatedByCall(VkSnapshotApiCallHandle apiCallHandle, VkObjectHandle* boxedHandles, uint32_t boxedHandlesCount) {
         std::lock_guard<std::mutex> lock(mReconstructionMutex);
         return mReconstruction.addOrderedBoxedHandlesCreatedByCall(apiCallHandle, boxedHandles, boxedHandlesCount);
@@ -104,7 +110,7 @@ class VkDecoderSnapshot::Impl {
 
 decoder_snapshot_impl_postamble = """
   private:
-    std::mutex mReconstructionMutex;
+    mutable std::mutex mReconstructionMutex;
     VkReconstruction mReconstruction GUARDED_BY(mReconstructionMutex);
 };
 
@@ -130,6 +136,10 @@ VkSnapshotApiCallHandle VkDecoderSnapshot::createApiCallInfo() {
 
 void VkDecoderSnapshot::destroyApiCallInfoIfUnused(VkSnapshotApiCallHandle handle) {
     mImpl->destroyApiCallInfoIfUnused(handle);
+}
+
+bool VkDecoderSnapshot::hasApiCall(VkSnapshotApiCallHandle handle) const {
+    return mImpl->hasApiCall(handle);
 }
 
 void VkDecoderSnapshot::addOrderedBoxedHandlesCreatedByCall(VkSnapshotApiCallHandle apiCallHandle, VkObjectHandle* boxedHandles, uint32_t boxedHandlesCount) {
