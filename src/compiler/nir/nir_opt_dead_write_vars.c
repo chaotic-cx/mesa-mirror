@@ -204,6 +204,13 @@ remove_dead_write_vars_local(nir_shader *shader, nir_block *block,
          break;
       }
 
+      case nir_intrinsic_cmat_load: {
+         /* Cooperative loads can read beyond the base deref. */
+         nir_deref_instr *src = nir_src_as_deref(intrin->src[1]);
+         clear_unused_for_modes(unused_writes, src->modes);
+         break;
+      }
+
       case nir_intrinsic_load_deref_transpose_amd: {
          nir_deref_instr *src = nir_src_as_deref(intrin->src[0]);
          clear_unused_for_modes(unused_writes, src->modes);

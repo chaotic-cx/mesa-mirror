@@ -3634,7 +3634,7 @@
         "description": "nir: Track cooperative matrix memory accesses",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "deb1d47155b8aa3f440e878a0d4b597729850037",
         "notes": null
