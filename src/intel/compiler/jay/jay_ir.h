@@ -1004,6 +1004,10 @@ jay_clobbers_address_reg(const jay_inst *I)
 static inline unsigned
 jay_src_alignment(jay_shader *shader, const jay_inst *I, unsigned s)
 {
+   if (jay_is_flag(I->src[s])) {
+      return 1;
+   }
+
    /* SENDs operate on entire GRFs at a time, so align UGPRs to GRFs. */
    if (I->op == JAY_OPCODE_SEND && I->src[s].file == UGPR) {
       return jay_ugpr_per_grf(shader);
@@ -1047,6 +1051,10 @@ jay_src_alignment(jay_shader *shader, const jay_inst *I, unsigned s)
 static inline unsigned
 jay_dst_alignment(jay_shader *shader, const jay_inst *I)
 {
+   if (jay_is_flag(I->dst)) {
+      return 1;
+   }
+
    /* SENDs write entire GRFs, so align UGPRs to GRFs. Similarly for any
     * instructions involving accumulators:
     *
