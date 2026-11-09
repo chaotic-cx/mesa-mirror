@@ -1490,8 +1490,8 @@ system_value("provoking_last", 1)
 #
 # Length takes a type not a value, that's encoded as a MATRIX_DESC.
 intrinsic("cmat_construct", src_comp=[-1, 1])
-intrinsic("cmat_load", src_comp=[-1, -1, 1], indices=[MATRIX_LAYOUT])
-intrinsic("cmat_store", src_comp=[-1, -1, 1], indices=[MATRIX_LAYOUT])
+intrinsic("cmat_load", src_comp=[-1, -1, 1], indices=[MATRIX_LAYOUT, ACCESS])
+intrinsic("cmat_store", src_comp=[-1, -1, 1], indices=[MATRIX_LAYOUT, ACCESS])
 intrinsic("cmat_length", src_comp=[], dest_comp=1, indices=[CMAT_DESC], bit_sizes=[32])
 intrinsic("cmat_muladd", src_comp=[-1, -1, -1, -1], indices=[SATURATE, CMAT_SIGNED_MASK])
 intrinsic("cmat_convert", src_comp=[-1, -1], indices=[SATURATE, CMAT_SIGNED_MASK, FP_MATH_CTRL])

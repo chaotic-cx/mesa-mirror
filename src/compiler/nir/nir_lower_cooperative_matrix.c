@@ -767,10 +767,12 @@ split_cmat_load_store(nir_builder *b,
       }
       if (is_load)
          nir_cmat_load(b, &new_deref->def, ptr, stride,
-                       .matrix_layout = layout);
+                       .matrix_layout = layout,
+                       .access = nir_intrinsic_access(intr));
       else
          nir_cmat_store(b, ptr, &new_deref->def, stride,
-                        .matrix_layout = layout);
+                        .matrix_layout = layout,
+                        .access = nir_intrinsic_access(intr));
    }
    nir_instr_remove(instr);
    return true;
