@@ -2591,6 +2591,27 @@ shfl_mode(nir_intrinsic_instr *intr)
    }
 }
 
+/* shfl and movs leave their dst unchanged when the source invocation is
+ * inactive, same with read_cond.macro when no invocation passes the condition.
+ * The result can be whatever the register held before. For booleans that
+ * breaks the 0/1 invariant, which has to be restored.
+ */
+static struct ir3_instruction *
+renormalize_bool_read(struct ir3_context *ctx, struct ir3_instruction *val)
+{
+   /* With QCTDD06363318_movs_half, val may be a mov with a 32-bit dst,
+    * narrow it back to 16b.
+    */
+   ir3_set_dst_type(val, true);
+   ir3_fixup_src_type(val);
+
+   return ir3_AND_B(
+      &ctx->build, val, 0,
+      create_immed_typed_shared(&ctx->build, 1, TYPE_U16,
+                                ctx->compiler->info->props.has_scalar_alu),
+      0);
+}
+
 static struct ir3_instruction *
 emit_shfl(struct ir3_context *ctx, nir_intrinsic_instr *intr)
 {
@@ -2602,6 +2623,9 @@ emit_shfl(struct ir3_context *ctx, nir_intrinsic_instr *intr)
    struct ir3_instruction *shfl = ir3_SHFL(&ctx->build, val, 0, idx, 0);
    shfl->cat6.shfl_mode = shfl_mode(intr);
    shfl->cat6.type = is_half(val) ? TYPE_U16 : TYPE_U32;
+
+   if (intr->def.bit_size == 1)
+      return renormalize_bool_read(ctx, shfl);
 
    return shfl;
 }
@@ -3312,6 +3336,8 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       dst[0]->dsts[0]->flags |= IR3_REG_SHARED;
       dst[0]->srcs[0]->flags |= IR3_REG_PREDICATE;
       dst[0] = apply_mov_half_shared_quirk(ctx, src, dst[0]);
+      if (intr->def.bit_size == 1)
+         dst[0] = renormalize_bool_read(ctx, dst[0]);
       break;
    }
 
@@ -3328,6 +3354,8 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
          dst[i] = ir3_MOVS(b, srcs[i], invocation,
                            type_uint_size(intr->def.bit_size));
          dst[i] = apply_mov_half_shared_quirk(ctx, srcs[i], dst[i]);
+         if (intr->def.bit_size == 1)
+            dst[i] = renormalize_bool_read(ctx, dst[i]);
       }
 
       create_rpt = true;
