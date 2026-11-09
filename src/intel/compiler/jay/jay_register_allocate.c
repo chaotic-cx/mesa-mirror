@@ -1053,7 +1053,7 @@ assign_regs_for_inst(jay_ra_state *ra, jay_inst *I)
          jay_foreach_index(var, c, index) {
             BITSET_CLEAR(ra->sources[file], r_reg(ra->reg_for_index[index]));
          }
-      } else {
+      } else if (!jay_is_flag(var)) {
          alignment = MAX2(alignment, jay_dst_alignment(shader, I));
          min_stride = jay_dst_stride_minmax(I, false);
          max_stride = jay_dst_stride_minmax(I, true);
