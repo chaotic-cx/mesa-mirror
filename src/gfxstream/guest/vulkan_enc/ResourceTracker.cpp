@@ -3294,49 +3294,25 @@ VkResult ResourceTracker::on_vkGetBufferCollectionPropertiesFUCHSIA(
 #endif
 
 static uint32_t getVirglFormat(VkFormat vkFormat) {
-    uint32_t virglFormat = 0;
-
     switch (vkFormat) {
-        case VK_FORMAT_R8G8B8A8_SINT:
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_R8G8B8A8_SRGB:
-        case VK_FORMAT_R8G8B8A8_SNORM:
-        case VK_FORMAT_R8G8B8A8_SSCALED:
-        case VK_FORMAT_R8G8B8A8_USCALED:
-            virglFormat = VIRGL_FORMAT_R8G8B8A8_UNORM;
-            break;
-        case VK_FORMAT_B8G8R8A8_SINT:
+            return VIRGL_FORMAT_R8G8B8A8_UNORM;
         case VK_FORMAT_B8G8R8A8_UNORM:
         case VK_FORMAT_B8G8R8A8_SRGB:
-        case VK_FORMAT_B8G8R8A8_SNORM:
-        case VK_FORMAT_B8G8R8A8_SSCALED:
-        case VK_FORMAT_B8G8R8A8_USCALED:
-            virglFormat = VIRGL_FORMAT_B8G8R8A8_UNORM;
-            break;
-        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+            return VIRGL_FORMAT_B8G8R8A8_UNORM;
         case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
-            virglFormat = VIRGL_FORMAT_R10G10B10A2_UNORM;
-            break;
+            return VIRGL_FORMAT_R10G10B10A2_UNORM;
         case VK_FORMAT_R16G16B16A16_SFLOAT:
-            virglFormat = VIRGL_FORMAT_R16G16B16A16_FLOAT;
-            break;
+            return VIRGL_FORMAT_R16G16B16A16_FLOAT;
         case VK_FORMAT_R5G6B5_UNORM_PACK16:
-            virglFormat = VIRGL_FORMAT_B5G6R5_UNORM;
-            break;
-        case VK_FORMAT_R8_SINT:
-        case VK_FORMAT_R8_UINT:
+            return VIRGL_FORMAT_B5G6R5_UNORM;
         case VK_FORMAT_R8_UNORM:
         case VK_FORMAT_R8_SRGB:
-        case VK_FORMAT_R8_SNORM:
-        case VK_FORMAT_R8_SSCALED:
-        case VK_FORMAT_R8_USCALED:
-            virglFormat = VIRGL_FORMAT_R8_UNORM;
-            break;
+            return VIRGL_FORMAT_R8_UNORM;
         default:
-            break;
+            return 0;
     }
-
-    return virglFormat;
 }
 
 CoherentMemoryPtr ResourceTracker::createCoherentMemory(
@@ -4169,6 +4145,13 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
     // Check for import first; this takes precedence over exportDmabuf in creating the
     // VirtGpuResource
+    if (exportDmabuf && hasDedicatedImage) {
+        std::lock_guard<std::recursive_mutex> lock(mLock);
+        auto it = info_VkImage.find(dedicatedAllocInfoPtr->image);
+        if (it == info_VkImage.end() || !it->second.external) {
+            exportDmabuf = false;
+        }
+    }
     if (importDmabuf) {
         VirtGpuExternalHandle importHandle = {};
         // importBlob impl may close the receivedFd after it creates an GEM handle from it. dup()
@@ -4678,25 +4661,48 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
     }
 
     vk_struct_chain_iterator structChainIter = vk_make_chain_iterator(&localCreateInfo);
-    VkExternalMemoryImageCreateInfo localExtImgCi;
+    VkExternalMemoryImageCreateInfo localExtImgCi = {};
 
     const VkExternalMemoryImageCreateInfo* extImgCiPtr =
         vk_find_struct_const(pCreateInfo, EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
 
     if (extImgCiPtr) {
         localExtImgCi = vk_make_orphan_copy(*extImgCiPtr);
-        vk_append_struct(&structChainIter, &localExtImgCi);
+#if defined(LINUX_GUEST_BUILD)
+        localExtImgCi.handleTypes &= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+        if (localExtImgCi.handleTypes) {
+            bool valid = getVirglFormat(pCreateInfo->format) &&
+                         pCreateInfo->imageType == VK_IMAGE_TYPE_2D &&
+                         pCreateInfo->mipLevels == 1 && pCreateInfo->arrayLayers == 1;
+            if (valid && pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR) {
+                std::lock_guard<std::recursive_mutex> lock(mLock);
+                auto it = info_VkDevice.find(device);
+                valid = it == info_VkDevice.end() ||
+                        !doImageDrmFormatModifierEmulation(it->second.physdev);
+            }
+            if (!valid) {
+                localExtImgCi.handleTypes &= ~VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+            }
+        }
+#endif
+        if (localExtImgCi.handleTypes) {
+            vk_append_struct(&structChainIter, &localExtImgCi);
+        }
     }
 
 #if defined(LINUX_GUEST_BUILD)
+    if (pCreateInfo->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT &&
+        !localExtImgCi.handleTypes) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
     VkImageDrmFormatModifierExplicitCreateInfoEXT localDrmFormatModifierInfo;
     VkImageDrmFormatModifierListCreateInfoEXT localDrmFormatModifierList;
     const VkImageDrmFormatModifierExplicitCreateInfoEXT* drmFmtMod =
         vk_find_struct_const(pCreateInfo, IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT);
 
     // If the VkImage will be bound to guest-dmabuf memory
-    if (extImgCiPtr &&
-        (extImgCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
+    if (localExtImgCi.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) {
         const wsi_image_create_info* wsiImageCi =
             vk_find_struct_const(pCreateInfo, WSI_IMAGE_CREATE_INFO_MESA);
         if (wsiImageCi) {
@@ -4916,9 +4922,9 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
         info.baseRequirementsKnown = true;
     }
 
-    if (extImgCiPtr) {
+    if (localExtImgCi.handleTypes) {
         info.external = true;
-        info.externalCreateInfo = *extImgCiPtr;
+        info.externalCreateInfo = localExtImgCi;
     }
 
 #if defined(LINUX_GUEST_BUILD)
@@ -4958,8 +4964,7 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
     if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
         mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
     }
-    if (extImgCiPtr &&
-        (extImgCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
+    if (localExtImgCi.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) {
         updateMemoryTypeBits(&memReqs.memoryTypeBits, mCaps.vulkanCapset.colorBufferMemoryIndex);
     }
 #endif
@@ -6054,13 +6059,18 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
 
     VkBufferCreateInfo localCreateInfo = vk_make_orphan_copy(*pCreateInfo);
     vk_struct_chain_iterator structChainIter = vk_make_chain_iterator(&localCreateInfo);
-    VkExternalMemoryBufferCreateInfo localExtBufCi;
+    VkExternalMemoryBufferCreateInfo localExtBufCi = {};
 
     const VkExternalMemoryBufferCreateInfo* extBufCiPtr =
         vk_find_struct_const(pCreateInfo, EXTERNAL_MEMORY_BUFFER_CREATE_INFO);
     if (extBufCiPtr) {
         localExtBufCi = vk_make_orphan_copy(*extBufCiPtr);
-        vk_append_struct(&structChainIter, &localExtBufCi);
+#if defined(LINUX_GUEST_BUILD)
+        localExtBufCi.handleTypes &= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+#endif
+        if (localExtBufCi.handleTypes) {
+            vk_append_struct(&structChainIter, &localExtBufCi);
+        }
     }
 
     VkBufferOpaqueCaptureAddressCreateInfo localCapAddrCi;
@@ -6150,10 +6160,9 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
     if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
         mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
     }
-    if (extBufCiPtr &&
-        ((extBufCiPtr->handleTypes &
-          VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) ||
-         (extBufCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT))) {
+    if ((localExtBufCi.handleTypes &
+         (VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID |
+          VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT))) {
         updateMemoryTypeBits(&memReqs.memoryTypeBits, mCaps.vulkanCapset.colorBufferMemoryIndex);
     }
 #endif
@@ -6173,9 +6182,9 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
         info.baseRequirements = memReqs;
     }
 
-    if (extBufCiPtr) {
+    if (localExtBufCi.handleTypes) {
         info.external = true;
-        info.externalCreateInfo = *extBufCiPtr;
+        info.externalCreateInfo = localExtBufCi;
     }
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
@@ -7773,13 +7782,14 @@ void ResourceTracker::pushDescriptorSetWithTemplate2(
 
 #ifdef LINUX_GUEST_BUILD
 static void fillEmulatedDrmFormatModPropsList(
-    const VkFormatProperties* pFormatProperties,
+    VkFormat format, const VkFormatProperties* pFormatProperties,
     VkDrmFormatModifierPropertiesListEXT* emulatedDrmFmtModPropsList) {
     mesa_logd(
         "VkDrmFormatModifierPropertiesListEXT: emulating DRM_FORMAT_MOD_LINEAR with optimal tiling "
         "features");
-    VkFormatFeatureFlags tilingFeatures =
-        pFormatProperties ? pFormatProperties->optimalTilingFeatures : 0;
+    VkFormatFeatureFlags tilingFeatures = (pFormatProperties && getVirglFormat(format))
+                                              ? pFormatProperties->optimalTilingFeatures
+                                              : 0;
     if (!tilingFeatures) {
         emulatedDrmFmtModPropsList->drmFormatModifierCount = 0;
         return;
@@ -7815,7 +7825,7 @@ void ResourceTracker::on_vkGetPhysicalDeviceFormatProperties2(
 
         __vk_append_struct(pFormatProperties, emulatedDrmFmtModPropsList);
 
-        fillEmulatedDrmFormatModPropsList(&pFormatProperties->formatProperties,
+        fillEmulatedDrmFormatModPropsList(format, &pFormatProperties->formatProperties,
                                           emulatedDrmFmtModPropsList);
         return;
     }
@@ -7886,6 +7896,13 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2(
     }
 
 #ifdef LINUX_GUEST_BUILD
+    const bool isLinuxDmaBufQuery =
+        ext_img_info && (ext_img_info->handleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+    if (isLinuxDmaBufQuery &&
+        (!getVirglFormat(pImageFormatInfo->format) || pImageFormatInfo->type != VK_IMAGE_TYPE_2D)) {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
     const VkPhysicalDeviceImageDrmFormatModifierInfoEXT* drmFmtMod =
         vk_find_struct_const(pImageFormatInfo, PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT);
     VkDrmFormatModifierPropertiesListEXT* emulatedDrmFmtModPropsList = nullptr;
@@ -7894,7 +7911,8 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2(
             emulatedDrmFmtModPropsList =
                 vk_find_struct(pImageFormatProperties, DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT);
 
-            if (drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) {
+            if (drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR &&
+                getVirglFormat(pImageFormatInfo->format)) {
                 // Remove the drmFmtMod from the localImageFormatInfo
                 vk_filter_struct(&localImageFormatInfo,
                                  PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT);
@@ -7919,15 +7937,24 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2(
     if (hostRes != VK_SUCCESS) return hostRes;
 
 #ifdef LINUX_GUEST_BUILD
+    if (isLinuxDmaBufQuery && ext_img_properties &&
+        !(ext_img_properties->externalMemoryProperties.externalMemoryFeatures &
+          (VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT |
+           VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT))) {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
     if (emulatedDrmFmtModPropsList) {
         VkFormatProperties formatProperties;
         enc->vkGetPhysicalDeviceFormatProperties(physicalDevice, localImageFormatInfo.format,
                                                  &formatProperties, true /* do lock */);
-        fillEmulatedDrmFormatModPropsList(&formatProperties, emulatedDrmFmtModPropsList);
+        fillEmulatedDrmFormatModPropsList(localImageFormatInfo.format, &formatProperties,
+                                          emulatedDrmFmtModPropsList);
     }
     if (ext_img_properties) {
         if (ext_img_info) {
             if (ext_img_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) {
+                pImageFormatProperties->imageFormatProperties.maxMipLevels = 1;
+                pImageFormatProperties->imageFormatProperties.maxArrayLayers = 1;
                 ext_img_properties->externalMemoryProperties = {
                     .externalMemoryFeatures = VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT |
                                               VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT,
