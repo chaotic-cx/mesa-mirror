@@ -263,10 +263,32 @@ struct nvk_cmd_push {
    bool no_prefetch;
 };
 
+enum ENUM_PACKED nvk_cmd_bound_heap {
+   NVK_CMD_BOUND_HEAP_NONE = 0,
+   NVK_CMD_BOUND_HEAP_DEVICE,
+};
+
+enum ENUM_PACKED nvk_cmd_heap_dirty {
+   NVK_CMD_HEAP_DIRTY_NONE = 0,
+   NVK_CMD_HEAP_DIRTY_GRAPHICS = BITFIELD_BIT(0),
+   NVK_CMD_HEAP_DIRTY_COMPUTE = BITFIELD_BIT(1),
+};
+
+struct nvk_cmd_heap_state {
+   uint64_t addr;
+   uint64_t size;
+   enum nvk_cmd_heap_dirty dirty;
+};
+
 struct nvk_cmd_buffer {
    struct vk_command_buffer vk;
 
    struct nvk_cmd_state {
+      enum nvk_cmd_bound_heap bound_image_heap;
+      enum nvk_cmd_bound_heap bound_sampler_heap;
+      struct nvk_cmd_heap_state resource_heap;
+      struct nvk_cmd_heap_state sampler_heap;
+
       uint64_t descriptor_buffers[NVK_MAX_SETS];
       struct nvk_graphics_state gfx;
       struct nvk_compute_state cs;
@@ -367,6 +389,8 @@ void nvk_cmd_bind_graphics_shader(struct nvk_cmd_buffer *cmd,
 
 void nvk_cmd_bind_compute_shader(struct nvk_cmd_buffer *cmd,
                                  struct nvk_shader *shader);
+
+void nvk_cmd_bind_device_heaps(struct nvk_cmd_buffer *cmd);
 
 void nvk_cmd_dirty_cbufs_for_descriptors(struct nvk_cmd_buffer *cmd,
                                          VkShaderStageFlags stages,
@@ -475,6 +499,11 @@ VkResult nvk_cmd_flush_cs_qmd(struct nvk_cmd_buffer *cmd,
 void nvk_cmd_flush_gfx_dynamic_state(struct nvk_cmd_buffer *cmd);
 void nvk_cmd_flush_gfx_shaders(struct nvk_cmd_buffer *cmd);
 void nvk_cmd_flush_gfx_cbufs(struct nvk_cmd_buffer *cmd);
+
+void nvk_cmd_flush_image_heap(struct nvk_cmd_buffer *cmd,
+                              VkPipelineBindPoint bind_point);
+void nvk_cmd_flush_sampler_heap(struct nvk_cmd_buffer *cmd,
+                                VkPipelineBindPoint bind_point);
 
 void nvk_cmd_dispatch_shader(struct nvk_cmd_buffer *cmd,
                              struct nvk_shader *shader,

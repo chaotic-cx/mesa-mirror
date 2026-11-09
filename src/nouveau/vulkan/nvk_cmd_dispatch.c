@@ -144,6 +144,8 @@ nvk_flush_compute_state(struct nvk_cmd_buffer *cmd,
 {
    struct nvk_descriptor_state *desc = &cmd->state.cs.descriptors;
 
+   nvk_cmd_flush_image_heap(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+   nvk_cmd_flush_sampler_heap(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
    nvk_cmd_buffer_flush_push_descriptors(cmd, desc);
 
    nvk_descriptor_state_set_root_array(cmd, desc, cs.base_group,

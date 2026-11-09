@@ -4444,6 +4444,8 @@ nvk_cmd_flush_gfx_cbufs(struct nvk_cmd_buffer *cmd)
 static void
 nvk_cmd_flush_gfx_state(struct nvk_cmd_buffer *cmd)
 {
+   nvk_cmd_flush_image_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+   nvk_cmd_flush_sampler_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
    nvk_cmd_buffer_flush_push_descriptors(cmd, &cmd->state.gfx.descriptors);
    nvk_cmd_flush_gfx_dynamic_state(cmd);
    nvk_cmd_flush_gfx_shaders(cmd);

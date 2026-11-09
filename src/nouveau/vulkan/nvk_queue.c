@@ -407,11 +407,6 @@ nvk_queue_submit_exec(struct nvk_queue *queue,
       nvk_heap_flush_maps(dev, &dev->shader_heap);
       assert(dev->event_heap.arena.mem_flags & NVKMD_MEM_COHERENT);
 
-      result = nvk_queue_heap_state_bind_dev_heaps(
-         queue, NVK_CMD_PUSH_BIND_GRAPHICS | NVK_CMD_PUSH_BIND_COMPUTE);
-      if (result != VK_SUCCESS)
-         return result;
-
       result = nvk_queue_slm_state_update(queue, &queue->slm_state);
       if (result != VK_SUCCESS)
          return result;
@@ -626,6 +621,11 @@ nvk_queue_create(struct nvk_device *dev,
       goto fail_bind_ctx;
 
    result = nvk_queue_init_context_state(queue);
+   if (result != VK_SUCCESS)
+      goto fail_push_stream;
+
+   result = nvk_queue_heap_state_bind_dev_heaps(
+      queue, NVK_CMD_PUSH_BIND_COMPUTE | NVK_CMD_PUSH_BIND_GRAPHICS);
    if (result != VK_SUCCESS)
       goto fail_push_stream;
 

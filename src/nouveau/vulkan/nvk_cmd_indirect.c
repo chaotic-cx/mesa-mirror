@@ -1103,6 +1103,18 @@ static void
 nvk_cmd_flush_process_state(struct nvk_cmd_buffer *cmd,
                             const VkGeneratedCommandsInfoEXT *info)
 {
+   if (info->shaderStages & VK_SHADER_STAGE_COMPUTE_BIT) {
+      assert(info->shaderStages == VK_SHADER_STAGE_COMPUTE_BIT);
+      nvk_cmd_flush_image_heap(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+      nvk_cmd_flush_sampler_heap(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+   } else if (info->shaderStages & NVK_SHADER_STAGE_GRAPHICS_BITS) {
+      assert(!(info->shaderStages & ~NVK_SHADER_STAGE_GRAPHICS_BITS));
+      nvk_cmd_flush_image_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+      nvk_cmd_flush_sampler_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+   } else {
+      UNREACHABLE("Unknown shader stage");
+   }
+
    struct nvk_descriptor_state *desc =
       nvk_get_descriptor_state_for_stages(cmd, info->shaderStages);
    nvk_cmd_buffer_flush_push_descriptors(cmd, desc);
@@ -1151,10 +1163,15 @@ nvk_CmdExecuteGeneratedCommandsEXT(VkCommandBuffer commandBuffer,
 
    if (layout->stages & VK_SHADER_STAGE_COMPUTE_BIT) {
       assert(info->shaderStages == VK_SHADER_STAGE_COMPUTE_BIT);
+
+      nvk_cmd_flush_image_heap(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+      nvk_cmd_flush_sampler_heap(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
       nvk_cmd_buffer_flush_push_descriptors(cmd, &cmd->state.cs.descriptors);
    } else if (layout->stages & NVK_SHADER_STAGE_GRAPHICS_BITS) {
       assert(!(layout->stages & ~NVK_SHADER_STAGE_GRAPHICS_BITS));
 
+      nvk_cmd_flush_image_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+      nvk_cmd_flush_sampler_heap(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
       nvk_cmd_buffer_flush_push_descriptors(cmd, &cmd->state.gfx.descriptors);
       nvk_cmd_flush_gfx_dynamic_state(cmd);
 
