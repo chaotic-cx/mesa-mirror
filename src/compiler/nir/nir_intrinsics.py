@@ -2819,6 +2819,8 @@ intrinsic("load_reloc_const_intel", dest_comp=1, bit_sizes=[32],
 
 # Write a render target
 # src[] = { surface, color, dual_color, src0_alpha, omask, depth, stencil }
+# In efficient 64bit addressing mode, surface is a 64bit surface state address
+# whose low 3 bits select the blend-state entry.
 intrinsic("store_render_target_intel", [1, 4, 4, 1, 1, 1, 1], indices=[TARGET], bit_sizes=[64, 32, 32, 32, 32, 32, 32])
 
 # Shuffle with an offset in bytes instead of a lane index.

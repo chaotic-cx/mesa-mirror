@@ -103,8 +103,17 @@ insert_rt_store(nir_builder *b, struct frag_out_ctx *ctx, signed target,
    if (colour == NULL && dual_colour != NULL)
       colour = dual_colour;
 
-   nir_store_render_target_intel(b,
-                                 cb != NULL ? cb(b, target, cb_data) : nir_undef(b, 1, 64),
+   nir_def *surface = cb != NULL ? cb(b, target, cb_data) : nir_undef(b, 1, 64);
+   if (cb != NULL && target > 0) {
+      /* IND0's low three bits select BLEND_STATE_ENTRY independently of
+       * the 64-byte-aligned surface-state address, this is documented in
+       * BSpec 72141.
+       */
+      assert(target < 8);
+      surface = nir_ior_imm(b, surface, target);
+   }
+
+   nir_store_render_target_intel(b, surface,
                                  colour, dual_colour, src0_alpha,
                                  ctx->outputs[FRAG_RESULT_SAMPLE_MASK],
                                  ctx->outputs[FRAG_RESULT_DEPTH],
