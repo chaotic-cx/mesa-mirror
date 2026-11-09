@@ -1361,7 +1361,7 @@ void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
 void si_fb_barrier_before_rendering(struct si_context *sctx);
 void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags);
 void si_barrier_before_image_fast_clear(struct si_context *sctx, unsigned types);
-void si_barrier_after_image_fast_clear(struct si_context *sctx);
+void si_barrier_after_image_fast_clear(struct si_context *sctx, unsigned types);
 void si_init_barrier_functions(struct si_context *sctx);
 
 /* si_buffer.c */
