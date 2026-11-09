@@ -358,7 +358,7 @@ fedora-release:
       -D gles2=enabled
       -D llvm=enabled
       -D microsoft-clc=disabled
-      -D panfrost-rust=false
+      -D panfrost-rust=true
       -D shared-llvm=enabled
     UNWIND: "disabled"
     VULKAN_DRIVERS: "amd,asahi,broadcom,freedreno,imagination,intel,intel_hasvk"
