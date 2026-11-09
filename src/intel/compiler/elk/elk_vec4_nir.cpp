@@ -1457,24 +1457,6 @@ vec4_visitor::nir_emit_alu(nir_alu_instr *instr)
    case nir_op_pack_unorm_2x16:
       UNREACHABLE("not reached: should be handled by lower_packing_builtins");
 
-   case nir_op_pack_uvec4_to_uint:
-      UNREACHABLE("not reached");
-
-   case nir_op_pack_uvec2_to_uint: {
-      dst_reg tmp1 = dst_reg(this, glsl_uint_type());
-      tmp1.writemask = WRITEMASK_X;
-      op[0].swizzle = ELK_SWIZZLE_YYYY;
-      emit(SHL(tmp1, op[0], src_reg(elk_imm_ud(16u))));
-
-      dst_reg tmp2 = dst_reg(this, glsl_uint_type());
-      tmp2.writemask = WRITEMASK_X;
-      op[0].swizzle = ELK_SWIZZLE_XXXX;
-      emit(AND(tmp2, op[0], src_reg(elk_imm_ud(0xffffu))));
-
-      emit(OR(dst, src_reg(tmp1), src_reg(tmp2)));
-      break;
-   }
-
    case nir_op_pack_64_2x32_split: {
       dst_reg result = dst_reg(this, glsl_dvec4_type());
       dst_reg tmp = dst_reg(this, glsl_uvec4_type());
