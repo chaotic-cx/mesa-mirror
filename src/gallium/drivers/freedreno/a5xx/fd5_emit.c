@@ -1330,7 +1330,8 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    /* SSBO_CONSTS_ENABLE makes the image descriptors visible to the shader's
     * offset math at c448.
     */
-   OUT_RING(ring, A5XX_SP_MODE_CNTL_SSBO_CONSTS_ENABLE | 0xc);
+   OUT_RING(ring, A5XX_SP_MODE_CNTL_SSBO_CONSTS_ENABLE |
+                     A5XX_SP_MODE_CNTL_CONSTANT_DEMOTION_ENABLE | 0x8);
 
    OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
    OUT_RING(ring, fd5_sp_dbg_eco_cntl(ctx->screen));

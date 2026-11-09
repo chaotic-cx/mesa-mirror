@@ -271,7 +271,7 @@ emit_setup(struct fd_ringbuffer *ring, const struct fd_screen *screen,
    OUT_RING(ring, A5XX_RB_MODE_CNTL_HIGHESTBANKBIT(hbb));
 
    OUT_PKT4(ring, REG_A5XX_SP_MODE_CNTL, 1);
-   OUT_RING(ring, 0x0000000c); /* SP_MODE_CNTL */
+   OUT_RING(ring, A5XX_SP_MODE_CNTL_CONSTANT_DEMOTION_ENABLE | 0x8); /* SP_MODE_CNTL */
 
    OUT_PKT4(ring, REG_A5XX_TPL1_MODE_CNTL, 1);
    OUT_RING(ring, 0x00000244 | A5XX_TPL1_MODE_CNTL_HIGHESTBANKBIT(hbb));
