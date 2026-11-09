@@ -444,7 +444,7 @@
         "description": "nir/uub: fix imul by constant with overflow",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
@@ -764,7 +764,7 @@
         "description": "radeonsi: write back L2 after DCC fast clears if RBs and L2 aren't coherent",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null

@@ -908,7 +908,7 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
    if (num_clears) {
       si_barrier_before_image_fast_clear(sctx, clear_types);
       si_execute_clears(sctx, info, num_clears, sctx->render_cond_enabled);
-      si_barrier_after_image_fast_clear(sctx);
+      si_barrier_after_image_fast_clear(sctx, clear_types);
    }
 }
 
@@ -1248,7 +1248,7 @@ bool si_compute_fast_clear_image(struct si_context *sctx, struct pipe_resource *
    assert(num_clears <= ARRAY_SIZE(info));
    si_barrier_before_image_fast_clear(sctx, clear_types);
    si_execute_clears(sctx, info, num_clears, render_condition_enable);
-   si_barrier_after_image_fast_clear(sctx);
+   si_barrier_after_image_fast_clear(sctx, clear_types);
    return true;
 }
 
