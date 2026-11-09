@@ -92,10 +92,8 @@ radv_CreatePipelineLayout(VkDevice _device, const VkPipelineLayoutCreateInfo *pC
    for (uint32_t set = 0; set < pCreateInfo->setLayoutCount; set++) {
       VK_FROM_HANDLE(radv_descriptor_set_layout, set_layout, pCreateInfo->pSetLayouts[set]);
 
-      if (set_layout == NULL) {
-         layout->set[set].layout = NULL;
+      if (set_layout == NULL)
          continue;
-      }
 
       radv_pipeline_layout_add_set(layout, set, set_layout);
    }
