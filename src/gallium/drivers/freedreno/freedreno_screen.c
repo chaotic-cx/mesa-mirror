@@ -767,6 +767,7 @@ fd_init_screen_caps(struct fd_screen *screen)
             BITFIELD_MASK(MESA_SHADER_STAGES);
          caps->shader_subgroup_supported_features |=
             PIPE_SHADER_SUBGROUP_FEATURE_QUAD;
+         caps->shader_subgroup_quad_all_stages = true;
       }
 
       caps->shader_ballot = caps->shader_subgroup_size <= 64;
