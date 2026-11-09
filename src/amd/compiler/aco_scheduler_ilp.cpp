@@ -760,6 +760,39 @@ collect_clause_dependencies(const SchedILPContext& ctx, const uint8_t next, mask
    return dependencies;
 }
 
+/* Select a dependency-free candidate, optionally requiring it to be ready. */
+unsigned
+select_candidate_ilp(const SchedILPContext& ctx, mask_t mask, int32_t max_wait_cycles = INT32_MAX)
+{
+   /* VINTRP(gfx6-10.3) can be handled like alu, but switching between VINTRP and other
+    * alu has a cost. So if the previous instr was VINTRP, try to keep selecting VINTRP.
+    */
+   bool prefer_vintrp = ctx.prev_info.instr && ctx.prev_info.instr->isVINTRP();
+
+   /* Select the instruction with lowest wait_cycles of all candidates. */
+   unsigned idx = -1u;
+   bool idx_vintrp = false;
+   int32_t wait_cycles = INT32_MAX;
+   u_foreach_bit (i, mask) {
+      const InstrInfo& candidate = ctx.nodes[i];
+
+      /* Check if the candidate has pending dependencies. */
+      if (candidate.dependency_mask || candidate.wait_cycles > max_wait_cycles)
+         continue;
+
+      bool is_vintrp = prefer_vintrp && candidate.instr->isVINTRP();
+
+      if (idx == -1u || (is_vintrp && !idx_vintrp) ||
+          (is_vintrp == idx_vintrp && candidate.wait_cycles < wait_cycles)) {
+         idx = i;
+         idx_vintrp = is_vintrp;
+         wait_cycles = candidate.wait_cycles;
+      }
+   }
+
+   return idx;
+}
+
 /**
  * Returns the index of the next instruction to be selected.
  */
@@ -779,31 +812,7 @@ select_instruction_ilp(const SchedILPContext& ctx)
       mask = collect_clause_dependencies(ctx, ctx.next_non_reorderable, 0);
    }
 
-   /* VINTRP(gfx6-10.3) can be handled like alu, but switching between VINTRP and other
-    * alu has a cost. So if the previous instr was VINTRP, try to keep selecting VINTRP.
-    */
-   bool prefer_vintrp = ctx.prev_info.instr && ctx.prev_info.instr->isVINTRP();
-
-   /* Select the instruction with lowest wait_cycles of all candidates. */
-   unsigned idx = -1u;
-   bool idx_vintrp = false;
-   int32_t wait_cycles = INT32_MAX;
-   u_foreach_bit (i, mask) {
-      const InstrInfo& candidate = ctx.nodes[i];
-
-      /* Check if the candidate has pending dependencies. */
-      if (candidate.dependency_mask)
-         continue;
-
-      bool is_vintrp = prefer_vintrp && candidate.instr->isVINTRP();
-
-      if (idx == -1u || (is_vintrp && !idx_vintrp) ||
-          (is_vintrp == idx_vintrp && candidate.wait_cycles < wait_cycles)) {
-         idx = i;
-         idx_vintrp = is_vintrp;
-         wait_cycles = candidate.wait_cycles;
-      }
-   }
+   unsigned idx = select_candidate_ilp(ctx, mask);
 
    if (idx != -1u)
       return idx;
