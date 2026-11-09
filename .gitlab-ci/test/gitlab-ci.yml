@@ -65,14 +65,13 @@ shader-db:
       - shader-db
   timeout: 15m
 
-yaml-toml-shell-py-test:
+lint-test:
   extends:
     - .use-debian/arm64_build
     - .no-auto-retry  # this job can't be flaky
   stage: code-validation
   script:
     - uncollapsed_section_start tomllint "tomllint"
-    - echo "If your change looks right but this script rejects it, contact @eric (GitLab) / eric_engestrom (IRC)."
     - python3 bin/toml_lint.py
     - uncollapsed_section_switch yamllint "yamllint"
     - .gitlab-ci/run-yamllint.sh
