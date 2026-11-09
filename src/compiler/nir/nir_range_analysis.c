@@ -1812,6 +1812,38 @@ get_intrinsic_uub(struct analysis_state *state, struct scalar_query q, uint32_t 
    }
 }
 
+static uint32_t uub_iadd(uint32_t max, uint32_t x, uint32_t y)
+{
+   return MIN2((uint64_t)x + y, max);
+}
+
+static uint32_t uub_shl_const(unsigned bit_size, uint32_t max, uint32_t x, uint32_t C)
+{
+   C &= (bit_size - 1);
+   if (util_last_bit(x) + C > bit_size)
+      return (max << C) & max;
+   return x << C;
+}
+
+static uint32_t uub_imul_const(unsigned bit_size, uint32_t max, uint32_t x, uint32_t C)
+{
+   /* TODO: This is just a conservative approximation. For example:
+    * x=2 and C=129 would have a uub of 130 instead of 129.
+    */
+   uint32_t res = 0;
+
+   while (C) {
+      unsigned b = util_last_bit(C) - 1;
+      C &= ~(1u << b);
+
+      res = uub_iadd(max, res, uub_shl_const(bit_size, max, x, b));
+      /* Because we're scanning the bits in reverse, we know what the low bits are. */
+      res &= ~bitmask(b);
+   }
+
+   return res;
+}
+
 static void
 get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *result, const uint32_t *src)
 {
@@ -1931,18 +1963,18 @@ get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
       break;
    }
    case nir_op_imul: {
-      if (src[0] == 0 || (src[0] * src[1]) / src[0] == src[1]) /* check overflow */
-         *result = src[0] * src[1];
-      *result = MIN2(*result, max);
-
       nir_scalar src0_scalar = nir_scalar_chase_alu_src(q.scalar, 0);
       nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
       if (nir_scalar_is_const(src0_scalar)) {
          uint32_t const_val = nir_scalar_as_uint(src0_scalar);
-         *result = const_val ? MIN2(*result, max / const_val * const_val) : 0;
+         *result = uub_imul_const(q.scalar.def->bit_size, max, src[1], const_val);
       } else if (nir_scalar_is_const(src1_scalar)) {
          uint32_t const_val = nir_scalar_as_uint(src1_scalar);
-         *result = const_val ? MIN2(*result, max / const_val * const_val) : 0;
+         *result = uub_imul_const(q.scalar.def->bit_size, max, src[0], const_val);
+      } else {
+         if (src[0] == 0 || (src[0] * src[1]) / src[0] == src[1]) /* check overflow */
+            *result = src[0] * src[1];
+         *result = MIN2(*result, max);
       }
       break;
    }
