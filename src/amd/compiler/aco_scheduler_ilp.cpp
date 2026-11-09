@@ -53,19 +53,18 @@ struct InstrInfo {
    uint8_t next_non_reorderable; /* index of next non-reorderable instruction node after this one. */
 };
 
-struct RegisterInfo {
-   mask_t read_mask; /* bitmask of nodes which have to be scheduled before the next write. */
-   uint8_t direct_dependency : 4;     /* node that has to be scheduled before any other access. */
-   uint8_t has_direct_dependency : 1; /* whether there is an unscheduled direct dependency. */
-};
-
 struct SchedILPContext {
    Program* program;
    bool is_vopd = false;
    InstrInfo nodes[num_nodes];
-   RegisterInfo regs[512];
-   /* Ready cycles for register writes outside the DAG. */
-   uint32_t reg_ready_cycle[512];
+   struct {
+      /* Register accesses which must precede the next write. */
+      mask_t read_mask[512];
+      /* Last writer in the DAG, or UINT8_MAX if there is none. */
+      uint8_t direct_dependency[512];
+      /* Ready cycles for register writes outside the DAG. */
+      uint32_t ready_cycle[512];
+   } regs;
    uint32_t cycle = 0;
    /* Valid ready cycles may remain marked after they expire. */
    BITSET_DECLARE(reg_has_latency, 512) = { 0 };
@@ -88,9 +87,9 @@ struct SchedILPContext {
 int
 get_register_latency(const SchedILPContext& ctx, unsigned reg)
 {
-   if (!BITSET_TEST(ctx.reg_has_latency, reg) || ctx.reg_ready_cycle[reg] <= ctx.cycle)
+   if (!BITSET_TEST(ctx.reg_has_latency, reg) || ctx.regs.ready_cycle[reg] <= ctx.cycle)
       return 0;
-   return ctx.reg_ready_cycle[reg] - ctx.cycle;
+   return ctx.regs.ready_cycle[reg] - ctx.cycle;
 }
 
 /**
@@ -561,15 +560,14 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
       }
 
       for (unsigned i = 0; i < op.size(); i++) {
-         RegisterInfo& reg_info = ctx.regs[reg + i];
-
          /* Add register reads. */
-         reg_info.read_mask |= mask;
+         ctx.regs.read_mask[reg + i] |= mask;
 
-         if (reg_info.has_direct_dependency) {
+         unsigned direct_dependency = ctx.regs.direct_dependency[reg + i];
+         if (direct_dependency != UINT8_MAX) {
             /* A previous dependency is still part of the DAG. */
-            ctx.nodes[reg_info.direct_dependency].write_for_read_mask |= mask;
-            entry.dependency_mask |= BITFIELD_BIT(reg_info.direct_dependency);
+            ctx.nodes[direct_dependency].write_for_read_mask |= mask;
+            entry.dependency_mask |= BITFIELD_BIT(direct_dependency);
          } else {
             entry.wait_cycles = MAX2(entry.wait_cycles, get_register_latency(ctx, reg + i));
          }
@@ -579,35 +577,34 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
    /* Check if this instructions reads implicit registers. */
    if (needs_exec_mask(instr)) {
       for (unsigned reg = exec_lo; reg <= exec_hi; reg++) {
-         if (ctx.regs[reg].has_direct_dependency) {
-            entry.dependency_mask |= BITFIELD_BIT(ctx.regs[reg].direct_dependency);
-            ctx.nodes[ctx.regs[reg].direct_dependency].write_for_read_mask |= mask;
+         if (ctx.regs.direct_dependency[reg] != UINT8_MAX) {
+            entry.dependency_mask |= BITFIELD_BIT(ctx.regs.direct_dependency[reg]);
+            ctx.nodes[ctx.regs.direct_dependency[reg]].write_for_read_mask |= mask;
          }
-         ctx.regs[reg].read_mask |= mask;
+         ctx.regs.read_mask[reg] |= mask;
       }
    }
    if (ctx.program->gfx_level < GFX10 && instr->isScratch()) {
       for (unsigned reg = flat_scr_lo; reg <= flat_scr_hi; reg++) {
-         if (ctx.regs[reg].has_direct_dependency) {
-            entry.dependency_mask |= BITFIELD_BIT(ctx.regs[reg].direct_dependency);
-            ctx.nodes[ctx.regs[reg].direct_dependency].write_for_read_mask |= mask;
+         if (ctx.regs.direct_dependency[reg] != UINT8_MAX) {
+            entry.dependency_mask |= BITFIELD_BIT(ctx.regs.direct_dependency[reg]);
+            ctx.nodes[ctx.regs.direct_dependency[reg]].write_for_read_mask |= mask;
          }
-         ctx.regs[reg].read_mask |= mask;
+         ctx.regs.read_mask[reg] |= mask;
       }
    }
 
    mask_t write_dep_mask = 0;
    for (const Definition& def : instr->definitions) {
       for (unsigned i = 0; i < def.size(); i++) {
-         RegisterInfo& reg_info = ctx.regs[def.physReg().reg() + i];
+         unsigned reg = def.physReg().reg() + i;
 
          /* Add all previous register reads and writes to the dependencies. */
-         write_dep_mask |= reg_info.read_mask;
-         reg_info.read_mask = mask;
+         write_dep_mask |= ctx.regs.read_mask[reg];
+         ctx.regs.read_mask[reg] = mask;
 
          /* This register write is a direct dependency for all following reads. */
-         reg_info.has_direct_dependency = 1;
-         reg_info.direct_dependency = idx;
+         ctx.regs.direct_dependency[reg] = idx;
       }
    }
 
@@ -679,31 +676,29 @@ remove_entry(SchedILPContext& ctx, const Instruction* const instr, const uint32_
       if (reg >= max_sgpr && reg != scc && reg < min_vgpr)
          continue;
 
-      for (unsigned i = 0; i < op.size(); i++) {
-         RegisterInfo& reg_info = ctx.regs[reg + i];
-         reg_info.read_mask &= mask;
-      }
+      for (unsigned i = 0; i < op.size(); i++)
+         ctx.regs.read_mask[reg + i] &= mask;
    }
    if (needs_exec_mask(instr)) {
-      ctx.regs[exec_lo].read_mask &= mask;
-      ctx.regs[exec_hi].read_mask &= mask;
+      ctx.regs.read_mask[exec_lo] &= mask;
+      ctx.regs.read_mask[exec_hi] &= mask;
    }
    if (ctx.program->gfx_level < GFX10 && instr->isScratch()) {
-      ctx.regs[flat_scr_lo].read_mask &= mask;
-      ctx.regs[flat_scr_hi].read_mask &= mask;
+      ctx.regs.read_mask[flat_scr_lo] &= mask;
+      ctx.regs.read_mask[flat_scr_hi] &= mask;
    }
 
    for (const Definition& def : instr->definitions) {
       for (unsigned i = 0; i < def.size(); i++) {
          unsigned reg = def.physReg().reg() + i;
-         ctx.regs[reg].read_mask &= mask;
-         if (ctx.regs[reg].has_direct_dependency && ctx.regs[reg].direct_dependency == idx) {
-            ctx.regs[reg].has_direct_dependency = false;
+         ctx.regs.read_mask[reg] &= mask;
+         if (ctx.regs.direct_dependency[reg] == idx) {
+            ctx.regs.direct_dependency[reg] = UINT8_MAX;
             if (!ctx.is_vopd) {
                /* Do MAX2() so that the latency from both predecessors of a merge block are
                 * considered. */
                int remaining = get_register_latency(ctx, reg);
-               ctx.reg_ready_cycle[reg] = ctx.cycle + MAX2(remaining, latency);
+               ctx.regs.ready_cycle[reg] = ctx.cycle + MAX2(remaining, latency);
                BITSET_SET(ctx.reg_has_latency, reg);
             }
          }
@@ -1026,6 +1021,7 @@ void
 schedule_ilp(Program* program)
 {
    SchedILPContext ctx = {program};
+   std::fill_n(ctx.regs.direct_dependency, ARRAY_SIZE(ctx.regs.direct_dependency), UINT8_MAX);
 
    for (Block& block : program->blocks) {
       if (block.instructions.empty())
@@ -1046,6 +1042,7 @@ schedule_vopd(Program* program)
       return;
 
    SchedILPContext ctx = {program};
+   std::fill_n(ctx.regs.direct_dependency, ARRAY_SIZE(ctx.regs.direct_dependency), UINT8_MAX);
    ctx.is_vopd = true;
 
    for (Block& block : program->blocks) {
