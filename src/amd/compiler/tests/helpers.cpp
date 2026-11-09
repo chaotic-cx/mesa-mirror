@@ -355,6 +355,14 @@ finish_lower_branches_test()
 }
 
 void
+finish_schedule_ilp_test()
+{
+   finish_program(program.get());
+   aco::schedule_ilp(program.get());
+   aco_print_program(program.get(), output);
+}
+
+void
 finish_schedule_vopd_test()
 {
    finish_program(program.get());

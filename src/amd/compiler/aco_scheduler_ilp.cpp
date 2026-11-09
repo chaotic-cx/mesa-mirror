@@ -568,7 +568,7 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
 
          if (reg_info.has_direct_dependency) {
             /* A previous dependency is still part of the DAG. */
-            ctx.nodes[ctx.regs[reg].direct_dependency].write_for_read_mask |= mask;
+            ctx.nodes[reg_info.direct_dependency].write_for_read_mask |= mask;
             entry.dependency_mask |= BITFIELD_BIT(reg_info.direct_dependency);
          } else {
             entry.wait_cycles = MAX2(entry.wait_cycles, get_register_latency(ctx, reg + i));

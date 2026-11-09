@@ -424,3 +424,25 @@ BEGIN_TEST(vopd_sched.dot2acc_from_vop2_inline)
 
    finish_schedule_vopd_test();
 END_TEST
+
+BEGIN_TEST(ilp_sched.partial_operand_latency)
+   for (amd_gfx_level gfx : {GFX9, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      //>> v1: %0:v[0] = v_mul_f32 %0:v[12], %0:v[13]
+      //! v1: %0:v[1] = v_mul_f32 %0:v[12], %0:v[13]
+      //! v1: %0:v[10] = v_add_f32 %0:v[0], %0:v[14]
+      //! v2: %0:v[4-5] = v_add_f64 %0:v[0-1], %0:v[8-9]
+      bld.vop2(aco_opcode::v_mul_f32, Definition(PhysReg(256), v1), Operand(PhysReg(268), v1),
+               Operand(PhysReg(269), v1));
+      bld.vop2(aco_opcode::v_mul_f32, Definition(PhysReg(257), v1), Operand(PhysReg(268), v1),
+               Operand(PhysReg(269), v1));
+      bld.vop3(aco_opcode::v_add_f64, Definition(PhysReg(260), v2), Operand(PhysReg(256), v2),
+               Operand(PhysReg(264), v2));
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(266), v1), Operand(PhysReg(256), v1),
+               Operand(PhysReg(270), v1));
+
+      finish_schedule_ilp_test();
+   }
+END_TEST
