@@ -155,9 +155,6 @@ bi_vectorize_filter(const nir_instr *instr, const void *data)
    case nir_op_bany_inequal8:
    case nir_op_bany_inequal16:
       return 1;
-   case nir_op_pack_uvec2_to_uint:
-   case nir_op_pack_uvec4_to_uint:
-      return 0;
    case nir_op_fexp2:
    case nir_op_flog2:
    case nir_op_fpow:

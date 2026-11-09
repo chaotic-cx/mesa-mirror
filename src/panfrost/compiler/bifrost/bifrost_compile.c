@@ -2666,32 +2666,6 @@ bi_emit_alu(bi_builder *b, nir_alu_instr *instr)
       return;
    }
 
-   case nir_op_pack_uvec2_to_uint: {
-      bi_index src = bi_src_index(&instr->src[0].src);
-
-      assert(sz == 32 && src_sz == 32);
-      bi_mkvec_v2i16_to(
-         b, dst, bi_half(bi_extract(b, src, instr->src[0].swizzle[0]), false),
-         bi_half(bi_extract(b, src, instr->src[0].swizzle[1]), false));
-      return;
-   }
-
-   case nir_op_pack_uvec4_to_uint: {
-      bi_index src = bi_src_index(&instr->src[0].src);
-
-      assert(sz == 32 && src_sz == 32);
-
-      bi_index srcs[4] = {
-         bi_extract(b, src, instr->src[0].swizzle[0]),
-         bi_extract(b, src, instr->src[0].swizzle[1]),
-         bi_extract(b, src, instr->src[0].swizzle[2]),
-         bi_extract(b, src, instr->src[0].swizzle[3]),
-      };
-      unsigned channels[4] = {0};
-      bi_make_vec_to(b, dst, srcs, channels, 4, 8);
-      return;
-   }
-
    case nir_op_f2f16:
    case nir_op_f2f16_rtz:
    case nir_op_f2f16_rtne: {

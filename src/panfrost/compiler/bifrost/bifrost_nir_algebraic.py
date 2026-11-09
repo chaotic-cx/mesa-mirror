@@ -84,10 +84,6 @@ algebraic_late = [
     (('f2u16', a), ('u2u16', ('f2u32', a)), 'is_kraid'),
     (('f2i16', a), ('u2u16', ('f2i32', a)), 'is_kraid'),
 
-    # Copy-prop will clean these up
-    (('pack_uvec2_to_uint', a), ('pack_32_2x16', ('u2u16', a))),
-    (('pack_uvec4_to_uint', a), ('pack_32_4x8', ('u2u8', a))),
-
     # On v11+, because FROUND.v2f16 is gone we end up with precision issues.
     # We lower ffract here instead to ensure lower_bit_size has been performed.
     (('ffract', a), ('fadd', a, ('fneg', ('ffloor', a))), 'gpu_arch >= 11'),
