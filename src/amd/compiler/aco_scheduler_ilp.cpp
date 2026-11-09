@@ -13,7 +13,7 @@
 
 /*
  * This pass implements a simple forward list-scheduler which works on a small
- * partial DAG of 16 nodes at any time. Only ALU instructions are scheduled
+ * partial DAG of 32 nodes at any time. Only ALU instructions are scheduled
  * entirely freely. Memory load instructions must be kept in-order and any other
  * instruction must not be re-scheduled at all.
  *
@@ -24,8 +24,8 @@
 namespace aco {
 namespace {
 
-constexpr unsigned num_nodes = 16;
-using mask_t = uint16_t;
+constexpr unsigned num_nodes = 32;
+using mask_t = uint32_t;
 static_assert(std::numeric_limits<mask_t>::digits >= num_nodes);
 
 struct VOPDInfo {
@@ -47,9 +47,9 @@ struct VOPDInfo {
 
 struct InstrInfo {
    Instruction* instr;
-   int16_t wait_cycles;          /* estimated remaining cycles until instruction can be issued. */
    mask_t dependency_mask;       /* bitmask of nodes which have to be scheduled before this node. */
    mask_t write_for_read_mask;   /* bitmask of nodes in the DAG that have a RaW dependency. */
+   int16_t wait_cycles;          /* estimated remaining cycles until instruction can be issued. */
    uint8_t next_non_reorderable; /* index of next non-reorderable instruction node after this one. */
 };
 
