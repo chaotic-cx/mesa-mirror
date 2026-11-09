@@ -40,4 +40,6 @@ void radv_pipeline_layout_add_set(struct radv_pipeline_layout *layout, uint32_t 
                                   struct radv_descriptor_set_layout *set_layout);
 void radv_pipeline_layout_hash(struct radv_pipeline_layout *layout);
 
+void radv_pipeline_layout_merge(struct radv_pipeline_layout *dst, const struct radv_pipeline_layout *src);
+
 #endif /* RADV_PIPELINE_LAYOUT_H */

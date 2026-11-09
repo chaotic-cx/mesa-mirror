@@ -60,6 +60,19 @@ radv_pipeline_layout_hash(struct radv_pipeline_layout *layout)
 }
 
 void
+radv_pipeline_layout_merge(struct radv_pipeline_layout *dst, const struct radv_pipeline_layout *src)
+{
+   for (uint32_t s = 0; s < src->num_sets; s++) {
+      if (!src->set[s].layout)
+         continue;
+
+      radv_pipeline_layout_add_set(dst, s, src->set[s].layout);
+   }
+
+   dst->independent_sets |= src->independent_sets;
+}
+
+void
 radv_pipeline_layout_finish(struct radv_device *device, struct radv_pipeline_layout *layout)
 {
    for (uint32_t i = 0; i < layout->num_sets; i++) {

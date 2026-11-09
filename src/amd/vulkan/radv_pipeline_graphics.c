@@ -479,19 +479,6 @@ shader_stage_to_pipeline_library_flags(VkShaderStageFlagBits stage)
 }
 
 static void
-radv_graphics_pipeline_import_layout(struct radv_pipeline_layout *dst, const struct radv_pipeline_layout *src)
-{
-   for (uint32_t s = 0; s < src->num_sets; s++) {
-      if (!src->set[s].layout)
-         continue;
-
-      radv_pipeline_layout_add_set(dst, s, src->set[s].layout);
-   }
-
-   dst->independent_sets |= src->independent_sets;
-}
-
-static void
 radv_pipeline_import_graphics_info(struct radv_device *device, struct radv_graphics_pipeline *pipeline,
                                    const VkGraphicsPipelineCreateInfo *pCreateInfo)
 {
@@ -2867,7 +2854,7 @@ radv_generate_graphics_pipeline_state(struct radv_device *device, const VkGraphi
 
          vk_graphics_pipeline_state_merge(&gfx_state->vk, &gfx_pipeline_lib->graphics_state);
 
-         radv_graphics_pipeline_import_layout(&gfx_state->layout, &gfx_pipeline_lib->layout);
+         radv_pipeline_layout_merge(&gfx_state->layout, &gfx_pipeline_lib->layout);
 
          needed_lib_flags &= ~gfx_pipeline_lib->lib_flags;
       }
@@ -2884,7 +2871,7 @@ radv_generate_graphics_pipeline_state(struct radv_device *device, const VkGraphi
       goto fail;
 
    if (pipeline_layout)
-      radv_graphics_pipeline_import_layout(&gfx_state->layout, pipeline_layout);
+      radv_pipeline_layout_merge(&gfx_state->layout, pipeline_layout);
 
    radv_pipeline_layout_hash(&gfx_state->layout);
 
@@ -3390,7 +3377,7 @@ radv_graphics_lib_pipeline_init(struct radv_graphics_lib_pipeline *pipeline, str
 
          vk_graphics_pipeline_state_merge(state, &gfx_pipeline_lib->graphics_state);
 
-         radv_graphics_pipeline_import_layout(&pipeline->layout, &gfx_pipeline_lib->layout);
+         radv_pipeline_layout_merge(&pipeline->layout, &gfx_pipeline_lib->layout);
 
          radv_graphics_pipeline_import_lib(device, &pipeline->base, gfx_pipeline_lib, import_pipeline_binaries);
 
@@ -3406,7 +3393,7 @@ radv_graphics_lib_pipeline_init(struct radv_graphics_lib_pipeline *pipeline, str
    radv_pipeline_import_graphics_info(device, &pipeline->base, pCreateInfo);
 
    if (pipeline_layout)
-      radv_graphics_pipeline_import_layout(&pipeline->layout, pipeline_layout);
+      radv_pipeline_layout_merge(&pipeline->layout, pipeline_layout);
 
    if (import_pipeline_binaries) {
       result = radv_graphics_pipeline_import_binaries(device, &pipeline->base, binary_info);
