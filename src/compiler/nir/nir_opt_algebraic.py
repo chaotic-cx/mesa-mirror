@@ -2766,7 +2766,12 @@ optimizations.extend([
     (('pack_unorm_2x16', 'v'),
      ('pack_uvec2_to_uint',
         ('f2u32', ('fround_even', ('fmul', ('fsat', 'v'), 65535.0)))),
-     'options->lower_pack_unorm_2x16'),
+     'options->lower_pack_unorm_2x16 && !options->vectorize_vec2_16bit'),
+
+    (('pack_unorm_2x16', 'v'),
+     ('pack_32_2x16',
+        ('f2u16', ('fround_even', ('fmul', ('fsat', 'v'), 65535.0)))),
+     'options->lower_pack_unorm_2x16 && options->vectorize_vec2_16bit'),
 
     (('pack_unorm_4x8', 'v'),
      ('pack_uvec4_to_uint',
@@ -2781,7 +2786,12 @@ optimizations.extend([
     (('pack_snorm_2x16', 'v'),
      ('pack_uvec2_to_uint',
         ('f2i32', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 32767.0)))),
-     'options->lower_pack_snorm_2x16'),
+     'options->lower_pack_snorm_2x16 && !options->vectorize_vec2_16bit'),
+
+    (('pack_snorm_2x16', 'v'),
+     ('pack_32_2x16',
+        ('f2i16', ('fround_even', ('fmul', ('fmin', 1.0, ('fmax', -1.0, 'v')), 32767.0)))),
+     'options->lower_pack_snorm_2x16 && options->vectorize_vec2_16bit'),
 
     (('pack_snorm_4x8', 'v'),
      ('pack_uvec4_to_uint',
