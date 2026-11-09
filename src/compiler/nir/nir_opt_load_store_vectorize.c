@@ -491,7 +491,8 @@ parse_offset(struct vectorize_ctx *ctx, nir_scalar base, uint64_t *offset, bool 
 
    if (nir_def_is_intrinsic(base.def)) {
       nir_intrinsic_instr *intrin = nir_def_as_intrinsic(base.def);
-      if (intrin->intrinsic == nir_intrinsic_load_vulkan_descriptor)
+      if (intrin->intrinsic == nir_intrinsic_load_vulkan_descriptor ||
+          intrin->intrinsic == nir_intrinsic_load_heap_descriptor)
          base.def = NULL;
    }
 
