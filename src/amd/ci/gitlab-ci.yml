@@ -211,11 +211,11 @@ radv-polaris10-vkcts-full:
     - .ci-tron-test-radv-vk-nightly
     - .polaris10-test-valve-kws
     - .radv-valve-manual-rules
-  timeout: 57m
+  timeout: 67m
   variables:
     CI_TRON_TIMEOUT__BOOT_CYCLE__RETRIES: 4
     CI_TRON_TIMEOUT__BOOT_CYCLE__MINUTES: 70
-    CI_TRON_TIMEOUT__OVERALL__MINUTES: 55
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 65
     RADV_EXPERIMENTAL: video_decode,video_encode
     radv_enable_float16_gfx8: true
 
