@@ -158,3 +158,5 @@ spec@glsl-4.30@execution@built-in-functions@cs-abs-vec4
 spec@glsl-es-3.00@execution@built-in-functions@const-packsnorm2x16
 spec@nv_half_float@attribs-half-float
 spec@nv_primitive_restart@primitive-restart-draw-mode-polygon
+
+glx@glx-buffer-age
