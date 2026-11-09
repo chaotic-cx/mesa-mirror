@@ -567,10 +567,19 @@ void si_barrier_before_image_fast_clear(struct si_context *sctx, unsigned types)
    si_set_barrier_flags(sctx, new_barriers);
 }
 
-void si_barrier_after_image_fast_clear(struct si_context *sctx)
+void si_barrier_after_image_fast_clear(struct si_context *sctx, unsigned types)
 {
    /* Wait for idle. */
    unsigned new_barriers = AC_BARRIER_SYNC_CS;
+
+   /* If the render backends and the L2 cache channels are non-coherent, CB and DCC image
+    * stores don't see the CMASK/DCC that the clear's compute shader wrote until L2 is
+    * written back. si_barrier_before_image_fast_clear already invalidated L2.
+    */
+   if (types & (SI_CLEAR_TYPE_CMASK | SI_CLEAR_TYPE_DCC) &&
+       sctx->gfx_level >= GFX10 && sctx->gfx_level < GFX12 &&
+       sctx->screen->info.tcc_rb_non_coherent)
+      new_barriers |= AC_BARRIER_WB_L2;
 
    /* GFX6-8: CB and DB don't use L2. */
    if (sctx->gfx_level <= GFX8)
