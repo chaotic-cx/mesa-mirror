@@ -408,7 +408,9 @@ construct_value(nir_builder *build,
       unsigned dst_bit_size = replace_bitsize(value, search_bitsize, state);
       nir_op op = nir_op_for_search_op(expr->opcode, dst_bit_size);
 
-      if (nir_op_infos[op].output_size != 0)
+      if (expr->replace_num_components)
+         num_components = expr->replace_num_components;
+      else if (nir_op_infos[op].output_size != 0)
          num_components = nir_op_infos[op].output_size;
 
       nir_alu_instr *alu = nir_alu_instr_create(build->shader, op);

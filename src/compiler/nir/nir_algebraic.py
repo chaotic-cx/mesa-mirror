@@ -221,6 +221,7 @@ class Value(object):
       ${'true' if len(val.sources) > 1 and isinstance(val.sources[1], Constant) else 'false'},
       ${val.swizzle},
       ${val.c_opcode()},
+      ${val.replace_num_components},
       ${val.comm_expr_idx}, ${val.comm_exprs},
       { ${', '.join(src.array_index for src in val.sources)} },
       ${val.cond_index},
@@ -399,6 +400,12 @@ class Expression(Value):
         if cond.pop('preserve_nan_inf_sz', False):
            self.preserve_nan_inf = True
            self.preserve_sz = True
+
+        self.replace_num_components = 0
+        for i in range(1, 5):
+           if cond.pop(f'vec{i}', False):
+              assert self.replace_num_components == 0
+              self.replace_num_components = i
 
         # Single component index of the swizzle of the output of this
         # expression, or -1 if no swizzle (all components)

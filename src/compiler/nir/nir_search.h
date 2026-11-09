@@ -134,6 +134,9 @@ typedef struct {
    /* One of nir_op or nir_search_op */
    uint16_t opcode : 13;
 
+   /* If not zero, overwrite the components of the replacement expression. */
+   uint16_t replace_num_components : 3;
+
    /* Commutative expression index.  This is assigned by opt_algebraic.py when
     * search structures are constructed and is a unique (to this structure)
     * index within the commutative operation bitfield used for searching for
