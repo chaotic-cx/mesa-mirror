@@ -508,17 +508,6 @@ dst.x |= _mesa_signed_to_signed(src0.y, 16) << 16;
 Convert two signed integers into a packed signed short (clamp is applied).
 """)
 
-unop_horiz("pack_uvec2_to_uint", 1, tuint32, 2, tuint32, """
-dst.x = (src0.x & 0xffff) | (src0.y << 16);
-""")
-
-unop_horiz("pack_uvec4_to_uint", 1, tuint32, 4, tuint32, """
-dst.x = ((src0.x & 0xff) <<  0) |
-        ((src0.y & 0xff) <<  8) |
-        ((src0.z & 0xff) << 16) |
-        ((src0.w & 0xff) << 24);
-""")
-
 unop_horiz("pack_32_4x8", 1, tuint32, 4, tuint8,
            "dst.x = src0.x | ((uint32_t)src0.y << 8) | ((uint32_t)src0.z << 16) | ((uint32_t)src0.w << 24);")
 
