@@ -315,7 +315,6 @@
   extends:
     - .ci-tron-arm64-test-gl
     - .piglit-traces-test
-    - .v3d-rules
   variables:
     PIGLIT_TRACES_FILE: traces-broadcom.yml
 
