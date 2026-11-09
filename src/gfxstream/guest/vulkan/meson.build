@@ -24,6 +24,10 @@ if with_platform_wayland
     gfxstream_vk_wsi_args += '-DGFXSTREAM_VK_WAYLAND'
 endif
 
+if with_platform_display
+    gfxstream_vk_wsi_args += '-DGFXSTREAM_VK_DISPLAY'
+endif
+
 if with_platform_macos
     gfxstream_vk_wsi_args += '-DGFXSTREAM_VK_METAL'
 endif
