@@ -911,16 +911,21 @@ assign_regs_for_inst(jay_ra_state *ra, jay_inst *I)
     * values rely on this invariant for correctness.
     */
    jay_foreach_ra_src(I, s) {
-      /* Filter out duplicate scalar sources - they should only be assigned
-       * once. Duplicated vector sources are lowered away as a precondition.
-       */
+      /* Filter out duplicate sources - they should only be assigned once. */
       bool duplicate = false;
-      if (jay_num_values(I->src[s]) == 1) {
-         uint32_t index = jay_index(I->src[s]);
 
-         for (unsigned i = 0; i < nr_vars; ++i) {
-            jay_def var = *(vars[i]);
-            duplicate |= (jay_num_values(var) == 1 && jay_index(var) == index);
+      for (unsigned i = 0; i < nr_vars; ++i) {
+         duplicate |= jay_defs_equivalent(*vars[i], I->src[s]);
+      }
+
+      /* Likewise filter out scalars that are fully containted in another
+       * vector, which can happen when accessing both the bottom 16-bits and the
+       * full 32-bit value in the same instruction.
+       */
+      if (jay_num_values(I->src[s]) == 1) {
+         jay_foreach_src_index(I, s2, _, idx) {
+            duplicate |=
+               jay_index(I->src[s]) == idx && jay_num_values(I->src[s2]) > 1;
          }
       }
 
@@ -1078,7 +1083,7 @@ assign_regs_for_inst(jay_ra_state *ra, jay_inst *I)
       }
    }
 
-   /* Set .reg late so duplicated scalar sources are handled properly */
+   /* Set .reg late so duplicated sources are handled properly */
    jay_foreach_ra_src(I, s) {
       if (I->src[s]._payload != JAY_SENTINEL) {
          jay_set_reg(&I->src[s],
