@@ -6554,7 +6554,7 @@
         "description": "etnaviv/drm: Fail BO creation when no GPU address is left",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0bdf5420f1ef7174fc81f57c307cd446bb673fc8",
         "notes": null
