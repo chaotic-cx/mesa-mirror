@@ -24,6 +24,25 @@ radv_pipeline_layout_init(struct radv_device *device, struct radv_pipeline_layou
 }
 
 void
+radv_pipeline_layout_init_from_info(struct radv_device *device, struct radv_pipeline_layout *layout,
+                                    const VkPipelineLayoutCreateInfo *pCreateInfo)
+{
+   radv_pipeline_layout_init(device, layout,
+                             !!(pCreateInfo->flags & VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT));
+
+   layout->num_sets = pCreateInfo->setLayoutCount;
+
+   for (uint32_t set = 0; set < pCreateInfo->setLayoutCount; set++) {
+      VK_FROM_HANDLE(radv_descriptor_set_layout, set_layout, pCreateInfo->pSetLayouts[set]);
+
+      if (set_layout == NULL)
+         continue;
+
+      radv_pipeline_layout_add_set(layout, set, set_layout);
+   }
+}
+
+void
 radv_pipeline_layout_add_set(struct radv_pipeline_layout *layout, uint32_t set_idx,
                              struct radv_descriptor_set_layout *set_layout)
 {
@@ -98,18 +117,7 @@ radv_CreatePipelineLayout(VkDevice _device, const VkPipelineLayoutCreateInfo *pC
    if (layout == NULL)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   radv_pipeline_layout_init(device, layout, pCreateInfo->flags & VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT);
-
-   layout->num_sets = pCreateInfo->setLayoutCount;
-
-   for (uint32_t set = 0; set < pCreateInfo->setLayoutCount; set++) {
-      VK_FROM_HANDLE(radv_descriptor_set_layout, set_layout, pCreateInfo->pSetLayouts[set]);
-
-      if (set_layout == NULL)
-         continue;
-
-      radv_pipeline_layout_add_set(layout, set, set_layout);
-   }
+   radv_pipeline_layout_init_from_info(device, layout, pCreateInfo);
 
    radv_pipeline_layout_hash(layout);
 
