@@ -988,9 +988,12 @@ assign_regs_for_inst(jay_ra_state *ra, jay_inst *I)
          jay_foreach_src(I, s) {
             if (jay_defs_equivalent(var, I->src[s])) {
                alignment = MAX2(alignment, jay_src_alignment(shader, I, s));
-               min_stride =
-                  MAX2(jay_src_stride_minmax(I, s, false), min_stride);
-               max_stride = MIN2(jay_src_stride_minmax(I, s, true), max_stride);
+               if (file == GPR) {
+                  min_stride =
+                     MAX2(jay_src_stride_minmax(I, s, false), min_stride);
+                  max_stride =
+                     MIN2(jay_src_stride_minmax(I, s, true), max_stride);
+               }
             }
          }
 
@@ -1013,8 +1016,10 @@ assign_regs_for_inst(jay_ra_state *ra, jay_inst *I)
          }
       } else {
          alignment = MAX2(alignment, jay_dst_alignment(shader, I));
-         min_stride = jay_dst_stride_minmax(I, false);
-         max_stride = jay_dst_stride_minmax(I, true);
+         if (file == GPR) {
+            min_stride = jay_dst_stride_minmax(I, false);
+            max_stride = jay_dst_stride_minmax(I, true);
+         }
       }
 
       /* Choose registers satisfying the constraints and minimizing shuffles */
@@ -1427,7 +1432,10 @@ jay_register_allocate_function(jay_function *f)
          }
 
          enum jay_stride old_stride = ra.affinities[index].stride;
-         enum jay_stride new_stride = jay_src_stride_minmax(I, s, false);
+         enum jay_stride new_stride =
+            I->src[s].file == GPR ? jay_src_stride_minmax(I, s, false)
+                                  : JAY_NUM_STRIDES;
+
          if (old_stride == JAY_NUM_STRIDES || old_stride == new_stride) {
             ra.affinities[index].stride = new_stride;
             ra.affinities[index].src_weight =
