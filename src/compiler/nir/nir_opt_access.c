@@ -147,6 +147,18 @@ gather_intrinsic(struct access_state *state, nir_intrinsic_instr *instr)
       }
       break;
 
+   case nir_intrinsic_cmat_load:
+   case nir_intrinsic_cmat_store: {
+      bool read = instr->intrinsic == nir_intrinsic_cmat_load;
+      nir_deref_instr *deref = nir_src_as_deref(instr->src[read ? 1 : 0]);
+      if (!nir_deref_mode_may_be(deref, nir_var_mem_ssbo | nir_var_mem_global))
+         break;
+
+      bool ssbo = nir_deref_mode_is(deref, nir_var_mem_ssbo);
+      gather_buffer_access(state, ssbo ? &deref->def : NULL, read, !read);
+      break;
+   }
+
    case nir_intrinsic_load_deref:
    case nir_intrinsic_load_deref_transpose_amd:
    case nir_intrinsic_store_deref:

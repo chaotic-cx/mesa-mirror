@@ -232,6 +232,18 @@ nir_opt_acquire_release_barriers_impl(nir_function_impl *impl,
          nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
 
          switch (intrin->intrinsic) {
+         case nir_intrinsic_cmat_load:
+         case nir_intrinsic_cmat_store:
+            if (last_atomic) {
+               const unsigned ptr_src =
+                  intrin->intrinsic == nir_intrinsic_cmat_load ? 1 : 0;
+               nir_deref_instr *ref = nir_src_as_deref(intrin->src[ptr_src]);
+               nir_deref_instr *lastdr = nir_src_as_deref(last_atomic->src[0]);
+               if (nir_deref_mode_may_be(ref, lastdr->modes))
+                  last_atomic = NULL;
+            }
+            break;
+
          case nir_intrinsic_load_deref:
          case nir_intrinsic_load_deref_block_intel:
          case nir_intrinsic_load_deref_transpose_amd:
