@@ -49,60 +49,43 @@ radv_DestroyShaderEXT(VkDevice _device, VkShaderEXT shader, const VkAllocationCa
 }
 
 static void
-radv_shader_layout_add_set(struct radv_shader_layout *layout, uint32_t set_idx,
-                           struct radv_descriptor_set_layout *set_layout)
+radv_get_shader_layout(struct radv_device *device, const VkPipelineLayoutCreateInfo *layout_info,
+                       mesa_shader_stage stage, struct radv_shader_layout *layout)
 {
-   if (layout->set[set_idx].layout)
+   if (!layout_info)
       return;
 
-   layout->num_sets = MAX2(set_idx + 1, layout->num_sets);
+   struct radv_pipeline_layout pipeline_layout;
 
-   layout->set[set_idx].layout = set_layout;
-   layout->set[set_idx].dynamic_offset_start = layout->dynamic_offset_count;
+   radv_pipeline_layout_init_from_info(device, &pipeline_layout, layout_info);
 
-   layout->dynamic_offset_count += set_layout->dynamic_offset_count;
+   radv_shader_layout_init(&pipeline_layout, stage, layout);
+
+   radv_pipeline_layout_finish(device, &pipeline_layout);
 }
 
 static void
-radv_get_shader_layout(const VkShaderCreateInfoEXT *pCreateInfo, struct radv_shader_layout *layout)
+radv_merge_shader_layout(struct radv_device *device, const VkPipelineLayoutCreateInfo *src_info,
+                         const struct radv_shader_stage *src_stage, const VkPipelineLayoutCreateInfo *dst_info,
+                         struct radv_shader_stage *dst_stage)
 {
-   uint16_t dynamic_shader_stages = 0;
+   struct radv_pipeline_layout src_layout, dst_layout;
 
-   layout->dynamic_offset_count = 0;
+   radv_pipeline_layout_init_from_info(device, &dst_layout, dst_info);
+   radv_pipeline_layout_init_from_info(device, &src_layout, src_info);
 
-   for (uint32_t i = 0; i < pCreateInfo->setLayoutCount; i++) {
-      VK_FROM_HANDLE(radv_descriptor_set_layout, set_layout, pCreateInfo->pSetLayouts[i]);
+   radv_pipeline_layout_merge(&dst_layout, &src_layout);
 
-      if (set_layout == NULL)
-         continue;
+   radv_shader_layout_init(&dst_layout, dst_stage->stage, &dst_stage->layout);
+   dst_stage->layout.use_dynamic_descriptors |= src_stage->layout.use_dynamic_descriptors;
 
-      radv_shader_layout_add_set(layout, i, set_layout);
-
-      dynamic_shader_stages |= set_layout->dynamic_shader_stages;
-   }
-
-   if (layout->dynamic_offset_count && (dynamic_shader_stages & pCreateInfo->stage)) {
-      layout->use_dynamic_descriptors = true;
-   }
-
-   layout->independent_sets = !!(pCreateInfo->flags & VK_SHADER_CREATE_INDEPENDENT_SETS_BIT_KHR);
+   radv_pipeline_layout_finish(device, &src_layout);
+   radv_pipeline_layout_finish(device, &dst_layout);
 }
 
 static void
-radv_merge_shader_layout(const struct radv_shader_layout *src, struct radv_shader_layout *dst)
-{
-   for (uint32_t s = 0; s < src->num_sets; s++) {
-      if (!src->set[s].layout)
-         continue;
-
-      radv_shader_layout_add_set(dst, s, src->set[s].layout);
-   }
-
-   dst->use_dynamic_descriptors |= src->use_dynamic_descriptors;
-}
-
-static void
-radv_shader_stage_init(const VkShaderCreateInfoEXT *sinfo, struct radv_shader_stage *out_stage)
+radv_shader_stage_init(struct radv_device *device, const VkShaderCreateInfoEXT *sinfo,
+                       const VkPipelineLayoutCreateInfo *layout_info, struct radv_shader_stage *out_stage)
 {
    memset(out_stage, 0, sizeof(*out_stage));
 
@@ -114,7 +97,7 @@ radv_shader_stage_init(const VkShaderCreateInfoEXT *sinfo, struct radv_shader_st
    out_stage->spirv.data = (const char *)sinfo->pCode;
    out_stage->spirv.size = sinfo->codeSize;
 
-   radv_get_shader_layout(sinfo, &out_stage->layout);
+   radv_get_shader_layout(device, layout_info, out_stage->stage, &out_stage->layout);
 
    const VkShaderDescriptorSetAndBindingMappingInfoEXT *mapping =
       vk_find_struct_const(sinfo->pNext, SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
@@ -173,7 +156,8 @@ radv_shader_stage_init(const VkShaderCreateInfoEXT *sinfo, struct radv_shader_st
 
 static VkResult
 radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct radv_device *device,
-                                 const VkShaderCreateInfoEXT *pCreateInfo)
+                                 const VkShaderCreateInfoEXT *pCreateInfo,
+                                 const VkPipelineLayoutCreateInfo *layout_info)
 {
    mesa_shader_stage stage = vk_to_mesa_shader_stage(pCreateInfo->stage);
    struct radv_shader_stage stages[MESA_VULKAN_SHADER_STAGES];
@@ -186,7 +170,7 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
       stages[i].next_stage = MESA_SHADER_NONE;
    }
 
-   radv_shader_stage_init(pCreateInfo, &stages[stage]);
+   radv_shader_stage_init(device, pCreateInfo, layout_info, &stages[stage]);
 
    struct radv_graphics_state_key gfx_state = {0};
 
@@ -247,7 +231,7 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
          struct radv_shader_debug_info debug[MESA_VULKAN_SHADER_STAGES] = {0};
          struct radv_shader_debug_info gs_copy_debug = {0};
 
-         radv_shader_stage_init(pCreateInfo, &stages[stage]);
+         radv_shader_stage_init(device, pCreateInfo, layout_info, &stages[stage]);
          stages[stage].next_stage = next_stage;
 
          radv_graphics_shaders_compile(&device->compiler_info, NULL, stages, &gfx_state, false, NULL, false, debug,
@@ -289,11 +273,11 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
 
 static VkResult
 radv_shader_object_init_compute(struct radv_shader_object *shader_obj, struct radv_device *device,
-                                const VkShaderCreateInfoEXT *pCreateInfo)
+                                const VkShaderCreateInfoEXT *pCreateInfo, const VkPipelineLayoutCreateInfo *layout_info)
 {
    struct radv_shader_stage stage = {0};
 
-   radv_shader_stage_init(pCreateInfo, &stage);
+   radv_shader_stage_init(device, pCreateInfo, layout_info, &stage);
 
    struct radv_shader_debug_info cs_dbg = {0};
    struct radv_shader_binary *cs_binary = radv_compile_cs(&device->compiler_info, &stage, false, &cs_dbg);
@@ -335,7 +319,7 @@ radv_shader_object_init_binary(struct radv_device *device, struct blob_reader *b
 
 static VkResult
 radv_shader_object_init(struct radv_shader_object *shader_obj, struct radv_device *device,
-                        const VkShaderCreateInfoEXT *pCreateInfo)
+                        const VkShaderCreateInfoEXT *pCreateInfo, const VkPipelineLayoutCreateInfo *layout_info)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    VkResult result;
@@ -403,14 +387,14 @@ radv_shader_object_init(struct radv_shader_object *shader_obj, struct radv_devic
 
       assert(pCreateInfo->codeType == VK_SHADER_CODE_TYPE_SPIRV_EXT);
 
-      radv_get_shader_layout(pCreateInfo, &layout);
+      radv_get_shader_layout(device, layout_info, shader_obj->stage, &layout);
 
       shader_obj->dynamic_offset_count = layout.dynamic_offset_count;
 
       if (pCreateInfo->stage == VK_SHADER_STAGE_COMPUTE_BIT) {
-         result = radv_shader_object_init_compute(shader_obj, device, pCreateInfo);
+         result = radv_shader_object_init_compute(shader_obj, device, pCreateInfo, layout_info);
       } else {
-         result = radv_shader_object_init_graphics(shader_obj, device, pCreateInfo);
+         result = radv_shader_object_init_graphics(shader_obj, device, pCreateInfo, layout_info);
       }
 
       if (result != VK_SUCCESS)
@@ -422,7 +406,8 @@ radv_shader_object_init(struct radv_shader_object *shader_obj, struct radv_devic
 
 static VkResult
 radv_shader_object_create(VkDevice _device, const VkShaderCreateInfoEXT *pCreateInfo,
-                          const VkAllocationCallbacks *pAllocator, VkShaderEXT *pShader)
+                          const VkPipelineLayoutCreateInfo *layout_info, const VkAllocationCallbacks *pAllocator,
+                          VkShaderEXT *pShader)
 {
    VK_FROM_HANDLE(radv_device, device, _device);
    struct radv_shader_object *shader_obj;
@@ -434,7 +419,7 @@ radv_shader_object_create(VkDevice _device, const VkShaderCreateInfoEXT *pCreate
 
    vk_object_base_init(&device->vk, &shader_obj->base, VK_OBJECT_TYPE_SHADER_EXT);
 
-   result = radv_shader_object_init(shader_obj, device, pCreateInfo);
+   result = radv_shader_object_init(shader_obj, device, pCreateInfo, layout_info);
    if (result != VK_SUCCESS) {
       radv_shader_object_destroy(device, shader_obj, pAllocator);
       return result;
@@ -447,6 +432,7 @@ radv_shader_object_create(VkDevice _device, const VkShaderCreateInfoEXT *pCreate
 
 static VkResult
 radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, const VkShaderCreateInfoEXT *pCreateInfos,
+                                 const VkPipelineLayoutCreateInfo *layout_infos,
                                  const VkAllocationCallbacks *pAllocator, VkShaderEXT *pShaders)
 {
    VK_FROM_HANDLE(radv_device, device, _device);
@@ -475,11 +461,14 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
    for (uint32_t i = 0; i < MAX_RTS; i++)
       gfx_state.ps.epilog.color_map[i] = i;
 
+   const VkPipelineLayoutCreateInfo *stage_layout_infos[MESA_VULKAN_SHADER_STAGES] = {0};
+
    for (unsigned i = 0; i < createInfoCount; i++) {
       const VkShaderCreateInfoEXT *pCreateInfo = &pCreateInfos[i];
       mesa_shader_stage s = vk_to_mesa_shader_stage(pCreateInfo->stage);
 
-      radv_shader_stage_init(pCreateInfo, &stages[s]);
+      radv_shader_stage_init(device, pCreateInfo, &layout_infos[i], &stages[s]);
+      stage_layout_infos[s] = &layout_infos[i];
    }
 
    /* Determine next stage. */
@@ -527,14 +516,17 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
          /* Merge layouts for merged stages with independent sets. */
          if (stages[i].stage == MESA_SHADER_VERTEX) {
             if (stages[i].next_stage == MESA_SHADER_TESS_CTRL) {
-               radv_merge_shader_layout(&stages[MESA_SHADER_VERTEX].layout, &stages[MESA_SHADER_TESS_CTRL].layout);
+               radv_merge_shader_layout(device, stage_layout_infos[MESA_SHADER_VERTEX], &stages[MESA_SHADER_VERTEX],
+                                        stage_layout_infos[MESA_SHADER_TESS_CTRL], &stages[MESA_SHADER_TESS_CTRL]);
             } else if (stages[i].next_stage == MESA_SHADER_GEOMETRY) {
-               radv_merge_shader_layout(&stages[MESA_SHADER_VERTEX].layout, &stages[MESA_SHADER_GEOMETRY].layout);
+               radv_merge_shader_layout(device, stage_layout_infos[MESA_SHADER_VERTEX], &stages[MESA_SHADER_VERTEX],
+                                        stage_layout_infos[MESA_SHADER_GEOMETRY], &stages[MESA_SHADER_GEOMETRY]);
             }
          }
 
          if (stages[i].stage == MESA_SHADER_TESS_EVAL && stages[i].next_stage == MESA_SHADER_GEOMETRY) {
-            radv_merge_shader_layout(&stages[MESA_SHADER_TESS_EVAL].layout, &stages[MESA_SHADER_GEOMETRY].layout);
+            radv_merge_shader_layout(device, stage_layout_infos[MESA_SHADER_TESS_EVAL], &stages[MESA_SHADER_TESS_EVAL],
+                                     stage_layout_infos[MESA_SHADER_GEOMETRY], &stages[MESA_SHADER_GEOMETRY]);
          }
       }
    }
@@ -623,6 +615,7 @@ radv_CreateShadersEXT(VkDevice _device, uint32_t createInfoCount, const VkShader
     */
    memset(pShaders, 0, createInfoCount * sizeof(*pShaders));
 
+   STACK_ARRAY(VkPipelineLayoutCreateInfo, layout_infos, createInfoCount);
    VkShaderStageFlagBits linked_stages = 0;
 
    for (uint32_t i = 0; i < createInfoCount; i++) {
@@ -632,6 +625,17 @@ radv_CreateShadersEXT(VkDevice _device, uint32_t createInfoCount, const VkShader
           (pCreateInfo->flags & VK_SHADER_CREATE_LINK_STAGE_BIT_EXT)) {
          linked_stages |= pCreateInfo->stage;
       }
+
+      layout_infos[i] = (VkPipelineLayoutCreateInfo){
+         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+         .flags = (pCreateInfo->flags & VK_SHADER_CREATE_INDEPENDENT_SETS_BIT_KHR)
+                     ? VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT
+                     : 0,
+         .setLayoutCount = pCreateInfo->setLayoutCount,
+         .pSetLayouts = pCreateInfo->pSetLayouts,
+         .pushConstantRangeCount = pCreateInfo->pushConstantRangeCount,
+         .pPushConstantRanges = pCreateInfo->pPushConstantRanges,
+      };
    }
 
    uint32_t linked_count = 0;
@@ -643,7 +647,7 @@ radv_CreateShadersEXT(VkDevice _device, uint32_t createInfoCount, const VkShader
 
       switch (pCreateInfo->codeType) {
       case VK_SHADER_CODE_TYPE_BINARY_EXT: {
-         result = radv_shader_object_create(_device, &pCreateInfos[i], pAllocator, &pShaders[i]);
+         result = radv_shader_object_create(_device, &pCreateInfos[i], NULL, pAllocator, &pShaders[i]);
          break;
       }
       case VK_SHADER_CODE_TYPE_SPIRV_EXT: {
@@ -670,7 +674,7 @@ radv_CreateShadersEXT(VkDevice _device, uint32_t createInfoCount, const VkShader
                .idx = i,
             };
          } else {
-            result = radv_shader_object_create(_device, &pCreateInfos[i], pAllocator, &pShaders[i]);
+            result = radv_shader_object_create(_device, &pCreateInfos[i], &layout_infos[i], pAllocator, &pShaders[i]);
          }
          break;
       }
@@ -684,13 +688,17 @@ radv_CreateShadersEXT(VkDevice _device, uint32_t createInfoCount, const VkShader
 
    if (linked_count > 0) {
       VkShaderCreateInfoEXT linked_infos[MESA_VK_MAX_GRAPHICS_PIPELINE_STAGES];
+      VkPipelineLayoutCreateInfo linked_layout_infos[MESA_VK_MAX_GRAPHICS_PIPELINE_STAGES];
       VkShaderEXT linked_shaders[MESA_VK_MAX_GRAPHICS_PIPELINE_STAGES];
       VkResult result = VK_SUCCESS;
 
-      for (uint32_t l = 0; l < linked_count; l++)
+      for (uint32_t l = 0; l < linked_count; l++) {
          linked_infos[l] = pCreateInfos[linked[l].idx];
+         linked_layout_infos[l] = layout_infos[linked[l].idx];
+      }
 
-      result = radv_shader_object_create_linked(_device, linked_count, linked_infos, pAllocator, linked_shaders);
+      result = radv_shader_object_create_linked(_device, linked_count, linked_infos, linked_layout_infos, pAllocator,
+                                                linked_shaders);
       if (result == VK_SUCCESS) {
          for (uint32_t l = 0; l < linked_count; l++)
             pShaders[linked[l].idx] = linked_shaders[l];
@@ -700,6 +708,7 @@ radv_CreateShadersEXT(VkDevice _device, uint32_t createInfoCount, const VkShader
          final_result = result;
    }
 
+   STACK_ARRAY_FINISH(layout_infos);
    return final_result;
 }
 
