@@ -134,7 +134,7 @@ pass(jay_function *func)
                   clone->src[0] = jay_imm(jay_as_uint(clone->src[0]) | 0x800);
                } else if (jay_send_sfid(I) == GEN_SFID_RAY_TRACE_ACCELERATOR) {
                   assert(clone->src[2].file == UGPR);
-                  jay_def global_lo = jay_bare_reg(UGPR, clone->src[2].reg);
+                  jay_def global_lo = jay_bare_reg(UGPR, 32, clone->src[2].reg);
                   signed offset_B = align(BRW_RT_DISPATCH_GLOBALS_SIZE, 64);
 
                   assert(clone->src[2].reg != clone->dst.reg &&
@@ -167,7 +167,7 @@ pass(jay_function *func)
       b.cursor = jay_after_inst(I);
 
       if (I->op == JAY_OPCODE_MUL_32) {
-         jay_def acc = jay_bare_reg(ACCUM, 0);
+         jay_def acc = jay_bare_reg(ACCUM, 32, 0);
 
          jay_inst *mac =
             jay_MACL(&b, I->type, I->dst, I->src[0], I->src[1], acc);
@@ -191,7 +191,7 @@ pass(jay_function *func)
          bool VxH = !jay_is_uniform(I->src[1]);
          unsigned addr = VxH ? 0 : 4;
          unsigned nr = VxH ? jay_simd_width_physical(func->shader, I) : 1;
-         jay_def a0 = jay_bare_regs(J_ADDRESS, addr, DIV_ROUND_UP(nr, 2));
+         jay_def a0 = jay_bare_regs(J_ADDRESS, 32, addr, DIV_ROUND_UP(nr, 2));
 
          struct jay_register_block block =
             jay_lookup_block(&func->shader->partition, I->src[0].reg,

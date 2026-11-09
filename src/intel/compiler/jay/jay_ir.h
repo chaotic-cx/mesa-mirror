@@ -155,29 +155,6 @@ typedef struct jay_def {
 static_assert(sizeof(jay_def) == 8, "packed");
 
 /*
- * Construct an jay_def representing contiguous bare registers with no
- * associated SSA index, for use post-RA only.
- */
-static inline jay_def
-jay_bare_regs(enum jay_file file, uint16_t reg, unsigned count)
-{
-   assert(count > 0);
-   return (jay_def) {
-      ._payload = JAY_SENTINEL,
-      .reg = reg,
-      .file = file,
-      .num_values_m1 = count - 1,
-      .size = JAY_SIZE_32,
-   };
-}
-
-static inline jay_def
-jay_bare_reg(enum jay_file file, uint16_t reg)
-{
-   return jay_bare_regs(file, reg, 1);
-}
-
-/*
  * Set the register for a def (called by RA only). This drops the collect
  * indices since we do not have space to encode both simultaneously.
  */
@@ -344,6 +321,29 @@ jay_contiguous_def(enum jay_file file,
       .num_values_m1 = count - 1,
       .size = jay_size_from_bits(size),
    };
+}
+
+/*
+ * Construct an jay_def representing contiguous bare registers with no
+ * associated SSA index, for use post-RA only.
+ */
+static inline jay_def
+jay_bare_regs(enum jay_file file, unsigned size, uint16_t reg, unsigned count)
+{
+   assert(count > 0);
+   return (jay_def) {
+      ._payload = JAY_SENTINEL,
+      .reg = reg,
+      .file = file,
+      .num_values_m1 = count - 1,
+      .size = jay_size_from_bits(size),
+   };
+}
+
+static inline jay_def
+jay_bare_reg(enum jay_file file, unsigned size, uint16_t reg)
+{
+   return jay_bare_regs(file, size, reg, 1);
 }
 
 /*

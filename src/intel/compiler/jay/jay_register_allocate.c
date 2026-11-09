@@ -159,7 +159,7 @@ r_file(jay_reg r)
 static jay_def
 def_from_reg(jay_reg r)
 {
-   return jay_bare_reg(r_file(r), r_reg(r));
+   return jay_bare_reg(r_file(r), 32, r_reg(r));
 }
 
 struct jay_roundrobin {
@@ -292,7 +292,7 @@ mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
       jay_MOV(b, def_from_reg(temps.gpr), src);
       jay_MOV(b, dst, def_from_reg(temps.gpr));
    } else if (split_copy) {
-      jay_def t = jay_bare_reg(GPR, 0);
+      jay_def t = jay_bare_reg(GPR, 32, 0);
 
       /* This is terrible, but it's really uncommon. Use 4<-->8 swaps which
        * don't require further splitting to reduce the pain slightly.
@@ -326,7 +326,7 @@ swap(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
       jay_MOV(b, src, def_from_reg(temps.gpr));
       jay_MOV(b, dst, def_from_reg(temps.gpr2));
    } else if (dst.file == GPR && must_split_copy(b->shader, dst, src)) {
-      jay_def t = jay_bare_reg(GPR, 0);
+      jay_def t = jay_bare_reg(GPR, 32, 0);
       jay_SWAP(b, dst, t);
       jay_SWAP(b, src, t);
       jay_SWAP(b, dst, t);
@@ -337,7 +337,7 @@ swap(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
       jay_MOV(b, src, t)->type = jay_flag_type(b->func);
    } else if (dst.file == FLAG) {
       /* We can swap flag<-->UGPR but not directly flag<-->flag, split */
-      jay_def u = jay_bare_reg(UGPR, 0);
+      jay_def u = jay_bare_reg(UGPR, 32, 0);
       jay_SWAP(b, dst, u)->type = jay_flag_type(b->func);
       jay_SWAP(b, src, u)->type = jay_flag_type(b->func);
       jay_SWAP(b, dst, u)->type = jay_flag_type(b->func);

@@ -193,7 +193,7 @@ populate_dag(struct sched_ctx *ctx, jay_block *block)
 
          /* MUL_32 is a macro implicitly clobbering integer acc0 */
          if (I->op == JAY_OPCODE_MUL_32) {
-            dsts[2] = jay_bare_reg(ACCUM, 0);
+            dsts[2] = jay_bare_reg(ACCUM, 32, 0);
          }
 
          for (unsigned d = 0; d < ARRAY_SIZE(dsts); ++d) {

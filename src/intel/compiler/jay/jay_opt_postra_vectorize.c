@@ -16,9 +16,9 @@ vectorize(jay_function *f, jay_inst **vec, unsigned n)
       while (i < n) {
          unsigned simd = 1 << util_logbase2(n - i);
          jay_inst *clone = jay_clone_inst(&b, vec[0], vec[0]->num_srcs);
-         clone->dst = jay_bare_regs(UGPR, vec[0]->dst.reg + (i * 2), simd);
+         clone->dst = jay_bare_regs(UGPR, 32, vec[0]->dst.reg + (i * 2), simd);
          clone->src[0] =
-            jay_bare_regs(UGPR, vec[0]->src[0].reg + (i * 2), simd);
+            jay_bare_regs(UGPR, 32, vec[0]->src[0].reg + (i * 2), simd);
          jay_builder_insert(&b, clone);
          i += simd;
       }

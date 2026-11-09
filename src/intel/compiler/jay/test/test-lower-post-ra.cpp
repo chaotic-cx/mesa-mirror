@@ -32,13 +32,13 @@ class LowerPostRA : public testing::Test {
    {
       mem_ctx = ralloc_context(NULL);
 
-      x = jay_bare_reg(GPR, 1);
-      y = jay_bare_reg(GPR, 2);
-      z = jay_bare_reg(GPR, 3);
-      u4 = jay_bare_reg(UGPR, 4);
-      f0 = jay_bare_reg(FLAG, 0);
-      f1 = jay_bare_reg(FLAG, 1);
-      f2 = jay_bare_reg(FLAG, 2);
+      x = jay_bare_reg(GPR, 32, 1);
+      y = jay_bare_reg(GPR, 32, 2);
+      z = jay_bare_reg(GPR, 32, 3);
+      u4 = jay_bare_reg(UGPR, 32, 4);
+      f0 = jay_bare_reg(FLAG, 32, 0);
+      f1 = jay_bare_reg(FLAG, 32, 1);
+      f2 = jay_bare_reg(FLAG, 32, 2);
    }
 
    ~LowerPostRA()

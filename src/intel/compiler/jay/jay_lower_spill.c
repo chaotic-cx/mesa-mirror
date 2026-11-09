@@ -10,7 +10,7 @@
 #include "jay_private.h"
 
 /* We reserve an address register for spilling by ABI */
-#define ADDRESS_REG jay_bare_reg(J_ADDRESS, 2)
+#define ADDRESS_REG jay_bare_reg(J_ADDRESS, 32, 2)
 
 static void
 insert_spill_fill(jay_builder *b,
@@ -74,9 +74,9 @@ lower_mem_copy_swap(jay_function *f)
    jay_foreach_inst_in_func_safe(f, block, I) {
       jay_builder b = jay_init_builder(f, jay_before_inst(I));
 
-      jay_def t[] = { jay_bare_reg(MEM, nr_mem + 1),
-                      jay_bare_reg(MEM, nr_mem + 2) };
-      jay_def r[] = { jay_bare_reg(GPR, 0), jay_bare_reg(GPR, 1) };
+      jay_def t[] = { jay_bare_reg(MEM, 32, nr_mem + 1),
+                      jay_bare_reg(MEM, 32, nr_mem + 2) };
+      jay_def r[] = { jay_bare_reg(GPR, 32, 0), jay_bare_reg(GPR, 32, 1) };
 
       if (I->op == JAY_OPCODE_SWAP && I->src[0].file == MEM) {
          jay_MOV(&b, t[0], r[0]);
@@ -122,9 +122,9 @@ jay_lower_spill(jay_function *func)
 
    assert(ugpr_reservation >= 0 && "must have reserved something");
 
-   jay_def sp_0 = jay_bare_reg(UGPR, ugpr_reservation);
+   jay_def sp_0 = jay_bare_reg(UGPR, 32, ugpr_reservation);
    jay_def sp =
-      jay_bare_regs(UGPR, ugpr_reservation, func->shader->dispatch_width);
+      jay_bare_regs(UGPR, 32, ugpr_reservation, func->shader->dispatch_width);
 
    /* Calculate how much stack space we need */
    unsigned nr_mem = 0;
@@ -143,24 +143,26 @@ jay_lower_spill(jay_function *func)
     * TODO: Need ABI for multi-function.
     */
    assert(func->is_entrypoint);
-   jay_AND(&b, JAY_TYPE_U32, sp_0, jay_bare_reg(UGPR, 5), ~BITFIELD_MASK(10));
+   jay_AND(&b, JAY_TYPE_U32, sp_0, jay_bare_reg(UGPR, 32, 5),
+           ~BITFIELD_MASK(10));
    jay_SHR(&b, JAY_TYPE_U32, ADDRESS_REG, sp_0, 4);
 
    /* We use a 32-bit strided stack: SP = scratch + (lane ID * 4) */
    unsigned disp_width = b.shader->dispatch_width;
    unsigned native_width = 8 * reg_unit(b.shader->devinfo);
-   jay_LANE_ID_8(&b, jay_bare_regs(UGPR, ugpr_reservation, 4), 0);
+   jay_LANE_ID_8(&b, jay_bare_regs(UGPR, 32, ugpr_reservation, 4), 0);
 
    if (disp_width >= 16) {
-      jay_LANE_ID_8(&b, jay_bare_regs(UGPR, ugpr_reservation + 4, 4), 8);
+      jay_LANE_ID_8(&b, jay_bare_regs(UGPR, 32, ugpr_reservation + 4, 4), 8);
    }
 
    if (disp_width >= 32) {
-      jay_ADD(&b, JAY_TYPE_U16, jay_bare_regs(UGPR, ugpr_reservation + 8, 8),
-              jay_bare_regs(UGPR, ugpr_reservation, 8), 16);
+      jay_ADD(&b, JAY_TYPE_U16,
+              jay_bare_regs(UGPR, 32, ugpr_reservation + 8, 8),
+              jay_bare_regs(UGPR, 32, ugpr_reservation, 8), 16);
    }
 
-   jay_def lid = jay_bare_regs(UGPR, ugpr_reservation, disp_width / 2);
+   jay_def lid = jay_bare_regs(UGPR, 32, ugpr_reservation, disp_width / 2);
    jay_SHL(&b, JAY_TYPE_U16, lid, lid, util_logbase2(4));
 
    /* We want to convert U16 -> U32 in place. However, doing so with a
@@ -174,8 +176,9 @@ jay_lower_spill(jay_function *func)
     */
    for (signed i = disp_width - native_width; i >= 0; i -= native_width) {
       jay_CVT(&b, JAY_TYPE_U32,
-              jay_bare_regs(UGPR, ugpr_reservation + i, native_width),
-              jay_bare_regs(UGPR, ugpr_reservation + (i / 2), native_width / 2),
+              jay_bare_regs(UGPR, 32, ugpr_reservation + i, native_width),
+              jay_bare_regs(UGPR, 32, ugpr_reservation + (i / 2),
+                            native_width / 2),
               JAY_TYPE_U16, JAY_ROUND, 0);
    }
 

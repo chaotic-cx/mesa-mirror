@@ -27,8 +27,8 @@ lower_non_tied_default(jay_builder *b, jay_inst *I, jay_def default_)
       jay_remove_instruction(I);
    } else {
       jay_foreach_comp(I->dst, c) {
-         jay_def dst = jay_bare_reg(I->dst.file, I->dst.reg + c * 2);
-         jay_def src = jay_bare_reg(default_.file, default_.reg + c * 2);
+         jay_def dst = jay_bare_reg(I->dst.file, 32, I->dst.reg + c * 2);
+         jay_def src = jay_bare_reg(default_.file, 32, default_.reg + c * 2);
 
          jay_inst *mov = jay_MOV(b, dst, src);
          mov->type = I->type;
@@ -175,7 +175,7 @@ pass(jay_function *func)
          if ((I->op == JAY_OPCODE_SHUFFLE && !jay_is_uniform(I->src[1])) &&
              !a0_valid) {
 
-            jay_MOV(&b, jay_bare_regs(J_ADDRESS, 0, 8), 0);
+            jay_MOV(&b, jay_bare_regs(J_ADDRESS, 32, 0, 8), 0);
             a0_valid = true;
          } else if (I->dst.file == J_ADDRESS) {
             /* Assume we're writing a message descriptor or something */

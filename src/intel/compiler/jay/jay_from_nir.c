@@ -4692,9 +4692,10 @@ jay_insert_payload_swizzle(jay_shader *s)
    for (unsigned i = 0; i < (size_dw / 2); ++i) {
       for (unsigned j = 0; j < 2; ++j) {
          jay_inst *I =
-            jay_DESWIZZLE_ODD(&b, jay_bare_reg(GPR, (size_dw + i) * 2),
-                              jay_bare_reg(GPR, i * 2),
-                              jay_bare_reg(GPR, (i + ((size_dw + 1) / 2)) * 2),
+            jay_DESWIZZLE_ODD(&b, jay_bare_reg(GPR, 32, (size_dw + i) * 2),
+                              jay_bare_reg(GPR, 32, i * 2),
+                              jay_bare_reg(GPR, 32,
+                                           (i + ((size_dw + 1) / 2)) * 2),
                               !(size_dw & 1));
          I->simd_split = 1;
          I->simd_offs = j;
@@ -4706,8 +4707,8 @@ jay_insert_payload_swizzle(jay_shader *s)
     */
    if (size_dw > 1) {
       for (unsigned i = 0; i < DIV_ROUND_UP(size_dw, 2); ++i) {
-         jay_DESWIZZLE_EVEN(&b, jay_bare_reg(GPR, i * 2),
-                            jay_bare_reg(GPR, ((size_dw / 2) + i) * 2),
+         jay_DESWIZZLE_EVEN(&b, jay_bare_reg(GPR, 32, i * 2),
+                            jay_bare_reg(GPR, 32, ((size_dw / 2) + i) * 2),
                             size_dw & 1);
       }
    }
