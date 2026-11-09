@@ -11,6 +11,7 @@ src/amd/vulkan/**/*
 src/amd/compiler/**/*
 src/egl/**/*
 src/etnaviv/isa/**/*
+src/etnaviv/layout/**/*
 src/imagination/**/*
 src/kosmickrisp/**/*
 src/gfxstream/**/*
