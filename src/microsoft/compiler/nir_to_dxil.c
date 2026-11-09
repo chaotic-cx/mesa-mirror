@@ -604,6 +604,7 @@ struct ntd_context {
 
    BITSET_WORD *float_types;
    BITSET_WORD *int_types;
+   bool disable_math_refactoring;
 
    const struct dxil_logger *logger;
 };
@@ -1886,7 +1887,7 @@ get_module_flags(struct ntd_context *ctx)
    if (ctx->mod.feats.extended_command_info)
       flags |= (1ull << 38);
 
-   if (ctx->opts->disable_math_refactoring)
+   if (ctx->opts->disable_math_refactoring || ctx->disable_math_refactoring)
       flags |= (1 << 1);
 
    /* Work around https://github.com/microsoft/DirectXShaderCompiler/issues/4616
@@ -5726,10 +5727,19 @@ emit_undefined(struct ntd_context *ctx, nir_undef_instr *undef)
 static bool emit_instr(struct ntd_context *ctx, struct nir_instr* instr)
 {
    switch (instr->type) {
-   case nir_instr_type_alu:
-      return emit_alu(ctx, nir_instr_as_alu(instr));
-   case nir_instr_type_intrinsic:
-      return emit_intrinsic(ctx, nir_instr_as_intrinsic(instr));
+   case nir_instr_type_alu: {
+      nir_alu_instr *alu = nir_instr_as_alu(instr);
+      if ((alu->fp_math_ctrl & nir_fp_preserve_sz_inf_nan) == nir_fp_preserve_sz_inf_nan)
+         ctx->disable_math_refactoring = true;
+      return emit_alu(ctx, alu);
+   }
+   case nir_instr_type_intrinsic: {
+      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+      if (nir_intrinsic_has_fp_math_ctrl(intr) &&
+          (nir_intrinsic_fp_math_ctrl(intr) & nir_fp_preserve_sz_inf_nan) == nir_fp_preserve_sz_inf_nan)
+         ctx->disable_math_refactoring = true;
+      return emit_intrinsic(ctx, intr);
+   }
    case nir_instr_type_load_const:
       return emit_load_const(ctx, nir_instr_as_load_const(instr));
    case nir_instr_type_deref:
