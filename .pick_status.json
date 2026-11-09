@@ -774,7 +774,7 @@
         "description": "jay: Don't force alignment for FLAG registers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "476ae41b70d28af8aaea90fe679940e3e549b41b",
         "notes": null
