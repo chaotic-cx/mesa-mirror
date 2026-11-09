@@ -369,8 +369,8 @@ lp_setup_analyse_triangles(struct lp_setup_context *setup,
           v1[0][1] == v2[0][1] && v1[0][1] == v4[0][1]) {
 
          lp_rect_cw(setup, v0, v1, v2, true);
+         return true;
       }
-      return true;
    }
 
    /* When highlighting (?) windows, aero sends a window border
