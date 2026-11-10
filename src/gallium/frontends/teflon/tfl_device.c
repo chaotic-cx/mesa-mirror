@@ -557,10 +557,13 @@ fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLi
       break;
    }
    case kTfLiteBuiltinReshape: {
-      int32_t *shape = tf_context->tensors[node->inputs->data[1]].data.data;
+      if (node->inputs->size > 1 && node->inputs->data[1] >= 0 &&
+          !get_constant_input(tf_context, node, 1))
+         return false;
 
       operation->type = PIPE_ML_OPERATION_TYPE_RESHAPE;
-      memcpy(operation->reshape.shape, shape, 4 * sizeof(*operation->reshape.shape));
+      memcpy(operation->reshape.shape, operation->output_tensors[0]->dims,
+             sizeof(operation->reshape.shape));
       break;
    }
    case kTfLiteBuiltinLeakyRelu: {
