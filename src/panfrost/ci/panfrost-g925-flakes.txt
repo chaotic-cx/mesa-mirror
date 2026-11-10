@@ -1,5 +1,4 @@
 dEQP-VK.api.command_buffers.record_many_draws_primary_2
-dEQP-VK.api.command_buffers.record_many_draws_secondary_1
 dEQP-VK.api.command_buffers.record_many_draws_secondary_2
 dEQP-VK.draw.dynamic_rendering.primary_cmd_buff.instanced.dynamic_state_draw_indirect_vk_primitive_topology_triangle_fan_attrib_divisor_1_multiview
 dEQP-VK.image.non_uniform_offset_sample.texel_fetch_offset.single_mip_frag
