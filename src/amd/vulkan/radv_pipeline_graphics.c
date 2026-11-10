@@ -1082,13 +1082,13 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
 }
 
 static bool
-radv_should_export_multiview(const struct radv_shader_stage *stage, const struct radv_graphics_state_key *gfx_state)
+radv_should_export_multiview(const struct radv_shader_stage *stage)
 {
    /* Export the layer in the last VGT stage if multiview is used.
     * Also checks for NONE stage, which happens when we have depth-only rendering.
     * When the next stage is unknown (with GPL or ESO), the layer is exported unconditionally.
     */
-   return gfx_state->has_multiview_view_index && radv_is_last_vgt_stage(stage) &&
+   return stage->key.multiview && radv_is_last_vgt_stage(stage) &&
           !(stage->nir->info.outputs_written & VARYING_BIT_LAYER);
 }
 
@@ -1615,7 +1615,6 @@ radv_generate_graphics_state_key(const struct radv_compiler_info *compiler_info,
    memset(&key, 0, sizeof(key));
 
    key.lib_flags = lib_flags;
-   key.has_multiview_view_index = state->mv ? !!state->mv->view_mask : 0;
 
    if (BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_VI)) {
       key.vs.has_prolog = true;
@@ -1831,6 +1830,9 @@ radv_generate_graphics_pipeline_key(const struct radv_device *device, const VkGr
       mesa_shader_stage s = vk_to_mesa_shader_stage(stage->stage);
 
       key.stage_info[s] = radv_pipeline_get_shader_key(compiler_info, stage, create_flags, pCreateInfo->pNext);
+
+      if (state->mv && state->mv->view_mask)
+         key.stage_info[s].multiview = true;
 
       if (s == MESA_SHADER_MESH && (state->shader_stages & VK_SHADER_STAGE_TASK_BIT_EXT))
          key.stage_info[s].has_task_shader = true;
@@ -2450,7 +2452,7 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       /* NIR might already have been imported from a library. */
       if (!stages[s].nir) {
          struct radv_spirv_to_nir_options options = {
-            .lower_view_index_to_zero = !gfx_state->has_multiview_view_index,
+            .lower_view_index_to_zero = !stages[s].key.multiview,
             .lower_view_index_to_device_index = stages[s].key.view_index_from_device_index,
          };
          blake3_hash key;
@@ -2683,7 +2685,7 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
           BITSET_TEST(stages[i].nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID))
          radv_nir_lower_draw_id_to_zero(stages[i].nir);
 
-      if (i != MESA_SHADER_MESH && radv_should_export_multiview(&stages[i], gfx_state))
+      if (i != MESA_SHADER_MESH && radv_should_export_multiview(&stages[i]))
          NIR_PASS(_, stages[i].nir, radv_nir_export_multiview);
 
       uint64_t remove_as_varying = VARYING_BIT_PSIZ | VARYING_BIT_LAYER;

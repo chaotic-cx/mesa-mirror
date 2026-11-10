@@ -87,6 +87,7 @@ struct radv_shader_stage_key {
    uint8_t keep_executable_info : 1;
    uint8_t keep_shader_arg_info : 1;
    uint8_t view_index_from_device_index : 1;
+   uint8_t multiview : 1;
    uint8_t descriptor_heap : 1;
 
    /* Shader version (up to 8) to force re-compilation when RADV_BUILD_ID_OVERRIDE is enabled. */
@@ -98,7 +99,7 @@ struct radv_shader_stage_key {
    /* Whether the shader is used with indirect pipeline binds. */
    uint8_t indirect_bindable : 1;
 
-   uint32_t reserved : 16;
+   uint32_t reserved : 13;
 };
 
 struct radv_ps_epilog_key {
@@ -135,7 +136,6 @@ struct radv_spirv_to_nir_options {
 struct radv_graphics_state_key {
    uint32_t lib_flags : 4; /* VkGraphicsPipelineLibraryFlagBitsEXT */
 
-   uint32_t has_multiview_view_index : 1;
    uint32_t vrs_may_be_enabled : 1;
    uint32_t adjust_frag_coord_z : 1;
    uint32_t custom_sample_locs_may_be_enabled : 1;
@@ -143,7 +143,7 @@ struct radv_graphics_state_key {
    uint32_t dynamic_provoking_vtx_mode : 1;
    uint32_t smooth_lines_may_be_enabled : 1;
    uint32_t dcc_decompress_gfx11 : 1;
-   uint32_t reserved : 12;
+   uint32_t reserved : 13;
 
    struct {
       uint8_t topology;

@@ -426,7 +426,7 @@ assign_outinfo_params(struct radv_vs_output_info *outinfo, uint64_t mask, unsign
 }
 
 static void
-radv_get_output_masks(const struct nir_shader *nir, const struct radv_graphics_state_key *gfx_state,
+radv_get_output_masks(const struct nir_shader *nir, const struct radv_shader_stage_key *stage_key,
                       uint64_t *per_vtx_mask, uint64_t *per_prim_mask)
 {
    /* These are not compiled into neither output param nor position exports. */
@@ -437,16 +437,16 @@ radv_get_output_masks(const struct nir_shader *nir, const struct radv_graphics_s
    *per_vtx_mask = nir->info.outputs_written & ~nir->info.per_primitive_outputs & ~special_mask;
 
    /* Mesh multiview is only lowered in ac_nir_lower_ngg, so we have to fake it here. */
-   if (nir->info.stage == MESA_SHADER_MESH && gfx_state->has_multiview_view_index)
+   if (nir->info.stage == MESA_SHADER_MESH && stage_key->multiview)
       *per_prim_mask |= VARYING_BIT_LAYER;
 }
 
 static void
-radv_set_vs_output_param(enum amd_gfx_level gfx_level, const struct nir_shader *nir,
-                         const struct radv_graphics_state_key *gfx_state, struct radv_shader_info *info,
-                         bool export_prim_id, bool export_clip_cull_dists)
+radv_set_vs_output_param(enum amd_gfx_level gfx_level, struct radv_shader_stage *stage,
+                         const struct radv_graphics_state_key *gfx_state, bool export_prim_id,
+                         bool export_clip_cull_dists)
 {
-   struct radv_vs_output_info *outinfo = &info->outinfo;
+   struct radv_vs_output_info *outinfo = &stage->info.outinfo;
    uint64_t per_vtx_mask, per_prim_mask;
 
    memset(outinfo->vs_output_param_offset, AC_EXP_PARAM_UNDEFINED, sizeof(outinfo->vs_output_param_offset));
@@ -454,16 +454,16 @@ radv_set_vs_output_param(enum amd_gfx_level gfx_level, const struct nir_shader *
    if (gfx_state->rs.rasterizer_discard)
       return;
 
-   radv_get_output_masks(nir, gfx_state, &per_vtx_mask, &per_prim_mask);
+   radv_get_output_masks(stage->nir, &stage->key, &per_vtx_mask, &per_prim_mask);
 
    /* Implicit primitive ID for VS and TES is added by ac_nir_lower_legacy_vs / ac_nir_lower_ngg,
     * it can be configured as either a per-vertex or per-primitive output depending on the GPU.
     */
    const bool implicit_prim_id_per_prim =
-      export_prim_id && info->is_ngg && gfx_level >= GFX10_3 && nir->info.stage == MESA_SHADER_VERTEX;
+      export_prim_id && stage->info.is_ngg && gfx_level >= GFX10_3 && stage->nir->info.stage == MESA_SHADER_VERTEX;
    const bool implicit_prim_id_per_vertex =
       export_prim_id && !implicit_prim_id_per_prim &&
-      (nir->info.stage == MESA_SHADER_VERTEX || nir->info.stage == MESA_SHADER_TESS_EVAL);
+      (stage->nir->info.stage == MESA_SHADER_VERTEX || stage->nir->info.stage == MESA_SHADER_TESS_EVAL);
 
    unsigned total_param_exports = 0;
 
@@ -479,9 +479,9 @@ radv_set_vs_output_param(enum amd_gfx_level gfx_level, const struct nir_shader *
    }
 
    if (export_clip_cull_dists) {
-      if (nir->info.outputs_written & VARYING_BIT_CLIP_DIST0)
+      if (stage->nir->info.outputs_written & VARYING_BIT_CLIP_DIST0)
          outinfo->vs_output_param_offset[VARYING_SLOT_CLIP_DIST0] = total_param_exports++;
-      if (nir->info.outputs_written & VARYING_BIT_CLIP_DIST1)
+      if (stage->nir->info.outputs_written & VARYING_BIT_CLIP_DIST1)
          outinfo->vs_output_param_offset[VARYING_SLOT_CLIP_DIST1] = total_param_exports++;
    }
 
@@ -1098,10 +1098,10 @@ radv_nir_shader_info_pass(const struct radv_compiler_info *compiler_info, const 
       struct radv_vs_output_info *outinfo = &info->outinfo;
       uint64_t per_vtx_mask, per_prim_mask;
 
-      radv_get_output_masks(nir, gfx_state, &per_vtx_mask, &per_prim_mask);
+      radv_get_output_masks(nir, stage_key, &per_vtx_mask, &per_prim_mask);
 
       /* Mesh multiview is only lowered in ac_nir_lower_ngg, so we have to fake it here. */
-      if (nir->info.stage == MESA_SHADER_MESH && gfx_state->has_multiview_view_index)
+      if (nir->info.stage == MESA_SHADER_MESH && stage_key->multiview)
          info->uses_view_index = true;
 
       /* Per vertex outputs. */
@@ -1457,8 +1457,7 @@ radv_link_shaders_info(const struct radv_compiler_info *compiler_info, struct ra
       const bool ps_prim_id_in = !fs_stage || fs_stage->info.ps.prim_id_input;
       const bool ps_clip_dists_in = !fs_stage || !!fs_stage->info.ps.input_clips_culls_mask;
 
-      radv_set_vs_output_param(compiler_info->ac->gfx_level, prerast_stage->nir, gfx_state, &prerast_stage->info,
-                               ps_prim_id_in, ps_clip_dists_in);
+      radv_set_vs_output_param(compiler_info->ac->gfx_level, prerast_stage, gfx_state, ps_prim_id_in, ps_clip_dists_in);
    }
 
    if (prerast_stage && !ms_stage) {
