@@ -129,8 +129,9 @@ get_quad_pos(nir_builder *b, bool is_float)
 
    /* quad_pos.x = subgroup_invocation & 0x1;
     * quad_pos.y = (subgroup_invocation >> 1) & 0x1;
+    * We only care about the lowest bit of the result, so the "& 0x1" can be skipped.
     */
-   nir_def *quad_pos = nir_iand_imm(b, nir_vec2(b, invoc_id, nir_ushr_imm(b, invoc_id, 1)), 0x1);
+   nir_def *quad_pos = nir_vec2(b, invoc_id, nir_ushr_imm(b, invoc_id, 1));
 
    return is_float ? nir_u2f32(b, quad_pos) : quad_pos;
 }
