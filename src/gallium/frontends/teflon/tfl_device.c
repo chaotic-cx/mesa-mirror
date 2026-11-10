@@ -91,10 +91,30 @@ static bool
 fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLiteNode *node, TfLiteRegistration *node_registration, struct pipe_ml_operation *operation)
 {
    struct pipe_tensor *tensors = delegate->tensors;
+   unsigned input_count = node->inputs->size;
 
-   operation->input_count = node->inputs->size;
+   /*
+    * Fully connected ops have an optional final input (the bias).
+    * For instances with no bias, the tflite format allows the tensor to be
+    * left out of the list, or present with index -1 (kTfLiteOptionalTensor).
+    * Treat the -1 case as if the tensor is completely omitted.
+    */
+   if (node_registration->builtin_code == kTfLiteBuiltinFullyConnected &&
+       input_count == 3 && node->inputs->data[2] < 0)
+      input_count = 2;
+
+   /*
+    * We can't handle kTfLiteOptionalTensor in any other case
+    * (this likely indicates an invalid model).
+    */
+   for (unsigned i = 0; i < input_count; i++) {
+      if (node->inputs->data[i] < 0)
+         return false;
+   }
+
+   operation->input_count = input_count;
    operation->input_tensors = calloc(operation->input_count, sizeof(void *));
-   for (unsigned i = 0; i < node->inputs->size; i++)
+   for (unsigned i = 0; i < input_count; i++)
       operation->input_tensors[i] = &tensors[node->inputs->data[i]];
 
    operation->output_count = node->outputs->size;
@@ -473,7 +493,7 @@ fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLi
 
       operation->type = PIPE_ML_OPERATION_TYPE_FULLY_CONNECTED;
       operation->fcon.weight_tensor = &tensors[node->inputs->data[1]];
-      operation->fcon.bias_tensor = &tensors[node->inputs->data[2]];
+      operation->fcon.bias_tensor = input_count > 2 ? operation->input_tensors[2] : NULL;
       operation->fcon.relu = params->activation == kTfLiteActRelu;
       break;
    }
