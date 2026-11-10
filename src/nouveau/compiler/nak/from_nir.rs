@@ -2986,8 +2986,12 @@ impl<'a> ShaderFromNir<'a> {
                 let out_of_bounds = self.get_src(&srcs[2]);
 
                 let data = self.get_src(&srcs[3]);
+
+                let comps = intrin.num_components;
+                assert!(srcs[3].bit_size() == 32);
+                assert!(comps == 1 || comps == 2 || comps == 4);
                 let image_access =
-                    ImageAccess::Formatted(ChannelMask::new(0xf));
+                    ImageAccess::Formatted(ChannelMask::for_comps(comps));
 
                 let flags = intrin.flags();
                 let offset_mode = match flags {
