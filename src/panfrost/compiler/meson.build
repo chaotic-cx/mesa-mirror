@@ -34,11 +34,6 @@ if with_panfrost_rust
   libpanfrost_compiler_c_args += ['-DWITH_PANFROST_RUST']
 endif
 
-with_panfrost_disassemble = get_option('panfrost-disassemble')
-if with_panfrost_disassemble
-  libpanfrost_compiler_c_args += ['-DWITH_PANFROST_DISASSEMBLE']
-endif
-
 if with_panfrost_rust
   subdir('kraid')
 endif

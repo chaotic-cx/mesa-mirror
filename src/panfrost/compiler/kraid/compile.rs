@@ -231,7 +231,6 @@ fn encode_no_psiz_variant(
     dynarray_append_vec(binary, bin);
 }
 
-#[cfg(kraid_disasm)]
 fn print_disassembly(bin: &[u32], arch: u8) {
     use crate::decode::{Args, disassemble};
 
@@ -250,13 +249,6 @@ fn print_disassembly(bin: &[u32], arch: u8) {
         instrs.push(instr);
     }
     let _ = disassemble(&mut lock, &args, &instrs);
-}
-
-#[cfg(not(kraid_disasm))]
-fn print_disassembly(_bin: &[u32], _arch: u8) {
-    eprintln!(
-        "Disassembler disabled, enable it with -Dpanfrost-disassemble=true\n"
-    );
 }
 
 #[unsafe(no_mangle)]

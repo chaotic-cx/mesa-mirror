@@ -130,28 +130,26 @@ bifrost_nir_algebraic_c = custom_target(
 )
 
 libpanfrost_disasm = []
-if with_panfrost_disassemble
-  bifrost_gen_disasm_c = custom_target(
-    'bifrost_gen_disasm.c',
-    input : ['gen_disasm.py', 'bifrost/ISA.xml'],
-    output : 'bifrost_gen_disasm.c',
-    command : [prog_python, '@INPUT@'],
-    capture : true,
-    depend_files : files('bifrost_isa.py'),
-  )
+bifrost_gen_disasm_c = custom_target(
+  'bifrost_gen_disasm.c',
+  input : ['gen_disasm.py', 'bifrost/ISA.xml'],
+  output : 'bifrost_gen_disasm.c',
+  command : [prog_python, '@INPUT@'],
+  capture : true,
+  depend_files : files('bifrost_isa.py'),
+)
 
-  libpanfrost_bifrost_disasm = static_library(
-    'panfrost_bifrost_disasm',
-    ['bifrost/disassemble.c', bifrost_gen_disasm_c],
-    include_directories : [inc_include, inc_src],
-    dependencies: [idep_nir],
-    c_args : [no_override_init_args, soong_compat_c_args],
-    gnu_symbol_visibility : 'hidden',
-    build_by_default : false,
-  )
+libpanfrost_bifrost_disasm = static_library(
+  'panfrost_bifrost_disasm',
+  ['bifrost/disassemble.c', bifrost_gen_disasm_c],
+  include_directories : [inc_include, inc_src],
+  dependencies: [idep_nir],
+  c_args : [no_override_init_args, soong_compat_c_args],
+  gnu_symbol_visibility : 'hidden',
+  build_by_default : false,
+)
 
-  libpanfrost_disasm += [libpanfrost_bifrost_disasm, libpanfrost_valhall_disasm]
-endif
+libpanfrost_disasm += [libpanfrost_bifrost_disasm, libpanfrost_valhall_disasm]
 
 libpanfrost_bifrost = static_library(
   'panfrost_bifrost',

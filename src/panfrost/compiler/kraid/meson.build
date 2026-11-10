@@ -115,10 +115,6 @@ _libkraid_rust_args = [
   '-Clink-arg=-Wno-unused-command-line-argument',
 ]
 
-if with_panfrost_disassemble
-  _libkraid_rust_args += [ '--cfg', 'kraid_disasm' ]
-endif
-
 libpanfrost_kraid = static_library(
   'kraid',
   files('lib.rs'),
@@ -167,15 +163,13 @@ if with_tools.contains('panfrost')
     native : true,
   )
 
-  if with_panfrost_disassemble
-    executable(
-      'pan-dis',
-      files('tools/disassembler.rs'),
-      link_with : [
-        libpanfrost_kraid_rs,
-      ],
-    )
-  endif
+executable(
+  'pan-dis',
+  files('tools/disassembler.rs'),
+  link_with : [
+    libpanfrost_kraid_rs,
+  ],
+)
 endif
 
 # TODO: Linking Rust executables (such as unit tests) doesn't play nicely

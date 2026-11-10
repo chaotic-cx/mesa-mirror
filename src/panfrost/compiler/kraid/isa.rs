@@ -38,7 +38,6 @@ impl std::fmt::Display for EncodeError {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub enum InvalidInstrError {
     Any,
@@ -135,7 +134,6 @@ pub enum ExecUnit {
     Sfu,
 }
 
-#[allow(dead_code)]
 pub trait FauSpecialPageResolver {
     type P0: TryDecode<u8> + std::fmt::Display;
     type P1: TryDecode<u8> + std::fmt::Display;
@@ -269,7 +267,6 @@ pub mod v9 {
     use kraid_proc_macros::*;
     gen_isa_encode!(9..=14);
 
-    #[cfg(kraid_disasm)]
     pub mod decode {
         use super::*;
         use crate::isa::*;

@@ -521,7 +521,6 @@ void
 pan_disassemble(FILE *fp, const void *code, size_t size, uint64_t gpu_id,
                 bool verbose)
 {
-#ifdef WITH_PANFROST_DISASSEMBLE
    if (pan_arch(gpu_id) >= 9) {
 #ifdef WITH_PANFROST_RUST
       kraid_disassemble(fp, code, size, verbose, pan_arch(gpu_id));
@@ -535,10 +534,6 @@ pan_disassemble(FILE *fp, const void *code, size_t size, uint64_t gpu_id,
       unsigned quirks = midgard_get_quirks(pan_prod_id(gpu_id));
       disassemble_midgard(fp, code, size, quirks, verbose);
    }
-#else
-   fprintf(fp, "Disassembler disabled, enable it with "
-               "-Dpanfrost-disassemble=true\n");
-#endif
 }
 
 /*

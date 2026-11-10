@@ -50,31 +50,29 @@ if with_gallium_panfrost or with_panfrost_vk
    subdir('perf')
 endif
 
-if with_panfrost_disassemble
-  files_bifrost = files(
-    'compiler/bifrost/cmdline.c',
-  )
+files_bifrost = files(
+  'compiler/bifrost/cmdline.c',
+)
 
-  bifrost_compiler = executable(
-    'bifrost_compiler',
-    [files_bifrost],
-    include_directories : [
-      inc_include,
-      inc_src,
-      inc_panfrost,
-   ],
-    dependencies : [
-      idep_nir,
-      idep_mesautil,
-      idep_bi_opcodes_h,
-      dep_libdrm,
-    ],
-    link_with : [
-      libpanfrost_compiler,
-    ],
-    build_by_default : with_tools.contains('panfrost')
-  )
-endif
+bifrost_compiler = executable(
+  'bifrost_compiler',
+  [files_bifrost],
+  include_directories : [
+    inc_include,
+    inc_src,
+    inc_panfrost,
+ ],
+  dependencies : [
+    idep_nir,
+    idep_mesautil,
+    idep_bi_opcodes_h,
+    dep_libdrm,
+  ],
+  link_with : [
+    libpanfrost_compiler,
+  ],
+  build_by_default : with_tools.contains('panfrost')
+)
 
 if with_panfrost_vk
   subdir('vulkan')
