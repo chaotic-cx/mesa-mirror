@@ -446,3 +446,28 @@ BEGIN_TEST(ilp_sched.partial_operand_latency)
       finish_schedule_ilp_test();
    }
 END_TEST
+
+BEGIN_TEST(ilp_sched.transitive_dependents)
+   for (amd_gfx_level gfx : {GFX9, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      /* Two immediate users versus a longer chain with only one immediate user. */
+      //>> v1: %0:v[7] = v_mov_b32 1.0
+      //! v1: %0:v[4] = v_mov_b32 0
+      bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(260), v1), Operand::zero());
+      bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(263), v1), Operand::c32(0x3f800000));
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(261), v1), Operand(PhysReg(260), v1),
+               Operand::c32(0x3f800000));
+      bld.vop2(aco_opcode::v_mul_f32, Definition(PhysReg(262), v1), Operand(PhysReg(260), v1),
+               Operand::c32(0x40000000));
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(264), v1), Operand(PhysReg(263), v1),
+               Operand::c32(0x3f800000));
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(265), v1), Operand(PhysReg(264), v1),
+               Operand::c32(0x3f800000));
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(266), v1), Operand(PhysReg(265), v1),
+               Operand::c32(0x3f800000));
+
+      finish_schedule_ilp_test();
+   }
+END_TEST

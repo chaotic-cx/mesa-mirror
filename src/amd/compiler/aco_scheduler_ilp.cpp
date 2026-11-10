@@ -50,6 +50,7 @@ struct InstrInfo {
    mask_t dependency_mask;       /* bitmask of nodes which have to be scheduled before this node. */
    mask_t write_for_read_mask;   /* bitmask of nodes in the DAG that have a RaW dependency. */
    int16_t wait_cycles;          /* estimated remaining cycles until instruction can be issued. */
+   uint8_t num_dependents;       /* Number of nodes that depend on this node, transitively. */
    uint8_t next_non_reorderable; /* index of next non-reorderable instruction node after this one. */
 };
 
@@ -536,6 +537,7 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
    InstrInfo& entry = ctx.nodes[idx];
    entry.instr = instr;
    entry.wait_cycles = 0;
+   entry.num_dependents = 0;
    entry.write_for_read_mask = 0;
    const mask_t mask = BITFIELD_BIT(idx);
    bool reorder = can_reorder(instr);
@@ -640,13 +642,13 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
    entry.dependency_mask |= write_dep_mask;
    entry.dependency_mask &= ~mask;
 
-   for (unsigned i = 0; i < num_nodes; i++) {
-      if (!ctx.nodes[i].instr || i == idx)
-         continue;
-
-      /* Add transitive dependencies. */
-      if (entry.dependency_mask & BITFIELD_BIT(i))
-         entry.dependency_mask |= ctx.nodes[i].dependency_mask;
+   /* Existing dependency masks already include transitive dependencies. */
+   u_foreach_bit (i, entry.dependency_mask)
+      entry.dependency_mask |= ctx.nodes[i].dependency_mask;
+   if (!ctx.is_vopd) {
+      /* Dependents cannot be removed before their prerequisites, so no decrement is needed. */
+      u_foreach_bit (i, entry.dependency_mask)
+         ctx.nodes[i].num_dependents++;
    }
 }
 
@@ -769,10 +771,13 @@ select_candidate_ilp(const SchedILPContext& ctx, mask_t mask, int32_t max_wait_c
     */
    bool prefer_vintrp = ctx.prev_info.instr && ctx.prev_info.instr->isVINTRP();
 
-   /* Select the instruction with lowest wait_cycles of all candidates. */
+   /* Minimize stalls. Among ready candidates, prefer those with more dependents,
+    * then those that have been ready longest.
+    */
    unsigned idx = -1u;
    bool idx_vintrp = false;
    int32_t wait_cycles = INT32_MAX;
+   unsigned num_dependents = 0;
    u_foreach_bit (i, mask) {
       const InstrInfo& candidate = ctx.nodes[i];
 
@@ -781,12 +786,20 @@ select_candidate_ilp(const SchedILPContext& ctx, mask_t mask, int32_t max_wait_c
          continue;
 
       bool is_vintrp = prefer_vintrp && candidate.instr->isVINTRP();
+      bool better;
+      if (is_vintrp != idx_vintrp)
+         better = is_vintrp;
+      else if (candidate.wait_cycles <= 0 && wait_cycles <= 0 &&
+               candidate.num_dependents != num_dependents)
+         better = candidate.num_dependents > num_dependents;
+      else
+         better = candidate.wait_cycles < wait_cycles;
 
-      if (idx == -1u || (is_vintrp && !idx_vintrp) ||
-          (is_vintrp == idx_vintrp && candidate.wait_cycles < wait_cycles)) {
+      if (idx == -1u || better) {
          idx = i;
          idx_vintrp = is_vintrp;
          wait_cycles = candidate.wait_cycles;
+         num_dependents = candidate.num_dependents;
       }
    }
 
