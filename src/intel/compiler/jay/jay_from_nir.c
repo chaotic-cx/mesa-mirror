@@ -315,7 +315,7 @@ jay_type_for_glsl_base_type(enum glsl_base_type t)
 }
 
 static inline jay_def
-nj_def(nir_def *def)
+nj_def(jay_builder *b, nir_def *def)
 {
    unsigned bits = def->num_components * MAX2(def->bit_size, 32);
    unsigned words = DIV_ROUND_UP(bits, 32);
@@ -324,9 +324,9 @@ nj_def(nir_def *def)
 }
 
 static inline jay_def
-nj_src(nir_src src)
+nj_src(jay_builder *b, nir_src src)
 {
-   return nj_def(src.ssa);
+   return nj_def(b, src.ssa);
 }
 
 static void
@@ -371,7 +371,7 @@ static void
 jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
 {
    jay_builder *b = &nj->bld;
-   jay_def dst = nj_def(&alu->def);
+   jay_def dst = nj_def(b, &alu->def);
 
    nir_alu_type nir_type = nir_op_infos[alu->op].output_type;
    enum jay_type base_type = jay_base_type_for_nir(nir_type);
@@ -390,7 +390,7 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
             continue;
          }
 
-         chans[c] = jay_extract_range(nj_src(alu->src[i].src),
+         chans[c] = jay_extract_range(nj_src(b, alu->src[i].src),
                                       len * alu->src[i].swizzle[c], len);
          all_same &= alu->src[i].swizzle[c] == alu->src[i].swizzle[0];
       }
@@ -808,7 +808,7 @@ static void
 jay_emit_load_const(struct nir_to_jay_state *nj, nir_load_const_instr *lc)
 {
    jay_builder *b = &nj->bld;
-   jay_def dst = nj_def(&lc->def);
+   jay_def dst = nj_def(b, &lc->def);
    assert(lc->def.num_components == 1 && "must be scalarized");
 
    if (lc->def.bit_size == 64 && !b->shader->devinfo->has_64bit_int) {
@@ -840,7 +840,7 @@ jay_resource_handle(jay_builder *b,
       *bti_const = nir_src_as_uint(*nsrc);
       return jay_null();
    } else if (!rin || rin->intrinsic != nir_intrinsic_resource_intel) {
-      return nj_src(*nsrc);
+      return nj_src(b, *nsrc);
    }
 
    uint32_t flags = nir_intrinsic_resource_access_intel(rin);
@@ -855,7 +855,7 @@ jay_resource_handle(jay_builder *b,
       *bti_const = nir_src_as_uint(rin->src[1]);
       return jay_null();
    } else {
-      return nj_src(rin->src[1]);
+      return nj_src(b, rin->src[1]);
    }
 }
 
@@ -1039,7 +1039,7 @@ jay_emit_derivative(jay_builder *b,
                     enum jay_quad_swizzle swz1)
 {
    assert(intr->def.bit_size == 32 && "todo");
-   jay_def val = nj_src(intr->src[0]);
+   jay_def val = nj_src(b, intr->src[0]);
 
    /* Keep x - x for NaNs and Infs. */
    if (jay_is_uniform(val)) {
@@ -1062,9 +1062,9 @@ jay_emit_derivative(jay_builder *b,
 }
 
 static inline jay_def
-optional_src(nir_src nsrc)
+optional_src(jay_builder *b, nir_src nsrc)
 {
-   return nir_src_is_undef(nsrc) ? jay_null() : nj_src(nsrc);
+   return nir_src_is_undef(nsrc) ? jay_null() : nj_src(b, nsrc);
 }
 
 static bool
@@ -1094,12 +1094,12 @@ jay_emit_fb_write(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    jay_builder *b = &nj->bld;
    const struct brw_fs_prog_data *prog_data = &nj->s->prog_data->fs;
    const struct intel_device_info *devinfo = b->shader->devinfo;
-   jay_def colour = nj_src(intr->src[1]);
+   jay_def colour = nj_src(b, intr->src[1]);
    jay_def dual_colour = jay_null();
-   jay_def src0_alpha = optional_src(intr->src[3]);
-   jay_def omask = optional_src(intr->src[4]);
-   jay_def depth = optional_src(intr->src[5]);
-   jay_def stencil = optional_src(intr->src[6]);
+   jay_def src0_alpha = optional_src(b, intr->src[3]);
+   jay_def omask = optional_src(b, intr->src[4]);
+   jay_def depth = optional_src(b, intr->src[5]);
+   jay_def stencil = optional_src(b, intr->src[6]);
 
    int target = MAX2(((signed) nir_intrinsic_target(intr)), 0);
    const bool last = !nir_instr_next(&intr->instr);
@@ -1126,7 +1126,7 @@ jay_emit_fb_write(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       src0_alpha = jay_null();
 
    if (prog_data->dual_src_blend) {
-      dual_colour = nj_src(intr->src[2]);
+      dual_colour = nj_src(b, intr->src[2]);
       src0_alpha = jay_null();
    }
 
@@ -1282,7 +1282,7 @@ jay_emit_fb_read(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    jay_CHECK_TDR(b);
    jay_SEND(b, .sfid = GEN_SFID_RENDER_CACHE,
-            .msg_desc = desc | (ex_desc << 32), .dst = nj_def(&intr->def),
+            .msg_desc = desc | (ex_desc << 32), .dst = nj_def(b, &intr->def),
             .header = jay_collect_vectors(b, chans, ARRAY_SIZE(chans)),
             .type = JAY_TYPE_U32, .simd_width = exec_size);
 }
@@ -1416,15 +1416,15 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    const struct intel_device_info *devinfo = b->shader->devinfo;
    bool has_dest = nir_intrinsic_infos[intr->intrinsic].has_dest;
-   jay_def data = data_src ? nj_src(*data_src) : jay_null();
+   jay_def data = data_src ? nj_src(b, *data_src) : jay_null();
    unsigned bti_const = 0;
    bool internal = false;
    bool bindless = false;
    jay_def bti_indirect =
       jay_resource_handle(b, bti ?: ubo, &bti_const, &internal, &bindless);
-   jay_def offset = nj_src(*offset_src);
+   jay_def offset = nj_src(b, *offset_src);
    nir_def *ndata = data_src ? data_src->ssa : &intr->def;
-   jay_def dst = has_dest ? nj_def(&intr->def) : jay_null();
+   jay_def dst = has_dest ? nj_def(b, &intr->def) : jay_null();
    int32_t base_offset =
       nir_intrinsic_has_base(intr) ? nir_intrinsic_base(intr) : 0;
 
@@ -1585,7 +1585,7 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    /* Second data source immediately follows the first */
    if (op == LSC_OP_ATOMIC_CMPXCHG || op == LSC_OP_ATOMIC_FCMPXCHG) {
-      jay_def data2 = nj_src(*(data_src + 1));
+      jay_def data2 = nj_src(b, *(data_src + 1));
 
       if (!transpose) {
          data2 = jay_as_gpr(b, data2);
@@ -1708,15 +1708,15 @@ jay_emit_mem_access_hdc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    const struct intel_device_info *devinfo = b->shader->devinfo;
    bool has_dest = nir_intrinsic_infos[intr->intrinsic].has_dest;
-   jay_def data = data_src ? nj_src(*data_src) : jay_null();
+   jay_def data = data_src ? nj_src(b, *data_src) : jay_null();
    unsigned bti_const = 0;
    bool internal = false;
    bool bindless = false;
    jay_def bti_indirect =
       jay_resource_handle(b, bti ?: ubo, &bti_const, &internal, &bindless);
-   jay_def offset = nj_src(*offset_src);
+   jay_def offset = nj_src(b, *offset_src);
    nir_def *ndata = data_src ? data_src->ssa : &intr->def;
-   jay_def dst = has_dest ? nj_def(&intr->def) : jay_null();
+   jay_def dst = has_dest ? nj_def(b, &intr->def) : jay_null();
    int32_t base_offset =
       nir_intrinsic_has_base(intr) ? nir_intrinsic_base(intr) : 0;
 
@@ -1852,7 +1852,7 @@ jay_emit_mem_access_hdc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    /* Second data source immediately follows the first */
    if (op == LSC_OP_ATOMIC_CMPXCHG || op == LSC_OP_ATOMIC_FCMPXCHG) {
-      jay_def data2 = nj_src(*(data_src + 1));
+      jay_def data2 = nj_src(b, *(data_src + 1));
 
       if (!transpose) {
          data2 = jay_as_gpr(b, data2);
@@ -1918,7 +1918,7 @@ emit_urb_vec4(jay_builder *b,
    if (per_slot && nir_src_is_zero(*per_slot)) {
       per_slot = NULL;
    } else if (per_slot) {
-      header[header_size++] = nj_src(*per_slot);
+      header[header_size++] = nj_src(b, *per_slot);
    }
 
    if (channel_mask &&
@@ -1935,7 +1935,7 @@ emit_urb_vec4(jay_builder *b,
       if (nir_src_is_const(*channel_mask)) {
          jay_MOV(b, mask, (unsigned) nir_src_as_uint(*channel_mask) << 16);
       } else {
-         jay_SHL(b, JAY_TYPE_U32, mask, nj_src(*channel_mask), 16);
+         jay_SHL(b, JAY_TYPE_U32, mask, nj_src(b, *channel_mask), 16);
       }
 
       header[header_size++] = mask;
@@ -1997,7 +1997,7 @@ jay_emit_barycentric(struct nir_to_jay_state *nj,
       assert(glsl_mode == INTERP_MODE_SMOOTH);
    }
 
-   jay_copy(&nj->bld, nj_def(&intr->def), nj->payload.fs.bary[mode]);
+   jay_copy(&nj->bld, nj_def(&nj->bld, &intr->def), nj->payload.fs.bary[mode]);
 }
 
 static uint32_t
@@ -2034,7 +2034,7 @@ build_rt_header_and_srcs(struct nir_to_jay_state *nj,
       synchronous = instr->intrinsic == nir_intrinsic_trace_ray_intel ?
                        nir_intrinsic_synchronous(instr) :
                        false;
-      jay_def globals = nj_src(instr->src[0]);
+      jay_def globals = nj_src(b, instr->src[0]);
       assert(globals.file == UGPR);
       ugprs[0] = jay_extract(globals, 0);
       ugprs[1] = jay_extract(globals, 1);
@@ -2052,7 +2052,7 @@ build_rt_header_and_srcs(struct nir_to_jay_state *nj,
    srcs[len++] = jay_collect_vectors(b, ugprs, length);
 
    if (instr->intrinsic == nir_intrinsic_trace_ray_intel) {
-      jay_def payload = jay_as_gpr(b, nj_src(instr->src[1]));
+      jay_def payload = jay_as_gpr(b, nj_src(b, instr->src[1]));
       srcs[len++] = payload;
    } else if (instr->intrinsic == nir_intrinsic_btd_retire_intel ||
               instr->intrinsic == nir_intrinsic_btd_spawn_intel) {
@@ -2088,7 +2088,7 @@ build_rt_header_and_srcs(struct nir_to_jay_state *nj,
          *split_len = len;
 
          /* Bitgroup 2-3: shader record identifier, 64-bit per lane. */
-         srcs[len++] = jay_as_gpr(b, nj_src(instr->src[1]));
+         srcs[len++] = jay_as_gpr(b, nj_src(b, instr->src[1]));
       }
    }
 
@@ -2168,7 +2168,7 @@ jay_emit_btd_ops(struct nir_to_jay_state *nj, nir_intrinsic_instr *instr)
    if (synchronous) {
       assert(instr->intrinsic == nir_intrinsic_trace_ray_intel);
       jay_SCHEDULE_BARRIER(&nj->bld);
-      jay_MOV(&nj->bld, nj_def(&instr->def), notif);
+      jay_MOV(&nj->bld, nj_def(&nj->bld, &instr->def), notif);
    }
 }
 
@@ -2185,11 +2185,11 @@ jay_emit_dpas(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    }
 
    jay_builder *b = &nj->bld;
-   jay_def dst = nj_def(&intr->def);
+   jay_def dst = nj_def(b, &intr->def);
    jay_def src[3] = {
-      src0_use_null ? jay_null() : jay_as_gpr(b, nj_src(intr->src[0])),
-      jay_as_gpr(b, nj_src(intr->src[1])),
-      jay_as_gpr(b, nj_src(intr->src[2])),
+      src0_use_null ? jay_null() : jay_as_gpr(b, nj_src(b, intr->src[0])),
+      jay_as_gpr(b, nj_src(b, intr->src[1])),
+      jay_as_gpr(b, nj_src(b, intr->src[2])),
    };
 
    jay_DPAS(b, dst, src[0], src[1], src[2], nir_intrinsic_systolic_depth(intr),
@@ -2225,10 +2225,9 @@ jay_emit_convert_cmat(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    const unsigned src_pf = 32 / src_element_bits;
    const unsigned elems = nir_src_num_components(intr->src[0]) * src_pf;
 
-   jay_def dst = nj_def(&intr->def);
-   jay_def src = nj_src(intr->src[0]);
-
    jay_builder *b = &nj->bld;
+   jay_def dst = nj_def(b, &intr->def);
+   jay_def src = nj_src(b, intr->src[0]);
 
    jay_def src_tmp = src_pf > 1 ? jay_alloc_def(b, GPR, 32, elems) : src;
    jay_def dst_tmp = dst_pf > 1 ? jay_alloc_def(b, GPR, 32, elems) : dst;
@@ -2273,8 +2272,8 @@ load_push_data(struct nir_to_jay_state *nj,
 {
    unsigned sz = intr->def.bit_size / 8;
    unsigned base_offset = nir_intrinsic_base(intr);
-   jay_def dst = nj_def(&intr->def);
    jay_builder *b = &nj->bld;
+   jay_def dst = nj_def(b, &intr->def);
 
    if (nir_src_is_const(intr->src[0])) {
       unsigned load_offset = nir_src_as_uint(intr->src[0]);
@@ -2303,7 +2302,7 @@ load_push_data(struct nir_to_jay_state *nj,
       unsigned range = DIV_ROUND_UP(nir_intrinsic_range(intr), 4);
       unsigned range_base = jay_base_index(push_data[base_offset / 4]);
       jay_def push_data = jay_contiguous_def(UGPR, 32, range_base, range);
-      jay_def offset = nj_src(intr->src[0]);
+      jay_def offset = nj_src(b, intr->src[0]);
       if (!intr->def.divergent)
          offset = emit_uniformize(nj, offset);
       if (base_offset % 4)
@@ -2386,11 +2385,11 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          NULL;
 
    const bool has_dest = nir_intrinsic_infos[intr->intrinsic].has_dest;
-   jay_def dst = has_dest ? nj_def(&intr->def) : jay_null();
+   jay_def dst = has_dest ? nj_def(b, &intr->def) : jay_null();
 
    switch (intr->intrinsic) {
    case nir_intrinsic_resource_intel:
-      jay_MOV(b, dst, nj_src(intr->src[1]));
+      jay_MOV(b, dst, nj_src(b, intr->src[1]));
       break;
 
    case nir_intrinsic_global_atomic:
@@ -2438,13 +2437,14 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
 
    case nir_intrinsic_load_urb_vec4_intel:
-      emit_urb_vec4(b, dst, jay_null(), nj_src(intr->src[0]), &intr->src[1],
+      emit_urb_vec4(b, dst, jay_null(), nj_src(b, intr->src[0]), &intr->src[1],
                     NULL, nir_intrinsic_base(intr));
       break;
 
    case nir_intrinsic_store_urb_vec4_intel:
-      emit_urb_vec4(b, jay_null(), nj_src(intr->src[0]), nj_src(intr->src[1]),
-                    &intr->src[2], &intr->src[3], nir_intrinsic_base(intr));
+      emit_urb_vec4(b, jay_null(), nj_src(b, intr->src[0]),
+                    nj_src(b, intr->src[1]), &intr->src[2], &intr->src[3],
+                    nir_intrinsic_base(intr));
       break;
 
    case nir_intrinsic_load_push_data_intel:
@@ -2532,8 +2532,8 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
    case nir_intrinsic_demote_if:
       if (s->helpers_tracked) {
-         jay_DEMOTE(b, JAY_TYPE_U1, nj_src(intr->src[0]), 0)->conditional_mod =
-            GEN_CONDITION_NE;
+         jay_DEMOTE(b, JAY_TYPE_U1, nj_src(b, intr->src[0]), 0)
+            ->conditional_mod = GEN_CONDITION_NE;
       }
       break;
 
@@ -2569,12 +2569,12 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    case nir_intrinsic_read_first_invocation:
    case nir_intrinsic_as_uniform:
-      jay_MOV(b, dst, emit_uniformize(nj, nj_src(intr->src[0])));
+      jay_MOV(b, dst, emit_uniformize(nj, nj_src(b, intr->src[0])));
       break;
 
    case nir_intrinsic_ballot: {
-      jay_def val = nj_src(intr->src[0]);
-      assert(intr->def.bit_size == jay_flag_bits(b->func));
+      jay_def val = nj_src(b, intr->src[0]);
+      assert(intr->def.bit_size == jay_type_size_bits(jay_flag_type(b->func)));
 
       if (nir_src_is_const(intr->src[0]) && nir_src_as_bool(intr->src[0])) {
          jay_MOV(b, dst, emit_active_lane_mask(nj));
@@ -2589,7 +2589,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    case nir_intrinsic_ballot_relaxed:
       assert(intr->def.bit_size == jay_flag_bits(b->func));
-      jay_MOV(b, dst, nj_src(intr->src[0]));
+      jay_MOV(b, dst, nj_src(b, intr->src[0]));
       break;
 
    /* We prefer to inverse_ballot by copying a UGPR to the flag. If we have a
@@ -2598,7 +2598,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
     */
    case nir_intrinsic_inverse_ballot: {
       assert(dst.file == FLAG);
-      jay_def x = nj_src(intr->src[0]);
+      jay_def x = nj_src(b, intr->src[0]);
       if (x.file == GPR) {
          x = emit_uniformize(nj, x);
       }
@@ -2733,7 +2733,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                                  nir_src_as_uint(intr->src[0])));
          } else {
             jay_SHUFFLE(b, JAY_TYPE_U32, dst, tcs->icp_handles,
-                        jay_SHL_u32(b, nj_src(intr->src[0]), shift));
+                        jay_SHL_u32(b, nj_src(b, intr->src[0]), shift));
          }
       } else if (gs) {
          if (s->prog_data->gs.invocations == 1) {
@@ -2742,9 +2742,9 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                         jay_extract(gs->icp_handles,
                                     nir_src_as_uint(intr->src[0])));
             } else {
-               jay_def addr = jay_SHL_u32(b, nj_src(intr->src[0]), shift);
+               jay_def addr = jay_SHL_u32(b, nj_src(b, intr->src[0]), shift);
 
-               if (nj_src(intr->src[0]).file == GPR) {
+               if (nj_src(b, intr->src[0]).file == GPR) {
                   addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
                }
 
@@ -2754,7 +2754,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          } else {
             assert(s->prog_data->gs.invocations > 1);
             jay_SHUFFLE(b, JAY_TYPE_U32, dst, gs->icp_handles,
-                        jay_SHL_u32(b, nj_src(intr->src[0]), 2u));
+                        jay_SHL_u32(b, nj_src(b, intr->src[0]), 2u));
          }
       }
       break;
@@ -2865,7 +2865,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          }
          jay_SHUFFLE(b, JAY_TYPE_U32, dst,
                      jay_contiguous_def(UGPR, 32, start, end_excl - start),
-                     nj_src(intr->src[0]));
+                     nj_src(b, intr->src[0]));
       } else {
          UNREACHABLE("TODO: attribute payload data");
       }
@@ -2971,7 +2971,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
 
    case nir_intrinsic_shuffle_intel: {
-      jay_def data = nj_src(intr->src[0]);
+      jay_def data = nj_src(b, intr->src[0]);
 
       if (jay_is_uniform(data)) {
          /* Trivial case */
@@ -2981,14 +2981,14 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          jay_BROADCAST_IMM(b, dst, data, nir_src_as_uint(intr->src[1]) / 4);
       } else {
          /* Shuffle takes a byte index */
-         jay_SHUFFLE(b, JAY_TYPE_U32, dst, data, nj_src(intr->src[1]));
+         jay_SHUFFLE(b, JAY_TYPE_U32, dst, data, nj_src(b, intr->src[1]));
       }
 
       break;
    }
 
    case nir_intrinsic_quad_broadcast:
-      jay_QUAD_SWIZZLE(b, dst, nj_src(intr->src[0]),
+      jay_QUAD_SWIZZLE(b, dst, nj_src(b, intr->src[0]),
                        JAY_QUAD_SWIZZLE_XXXX + nir_src_as_uint(intr->src[1]));
       break;
 
@@ -2997,7 +2997,8 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       unsigned nr = jay_num_values(dst) * jay_ugpr_per_gpr(b->shader);
       dst.num_values_m1 = nr - 1;
 
-      jay_inst *I = jay_SEL_ACTIVE(b, dst, nj_src(intr->src[0]), inactive_val);
+      jay_inst *I =
+         jay_SEL_ACTIVE(b, dst, nj_src(b, intr->src[0]), inactive_val);
       I->type = (intr->def.bit_size == 64) ? JAY_TYPE_U64 : JAY_TYPE_U32;
       break;
    }
@@ -3006,16 +3007,16 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       unsigned width = DIV_ROUND_UP(intr->def.bit_size, 32);
       unsigned base = nir_intrinsic_base(intr) * width;
 
-      jay_def x = nj_src(intr->src[0]);
+      jay_def x = nj_src(b, intr->src[0]);
       x.num_values_m1 = (jay_num_values(x) * jay_ugpr_per_gpr(b->shader)) - 1;
       jay_copy(b, dst, jay_extract_range(x, base, jay_num_values(dst)));
       break;
    }
 
    case nir_intrinsic_gather_lanes_intel: {
-      jay_def x = nj_src(intr->src[0]);
+      jay_def x = nj_src(b, intr->src[0]);
       if (b->shader->dispatch_width == 32) {
-         jay_MOV(b, dst, jay_collect_two(b, x, nj_src(intr->src[1])));
+         jay_MOV(b, dst, jay_collect_two(b, x, nj_src(b, intr->src[1])));
       } else {
          unsigned width = b->shader->dispatch_width * jay_num_values(dst);
          jay_MOV(b, dst, jay_extract_range(x, 0, width));
@@ -3130,7 +3131,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
           nir_tex_instr_src_index(tex, nir_tex_src_comparator) == -1);
 
    jay_builder *b = &nj->bld;
-   jay_def dst = nj_def(&tex->def);
+   jay_def dst = nj_def(b, &tex->def);
    jay_def tmp = dst;
 
    bool uses_implicit_derivative = nir_tex_instr_has_implicit_derivative(tex);
@@ -3318,7 +3319,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
 
       int j = nir_tex_instr_src_index(tex, nir_source);
       if (j >= 0 && nir_comp < tex->src[j].src.ssa->num_components) {
-         param_val = jay_extract(nj_src(tex->src[j].src), nir_comp);
+         param_val = jay_extract(nj_src(b, tex->src[j].src), nir_comp);
 
          unsigned bitsize = nir_src_bit_size(tex->src[j].src);
          assert(payload_type_bit_size == 0 || payload_type_bit_size == bitsize);
@@ -3365,7 +3366,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
 
    i = nir_tex_instr_src_index(tex, nir_tex_src_backend2);
    if (i >= 0) {
-      packed_offsets = nj_src(tex->src[i].src);
+      packed_offsets = nj_src(b, tex->src[i].src);
    }
 
    /* Xe2+ should never used packed offsets since it has enough opcodes to
@@ -3711,7 +3712,7 @@ jay_emit_instr(struct nir_to_jay_state *nj, jay_block *block, nir_instr *instr)
    case nir_instr_type_phi:
    case nir_instr_type_undef: {
       nir_def *nd = nir_instr_def(instr);
-      jay_def def = nj_def(nd);
+      jay_def def = nj_def(&nj->bld, nd);
 
       jay_foreach_comp(def, c) {
          if (instr->type == nir_instr_type_phi) {
@@ -3782,7 +3783,7 @@ static void
 jay_emit_if(struct nir_to_jay_state *nj, nir_if *nif)
 {
    jay_builder *b = &nj->bld;
-   jay_def condition = nj_src(nif->condition);
+   jay_def condition = nj_src(b, nif->condition);
    bool uniform = jay_is_uniform(condition);
    float saved_weight = nj->weight;
 
@@ -3976,7 +3977,7 @@ jay_emit_block(struct nir_to_jay_state *nj, nir_block *nb)
          continue;
 
       nir_foreach_phi(nphi, nb_successor) {
-         jay_def val = nj_src(nir_phi_get_src_from_block(nphi, nb)->src);
+         jay_def val = nj_src(b, nir_phi_get_src_from_block(nphi, nb)->src);
          enum jay_type type = phi_type(&nphi->def);
 
          /* The phi def might be nonuniform but have uniform source (like a
