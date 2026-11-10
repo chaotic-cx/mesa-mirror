@@ -1673,6 +1673,14 @@ triop("imad_32x16_intel", tint32, "", "(src0 * (int16_t) src1) + src2",
 triop("umad_32x16_intel", tuint32, "", "(src0 * (uint16_t) src1) + src2",
       description = "Multiply 32-bits with low 16-bits, with zero extension, then add a 32-bit value")
 
+# Intel shifts.
+opcode("ishl_intel", 0, tint, [0, 0], [tint, tuint16], False, "",
+       "(uint64_t)src0 << (src1 & (MAX2(sizeof(src0) * 8, 32) - 1))", description = "Left shift.")
+opcode("ishr_intel", 0, tint, [0, 0], [tint, tuint16], False, "",
+       "src0 >> (src1 & (MAX2(sizeof(src0) * 8, 32) - 1))", description = "Signed right-shift.")
+opcode("ushr_intel", 0, tuint, [0, 0], [tuint, tuint16], False, "",
+       "src0 >> (src1 & (MAX2(sizeof(src0) * 8, 32) - 1))", description = "Unsigned right-shift.")
+
 # NVIDIA PRMT
 opcode("prmt_nv", 0, tuint32, [0, 0, 0], [tuint32, tuint32, tuint32],
        False, "", """
