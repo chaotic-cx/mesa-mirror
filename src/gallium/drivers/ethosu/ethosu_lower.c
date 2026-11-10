@@ -1045,7 +1045,8 @@ ethosu_lower_fully_connected(struct ethosu_subgraph *subgraph,
 
    lower_conv_common(subgraph, &conv_operation, &flat_input,
                      weight,
-                     (int32_t *)poperation->fcon.bias_tensor->data,
+                     poperation->fcon.bias_tensor ?
+                        (int32_t *)poperation->fcon.bias_tensor->data : NULL,
                      operation);
    set_full_activation_range(operation);
    if (poperation->fcon.relu)
