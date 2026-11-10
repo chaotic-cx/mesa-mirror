@@ -605,6 +605,11 @@ lower_tex(nir_builder *b, nir_tex_instr *tex,
 {
    b->cursor = nir_before_instr(&tex->instr);
 
+   /* Remove texture offset as it's already encoded in the attachment array deref */
+   if (tex->input_attachment_index) {
+      nir_steal_tex_src(tex, nir_tex_src_texture_offset);
+   }
+
    nir_def *texture = nir_steal_tex_src(tex, nir_tex_src_texture_deref);
    nir_def *sampler = nir_steal_tex_src(tex, nir_tex_src_sampler_deref);
    if (!texture) {

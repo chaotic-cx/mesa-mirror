@@ -1074,7 +1074,7 @@
         "description": "hk: remove input attachment offset from tex instructions",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "d6ce4b6228c64a9f32eab270c82894462311de62",
         "notes": null
