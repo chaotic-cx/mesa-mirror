@@ -1045,6 +1045,15 @@ schedule_ilp(Program* program)
    SchedILPContext ctx = {program};
    std::fill_n(ctx.regs.direct_dependency, ARRAY_SIZE(ctx.regs.direct_dependency), UINT8_MAX);
 
+   /* Match the pending prolog-load latency used by the statistics estimator. */
+   for (const Definition& def : program->args_pending_vmem) {
+      for (unsigned i = 0; i < def.size(); i++) {
+         unsigned reg = def.physReg().reg() + i;
+         ctx.regs.ready_cycle[reg] = 320;
+         BITSET_SET(ctx.reg_has_latency, reg);
+      }
+   }
+
    for (Block& block : program->blocks) {
       if (block.instructions.empty())
          continue;

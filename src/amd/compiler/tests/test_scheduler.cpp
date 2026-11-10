@@ -471,3 +471,22 @@ BEGIN_TEST(ilp_sched.transitive_dependents)
       finish_schedule_ilp_test();
    }
 END_TEST
+
+BEGIN_TEST(ilp_sched.pending_prolog_input)
+   for (amd_gfx_level gfx : {GFX9, GFX12}) {
+      for (unsigned component : {0u, 1u}) {
+         if (!setup_cs(NULL, gfx, CHIP_UNKNOWN, component ? "_hi" : "_lo"))
+            continue;
+
+         program->args_pending_vmem.emplace_back(PhysReg(260), v2);
+         //>> v1: %0:v[11] = v_mov_b32 0
+         //~.*_lo! v1: %0:v[6] = v_add_f32 %0:v[4], 1.0
+         //~.*_hi! v1: %0:v[6] = v_add_f32 %0:v[5], 1.0
+         bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(262), v1),
+                  Operand(PhysReg(260 + component), v1), Operand::c32(0x3f800000));
+         bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(267), v1), Operand::zero());
+
+         finish_schedule_ilp_test();
+      }
+   }
+END_TEST
