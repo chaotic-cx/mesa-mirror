@@ -74,3 +74,32 @@ TEST_F(radv_nir_lower_opt_fs_frag_pos_test, pixelx_bit0_fragy_bit0_vrs)
       }
    )"));
 }
+
+TEST_F(radv_nir_lower_opt_fs_frag_pos_test, fragx_bit0_sampleposy)
+{
+   nir_unit_test_output(b, nir_iand_imm(b, nir_f2u32(b, nir_channel(b, nir_load_frag_coord_xy(b), 0)), 0x1), 0);
+   nir_unit_test_output(b, nir_channel(b, nir_load_sample_pos(b), 1), 1);
+
+   run(false, true, true);
+
+   check_nir_string(NIR_REFERENCE_SHADER(R"(
+      shader: MESA_SHADER_FRAGMENT
+      name: radv_nir_lower_opt_fs_frag_pos_test
+      max_subgroup_size: 128
+      min_subgroup_size: 1
+      decl_function main () (entrypoint)
+
+      impl main {
+         block b0:  // preds:
+         32x2  %0 = @load_frag_coord_xy
+         32    %1 = f2u32 %0.x
+         32    %2 = load_const (0x00000001)
+         32    %3 = iand %1, %2 (0x1)
+                    @unit_test_output (%3) (base=0)
+         32    %4 = ffract %0.y
+                    @unit_test_output (%4) (base=1)
+                    // succs: b1
+         block b1:
+      }
+   )"));
+}

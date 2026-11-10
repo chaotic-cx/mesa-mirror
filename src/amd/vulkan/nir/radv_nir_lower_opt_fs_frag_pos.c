@@ -308,5 +308,11 @@ radv_nir_lower_opt_fs_frag_pos(nir_shader *shader, bool vrs_may_be_enabled, bool
        !state.select_frag_coord_xy_dynamically && !state.dynamic_quad_pos_comp_mask)
       return false;
 
+   /* If lower_to_pixel_coord is true, then frag_pos_only_bit0_uses must already be 0. If it's false,
+    * then sample_pos is lowered to frag_coord_xy and there's no point to frag_pos_only_bit0_uses.
+    */
+   if (state.has_sample_pos)
+      state.frag_pos_only_bit0_uses = 0;
+
    return nir_shader_intrinsics_pass(shader, lower_fs_frag_pos, nir_metadata_control_flow, &state);
 }
