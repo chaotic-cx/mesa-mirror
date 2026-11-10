@@ -80,6 +80,7 @@ struct rkt_resource {
    uint64_t obj_addr;
    uint64_t fake_offset;
    uint64_t bo_size;
+   void *map;
 };
 
 static inline struct rkt_resource *

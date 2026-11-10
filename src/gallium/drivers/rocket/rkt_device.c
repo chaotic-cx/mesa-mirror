@@ -24,17 +24,6 @@ static const struct debug_named_value rocket_debug_options[] = {
 DEBUG_GET_ONCE_FLAGS_OPTION(rocket_debug, "ROCKET_DEBUG", rocket_debug_options, 0)
 int rocket_debug = 0;
 
-struct rkt_transfer {
-   struct pipe_transfer base;
-   uint8_t *map;
-};
-
-static inline struct rkt_transfer *
-rkt_transfer(struct pipe_transfer *ptransfer)
-{
-   return (struct rkt_transfer *)ptransfer;
-}
-
 static void
 rkt_destroy_screen(struct pipe_screen *pscreen)
 {
@@ -72,49 +61,59 @@ rkt_buffer_map(struct pipe_context *pctx,
    assert(box->height == 1);
    assert(box->depth == 1);
 
-   struct rkt_transfer *transfer = rzalloc(NULL, struct rkt_transfer);
-   transfer->base.level = level;
-   transfer->base.usage = usage;
-   transfer->base.box = *box;
+   struct pipe_transfer *transfer = rzalloc(NULL, struct pipe_transfer);
+   if (!transfer)
+      return NULL;
 
-   pipe_resource_reference(&transfer->base.resource, prsc);
+   transfer->level = level;
+   transfer->usage = usage;
+   transfer->box = *box;
+
+   pipe_resource_reference(&transfer->resource, prsc);
 
    arg.handle = rsc->handle;
    arg.timeout_ns = INT64_MAX;
 
    ret = drmIoctl(screen->fd, DRM_IOCTL_ROCKET_PREP_BO, &arg);
-   assert(ret != -1);
+   if (ret == -1)
+      goto free_transfer;
 
-   uint8_t *map = os_mmap(NULL, prsc->width0, PROT_READ | PROT_WRITE, MAP_SHARED,
-                          screen->fd, rsc->fake_offset);
-   assert(map != MAP_FAILED);
+   if (!rsc->map) {
+      void *map = os_mmap(NULL, prsc->width0, PROT_READ | PROT_WRITE,
+                          MAP_SHARED, screen->fd, rsc->fake_offset);
+      if (map == MAP_FAILED)
+         goto free_transfer;
 
-   transfer->map = map;
-   *out_transfer = &transfer->base;
+      rsc->map = map;
+   }
 
-   return map + box->x;
+   *out_transfer = transfer;
+
+   return (uint8_t *)rsc->map + box->x;
+
+free_transfer:
+   pipe_resource_reference(&transfer->resource, NULL);
+   ralloc_free(transfer);
+   return NULL;
 }
 
 static void
 rkt_buffer_unmap(struct pipe_context *pctx,
-                 struct pipe_transfer *ptransfer)
+                 struct pipe_transfer *transfer)
 {
    struct rkt_screen *screen = rkt_screen(pctx->screen);
-   struct rkt_transfer *transfer = rkt_transfer(ptransfer);
-   struct rkt_resource *rsrc = rkt_resource(transfer->base.resource);
+   struct rkt_resource *rsrc = rkt_resource(transfer->resource);
    struct drm_rocket_fini_bo arg = {0};
    int ret;
 
    arg.handle = rsrc->handle;
 
-   if (transfer->base.usage == PIPE_MAP_WRITE) {
+   if (transfer->usage == PIPE_MAP_WRITE) {
       ret = drmIoctl(screen->fd, DRM_IOCTL_ROCKET_FINI_BO, &arg);
       assert(ret >= 0);
    }
 
-   os_munmap(transfer->map, transfer->base.resource->width0);
-
-   pipe_resource_reference(&transfer->base.resource, NULL);
+   pipe_resource_reference(&transfer->resource, NULL);
    ralloc_free(transfer);
 }
 
@@ -203,6 +202,9 @@ rkt_resource_destroy(struct pipe_screen *pscreen,
    int ret;
 
    arg.handle = rsc->handle;
+
+   if (rsc->map)
+      os_munmap(rsc->map, rsc->bo_size);
 
    ret = drmIoctl(screen->fd, DRM_IOCTL_GEM_CLOSE, &arg);
    assert(ret >= 0);
