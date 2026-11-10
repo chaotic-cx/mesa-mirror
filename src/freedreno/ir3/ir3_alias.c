@@ -31,7 +31,7 @@ has_valid_alias_flags(struct ir3_register *src)
     * register, nor does it seem important to do so based on how many fossils
     * it took to find a case of it being attempted during alias setup.
     */
-   return !(src->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
+   return !(src->flags & (IR3_REG_SHARED | IR3_REG_RELATIV | IR3_REG_ARRAY));
 }
 
 static bool
