@@ -199,7 +199,7 @@ lower_fs_frag_pos(nir_builder *b, nir_intrinsic_instr *intr, void *data)
          if (state->select_frag_coord_xy_dynamically) {
             nir_def_replace(&intr->def, nir_bcsel(b, nir_load_use_float_frag_coord_xy_amd(b),
                                                   nir_f2u16(b, nir_load_frag_coord_xy(b)), nir_load_pixel_coord(b)));
-         } else if (state->frag_pos_only_bit0_uses || state->dynamic_quad_pos_comp_mask) {
+         } else if (state->frag_pos_only_bit0_uses) {
             nir_def_replace(&intr->def,
                             select_frag_pos_bit0_or_sysval(state, b, nir_f2u16(b, nir_load_frag_coord_xy(b)), false));
          } else {
