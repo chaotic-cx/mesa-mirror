@@ -491,6 +491,29 @@ BEGIN_TEST(ilp_sched.pending_prolog_input)
    }
 END_TEST
 
+BEGIN_TEST(ilp_sched.fallback_pending_input)
+   for (amd_gfx_level gfx : {GFX9, GFX10, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      program->args_pending_vmem.emplace_back(PhysReg(260), v1);
+      //>> v1: %0:v[0] = v_add_f32 %0:v[12], %0:v[13]
+      //~gfx9! v1: %0:v[8] = global_load_dword %0:v[0-1], s1: undef
+      //! v1: %0:v[11] = v_mov_b32 0
+      //~gfx1[02]! v1: %0:v[8] = global_load_dword %0:v[0-1], s1: undef
+      //! v1: %0:v[6] = v_add_f32 %0:v[4], 1.0
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(256), v1), Operand(PhysReg(268), v1),
+               Operand(PhysReg(269), v1));
+      bld.global(aco_opcode::global_load_dword, Definition(PhysReg(264), v1),
+                 Operand(PhysReg(256), v2), Operand(s1));
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(262), v1), Operand(PhysReg(260), v1),
+               Operand::c32(0x3f800000));
+      bld.vop1(aco_opcode::v_mov_b32, Definition(PhysReg(267), v1), Operand::zero());
+
+      finish_schedule_ilp_test();
+   }
+END_TEST
+
 BEGIN_TEST(ilp_sched.ordered_boundary)
    for (amd_gfx_level gfx : {GFX9, GFX12}) {
       if (!setup_cs(NULL, gfx))

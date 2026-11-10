@@ -58,6 +58,7 @@ struct InstrInfo {
 struct SchedILPContext {
    Program* program;
    bool is_vopd = false;
+   bool is_merge_block = false;
    InstrInfo nodes[num_nodes];
    struct {
       /* Register accesses which must precede the next write. */
@@ -840,13 +841,23 @@ select_instruction_ilp(const SchedILPContext& ctx)
 
    unsigned idx = select_candidate_ilp(ctx, mask);
 
-   if (idx != -1u)
+   if (idx == -1u) {
+      /* The next non-reorderable instruction must have no dependencies. */
+      idx = ctx.next_non_reorderable;
+      assert(idx != UINT8_MAX && ctx.nodes[idx].dependency_mask == 0);
+   }
+
+   /* Fill a longer wait for a memory clause with independent ALU that is ready
+    * or needs at most two cycles. At merges, avoid filling short waits: the
+    * apparent readiness of live-ins may miss loads from another predecessor.
+    */
+   int min_wait_cycles = ctx.is_merge_block ? 32 : ctx.program->gfx_level < GFX10 ? 4 : 2;
+   if (ctx.nodes[idx].wait_cycles <= min_wait_cycles)
       return idx;
 
-   /* Select the next non-reorderable instruction. (it must have no dependencies) */
-   assert(ctx.next_non_reorderable != UINT8_MAX);
-   assert(ctx.nodes[ctx.next_non_reorderable].dependency_mask == 0);
-   return ctx.next_non_reorderable;
+   mask_t ready_mask = ctx.active_mask & ~ctx.non_reorder_mask & ~mask;
+   unsigned ready = select_candidate_ilp(ctx, ready_mask, 2);
+   return ready != -1u ? ready : idx;
 }
 
 bool
@@ -1070,6 +1081,7 @@ schedule_ilp(Program* program)
    for (Block& block : program->blocks) {
       if (block.instructions.empty())
          continue;
+      ctx.is_merge_block = block.linear_preds.size() > 1;
       auto it = block.instructions.begin();
       auto insert_it = block.instructions.begin();
       do_schedule(ctx, insert_it, it, block.instructions.begin(), block.instructions.end());
