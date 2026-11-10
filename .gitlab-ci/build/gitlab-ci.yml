@@ -149,7 +149,6 @@ debian-x86_64-msan:
       -D b_lundef=false
       -D mesa-clc=system
       -D precomp-compiler=system
-      -D panfrost-disassemble=false
     S3_ARTIFACT_NAME: ""
     ARTIFACTS_DEBUG_SYMBOLS: 1
     # Don't run all the tests yet:
@@ -187,7 +186,6 @@ debian-x86_64-msan:
       -D precomp-compiler=enabled
       -D install-precomp-compiler=true
       -D tools=panfrost
-      -D panfrost-disassemble=false
 
 debian-x86_64-ubsan:
   extends:
@@ -246,7 +244,6 @@ debian-build-x86_64:
       -D spirv-to-dxil=true
       -D tools=drm-shim,etnaviv,freedreno,glsl,intel,intel-ui,nir,nouveau,lima,panfrost,asahi
       -D perfetto=true
-      -D panfrost-disassemble=false
     S3_ARTIFACT_NAME: debian-build-x86_64
 
 # Test a release build with -Werror so new warnings don't sneak in.
@@ -280,7 +277,6 @@ debian-release:
       -D precomp-compiler=enabled
       -D intel-rt=enabled
       -D imagination-srv=true
-      -D panfrost-disassemble=false
     BUILDTYPE: "release"
     S3_ARTIFACT_NAME: "mesa-x86_64-default-${BUILDTYPE}"
   script:
@@ -399,7 +395,6 @@ debian-android:
       -D precomp-compiler=system
       -D perfetto=true
       -D freedreno-kmds=msm,virtio
-      -D panfrost-disassemble=false
     GALLIUM_ST: >
       -D gallium-va=disabled
       -D gallium-rusticl=false
@@ -417,7 +412,6 @@ debian-android:
       -D precomp-compiler=enabled
       -D install-precomp-compiler=true
       -D tools=panfrost
-      -D panfrost-disassemble=false
   script:
     # x86_64 build:
     - export CROSS=x86_64-linux-android
@@ -477,7 +471,6 @@ debian-arm32:
       -D mesa-clc=system
       -D precomp-compiler=system
       -D tools=drm-shim
-      -D panfrost-disassemble=false
     HOST_BUILD_OPTIONS: >
       -D build-tests=false
       -D enable-glcpp-tests=false
@@ -491,7 +484,6 @@ debian-arm32:
       -D precomp-compiler=enabled
       -D install-precomp-compiler=true
       -D tools=panfrost
-      -D panfrost-disassemble=false
     S3_ARTIFACT_NAME: mesa-arm32-default-${BUILDTYPE}
     # The strip command segfaults, failing to strip the binary and leaving
     # tempfiles in our artifacts.
@@ -513,7 +505,6 @@ debian-arm32-asan:
       -D valgrind=disabled
       -D tools=dlclose-skip
       -D gallium-rusticl=false
-      -D panfrost-disassemble=false
     ARTIFACTS_DEBUG_SYMBOLS: 1
     RUN_MESON_TESTS: "false"  # just too slow
     S3_ARTIFACT_NAME: mesa-arm32-asan-${BUILDTYPE}
@@ -536,7 +527,6 @@ debian-arm64:
       -D perfetto=true
       -D vulkan-layers=screenshot
       -D tools=drm-shim
-      -D panfrost-disassemble=false
     GALLIUM_ST:
       -D gallium-rusticl=true
       -D legacy-wayland=bind-wayland-display
@@ -558,7 +548,6 @@ debian-arm64-asan:
       -D valgrind=disabled
       -D tools=dlclose-skip
       -D gallium-rusticl=false
-      -D panfrost-disassemble=false
     ARTIFACTS_DEBUG_SYMBOLS: 1
     RUN_MESON_TESTS: "false"  # just too slow
     S3_ARTIFACT_NAME: mesa-arm64-asan-${BUILDTYPE}
@@ -578,7 +567,6 @@ debian-arm64-ubsan:
     EXTRA_OPTION: >
       -D b_sanitize=undefined
       -D gallium-rusticl=false
-      -D panfrost-disassemble=false
     ARTIFACTS_DEBUG_SYMBOLS: 1
     RUN_MESON_TESTS: "false"  # just too slow
     S3_ARTIFACT_NAME: mesa-arm64-ubsan-${BUILDTYPE}
@@ -674,7 +662,6 @@ debian-clang:
       -D intel-rt=enabled
       -D imagination-srv=true
       -D teflon=true
-      -D panfrost-disassemble=true
       -D apitrace=true
     CC: clang-${LLVM_VERSION}
     CXX: clang++-${LLVM_VERSION}
@@ -754,7 +741,6 @@ debian-vulkan:
       -D build-aco-tests=true
       -D intel-rt=disabled
       -D imagination-srv=true
-      -D panfrost-disassemble=false
       -D apitrace=true
 
 debian-x86_32:
@@ -773,7 +759,6 @@ debian-x86_32:
     EXTRA_OPTION: >
       -D vulkan-layers=device-select,overlay
       -D mesa-clc=system
-      -D panfrost-disassemble=false
     CPP_ARGS: >
       -Wno-error=deprecated-declarations
     C_LINK_ARGS: >
@@ -790,7 +775,6 @@ debian-x86_32:
       -D platforms=
       -D mesa-clc=enabled
       -D install-mesa-clc=true
-      -D panfrost-disassemble=false
 
 # In case of issues with this job, contact @frankbinns
 .debian-riscv64:
