@@ -9388,6 +9388,8 @@ pub struct FragmentShaderInfo {
     pub post_depth_coverage: bool,
     pub early_fragment_tests: bool,
     pub uses_sample_shading: bool,
+    pub z_min_bounded: bool,
+    pub z_max_bounded: bool,
 }
 
 #[derive(Debug)]

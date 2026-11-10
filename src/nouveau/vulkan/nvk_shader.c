@@ -966,8 +966,10 @@ nvk_shader_fill_push(struct nvk_device *dev,
       }
 
       P_IMMD(p, NV9097, SET_ZCULL_BOUNDS, {
-         .z_min_unbounded_enable = shader->info.fs.writes_depth,
-         .z_max_unbounded_enable = shader->info.fs.writes_depth,
+         .z_min_unbounded_enable =
+            shader->info.fs.writes_depth && !shader->info.fs.z_min_bounded,
+         .z_max_unbounded_enable =
+            shader->info.fs.writes_depth && !shader->info.fs.z_max_bounded,
       });
 
       if (pdev->info.cls_eng3d >= TURING_A) {

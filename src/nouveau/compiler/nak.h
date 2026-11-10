@@ -209,8 +209,10 @@ struct nak_shader_info {
          bool post_depth_coverage;
          bool uses_sample_shading;
          bool early_fragment_tests;
+         bool z_min_bounded;
+         bool z_max_bounded;
 
-         uint8_t _pad[135];
+         uint8_t _pad[133];
       } fs;
 
       struct {

@@ -315,7 +315,9 @@ impl ShaderBin {
                             post_depth_coverage: fs_info.post_depth_coverage,
                             uses_sample_shading: fs_info.uses_sample_shading,
                             early_fragment_tests: fs_info.early_fragment_tests,
-                            _pad: [0; 135],
+                            z_min_bounded: fs_info.z_min_bounded,
+                            z_max_bounded: fs_info.z_max_bounded,
+                            _pad: [0; 133],
                         },
                     }
                 }

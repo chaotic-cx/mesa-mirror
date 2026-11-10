@@ -75,12 +75,20 @@ fn init_info_from_nir(
             }),
             MESA_SHADER_FRAGMENT => {
                 let info_fs = unsafe { &nir.info.__bindgen_anon_1.fs };
+                let (z_min_bounded, z_max_bounded) =
+                    match info_fs.depth_layout() {
+                        FRAG_DEPTH_LAYOUT_GREATER => (true, false),
+                        FRAG_DEPTH_LAYOUT_LESS => (false, true),
+                        _ => (false, false),
+                    };
                 ShaderStageInfo::Fragment(FragmentShaderInfo {
                     uses_kill: false,
                     reads_interlock_ticket: false,
                     post_depth_coverage: info_fs.post_depth_coverage(),
                     early_fragment_tests: info_fs.early_fragment_tests(),
                     uses_sample_shading: info_fs.uses_sample_shading(),
+                    z_min_bounded,
+                    z_max_bounded,
                 })
             }
             MESA_SHADER_GEOMETRY => {
