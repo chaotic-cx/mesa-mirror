@@ -74,7 +74,7 @@
         "description": "etnaviv: Allocate the planes of an NV12 resource",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "2bb9ceba331ce089208ffe16a3e44f72ae6a3f47",
         "notes": null
