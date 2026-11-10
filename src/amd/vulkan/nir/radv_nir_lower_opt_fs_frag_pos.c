@@ -183,9 +183,6 @@ lower_fs_frag_pos(nir_builder *b, nir_intrinsic_instr *intr, void *data)
          nir_def_replace(&intr->def, select_frag_pos_bit0_or_sysval(state, b, nir_load_frag_coord_xy(b), true));
          return true;
       }
-
-      /* quad_pos requires a non-float use. */
-      assert(!state->dynamic_quad_pos_comp_mask);
       return false;
 
    case nir_intrinsic_load_sample_pos:
@@ -194,7 +191,6 @@ lower_fs_frag_pos(nir_builder *b, nir_intrinsic_instr *intr, void *data)
          nir_def_replace(&intr->def, nir_imm_vec2(b, 0, 0));
       } else {
          nir_def_replace(&intr->def, nir_ffract(b, nir_load_frag_coord_xy(b)));
-         assert(!state->dynamic_quad_pos_comp_mask);
       }
       return true;
 
