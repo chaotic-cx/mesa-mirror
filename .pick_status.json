@@ -1134,7 +1134,7 @@
         "description": "hk: fix shader dump use after free",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "dd1c0c9beaf835f4e1e0d27e9a52771677b45ecb",
         "notes": null
