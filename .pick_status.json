@@ -2394,7 +2394,7 @@
         "description": "freedreno: round up the NV12 chroma plane size",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "266f1d948a4a42d26982ff42aa10b59757b87610",
         "notes": null
