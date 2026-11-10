@@ -2124,6 +2124,17 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
    }
 
    amdgpu_cs_context_cleanup(aws, csc);
+
+   if (aws->bo_history_logfile && queue_type != USERQ) {
+      const uint64_t timestamp = os_time_get_nano();
+      fprintf(aws->bo_history_logfile, "ts=%llu, ctx=%u ip=%u, seqno=%" PRIu64 ", BOs=",
+              (long long) timestamp, acs->ctx->ctx_handle, acs->ip_type, seq_no);
+      for (unsigned i = 0; i < num_submit_real_buffers; i++) {
+         fprintf(aws->bo_history_logfile, "h=%u ", bo_list[i].bo_handle);
+      }
+      fprintf(aws->bo_history_logfile, "\n");
+      fflush(aws->bo_history_logfile);
+   }
 }
 
 /* Make sure the previous submission is completed. */

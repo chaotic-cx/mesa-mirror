@@ -17,6 +17,7 @@
 #include "util/hash_table.h"
 #include "util/log.h"
 #include "util/thread_sched.h"
+#include "util/u_process.h"
 #include "util/xmlconfig.h"
 #include "drm-uapi/amdgpu_drm.h"
 #include <xf86drm.h>
@@ -74,6 +75,15 @@ static bool do_winsys_init(struct amdgpu_winsys *aws,
    if (aws->userq_job_log)
       amdgpu_userq_start_job_log_thread(aws);
 
+   if (options->dump_bo_history) {
+      char bo_hist_filename[512];
+      sprintf(bo_hist_filename, "/tmp/radeonsi_bo_history_%.12s_%lu_%u.log",
+              util_get_process_name(), (long unsigned) getpid(), aws->fd);
+      aws->bo_history_logfile = fopen(bo_hist_filename, "w+");
+      if (!aws->bo_history_logfile)
+         mesa_loge("radeonsi: Failed to create /tmp/radeonsi_bo_history.log.\n");
+   }
+
    return true;
 
 fail:
@@ -120,6 +130,9 @@ static void do_winsys_deinit(struct amdgpu_winsys *aws)
    ac_drm_device_deinitialize(aws->dev);
    simple_mtx_destroy(&aws->bo_fence_lock);
    simple_mtx_destroy(&aws->stats_lock);
+
+   if (aws->bo_history_logfile)
+      fclose(aws->bo_history_logfile);
 
    FREE(aws);
 }

@@ -233,6 +233,8 @@ struct amdgpu_winsys {
 
    ac_drm_device *dev;
 
+   FILE *bo_history_logfile;
+
    simple_mtx_t bo_fence_lock;
    simple_mtx_t stats_lock;
 

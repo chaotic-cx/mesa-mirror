@@ -2030,6 +2030,8 @@ RadeonSI driver environment variables
       Disable all optimizations.
    ``ibcachesflush``
       Flush all caches at the beginning of IBs.
+   ``bo_history``
+      Logs BO VA operations and CS flushes.
 
 r600 driver environment variables
 ---------------------------------

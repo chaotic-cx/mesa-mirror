@@ -1019,6 +1019,7 @@ struct amdgpu_winsys_options {
    bool userq_job_log;
    bool noop_cs;
    bool ib_caches_flush;
+   bool dump_bo_history;
 };
 
 /* These functions create the radeon_winsys instance for the corresponding kernel driver. */
