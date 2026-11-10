@@ -87,6 +87,48 @@ calc_same_padding(unsigned input_size, unsigned filter_size, unsigned stride,
    *pad_after = padding - *pad_before;
 }
 
+/* Look up and return a given constant input tensor */
+static TfLiteTensor *
+get_constant_input(TfLiteContext *tf_context, TfLiteNode *node, unsigned input)
+{
+   TfLiteTensor *tensor;
+
+   if (input >= node->inputs->size || node->inputs->data[input] < 0)
+      return NULL;
+
+   tensor = &tf_context->tensors[node->inputs->data[input]];
+   if (tensor->allocation_type != kTfLiteMmapRo || !tensor->data.data)
+      return NULL;
+
+   return tensor;
+}
+
+/* Copy the values of a constant int32 input tensor into an array of up to
+ * max_count ints, and return how many there are in count.
+ * Validates that the tensor is constant, int32 format, and isn't larger
+ * than max_count.
+ */
+static bool
+copy_constant_int32s(TfLiteContext *tf_context, TfLiteNode *node, unsigned input,
+                     int *values, unsigned max_count, unsigned *count)
+{
+   TfLiteTensor *tensor = get_constant_input(tf_context, node, input);
+   unsigned n;
+
+   if (!tensor || tensor->type != kTfLiteInt32)
+      return false;
+
+   n = tensor_data_size(*tensor) / sizeof(int32_t);
+   if (n > max_count)
+      return false;
+
+   for (unsigned i = 0; i < n; i++)
+      values[i] = tensor->data.i32[i];
+
+   *count = n;
+   return true;
+}
+
 static bool
 fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLiteNode *node, TfLiteRegistration *node_registration, struct pipe_ml_operation *operation)
 {
@@ -579,15 +621,18 @@ fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLi
       break;
    }
    case kTfLiteBuiltinStridedSlice: {
-      int *begin = tf_context->tensors[node->inputs->data[1]].data.data;
-      int *end = tf_context->tensors[node->inputs->data[2]].data.data;
-      int *strides = tf_context->tensors[node->inputs->data[3]].data.data;
+      unsigned begin_count, end_count, strides_count;
+
+      if (!copy_constant_int32s(tf_context, node, 1, operation->slice.begin,
+                                ARRAY_SIZE(operation->slice.begin), &begin_count) ||
+          !copy_constant_int32s(tf_context, node, 2, operation->slice.end,
+                                ARRAY_SIZE(operation->slice.end), &end_count) ||
+          !copy_constant_int32s(tf_context, node, 3, operation->slice.strides,
+                                ARRAY_SIZE(operation->slice.strides), &strides_count) ||
+          end_count != begin_count || strides_count != begin_count)
+         return false;
 
       operation->type = PIPE_ML_OPERATION_TYPE_STRIDED_SLICE;
-      memcpy(operation->slice.begin, begin, sizeof(operation->slice.begin));
-      memcpy(operation->slice.end, end, sizeof(operation->slice.end));
-      memcpy(operation->slice.strides, strides, sizeof(operation->slice.strides));
-
       break;
    }
    case kTfLiteBuiltinResizeNearestNeighbor: {
