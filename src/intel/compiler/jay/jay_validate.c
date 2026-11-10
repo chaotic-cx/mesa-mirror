@@ -343,16 +343,13 @@ validate_inst(struct validate_state *validate, jay_inst *I)
    } else if (I->op == JAY_OPCODE_SYNC) {
       CHECK(validate->post_ra && "SYNC does not exist while scheduling");
    } else if (I->op == JAY_OPCODE_ZIP) {
-      unsigned ugpr_per_grf = jay_ugpr_per_grf(validate->func->shader);
       CHECK(I->dst.file == GPR);
 
       jay_foreach_src(I, s) {
-         if (s < jay_grf_per_gpr(validate->func->shader)) {
-            CHECK(I->src[s].file == UGPR &&
-                  jay_num_values(I->src[s]) == ugpr_per_grf);
-         } else {
-            CHECK(jay_is_null(I->src[s]));
-         }
+         bool is_null = s >= jay_grf_per_gpr(validate->func->shader);
+
+         CHECK(jay_is_null(I->src[s]) == is_null);
+         CHECK(I->src[s].file == UGPR || is_null);
       }
    } else if (I->op == JAY_OPCODE_SLICE_REPACK) {
       const bool unpack = jay_slice_repack_unpack(I);
