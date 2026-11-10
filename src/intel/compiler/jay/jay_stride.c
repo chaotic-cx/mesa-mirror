@@ -91,13 +91,14 @@ jay_dst_stride_minmax(jay_inst *I, bool do_max)
       return JAY_STRIDE_4;
    }
 
+   /* SLICE_REPACK assume its operands use 4-byte stride. */
+   if (I->op == JAY_OPCODE_SLICE_REPACK) {
+      return JAY_STRIDE_4;
+   }
+
    /* V/UV types are restricted */
    if (I->op == JAY_OPCODE_SHR_ODD_SUBSPANS_BY_4) {
       return JAY_STRIDE_2;
-   }
-
-   if (I->op == JAY_OPCODE_SLICE_REPACK && jay_slice_repack_unpack(I)) {
-      return JAY_STRIDE_4;
    }
 
    /* The src2 restriction quoted above effectively implies we should not stride
@@ -124,6 +125,11 @@ jay_src_stride_minmax(jay_inst *I, unsigned s, bool do_max)
    /* BSpec 56640: bfloat sources must be packed */
    if (jay_src_type(I, s) == JAY_TYPE_BF16) {
       return JAY_STRIDE_2;
+   }
+
+   /* SLICE_REPACK assume its operands use 4-byte stride. */
+   if (I->op == JAY_OPCODE_SLICE_REPACK) {
+      return JAY_STRIDE_4;
    }
 
    /* SENDs cannot do any regioning so force exactly the types of the sources
