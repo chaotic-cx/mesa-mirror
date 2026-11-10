@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <type_traits>
 
 #include "Resources.h"
@@ -338,13 +339,14 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
 
 void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDescriptorSet* src,
                               ReifiedDescriptorSet* dst) {
-    std::unique_lock<std::recursive_mutex> srcLock(src->lock, std::defer_lock);
-    std::unique_lock<std::recursive_mutex> dstLock(dst->lock, std::defer_lock);
-    if (src == dst) {
-        srcLock.lock();
-    } else {
-        std::lock(srcLock, dstLock);
-    }
+    // Lock in total pointer order (matching commitDescriptorSetUpdates) instead of
+    // std::lock, which is unavailable in libc++ under -fno-exceptions. Because
+    // ReifiedDescriptorSet::lock is recursive, src == dst locks cleanly as well.
+    const bool srcFirst = std::less<const ReifiedDescriptorSet*>{}(src, dst);
+    const ReifiedDescriptorSet* first = srcFirst ? src : dst;
+    const ReifiedDescriptorSet* second = srcFirst ? dst : src;
+    std::lock_guard<std::recursive_mutex> firstLock(first->lock);
+    std::lock_guard<std::recursive_mutex> secondLock(second->lock);
     const DescriptorWriteTable& srcTable = src->allWrites;
     DescriptorWriteTable& dstTable = dst->allWrites;
 
