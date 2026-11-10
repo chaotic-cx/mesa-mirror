@@ -431,15 +431,6 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
       jay_##jay_op(b, type, dst, src[0], src[1]);                              \
       break;
 
-/* HW masks non-64-bit shift counts with 31.  NIR assumes mask is bit_size-1. */
-#define SHIFT(nir, jay_op)                                                     \
-   case nir_op_##nir: {                                                        \
-      jay_def count = alu->def.bit_size >= 32 ?                                \
-         src[1] : jay_AND_u16(b, src[1], alu->def.bit_size - 1);               \
-      jay_##jay_op(b, type, dst, src[0], count);                               \
-      break;                                                                   \
-   }
-
 #define DP4A(nir, jay_op, sat_)                                                \
    case nir_op_##nir:                                                          \
       jay_DP4A_##jay_op(b, dst, src[2], src[0], src[1])->saturate = sat_;      \
@@ -495,10 +486,9 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
       BINOP(iand, AND)
       BINOP(ior, OR)
       BINOP(ixor, XOR)
-
-      SHIFT(ishl, SHL)
-      SHIFT(ishr, ASR)
-      SHIFT(ushr, SHR)
+      BINOP(ishl_intel, SHL)
+      BINOP(ishr_intel, ASR)
+      BINOP(ushr_intel, SHR)
 
       DP4A(sdot_4x8_iadd, SS, false)
       DP4A(sdot_4x8_iadd_sat, SS, true)

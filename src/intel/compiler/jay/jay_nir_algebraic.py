@@ -51,6 +51,16 @@ lower_algebraic = [
     (('i2f32', ('extract_u16', 'a@32', 0)), ('u2f32', ('u2u16', a))),
 ]
 
+# HW masks non-64-bit shift counts with 31.  NIR assumes mask is bit_size-1.
+for sz in [8, 16, 32, 64]:
+    shift = ('u2u16', b)
+    shift = ('iand', shift, sz - 1) if sz < 32 else shift
+    lower_algebraic.extend([
+        (('ishl', f'a@{sz}', b), ('ishl_intel', a, shift)),
+        (('ishr', f'a@{sz}', b), ('ishr_intel', a, shift)),
+        (('ushr', f'a@{sz}', b), ('ushr_intel', a, shift)),
+    ])
+
 for s in range(1, 31):
     mask = 0xffffffff << s
     lower_algebraic.extend([
