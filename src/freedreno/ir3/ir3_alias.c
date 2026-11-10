@@ -43,19 +43,24 @@ can_alias_src(struct ir3_register *src)
 static bool
 can_alias_srcs_of_def(struct ir3_register *src)
 {
-   if (!can_alias_src(src)) {
+   if (!(src->flags & IR3_REG_SSA)) {
       return false;
    }
 
-   assert(src->flags & IR3_REG_SSA);
    struct ir3_instruction *def_instr = src->def->instr;
 
-   if (def_instr->opc == OPC_META_COLLECT) {
-      return true;
+   if (def_instr->opc != OPC_MOV && def_instr->opc != OPC_META_COLLECT) {
+      return false;
    }
 
-   return is_same_type_mov(def_instr, false) &&
-          has_valid_alias_flags(def_instr->srcs[0]);
+   foreach_src (def_src, def_instr) {
+      if (!has_valid_alias_flags(def_src)) {
+         return false;
+      }
+   }
+
+   return def_instr->opc == OPC_META_COLLECT ||
+          is_same_type_mov(def_instr, false);
 }
 
 static bool
