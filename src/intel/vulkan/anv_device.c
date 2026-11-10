@@ -1678,7 +1678,7 @@ anv_vma_alloc(struct anv_device *device,
    uint64_t addr = 0;
    *out_vma_heap = anv_vma_heap_for_flags(device, alloc_flags);
 
-   if (alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS) {
+   if (alloc_flags & ANV_BO_ALLOC_CAPTURE_REPLAY) {
       assert(*out_vma_heap == &device->vma_hi ||
              *out_vma_heap == &device->vma_dynamic_visible ||
              *out_vma_heap == &device->vma_trtt ||
@@ -1836,7 +1836,7 @@ VkResult anv_AllocateMemory(
       alloc_flags |= ANV_BO_ALLOC_NO_LOCAL_MEM;
 
    if (mem->vk.alloc_flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT)
-      alloc_flags |= ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS;
+      alloc_flags |= ANV_BO_ALLOC_CAPTURE_REPLAY;
 
    if (mem_type->propertyFlags & VK_MEMORY_PROPERTY_PROTECTED_BIT)
       alloc_flags |= ANV_BO_ALLOC_PROTECTED;
@@ -1986,16 +1986,6 @@ VkResult anv_AllocateMemory(
          goto fail;
       }
 
-      if ((mem->vk.alloc_flags &
-           VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT) &&
-          !(mem->bo->alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS)) {
-         result = vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
-                            "The same BO was imported without BDA and then "
-                            "reimported for capture/replay.");
-         anv_device_release_bo(device, mem->bo);
-         goto fail;
-      }
-
       /* From the Vulkan spec:
        *
        *    "Importing memory from a file descriptor transfers ownership of
@@ -2027,16 +2017,6 @@ VkResult anv_AllocateMemory(
                                                   &mem->bo);
       if (result != VK_SUCCESS)
          goto fail;
-
-      if ((mem->vk.alloc_flags &
-           VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT) &&
-          !(mem->bo->alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS)) {
-         result = vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
-                            "The same BO was imported without BDA and then "
-                            "reimported for capture/replay.");
-         anv_device_release_bo(device, mem->bo);
-         goto fail;
-      }
 
       goto success;
    }

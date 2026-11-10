@@ -347,8 +347,8 @@ enum anv_bo_alloc_flags {
     */
    ANV_BO_ALLOC_IMPLICIT_WRITE =          (1 << 7),
 
-   /** Has an address which is visible to the client */
-   ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS =  (1 << 8),
+   /** Has an address visible to the client for capture and replay  */
+   ANV_BO_ALLOC_CAPTURE_REPLAY =          (1 << 8),
 
    /** Align the BO's virtual address to match AUX-TT requirements */
    ANV_BO_ALLOC_AUX_TT_ALIGNED =          (1 << 9),

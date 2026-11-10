@@ -230,7 +230,7 @@ VkResult anv_CreateBuffer(
       uint64_t client_address = 0;
 
       if (buffer->vk.create_flags & VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT) {
-         alloc_flags = ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS;
+         alloc_flags = ANV_BO_ALLOC_CAPTURE_REPLAY;
          const VkBufferOpaqueCaptureAddressCreateInfo *opaque_addr_info =
             vk_find_struct_const(pCreateInfo->pNext,
                                  BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO);
@@ -239,7 +239,7 @@ VkResult anv_CreateBuffer(
       }
 
       if (buffer->vk.create_flags & VK_BUFFER_CREATE_DESCRIPTOR_BUFFER_CAPTURE_REPLAY_BIT_EXT) {
-         alloc_flags = ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS;
+         alloc_flags = ANV_BO_ALLOC_CAPTURE_REPLAY;
 
          const VkOpaqueCaptureDescriptorDataCreateInfoEXT *opaque_info =
             vk_find_struct_const(pCreateInfo->pNext,
@@ -352,8 +352,6 @@ uint64_t anv_GetDeviceMemoryOpaqueCaptureAddress(
     const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo)
 {
    ANV_FROM_HANDLE(anv_device_memory, memory, pInfo->memory);
-
-   assert(memory->bo->alloc_flags & ANV_BO_ALLOC_CLIENT_VISIBLE_ADDRESS);
 
    return intel_48b_address(memory->bo->offset);
 }
