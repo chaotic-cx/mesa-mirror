@@ -434,7 +434,7 @@ lvp_encode_as(struct vk_acceleration_structure *dst, VkDeviceAddress intermediat
    output_header->serialization_size = sizeof(struct lvp_accel_struct_serialization_header) +
                                        sizeof(uint64_t) * output_header->instance_count + bvh_size;
 
-   for (uint32_t i = 0; i < header->active_leaf_count; i++) {
+   for (uint32_t i = 0; i < leaf_count; i++) {
       const void *ir_leaf = ir_bvh + i * ir_leaf_node_size;
       void *output_leaf = output + output_header->leaf_nodes_offset + i * output_leaf_node_size;
       switch (geometry_type) {
