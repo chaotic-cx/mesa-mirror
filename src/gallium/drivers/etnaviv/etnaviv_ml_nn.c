@@ -934,14 +934,19 @@ etna_ml_lower_fully_connected(struct etna_ml_subgraph *subgraph,
    operation->weight_scale = poperation->conv.weight_tensor->scale;
    operation->weight_signed = poperation->conv.weight_tensor->is_signed;
 
-   unsigned fc_bias_size = poperation->conv.bias_tensor->dims[0] *
-                           poperation->conv.bias_tensor->dims[1] *
-                           poperation->conv.bias_tensor->dims[2] *
-                           poperation->conv.bias_tensor->dims[3] *
-                           sizeof(int32_t);
-   operation->bias_tensor = malloc(fc_bias_size);
-   memcpy(operation->bias_tensor, poperation->conv.bias_tensor->data, fc_bias_size);
-   operation->bias_tensor_size = fc_bias_size;
+   if (poperation->conv.bias_tensor) {
+      unsigned fc_bias_size = poperation->conv.bias_tensor->dims[0] *
+                              poperation->conv.bias_tensor->dims[1] *
+                              poperation->conv.bias_tensor->dims[2] *
+                              poperation->conv.bias_tensor->dims[3] *
+                              sizeof(int32_t);
+      operation->bias_tensor = malloc(fc_bias_size);
+      memcpy(operation->bias_tensor, poperation->conv.bias_tensor->data, fc_bias_size);
+      operation->bias_tensor_size = fc_bias_size;
+   } else {
+      operation->bias_tensor = calloc(1, 4 * operation->output_channels);
+      operation->bias_tensor_size = 4 * operation->output_channels;
+   }
 }
 
 void
