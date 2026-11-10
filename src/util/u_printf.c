@@ -279,12 +279,16 @@ u_printf_impl(FILE *out, const char *buffer, size_t buffer_size,
             bool is_float = strpbrk(print_str, "fFeEgGaA") != NULL;
 
             /* For vector integers, replace the conversion specifier with
-             * the platform-correct PRI macro (e.g. PRIi8 for char). */
-            if (vec_pos != NULL && !is_float) {
+             * the platform-correct PRI macro (e.g. PRIi8 for char). OpenCL
+             * long is 64 bits, but a host long can be 32 bits, so a 64-bit
+             * scalar gets the PRI macro in place of its l modifier too. */
+            if (!is_float && (vec_pos != NULL || elmt_size == 8)) {
                size_t slen = strlen(print_str);
                char conv = print_str[slen - 1];
                const char *pri = get_pri_conversion(elmt_size, conv);
                if (pri) {
+                  if (vec_pos == NULL && print_str[slen - 2] == 'l')
+                     slen--;
                   memcpy(&print_str[slen - 1], pri, strlen(pri) + 1);
                }
             }

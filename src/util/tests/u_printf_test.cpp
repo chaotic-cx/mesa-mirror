@@ -263,3 +263,16 @@ TEST_F(u_printf_test, util_printf_vector_l_modifier)
 
    EXPECT_EQ(parse(), "4294967296,12345678901");
 }
+
+TEST_F(u_printf_test, util_printf_scalar_l_modifier)
+{
+   add_format("%ld %lu %lx %+li", { 8, 8, 8, 8 });
+
+   use_format(0);
+   add_arg<int64_t>(-10000000000LL);
+   add_arg<uint64_t>(UINT64_MAX);
+   add_arg<uint64_t>(0x123456789ULL);
+   add_arg<int64_t>(5000000000LL);
+
+   EXPECT_EQ(parse(), "-10000000000 18446744073709551615 123456789 +5000000000");
+}
