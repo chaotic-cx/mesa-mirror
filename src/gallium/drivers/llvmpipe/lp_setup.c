@@ -1025,17 +1025,22 @@ lp_setup_is_resource_referenced(const struct lp_setup_context *setup,
    }
 
    /* check resources referenced by active scenes */
+   unsigned referenced = LP_UNREFERENCED;
    for (unsigned i = 0; i < setup->num_active_scenes; i++) {
       struct lp_scene *scene = setup->scenes[i];
 
       mtx_lock(&scene->mutex);
       unsigned ref = lp_scene_is_resource_referenced(scene, texture);
       mtx_unlock(&scene->mutex);
-      if (ref)
-         return ref;
+      /*
+       * Note we can't exit early on a match, since we might get a read
+       * (or potentially write) only flag.
+       * Could potentially still exit early when we found both read/write
+       * flags.
+       */
+      referenced |= ref;
    }
-
-   return LP_UNREFERENCED;
+   return referenced;
 }
 
 
