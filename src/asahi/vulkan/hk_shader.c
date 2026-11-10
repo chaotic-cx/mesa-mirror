@@ -1283,10 +1283,10 @@ hk_api_shader_destroy(struct vk_device *vk_dev, struct vk_shader *vk_shader,
       hk_shader_destroy(dev, shader);
    }
 
-   vk_shader_free(&dev->vk, pAllocator, &obj->vk);
-
    free(obj->debug_nir_dump);
    free(obj->debug_agx_dump);
+
+   vk_shader_free(&dev->vk, pAllocator, &obj->vk);
 }
 
 static void dump_shader_ir(
