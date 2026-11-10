@@ -32,6 +32,7 @@
 #include "etnaviv_rs.h"
 #include "etnaviv_screen.h"
 #include "etnaviv_translate.h"
+#include "etnaviv_yuv.h"
 
 #include "layout/eil_format.h"
 #include "util/box.h"
@@ -674,6 +675,37 @@ etna_resource_alloc_border_shadow(struct pipe_context *pctx,
    return res->border ? etna_resource(res->border) : NULL;
 }
 
+/* The YUV tiler reads linear planes, one resource per plane like an import. */
+static struct pipe_resource *
+etna_resource_alloc_planar(struct pipe_screen *pscreen,
+                           const struct pipe_resource *templat)
+{
+   struct pipe_resource chroma = *templat;
+   struct pipe_resource *prsc;
+
+   chroma.format = PIPE_FORMAT_R8G8_UNORM;
+   chroma.width0 = DIV_ROUND_UP(templat->width0, 2);
+   chroma.height0 = DIV_ROUND_UP(templat->height0, 2);
+   chroma.next = NULL;
+
+   prsc = etna_resource_alloc(pscreen, ETNA_LAYOUT_LINEAR,
+                              DRM_FORMAT_MOD_LINEAR, templat);
+   if (!prsc)
+      return NULL;
+
+   prsc->next = etna_resource_alloc(pscreen, ETNA_LAYOUT_LINEAR,
+                                    DRM_FORMAT_MOD_LINEAR, &chroma);
+   if (!prsc->next) {
+      pipe_resource_reference(&prsc, NULL);
+      return NULL;
+   }
+
+   /* An import starts at one, so the first sample refreshes the shadow. */
+   etna_resource_level_mark_changed(&etna_resource(prsc)->levels[0]);
+
+   return prsc;
+}
+
 static struct pipe_resource *
 etna_resource_create(struct pipe_screen *pscreen,
                      const struct pipe_resource *templat)
@@ -683,6 +715,9 @@ etna_resource_create(struct pipe_screen *pscreen,
 
    if (templat->target == PIPE_BUFFER)
       return etna_buffer_resource_alloc(pscreen, templat);
+
+   if (etna_format_needs_yuv_tiler(templat->format))
+      return etna_resource_alloc_planar(pscreen, templat);
 
    /* At this point we don't know if the resource will be used as a texture,
     * render target, or both, because gallium sets the bits whenever possible
@@ -828,8 +863,16 @@ etna_resource_create_modifiers(struct pipe_screen *pscreen,
 {
    struct etna_screen *screen = etna_screen(pscreen);
    struct pipe_resource tmpl = *templat;
-   uint64_t modifier = select_best_modifier(screen, templat, modifiers, count);
+   uint64_t modifier;
 
+   if (etna_format_needs_yuv_tiler(templat->format)) {
+      for (int i = 0; i < count; i++)
+         if (modifiers[i] == DRM_FORMAT_MOD_LINEAR)
+            return etna_resource_alloc_planar(pscreen, templat);
+      return NULL;
+   }
+
+   modifier = select_best_modifier(screen, templat, modifiers, count);
    if (modifier == DRM_FORMAT_MOD_INVALID)
       return NULL;
 
