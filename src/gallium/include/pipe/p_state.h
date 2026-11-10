@@ -1155,7 +1155,8 @@ struct pipe_ml_operation
          struct pipe_tensor *weight_tensor;
 
          /**
-          * For convolutions, tensor containing the biases.
+          * For convolutions, tensor containing the biases, or NULL if the
+          * convolution has no bias.
           */
          struct pipe_tensor *bias_tensor;
 

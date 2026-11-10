@@ -94,14 +94,19 @@ fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLi
    unsigned input_count = node->inputs->size;
 
    /*
-    * Fully connected ops have an optional final input (the bias).
+    * The following ops have an optional final input (the bias).
     * For instances with no bias, the tflite format allows the tensor to be
     * left out of the list, or present with index -1 (kTfLiteOptionalTensor).
     * Treat the -1 case as if the tensor is completely omitted.
     */
-   if (node_registration->builtin_code == kTfLiteBuiltinFullyConnected &&
-       input_count == 3 && node->inputs->data[2] < 0)
-      input_count = 2;
+   switch (node_registration->builtin_code) {
+   case kTfLiteBuiltinConv2d:
+   case kTfLiteBuiltinDepthwiseConv2d:
+   case kTfLiteBuiltinFullyConnected:
+      if (input_count == 3 && node->inputs->data[2] < 0)
+         input_count = 2;
+      break;
+   }
 
    /*
     * We can't handle kTfLiteOptionalTensor in any other case
@@ -127,7 +132,7 @@ fill_operation(struct teflon_delegate *delegate, TfLiteContext *tf_context, TfLi
    case kTfLiteBuiltinDepthwiseConv2d: {
       operation->type = PIPE_ML_OPERATION_TYPE_CONVOLUTION;
       operation->conv.weight_tensor = &tensors[node->inputs->data[1]];
-      operation->conv.bias_tensor = &tensors[node->inputs->data[2]];
+      operation->conv.bias_tensor = input_count > 2 ? operation->input_tensors[2] : NULL;
       if (node_registration->builtin_code == kTfLiteBuiltinConv2d) {
          TfLiteConvParams *params = (TfLiteConvParams *)node->builtin_data;
 
