@@ -421,7 +421,7 @@ d3d12_video_decoder_dxva_picparams_from_pipe_picparams_av1(
             acumSbHMinusLast += dxvaStructure.tiles.heights[i];
 
          dxvaStructure.tiles.heights[dxvaStructure.tiles.rows-1] = static_cast<uint16_t>(
-            std::ceil(pipe_av1->picture_parameter.frame_width / (float)sbPixSize) - acumSbHMinusLast);
+            std::ceil(pipe_av1->picture_parameter.frame_height / (float)sbPixSize) - acumSbHMinusLast);
       }
    }
 
