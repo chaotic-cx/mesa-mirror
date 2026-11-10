@@ -1554,8 +1554,14 @@ PrepareDelegate(TfLiteContext *tf_context, TfLiteDelegate *tf_delegate)
                    registration->version,
                    supported ? "supported" : "unsupported");
       for (int j = 0; j < node->inputs->size; j++) {
-         teflon_debug(" %d(%s)", node->inputs->data[j],
-                      tflite_type_name(tf_context->tensors[node->inputs->data[j]].type));
+         int tensor_idx = node->inputs->data[j];
+
+         if (tensor_idx < 0) {
+            teflon_debug(" %d(none)", tensor_idx);
+            continue;
+         }
+         teflon_debug(" %d(%s)", tensor_idx,
+                      tflite_type_name(tf_context->tensors[tensor_idx].type));
       }
       teflon_debug(" out:");
       for (int j = 0; j < node->outputs->size; j++) {
