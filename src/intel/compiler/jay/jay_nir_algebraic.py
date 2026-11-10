@@ -61,23 +61,23 @@ for s in range(1, 31):
 lower_algebraic.extend([
     # Late multiplication handling
     (('iadd', ('imul_32x16(is_only_used_by_iadd)', a, b), c),
-     ('imad_32x16_intel', a, b, c)),
+     ('imad_32x16_intel', a, ('u2u16', b), c)),
 
     (('iadd', ('umul_32x16(is_only_used_by_iadd)', a, b), c),
-     ('umad_32x16_intel', a, b, c)),
+     ('umad_32x16_intel', a, ('u2u16', b), c)),
 
     (('iadd', ('imul(is_used_once)', 'a@32', '#b'), c),
-     ('umad_32x16_intel', a, ('iand', b, 0xffff),
-      ('umad_32x16_intel', ('iand', b, 0xffff0000), a, c))),
+     ('umad_32x16_intel', a, ('u2u16', b),
+      ('umad_32x16_intel', ('iand', b, 0xffff0000), ('u2u16', a), c))),
 
     (('imul', 'a@32', '#b'),
-     ('umad_32x16_intel', a, ('iand', b, 0xffff),
+     ('umad_32x16_intel', a, ('u2u16', b),
       ('umul_32x16', ('iand', b, 0xffff0000), a))),
 
     # Xe2 has MACL which is more efficient for multiplication with no constants.
     # On older platforms without MACL, use the above rule as the lowering.
     (('imul', 'a@32', b),
-     ('umad_32x16_intel', a, b, ('umul_32x16', ('iand', b, 0xffff0000), a)),
+     ('umad_32x16_intel', a, ('u2u16', b), ('umul_32x16', ('iand', b, 0xffff0000), a)),
      'verx10 < 200'),
 
     (('pack_half_2x16_split', a, b),

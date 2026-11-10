@@ -1668,10 +1668,12 @@ signed value for its bit size.  The result is undefined otherwise.
 """, needs_dest_type=True)
 
 # Intel multiply-adds
-triop("imad_32x16_intel", tint32, "", "(src0 * (int16_t) src1) + src2",
-      description = "Multiply 32-bits with low 16-bits, with sign extension, then add a 32-bit value")
-triop("umad_32x16_intel", tuint32, "", "(src0 * (uint16_t) src1) + src2",
-      description = "Multiply 32-bits with low 16-bits, with zero extension, then add a 32-bit value")
+opcode("imad_32x16_intel", 0, tint32, [0, 0, 0], [tint32, tint16, tint32],
+       False, "", "(src0 * src1) + src2",
+      description = "Multiply 32-bits with 16-bits, with sign extension, then add a 32-bit value")
+opcode("umad_32x16_intel", 0, tuint32, [0, 0, 0], [tuint32, tuint16, tuint32],
+       False, "", "(src0 * src1) + src2",
+      description = "Multiply 32-bits with 16-bits, with zero extension, then add a 32-bit value")
 
 # Intel shifts.
 opcode("ishl_intel", 0, tint, [0, 0], [tint, tuint16], False, "",
