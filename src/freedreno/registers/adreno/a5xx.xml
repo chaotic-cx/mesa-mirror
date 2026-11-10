@@ -2650,8 +2650,7 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		<bitfield name="SAMPLES" low="0" high="1" type="a3xx_msaa_samples"/>
 		<bitfield name="MSAA_DISABLE" pos="2" type="boolean"/>
 	</reg32>
-	<!-- either blob is doing it wrong, or this is not per-stage anymore: -->
-	<reg64 offset="0xe706" name="TPL1_TP_BORDER_COLOR_BASE_ADDR" type="address"/>
+	<reg64 offset="0xe706" name="TPL1_GFX_BORDER_COLOR_BASE" type="address"/>
 
 	<!-- bounds on the TPL1_*_TEX_COUNT table accesses. max 128. -->
 	<reg32 offset="0xe700" name="TPL1_VS_TEX_COUNT" type="uint"/>
@@ -2684,6 +2683,7 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 	<reg64 offset="0xe75c" name="TPL1_CS_TEX_SAMP" type="address"/>
 	<reg64 offset="0xe75e" name="TPL1_FS_TEX_CONST" type="address"/>
 	<reg64 offset="0xe760" name="TPL1_CS_TEX_CONST" type="address"/>
+	<reg64 offset="0xe762" name="TPL1_CS_BORDER_COLOR_BASE" type="address"/>
 
 	<reg32 offset="0xe764" name="TPL1_TP_FS_ROTATION_CNTL"/>
 

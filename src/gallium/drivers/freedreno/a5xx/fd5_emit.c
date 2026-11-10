@@ -285,7 +285,8 @@ setup_border_colors(struct fd_texture_stateobj *tex,
 }
 
 static void
-emit_border_color(struct fd_context *ctx, struct fd_ringbuffer *ring) assert_dt
+emit_border_color(struct fd_context *ctx, struct fd_ringbuffer *ring,
+                  bool is_compute) assert_dt
 {
    struct fd5_context *fd5_ctx = fd5_context(ctx);
    struct bcolor_entry *entries;
@@ -302,11 +303,18 @@ emit_border_color(struct fd_context *ctx, struct fd_ringbuffer *ring) assert_dt
 
    entries = ptr;
 
-   setup_border_colors(&ctx->tex[MESA_SHADER_VERTEX], &entries[0]);
-   setup_border_colors(&ctx->tex[MESA_SHADER_FRAGMENT],
-                       &entries[ctx->tex[MESA_SHADER_VERTEX].num_samplers]);
+   if (is_compute) {
+      setup_border_colors(&ctx->tex[MESA_SHADER_COMPUTE], &entries[0]);
+   } else {
+      setup_border_colors(&ctx->tex[MESA_SHADER_VERTEX], &entries[0]);
+      setup_border_colors(&ctx->tex[MESA_SHADER_FRAGMENT],
+                          &entries[ctx->tex[MESA_SHADER_VERTEX].num_samplers]);
+   }
 
-   OUT_PKT4(ring, REG_A5XX_TPL1_TP_BORDER_COLOR_BASE_ADDR, 2);
+   OUT_PKT4(ring,
+            is_compute ? REG_A5XX_TPL1_CS_BORDER_COLOR_BASE
+                       : REG_A5XX_TPL1_GFX_BORDER_COLOR_BASE,
+            2);
    OUT_RELOC(ring, fd_resource(fd5_ctx->border_color_buf)->bo, off, 0, 0);
 
    u_upload_unmap(fd5_ctx->border_color_uploader);
@@ -1143,7 +1151,7 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
    OUT_RING(ring, 0);
 
    if (needs_border)
-      emit_border_color(ctx, ring);
+      emit_border_color(ctx, ring, false);
 
    if (reload || (ctx->dirty_shader[MESA_SHADER_VERTEX] &
                   (FD_DIRTY_SHADER_PROG | FD_DIRTY_SHADER_CONST))) {
@@ -1182,7 +1190,7 @@ fd5_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
                        -1);
 
       if (needs_border)
-         emit_border_color(ctx, ring);
+         emit_border_color(ctx, ring, true);
 
       OUT_PKT4(ring, REG_A5XX_TPL1_VS_TEX_COUNT, 1);
       OUT_RING(ring, 0);
