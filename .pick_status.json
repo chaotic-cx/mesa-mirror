@@ -1,5 +1,435 @@
 [
     {
+        "sha": "b663f3501c6e42ee92d388f91abe3cf71f78187c",
+        "description": "broadcom/compiler: only emit a TSY barrier for workgroup execution scope",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "69f06bf1851dd0c5b44f5122e1db7ce45f30b6ef",
+        "description": "broadcom: remove leftover code from V3D < 4.2",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1de349c3df97eaa9c4e2a272b756b77caa0fb8bf",
+        "description": "nir/opt_large_constants: fix constant deduplication edge case",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "e810382a1e6d348530cf8fc39bfecd6d2f9b1a9c",
+        "notes": null
+    },
+    {
+        "sha": "bbca109c8e17fda42d535a8b698c8db1bd1044d5",
+        "description": "nir/opt_load_store_vectorize: handle load_heap_descriptor",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5304cac24b08b8f7d4da00464dff6e7bc1d4a07b",
+        "description": "v3d: Assert that flat inputs never use load_interpolated_input",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d978783848a9d3df8c10c5236858b985513df7c7",
+        "description": "gallium: report fs_sample_variables from all ARB_gpu_shader5 drivers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "6dee08e79e55f00a8d134b23e38d4accc12d405e",
+        "description": "v3d: advertise GLES multisample shader extensions",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2174bf847413af081cbe1100a9a94893eb964236",
+        "description": "gallium: add pipe_caps.fs_sample_variables",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "4aa911228d64e03b1f87ae0227ca0aadd99cbfa3",
+        "description": "v3d: Fix centroid interpolation at offsets",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "442f48f27b666cd2183d4ce27977da045ee34b0f",
+        "notes": null
+    },
+    {
+        "sha": "f4103e446350a4806ce812708f1db483d1a4a5a9",
+        "description": "v3d: Fix interpolateAtOffset without MSAA",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "442f48f27b666cd2183d4ce27977da045ee34b0f",
+        "notes": null
+    },
+    {
+        "sha": "b580a6e6351f7e9ce7c81a783f2a6b66ce101ed5",
+        "description": "v3d: Use the initial sample mask for centroid interpolation",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "442f48f27b666cd2183d4ce27977da045ee34b0f",
+        "notes": null
+    },
+    {
+        "sha": "0a65740a965ebdf442437bd19b37663b38b8545b",
+        "description": "panvk: add missing flush after copy_fbd",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "5a7159f86987da79e5072c77757b00e41b64f099",
+        "notes": null
+    },
+    {
+        "sha": "75217eabfa8a7499de5875bbafa03b39d02418e6",
+        "description": "panvk: restore zero-value for flush_id after copy_fbd",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "eaf68f744b7ae394b6d05e2e3a3ebfee4eb5fe08",
+        "notes": null
+    },
+    {
+        "sha": "6d6d77b44b26f4f8a33ec5ce3ea7a2ae75676ea4",
+        "description": "spirv: specialize entire constant-data source",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "34b8ce948a64e0bddd79bcbab38445d78f07d763",
+        "notes": null
+    },
+    {
+        "sha": "5475a6866b7e9003c5006377a4c0db817b2a84c6",
+        "description": "pan/ci: remove stale xfails",
+        "nominated": false,
+        "nomination_type": 2,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": "f950de848de8bbb4a626ee62ff444e0d87cc911c",
+        "notes": null
+    },
+    {
+        "sha": "bca35111512ca73f6b72857c3e3ed5755b600c6f",
+        "description": "ci/yaml-toml-shell-py-test: make the job always available but manual in fork pipelines",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2dc5cda348bb7b67be993beddaffaa037c89a40e",
+        "description": "ci: rename `yaml-toml-shell-py-test` to just `lint-test`",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5c9832fc1afce8fc11d38665d79f08bf598313f0",
+        "description": "anv: fix PIPE_CONTROL with fragment->compute barrier on Xe2+",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "94e3bb6a05d40452dff4063322a44c872a61e7b5",
+        "description": "gfxstream: add hasApiCall for snapshot decoder",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "57cada1bd8e23d30d624b9b277955190a45e8635",
+        "description": "gfxstream: support VK_EXT_host_image_copy",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a1eb6bfd7b59384563dc5ac92519bbf10d1471d9",
+        "description": "gfxstream: simplify host Vulkan unmarshaling codegen",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a1e372f05094f65903f7f0c0f784ab83b99751bc",
+        "description": "gfxstream: route vkCmdWaitEvents* through global state in subdecoder",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1420c45fe65095632237238e3abae0923fc56d18",
+        "description": "etnaviv: Switch to stats framework",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "7b94fd4650e5d95688b726adb3d0ffb08e074e36",
+        "description": "anv: extract and call anv_queue_drain() during anv_DestroyDevice()",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "abd2935faad854d1451e2fd407054b907502034d",
+        "description": "vulkan: export vk_queue_stop_submit_thread()",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "faa32758485694c1548f80523ad074bbf47c8234",
+        "description": "kopper: fix unused and uninitialized warnings on macOS",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "191d7c6cb617a3f5ea85d98ae0b8640d0ba60a75",
+        "notes": null
+    },
+    {
+        "sha": "06dce0e7778c349aad0bd7a18f8356cd61654fb0",
+        "description": "radeonsi: only write back L2 after DCC image stores in internal ops",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "fdb25755ed1d5ed62e1cdd9eb2d399e5dd39515a",
+        "description": "radeonsi: write back L2 after DCC fast clears if RBs and L2 aren't coherent",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "abd4cdb378d88062942678be2b25b7a20401a4e7",
+        "description": "anv: allow re-importing BOs with mismatched device address flags",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1bc20ad721808430eb196e3dd5287df6e7f77cd7",
+        "description": "ci/fedora: build nvk",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "043d912851dd3a4015925b63b2cbedff2f113b69",
+        "description": "ci/fedora: build kraid",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d10e916de9e7c2bf185ccc6afc464c7c20af4082",
+        "description": "zink/ci: update the nvk expectations",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9923fe85740c184a2e46cc9cdb3f80d312a5fed2",
+        "description": "nvk/ci: update the vkcts expectations",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "54ea846cef62de17f0a532b6365c19b4d859d2f1",
+        "description": "nvk/ci: bump the timeout of nvk-ga106-vkcts-valve",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "769856419fa0df3664e3e536bea5f4eb21013421",
+        "description": "turnip/ci: mark Basic@* as fixed",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "ebce2e28481b2b6dc86b7a09e08bb952b7ca36d9",
+        "description": "ci/ci-tron: update the version of the template",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2f020fad929dfc8ca545c532a6ca851126ee69e3",
+        "description": "gfxstream: validate Linux dma-buf image formats and external create info",
+        "nominated": false,
+        "nomination_type": 2,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": "a4dd985e01faf688786507bb67903e4a3ecebdf4",
+        "notes": null
+    },
+    {
+        "sha": "7526bf51645caf797ef9591207d033f6c534219e",
+        "description": "gfxstream: support variable descriptor counts and sparse sets",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "cc2dcf9abdc6afc093e85d48e4cfa34eed60a01e",
+        "description": "dzn: Advertise shaderSignedZeroInfNanPreserveFloat32",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2309bdb65c8b32814bb14cb02b881d41315e3761",
+        "description": "microsoft/compiler: Disable math refactoring when preserving special float values",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "fd3b6da2119e2ff9e01bd5c3008bb0c7c36f98d9",
+        "description": "microsoft/compiler,dzn: Lower fp32 compare+select on NVIDIA",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1c87c60187064c60a10378fa79e20debf0941f97",
+        "description": "tu: WFI before reading registers that were just written",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "50cbad92b90341baaa4517582c4f2cf6ddc347c6",
+        "description": "dzn: Support VK_EXT_depth_clip_control",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
         "sha": "e0856f57b87dd9731a4b738ea739d0b163a31510",
         "description": "blorp: skip unnecessary empty copies in blorp_mem_copy",
         "nominated": false,
