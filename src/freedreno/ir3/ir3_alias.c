@@ -25,9 +25,19 @@ supports_alias_srcs(struct ir3_instruction *instr)
 }
 
 static bool
+has_valid_alias_flags(struct ir3_register *src)
+{
+   /* We haven't seen any indication that aliasing supports the address
+    * register, nor does it seem important to do so based on how many fossils
+    * it took to find a case of it being attempted during alias setup.
+    */
+   return !(src->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
+}
+
+static bool
 can_alias_src(struct ir3_register *src)
 {
-   return is_reg_gpr(src) && !(src->flags & IR3_REG_SHARED);
+   return is_reg_gpr(src) && has_valid_alias_flags(src);
 }
 
 static bool
@@ -43,12 +53,9 @@ can_alias_srcs_of_def(struct ir3_register *src)
    if (def_instr->opc == OPC_META_COLLECT) {
       return true;
    }
-   /* We haven't seen any indication that aliasing supports the address
-    * register, nor does it seem important to do so based on how many fossils
-    * it took to find a case of it being attempted during alias setup.
-    */
+
    return is_same_type_mov(def_instr, false) &&
-          !(def_instr->srcs[0]->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
+          has_valid_alias_flags(def_instr->srcs[0]);
 }
 
 static bool
