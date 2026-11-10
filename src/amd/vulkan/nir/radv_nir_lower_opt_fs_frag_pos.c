@@ -216,6 +216,9 @@ lower_fs_frag_pos(nir_builder *b, nir_intrinsic_instr *intr, void *data)
           */
          nir_def_replace(&intr->def, get_quad_pos(b, false));
          return true;
+      } else if (state->dynamic_quad_pos_comp_mask) {
+         nir_def_replace(&intr->def, select_frag_pos_bit0_or_sysval(state, b, nir_load_pixel_coord(b), false));
+         return true;
       }
       return false;
 

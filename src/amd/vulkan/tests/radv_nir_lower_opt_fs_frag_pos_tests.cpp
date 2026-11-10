@@ -36,3 +36,41 @@ radv_nir_lower_opt_fs_frag_pos_test::run(bool vrs, bool sample_shading, bool exp
 
    nir_validate_shader(b->shader, "After radv_nir_lower_opt_fs_frag_pos");
 }
+
+TEST_F(radv_nir_lower_opt_fs_frag_pos_test, pixelx_bit0_fragy_bit0_vrs)
+{
+   nir_unit_test_output(b, nir_iand_imm(b, nir_channel(b, nir_load_pixel_coord(b), 0), 0x1), 0);
+   nir_unit_test_output(b, nir_iand_imm(b, nir_f2u32(b, nir_channel(b, nir_load_frag_coord_xy(b), 1)), 0x1), 1);
+
+   run(true, false, true);
+
+   check_nir_string(NIR_REFERENCE_SHADER(R"(
+      shader: MESA_SHADER_FRAGMENT
+      name: radv_nir_lower_opt_fs_frag_pos_test
+      max_subgroup_size: 128
+      min_subgroup_size: 1
+      decl_function main () (entrypoint)
+
+      impl main {
+         block b0:   // preds:
+         16x2   %0 = @load_pixel_coord
+         1      %1 = @load_use_quad_pos_amd
+         32     %2 = @load_subgroup_invocation
+         16     %3 = u2u16 %2
+         16     %4 = bcsel %1, %3, %0.x
+         16     %5 = load_const (0x0001)
+         16     %6 = iand %4, %5 (0x1)
+                     @unit_test_output (%6) (base=0)
+         32     %7 = u2f32 %0.y
+         32     %8 = load_const (0x00000001)
+         32     %9 = ushr %2, %8 (0x1)
+         32    %10 = u2f32 %9
+         32    %11 = bcsel %1, %10, %7
+         32    %12 = f2u32 %11
+         32    %13 = iand %12, %8 (0x1)
+                     @unit_test_output (%13) (base=1)
+                     // succs: b1
+         block b1:
+      }
+   )"));
+}
