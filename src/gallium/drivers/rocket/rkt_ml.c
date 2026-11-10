@@ -289,8 +289,9 @@ rkt_ml_operation_supported(struct pipe_ml_device *pdevice,
       struct pipe_tensor *bias_tensor = operation->conv.bias_tensor;
       struct pipe_tensor *output_tensor = operation->output_tensors[0];
 
-      // Dilation and per-axis quantization not yet implemented
-      if (tensor_quantization_supported(input_tensor) &&
+      // Dilation, per-axis quantization and missing biases not yet implemented
+      if (bias_tensor &&
+          tensor_quantization_supported(input_tensor) &&
           tensor_quantization_supported(weight_tensor) &&
           tensor_quantization_supported(bias_tensor) &&
           tensor_quantization_supported(output_tensor) &&
