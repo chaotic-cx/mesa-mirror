@@ -172,12 +172,6 @@ jay_print_inst_with_lu(
       fprintf(fp, " = ");
    }
 
-   if (I->predication) {
-      fprintf(fp, "(");
-      jay_print_src(fp, func, block, I, jay_inst_get_predicate(I) - I->src, lu);
-      fprintf(fp, ")");
-   }
-
    if (I->op == JAY_OPCODE_MATH) {
       jay_print_inst_info(fp, I, "");
    } else {
@@ -213,15 +207,18 @@ jay_print_inst_with_lu(
       sep = jay_print_inst_info(fp, I, sep);
    }
 
-   if (I->predication > 1) {
-      fprintf(fp, "%s", sep);
-      sep = "default ";
+   if (I->predication) {
+      fprintf(fp, "%s%s", sep, I->op == JAY_OPCODE_IF ? "" : "if ");
+      jay_print_src(fp, func, block, I, jay_inst_get_predicate(I) - I->src, lu);
+      sep = " else ";
 
       for (signed i = I->predication - 1; i > 0; --i) {
          fprintf(fp, "%s", sep);
          jay_print_src(fp, func, block, I, I->num_srcs - i, lu);
          sep = ", ";
       }
+
+      sep = ", ";
    }
 
    /* Software scoreboard dependency info */
