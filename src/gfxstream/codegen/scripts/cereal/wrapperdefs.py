@@ -79,6 +79,8 @@ RELAXED_APIS = [
     "vkQueueWaitIdle",
     "vkDeviceWaitIdle",
     "vkQueueFlushCommandsGOOGLE",
+    "vkCreateGraphicsPipelines",
+    "vkCreateComputePipelines",
 ]
 
 STYPE_OVERRIDE = {

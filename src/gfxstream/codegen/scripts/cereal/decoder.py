@@ -506,8 +506,8 @@ def emit_destroyed_handle_cleanup(api, cgen):
 def emit_pool_free(cgen):
     cgen.stmt("%s->clearPool()" % READ_STREAM)
 
-def emit_seqno_incr(api, cgen):
-    cgen.stmt("if (m_queueSubmitWithCommandsEnabled) seqnoPtr->fetch_add(1, std::memory_order_seq_cst)")
+def emit_seqno_incr(api, cgen, condition="m_queueSubmitWithCommandsEnabled"):
+    cgen.stmt("if (%s) seqnoPtr->fetch_add(1, std::memory_order_seq_cst)" % condition)
 
 def emit_snapshot(typeInfo, api, cgen):
     additionalParams = [ \
@@ -547,7 +547,7 @@ def emit_decoding(typeInfo, api, cgen, globalWrapped=False, context=False):
     emit_decode_parameters(typeInfo, api, cgen, globalWrapped)
 
     if isAcquire:
-        emit_seqno_incr(api, cgen)
+        emit_seqno_incr(api, cgen, "m_queueSubmitWithCommandsEnabled && !m_snapshotsEnabled")
 
     if globalWrapped:
         emit_global_state_wrapped_call(api, cgen, context)
@@ -561,7 +561,9 @@ def emit_decoding(typeInfo, api, cgen, globalWrapped=False, context=False):
     emit_destroyed_handle_cleanup(api, cgen)
     emit_pool_free(cgen)
 
-    if not isAcquire:
+    if isAcquire:
+        emit_seqno_incr(api, cgen, "m_queueSubmitWithCommandsEnabled && m_snapshotsEnabled")
+    else:
         emit_seqno_incr(api, cgen)
 
 def emit_default_decoding(typeInfo, api, cgen):
@@ -1016,6 +1018,7 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
             }
             if (seqnoPtr && !m_forSnapshotLoad) {
                 {
+                    uint32_t spinCount = 0;
                     while ((seqno - seqnoPtr->load(std::memory_order_seq_cst) != 1)) {
                         if (shouldExit.load(std::memory_order_relaxed) ||
                             (processResources && processResources->isGuestProcessDead())) {
@@ -1027,7 +1030,12 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
                         _mm_pause();
                         #elif (defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)))
                         __asm__ __volatile__("pause;");
+                        #elif (defined(__GNUC__) && defined(__aarch64__))
+                        __asm__ __volatile__("yield" ::: "memory");
                         #endif
+                        if (++spinCount > 1000) {
+                            std::this_thread::yield();
+                        }
                     }
                     m_prevSeqno = seqno;
                 }
