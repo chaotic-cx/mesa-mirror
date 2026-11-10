@@ -804,7 +804,7 @@
         "description": "jay: set SLICE_REPACK operands to stride 4",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9d3d256bb5429f76f3e9096f312ef8355c8b785b",
         "notes": null
