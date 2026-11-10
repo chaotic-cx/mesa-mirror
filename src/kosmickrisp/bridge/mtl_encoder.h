@@ -64,6 +64,9 @@ void mtl_compute_set_pipeline_state(mtl_compute_encoder *encoder,
 void mtl_compute_set_argument_table(mtl_compute_encoder *encoder,
                                     mtl_argument_table *table);
 
+void mtl_set_threadgroup_memory_length(mtl_compute_encoder *encoder,
+                                       uint32_t length, uint32_t index);
+
 void mtl_dispatch_threads(mtl_compute_encoder *encoder,
                           struct mtl_size grid_size,
                           struct mtl_size local_size);

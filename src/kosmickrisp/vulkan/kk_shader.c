@@ -989,7 +989,7 @@ kk_nir_lower_vertex_id_zero_base(struct nir_shader *nir)
 static void
 kk_compile_msl(struct kk_physical_device *pdev, nir_shader *nir,
                const struct vk_graphics_pipeline_state *state,
-               struct msl_compile_data *data)
+               struct msl_compile_data *data, const bool apply_wa19)
 {
    NIR_PASS(_, nir, kk_nir_lower_poly);
 
@@ -1000,6 +1000,10 @@ kk_compile_msl(struct kk_physical_device *pdev, nir_shader *nir,
       .mem_ctx = NULL,
       .disabled_workarounds = pdev->settings.disabled_workarounds,
    };
+
+   if (!apply_wa19)
+      translate_options.disabled_workarounds |= BITFIELD64_BIT(19);
+
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       for (uint32_t i = 0u; i < MAX_DRAW_BUFFERS; ++i) {
          /* If the attachment is unused, default to 4 to avoid issues with alpha
@@ -1041,7 +1045,7 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
                   const struct vk_pipeline_robustness_state *robustness,
                   const struct vk_graphics_pipeline_state *state,
                   const VkAllocationCallbacks *pAllocator,
-                  struct kk_shader **shader_out)
+                  struct kk_shader **shader_out, bool apply_wa19)
 {
    assert(nir->info.io_lowered && "nir must have lowered io");
    struct kk_physical_device *pdev = kk_device_physical(dev);
@@ -1050,6 +1054,7 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
    VkResult result = VK_SUCCESS;
 
    mesa_shader_stage stage = nir->info.stage;
+   mesa_shader_stage next_stage = nir->info.next_stage;
    shader = vk_shader_zalloc(&dev->vk, &kk_shader_ops, stage, pAllocator,
                              sizeof(*shader));
    if (shader == NULL) {
@@ -1074,7 +1079,7 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
       /* VBO lowering needs to go here otherwise, the linking step removes all
        * inputs since we read vertex attributes from UBOs. */
       kk_lower_vs_vbo(nir, state, robustness);
-      if (nir->info.next_stage != MESA_SHADER_FRAGMENT) {
+      if (next_stage != MESA_SHADER_FRAGMENT) {
          /* TODO_KOSMICKRISP: Poly lowering breaks with vectorized I/O less than
           * 32-bit, which we support. Lower vertex outputs to scalar. */
          NIR_PASS(_, nir, nir_lower_io_to_scalar, nir_var_shader_out, NULL,
@@ -1115,7 +1120,7 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
        * 32-bit, which we support. Lower TES inputs to scalar, and outputs too
        * when a GS reads them from memory. */
       nir_variable_mode modes = nir_var_shader_in;
-      if (nir->info.next_stage == MESA_SHADER_GEOMETRY)
+      if (next_stage == MESA_SHADER_GEOMETRY)
          modes |= nir_var_shader_out;
       NIR_PASS(_, nir, nir_lower_io_to_scalar, modes, NULL, NULL);
 
@@ -1124,7 +1129,7 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
       shader->info.tess.info.spacing = nir->info.tess.spacing;
       shader->info.tess.info.mode = nir->info.tess._primitive_mode;
 
-      bool to_hw_vs = nir->info.next_stage != MESA_SHADER_GEOMETRY;
+      bool to_hw_vs = next_stage != MESA_SHADER_GEOMETRY;
       /* This destroys info so it needs to happen after the gather */
       NIR_PASS(_, nir, poly_nir_lower_tes, to_hw_vs);
       if (!to_hw_vs) {
@@ -1151,7 +1156,7 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
       nir->info.stage = MESA_SHADER_COMPUTE;
       memset(&nir->info.cs, 0, sizeof(nir->info.cs));
       nir->xfb_info = NULL;
-      kk_compile_msl(pdev, nir, state, &shader->gs_main);
+      kk_compile_msl(pdev, nir, state, &shader->gs_main, apply_wa19);
 
       /* From here on, nir is the rasterization VS of the GS */
       nir = rast;
@@ -1167,7 +1172,10 @@ kk_compile_shader(struct kk_device *dev, nir_shader *nir,
       NIR_PASS(_, nir, kk_nir_lower_descriptors, robustness, 0, NULL);
    }
 
-   kk_compile_msl(pdev, nir, state, &shader->msl_data[stage]);
+   /* KK_WORKAROUND_19 Only the stage that feeds geometry will be dispatched
+    * through the buggy Metal entry point. */
+   apply_wa19 &= next_stage == MESA_SHADER_GEOMETRY;
+   kk_compile_msl(pdev, nir, state, &shader->msl_data[stage], apply_wa19);
 
    *shader_out = shader;
 
@@ -1195,7 +1203,7 @@ kk_compile_nir_shader(struct kk_device *dev, nir_shader *nir,
    struct kk_shader *shader = NULL;
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
    VkResult result =
-      kk_compile_shader(dev, nir, NULL, &rs_none, NULL, alloc, &shader);
+      kk_compile_shader(dev, nir, NULL, &rs_none, NULL, alloc, &shader, false);
    if (result != VK_SUCCESS)
       return result;
 
@@ -1729,12 +1737,16 @@ kk_compile_shaders(struct vk_device *device, uint32_t shader_count,
       total_shaders += 1u;
    }
 
+   /* KK_WORKAROUND_19 */
+   bool apply_wa19 = false;
+
    /* nir_opt_varyings_bulk removes a GS primitive ID output that the FS does
     * not read as an input. The FS is last and a GS right before it. */
    if (total_shaders >= 2u &&
        nir_shaders[total_shaders - 2u]->info.stage == MESA_SHADER_GEOMETRY) {
       kk_forward_gs_primitive_id(nir_shaders[total_shaders - 2u],
                                  nir_shaders[total_shaders - 1u]);
+      apply_wa19 = !(pdev->settings.disabled_workarounds & BITFIELD64_BIT(19));
    }
 
    nir_opt_varyings_bulk(nir_shaders, total_shaders, true, UINT32_MAX,
@@ -1749,7 +1761,7 @@ kk_compile_shaders(struct vk_device *device, uint32_t shader_count,
       struct kk_shader *prev_stage = i > 0 ? shaders[i - 1] : NULL;
       result =
          kk_compile_shader(dev, nir_shaders[i], prev_stage, vertex_robustness,
-                           state, pAllocator, &shaders[i]);
+                           state, pAllocator, &shaders[i], apply_wa19);
 
       if (result != VK_SUCCESS) {
          /* Clean up all the shaders before this point */

@@ -314,7 +314,10 @@ main(int argc, char **argv)
          } while (progress);
 
          nir_shader_gather_info(s, nir_shader_get_entrypoint(s));
-         struct nir_to_msl_options options = {};
+         /* KK_WORKAROUND_19 No precompiled shader will be dispatched with the
+          * buggy Metal entry point. */
+         struct nir_to_msl_options options = {.disabled_workarounds =
+                                                 BITFIELD64_BIT(19)};
          const char *msl = nir_to_msl(s, &options);
          print_shader(fp_c, libfunc->name, target, v, msl, s);
          ralloc_free((void *)msl);

@@ -100,6 +100,9 @@ emit_inputs(struct nir_to_msl_ctx *ctx, nir_shader *shader)
    default:
       break;
    }
+   if (!(ctx->disabled_workarounds & BITFIELD64_BIT(19))) {
+      P_IND(ctx, "threadgroup uint32_t *kk_wa19_tg [[threadgroup(0)]],\n");
+   }
    P_IND(ctx, "constant Buffer &buf0 [[buffer(0)]],\n");
    P_IND(ctx, "constant SamplerTable &sampler_table [[buffer(1)]]");
    if (ctx->uses_per_draw_data) {
@@ -2539,6 +2542,17 @@ nir_to_msl(nir_shader *shader, struct nir_to_msl_options *options)
    P(&ctx, ")\n");
    P(&ctx, "{\n");
    ctx.indentlevel++;
+
+   /* KK_WORKAROUND_19 */
+   if (!(ctx.disabled_workarounds & BITFIELD64_BIT(19))) {
+      P_IND(&ctx, "/* KK_WORKAROUND_19 */\n");
+      P_IND(&ctx, "if (buf0.contents[0] == 0xFFFFFFFFFFFFFFFFul) {\n"
+                  "    kk_wa19_tg[0] = 1u;\n"
+                  "    threadgroup_barrier(mem_flags::mem_threadgroup);\n"
+                  "    *(device uint *)(buf0.contents[0]) = kk_wa19_tg[1];\n"
+                  "}\n");
+   }
+
    msl_emit_output_var(&ctx, shader);
    emit_local_vars(&ctx, shader);
    predeclare_ssa_values(&ctx, impl);

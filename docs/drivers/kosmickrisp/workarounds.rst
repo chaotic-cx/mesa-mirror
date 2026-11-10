@@ -49,6 +49,22 @@ info on what was updated.
 Workarounds
 ===========
 
+KK_WORKAROUND_19
+----------------
+| macOS version: 26 and 27
+| Metal ticket: FB25516856 (@aitor)
+| Metal ticket status: Waiting resolution
+| CTS test failure: ``dEQP-VK.clipping.*vert_tess_geom*`` and ``dEQP-VK.tessellation.geometry_interaction.*``
+| Comments:
+
+Only affects M1/2. When a kernel has enough register pressure, the compiler may
+spill registers to threadgroup memory. Whether it does depends on the pipeline's
+``maxTotalThreadsPerThreadgroup``. Under ``dispatchThreadsWithIndirectBuffer:``,
+only the first few bytes of a threadgroup's spill area work and spilled values
+beyond that read back as zero. A simple workaround is to add a 16 byte
+``[[threadgroup(0)]]`` argument and a conditional read and write in the shader
+that will never execute to stop the compiler from spilling.
+
 KK_WORKAROUND_18
 ----------------
 | macOS version: 26.x

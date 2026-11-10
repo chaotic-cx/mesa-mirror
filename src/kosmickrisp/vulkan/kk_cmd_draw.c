@@ -2209,6 +2209,8 @@ kk_launch_gs_prerast(struct kk_cmd_buffer *cmd,
                      const struct kk_draw_command *data,
                      struct kk_draw_data draw, bool restart)
 {
+   struct kk_physical_device *pdev =
+      kk_device_physical(kk_cmd_buffer_device(cmd));
    struct kk_graphics_state *gfx = &cmd->state.gfx;
    struct kk_shader *vs = cmd->state.shaders[MESA_SHADER_VERTEX];
    struct kk_shader *tes = cmd->state.shaders[MESA_SHADER_TESS_EVAL];
@@ -2264,6 +2266,10 @@ kk_launch_gs_prerast(struct kk_cmd_buffer *cmd,
    uint32_t pre_render_count = vs->pipeline.gfx.pre_render_count;
    struct mtl_size local_size = {KK_POLY_WG_SIZE, 1, 1};
    mtl_compute_encoder *enc = cs_get_compute(cmd);
+
+   /* KK_WORKAROUND_19 */
+   if (!(pdev->settings.disabled_workarounds & BITFIELD64_BIT(19)))
+      mtl_set_threadgroup_memory_length(enc, 16u, 0u);
 
    mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
                                     MTL_STAGE_DISPATCH);
