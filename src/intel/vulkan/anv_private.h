@@ -2490,6 +2490,11 @@ struct anv_gfx_dynamic_state {
    uint32_t first_vue_slot;
 
    /**
+    * Whether the HW has been programmed with non standard sample patterns.
+    */
+   bool non_standard_sample_pattern;
+
+   /**
     * DEPTH and STENCIL attachment write state for Wa_18019816803.
     */
    bool ds_write_state;

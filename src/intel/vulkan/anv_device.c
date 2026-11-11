@@ -1325,6 +1325,10 @@ VkResult anv_CreateDevice(
    BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_SO_DECL_LIST);
    /* Only programmed when line stipple is enabled, avoids PIPE_CONTROL */
    BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_LINE_STIPPLE);
+   /* Only programmed when detecting a change to non standard locations,
+    * always reprogrammed to default at end of command buffer.
+    */
+   BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_SAMPLE_PATTERN);
 
    if (device->info->ver < 11)
       BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_VF_SGVS_2);
@@ -1332,8 +1336,6 @@ VkResult anv_CreateDevice(
       BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_PRIMITIVE_REPLICATION);
       BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_DEPTH_BOUNDS);
    }
-   if (!device->vk.enabled_extensions.EXT_sample_locations)
-      BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_SAMPLE_PATTERN);
    if (!device->vk.enabled_extensions.KHR_fragment_shading_rate) {
       BITSET_CLEAR(device->gfx_dirty_state, ANV_GFX_STATE_CPS);
    }

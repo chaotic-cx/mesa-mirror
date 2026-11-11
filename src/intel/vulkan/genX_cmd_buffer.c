@@ -4127,16 +4127,6 @@ genX(BeginCommandBuffer)(
       }
    }
 
-   /* Emit the sample pattern at the beginning of the batch because the
-    * default locations emitted at the device initialization might have been
-    * changed by a previous command buffer.
-    *
-    * Do not change that when we're continuing a previous renderpass.
-    */
-   if (device->vk.enabled_extensions.EXT_sample_locations &&
-       !(cmd_buffer->usage_flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT))
-      genX(emit_sample_pattern)(&cmd_buffer->batch, NULL);
-
    if (cmd_buffer->vk.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) {
       const VkCommandBufferInheritanceConditionalRenderingInfoEXT *conditional_rendering_info =
          vk_find_struct_const(pBeginInfo->pInheritanceInfo->pNext, COMMAND_BUFFER_INHERITANCE_CONDITIONAL_RENDERING_INFO_EXT);
@@ -4337,6 +4327,11 @@ end_command_buffer(struct anv_cmd_buffer *cmd_buffer,
    if (cmd_buffer->state.gfx.dyn_state.autostrip_disabled)
       genX(setup_autostrip_state)(cmd_buffer, true);
 #endif
+
+   /* Reset sample pattern to avoid dummy programming. */
+   if (anv_cmd_buffer_is_render_queue(cmd_buffer) &&
+       cmd_buffer->state.gfx.dyn_state.non_standard_sample_pattern)
+      genX(emit_sample_pattern)(&cmd_buffer->batch, NULL);
 
    /* Wa_14015814527
     *

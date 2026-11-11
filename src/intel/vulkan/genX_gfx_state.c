@@ -36,6 +36,8 @@
 #include "common/intel_tiled_render.h"
 #include "compiler/intel_prim.h"
 
+#include "vk_standard_sample_locations.h"
+
 #include "genX_mi_builder.h"
 
 #define anv_gfx_pack(field, cmd, name)                               \
@@ -1338,6 +1340,25 @@ update_topology(struct anv_gfx_dynamic_state *hw_state,
    SET(VF_TOPOLOGY, vft.PrimitiveTopologyType, topology);
 }
 
+ALWAYS_INLINE static void
+update_sample_pattern(struct anv_gfx_dynamic_state *hw_state,
+                      const struct vk_dynamic_graphics_state *dyn)
+{
+   /* We assume any change if we're already using non standard sample pattern
+    * needs reprogramming. This triggers a reprogramming when switching back
+    * to standard patterns.
+    */
+   if (GET(non_standard_sample_pattern))
+      BITSET_SET(hw_state->pack_dirty, ANV_GFX_STATE_SAMPLE_PATTERN);
+
+   SET(SAMPLE_PATTERN,
+       non_standard_sample_pattern,
+       (dyn->ms.sample_locations_enable &&
+        memcmp(vk_standard_sample_locations_state(dyn->ms.rasterization_samples),
+               dyn->ms.sample_locations,
+               sizeof(struct vk_sample_locations_state)) != 0));
+}
+
 #if GFX_VER >= 11
 ALWAYS_INLINE static void
 update_cps(struct anv_gfx_dynamic_state *hw_state,
@@ -2600,7 +2621,7 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
    if (device->vk.enabled_extensions.EXT_sample_locations &&
        (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_SAMPLE_LOCATIONS) ||
         BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_SAMPLE_LOCATIONS_ENABLE)))
-      BITSET_SET(hw_state->pack_dirty, ANV_GFX_STATE_SAMPLE_PATTERN);
+      update_sample_pattern(hw_state, dyn);
 
    if ((gfx->dirty & ANV_CMD_DIRTY_PS) ||
        (gfx->dirty & ANV_CMD_DIRTY_RENDER_TARGETS) ||
