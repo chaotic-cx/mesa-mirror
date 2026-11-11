@@ -4098,8 +4098,14 @@ check_level(struct gl_context *ctx, struct gl_texture_object *texObj,
     *    "If texture refers to an immutable-format texture, level must be
     *     greater than or equal to zero and smaller than the value of
     *     TEXTURE_VIEW_NUM_LEVELS for texture."
+    *
+    * This same restriction was added for OpenGL ES 3.2 but not for 3.1 or
+    * 3.0. In these cases, the level only has to be no larger than log2 of the
+    * maximum, which is enforced by _mesa_max_texture_levels().
     */
-   const int max_levels = texObj->Immutable ? texObj->Attrib.ImmutableLevels :
+   const bool is_immutable = texObj->Immutable &&
+                             (!_mesa_is_gles(ctx) || _mesa_is_gles32(ctx));
+   const int max_levels = is_immutable ? texObj->Attrib.ImmutableLevels :
                           _mesa_max_texture_levels(ctx, target);
 
    if (level < 0 || level >= max_levels) {
