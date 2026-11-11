@@ -350,16 +350,10 @@ void gfxstream_vk_DestroyFence(VkDevice device, VkFence fence,
 VkResult gfxstream_vk_ResetFences(VkDevice device, uint32_t fenceCount, const VkFence* pFences) {
     MESA_TRACE_SCOPE("vkResetFences");
     VkResult vkResetFences_VkResult_return = (VkResult)0;
-    {
-        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        std::vector<VkFence> internal_pFences(fenceCount);
-        internal_pFences = FilterNoopFences(pFences, fenceCount);
-        pFences = internal_pFences.data();
-        fenceCount = internal_pFences.size();
-        auto resources = gfxstream::vk::ResourceTracker::get();
-        vkResetFences_VkResult_return = resources->on_vkResetFences(
-            vkEnc, VK_SUCCESS, device, fenceCount, internal_pFences.data());
-    }
+    auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+    auto resources = gfxstream::vk::ResourceTracker::get();
+    vkResetFences_VkResult_return =
+        resources->on_vkResetFences(vkEnc, VK_SUCCESS, device, fenceCount, pFences);
     return vkResetFences_VkResult_return;
 }
 VkResult gfxstream_vk_GetFenceStatus(VkDevice device, VkFence fence) {
@@ -377,16 +371,10 @@ VkResult gfxstream_vk_WaitForFences(VkDevice device, uint32_t fenceCount, const 
                                     VkBool32 waitAll, uint64_t timeout) {
     MESA_TRACE_SCOPE("vkWaitForFences");
     VkResult vkWaitForFences_VkResult_return = (VkResult)0;
-    {
-        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        std::vector<VkFence> internal_pFences(fenceCount);
-        internal_pFences = FilterNoopFences(pFences, fenceCount);
-        pFences = internal_pFences.data();
-        fenceCount = internal_pFences.size();
-        auto resources = gfxstream::vk::ResourceTracker::get();
-        vkWaitForFences_VkResult_return = resources->on_vkWaitForFences(
-            vkEnc, VK_SUCCESS, device, fenceCount, internal_pFences.data(), waitAll, timeout);
-    }
+    auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+    auto resources = gfxstream::vk::ResourceTracker::get();
+    vkWaitForFences_VkResult_return = resources->on_vkWaitForFences(
+        vkEnc, VK_SUCCESS, device, fenceCount, pFences, waitAll, timeout);
     return vkWaitForFences_VkResult_return;
 }
 VkResult gfxstream_vk_CreateSemaphore(VkDevice device, const VkSemaphoreCreateInfo* pCreateInfo,

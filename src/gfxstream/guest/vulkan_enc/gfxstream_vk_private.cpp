@@ -14,7 +14,7 @@
  * this is the case. Synchronization will be done on the host.
  */
 
-static bool isNoopFence(gfxstream_vk_fence* fence) {
+bool isNoopFence(gfxstream_vk_fence* fence) {
     return (fence && fence->base.temporary && vk_sync_type_is_dummy(fence->base.temporary->type));
 }
 
@@ -23,23 +23,17 @@ static bool isNoopSemaphore(gfxstream_vk_semaphore* semaphore) {
             vk_sync_type_is_dummy(semaphore->base.temporary->type));
 }
 
-std::vector<VkFence> FilterNoopFences(const VkFence* pFences, uint32_t fenceCount) {
-    std::vector<VkFence> outFences;
-    for (uint32_t j = 0; j < fenceCount; ++j) {
-        VK_FROM_HANDLE(gfxstream_vk_fence, gfxstream_fence, pFences[j]);
-        if (!isNoopFence(gfxstream_fence)) {
-            outFences.push_back(pFences[j]);
-        }
-    }
-    return outFences;
-}
-
 std::vector<VkSemaphore> FilterNoopSemaphores(const VkSemaphore* pSemaphores,
                                               uint32_t semaphoreCount) {
     std::vector<VkSemaphore> outSemaphores;
     for (uint32_t j = 0; j < semaphoreCount; ++j) {
         VK_FROM_HANDLE(gfxstream_vk_semaphore, gfxstream_semaphore, pSemaphores[j]);
-        if (!isNoopSemaphore(gfxstream_semaphore)) {
+        if (isNoopSemaphore(gfxstream_semaphore)) {
+            if (gfxstream_semaphore->base.base.device) {
+                vk_semaphore_reset_temporary(gfxstream_semaphore->base.base.device,
+                                             &gfxstream_semaphore->base);
+            }
+        } else {
             outSemaphores.push_back(pSemaphores[j]);
         }
     }
@@ -52,7 +46,12 @@ std::vector<VkSemaphoreSubmitInfo> FilterNoopSemaphoreSubmitInfos(
     for (uint32_t j = 0; j < semaphoreSubmitInfoCount; ++j) {
         VkSemaphoreSubmitInfo outInfo = pSemaphoreSubmitInfos[j];
         VK_FROM_HANDLE(gfxstream_vk_semaphore, gfxstream_semaphore, outInfo.semaphore);
-        if (!isNoopSemaphore(gfxstream_semaphore)) {
+        if (isNoopSemaphore(gfxstream_semaphore)) {
+            if (gfxstream_semaphore->base.base.device) {
+                vk_semaphore_reset_temporary(gfxstream_semaphore->base.base.device,
+                                             &gfxstream_semaphore->base);
+            }
+        } else {
             outSemaphoreSubmitInfo.push_back(outInfo);
         }
     }
@@ -116,10 +115,24 @@ GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_command_buffer, VkCommandBuffer,
                            VK_OBJECT_TYPE_COMMAND_BUFFER, base, vk_command_buffer_finish)
 GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_buffer, VkBuffer, VK_OBJECT_TYPE_BUFFER, base,
                            vk_buffer_finish)
-GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_fence, VkFence, VK_OBJECT_TYPE_FENCE, base.base,
-                           vk_object_base_finish)
-GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_semaphore, VkSemaphore, VK_OBJECT_TYPE_SEMAPHORE, base.base,
-                           vk_object_base_finish)
+static void gfxstream_vk_fence_finish(struct vk_fence* fence) {
+    if (fence->base.device) {
+        vk_fence_reset_temporary(fence->base.device, fence);
+    }
+    vk_object_base_finish(&fence->base);
+}
+
+static void gfxstream_vk_semaphore_finish(struct vk_semaphore* semaphore) {
+    if (semaphore->base.device) {
+        vk_semaphore_reset_temporary(semaphore->base.device, semaphore);
+    }
+    vk_object_base_finish(&semaphore->base);
+}
+
+GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_fence, VkFence, VK_OBJECT_TYPE_FENCE, base,
+                           gfxstream_vk_fence_finish)
+GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_semaphore, VkSemaphore, VK_OBJECT_TYPE_SEMAPHORE, base,
+                           gfxstream_vk_semaphore_finish)
 GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_device_memory, VkDeviceMemory, VK_OBJECT_TYPE_DEVICE_MEMORY,
                            base, vk_object_base_finish)
 GFXSTREAM_DEFINE_VK_OBJECT(gfxstream_vk_image, VkImage, VK_OBJECT_TYPE_IMAGE, base,

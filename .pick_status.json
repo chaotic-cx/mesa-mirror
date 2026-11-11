@@ -3334,7 +3334,7 @@
         "description": "gfxstream: handle WSI dummy sync objects and reset temporary state",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7b50e62179f201279d75700f8c53ad4d28fd4b32",
         "notes": null
@@ -3344,7 +3344,7 @@
         "description": "gfxstream: export completion-gated sync_fd on vkGetSemaphoreFdKHR",
         "nominated": false,
         "nomination_type": 0,
-        "resolution": 4,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
