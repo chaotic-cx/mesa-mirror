@@ -755,6 +755,12 @@ brw_inst::has_sampler_residency() const
    return tex && tex->residency;
 }
 
+bool
+brw_inst::has_packed_sampler_residency(const brw_shader *shader) const
+{
+   return has_sampler_residency() && !shader->key->use_efficient_64bit;
+}
+
 /* \sa inst_is_raw_move in brw_eu_validate. */
 bool
 brw_inst::is_raw_move() const

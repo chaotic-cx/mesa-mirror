@@ -6358,10 +6358,13 @@ brw_from_nir_emit_texture(nir_to_brw_state &ntb,
    const unsigned per_component_regs =
       DIV_ROUND_UP(brw_type_size_bytes(dst_type) * bld.dispatch_width(),
                    grf_size);
+   const bool unpacked_residency = ntb.s.key->use_efficient_64bit;
+   const unsigned residency_regs =
+      instr->is_sparse * (unpacked_residency ? per_component_regs : 1);
    const unsigned total_regs =
-      dest_comp * per_component_regs + instr->is_sparse;
-   /* Allocate enough space for the components + one physical register for the
-    * residency data.
+      dest_comp * per_component_regs + residency_regs;
+   /* Efficient 64bit sends return per-lane residency with the color channel
+    * layout while legacy sends return a packed mask in one physical register.
     */
    brw_reg dst = retype(
       brw_allocate_vgrf_units(*bld.shader, total_regs * reg_unit(devinfo)),
@@ -6431,10 +6434,11 @@ brw_from_nir_emit_texture(nir_to_brw_state &ntb,
       for (unsigned i = dest_comp; i < dest_size; i++)
          nir_dest[i].type = dst.type;
 
-      /* The residency bits are only in the first component. */
       if (instr->is_sparse) {
-         nir_dest[dest_size - 1] =
-            component(offset(dst, bld, dest_comp), 0);
+         brw_reg residency =
+            byte_offset(dst, dest_comp * per_component_regs * grf_size);
+         nir_dest[dest_size - 1] = unpacked_residency ?
+            residency : component(residency, 0);
       }
 
       bld.LOAD_PAYLOAD(nir_def_reg, nir_dest, dest_size, 0);

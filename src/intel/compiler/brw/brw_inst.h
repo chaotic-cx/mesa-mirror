@@ -132,6 +132,12 @@ struct brw_inst : brw_exec_node {
    bool has_sampler_residency() const;
 
    /**
+    * Return true if this instruction is a sampler message gathering residency
+    * data for legacy addressing mode (when efficient 64bit mode is not used).
+    */
+   bool has_packed_sampler_residency(const brw_shader *shader) const;
+
+   /**
     * Return true if this instruction is using the address register
     * implicitly.
     */
@@ -281,8 +287,8 @@ struct brw_tex_inst : brw_inst {
    union {
       struct {
          /**
-          * Whether the instruction requests the residency data (additional register
-          * written).
+          * Whether the instruction requests residency data: one packed-mask
+          * register for legacy sends, an extra vector for efficient 64bit sends.
           */
          bool residency:1;
          /**

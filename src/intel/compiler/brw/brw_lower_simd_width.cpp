@@ -619,8 +619,12 @@ emit_zip(const brw_builder &lbld_before, const brw_builder &lbld_after,
       return dst;
    }
 
-   /* Deal with the residency data part later */
-   const unsigned residency_size = inst->has_sampler_residency() ?
+   /* Only legacy sends residency needs special packing.
+    * From BSpec 57001, efficient 64bit sends return an extra vector component
+    * with the same layout as the color channels.
+    */
+   const unsigned residency_size =
+      inst->has_packed_sampler_residency(lbld_before.shader) ?
       (reg_unit(devinfo) * REG_SIZE) : 0;
    const unsigned dst_size = (inst->size_written - residency_size) /
       inst->dst.component_size(inst->exec_size);
@@ -704,7 +708,8 @@ brw_lower_simd_width(brw_shader &s)
        * original or the lowered instruction, whichever is lower.
        */
       const unsigned n = DIV_ROUND_UP(inst->exec_size, lower_width);
-      const unsigned residency_size = inst->has_sampler_residency() ?
+      const unsigned residency_size =
+         inst->has_packed_sampler_residency(&s) ?
          (reg_unit(s.devinfo) * REG_SIZE) : 0;
       const unsigned dst_size =
          (inst->size_written - residency_size) /

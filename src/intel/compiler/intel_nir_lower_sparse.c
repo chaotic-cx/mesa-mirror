@@ -18,8 +18,9 @@
  * information. We need to use the sampler for residency.
  *
  * The is_sparse_texels_resident intrinsic is lowered to a bit checking
- * operation as the data reported by the sampler is a single bit per lane in
- * the first component.
+ * operation.
+ * Legacy sampler messages return a packed bit per lane in the first component
+ * while efficient 64bit messages return per-lane all-ones/zero values.
  *
  * The tex_* instructions with a compare value need to be lower into 2
  * instructions due to a HW limitation :

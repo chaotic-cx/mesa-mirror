@@ -755,18 +755,20 @@ get_sampler_msg_payload_type_bit_size(const intel_device_info *devinfo,
  * not be written back.
  */
 static uint32_t
-sampler_calc_channel_mask(const intel_device_info *devinfo, brw_tex_inst *tex)
+sampler_calc_channel_mask(const intel_device_info *devinfo, brw_tex_inst *tex,
+                          bool efficient_64bit)
 {
    /* If we're requesting fewer than four channels worth of response,
     * and we have an explicit header, we need to set up the sampler
     * writemask.  It's reversed from normal: 1 means "don't write".
     */
-   unsigned residency_regs = tex->residency;
-   unsigned comps_regs =
-      DIV_ROUND_UP(regs_written(tex), reg_unit(devinfo)) - residency_regs;
    unsigned comp_regs =
       DIV_ROUND_UP(tex->dst.component_size(tex->exec_size),
                    reg_unit(devinfo) * REG_SIZE);
+   unsigned residency_regs =
+      tex->residency * (efficient_64bit ? comp_regs : 1);
+   unsigned comps_regs =
+      DIV_ROUND_UP(regs_written(tex), reg_unit(devinfo)) - residency_regs;
    if (comps_regs < 4 * comp_regs) {
       assert(comps_regs % comp_regs == 0);
       return ~((1 << (comps_regs / comp_regs)) - 1) & 0xf;
@@ -796,7 +798,8 @@ lower_sampler_logical_send(const brw_builder &bld, brw_tex_inst *tex)
 
    const bool residency = tex->residency;
    const uint8_t gather_component = tex->gather_component;
-   uint8_t write_channel_mask = sampler_calc_channel_mask(devinfo, tex);
+   const bool eff_64bit = bld.shader->key->use_efficient_64bit;
+   uint8_t write_channel_mask = sampler_calc_channel_mask(devinfo, tex, eff_64bit);
    const bool has_const_offsets = tex->has_const_offsets;
    unsigned r_offset = 0, v_offset = 0, u_offset = 0;
    if (has_const_offsets) {
@@ -819,7 +822,7 @@ lower_sampler_logical_send(const brw_builder &bld, brw_tex_inst *tex)
       brw_type_with_size(BRW_TYPE_UD, payload_type_bit_size);
 
    const bool needs_header =
-      !bld.shader->key->use_efficient_64bit &&
+      !eff_64bit &&
       (sampler_op_needs_header(op, devinfo) ||
        has_const_offsets ||
        packed_offsets.file != BAD_FILE ||
@@ -833,7 +836,7 @@ lower_sampler_logical_send(const brw_builder &bld, brw_tex_inst *tex)
       sources[i] = bld.vgrf((i == 0 && needs_header) ? BRW_TYPE_UD : payload_type);
 
    /* Setup sampler header if needed */
-   if (bld.shader->key->use_efficient_64bit) {
+   if (eff_64bit) {
       /* From 3D Sampler::Message Header/BSpec 56986(r50439):
        *
        *    "Noted that the 64bit efficiency header is use exclusively for
