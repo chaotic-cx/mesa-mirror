@@ -396,6 +396,10 @@ process_block(nir_block *block, nir_load_grouping grouping,
       if (is_grouped_load(instr)) {
          unsigned indirections = get_num_indirections(instr, infos);
 
+         /* Give up if there are too many indirections. */
+         if (indirections >= ARRAY_SIZE(num_inst_per_level))
+            return;
+
          num_inst_per_level[indirections]++;
          infos[instr->index].indirection_level = indirections;
 
