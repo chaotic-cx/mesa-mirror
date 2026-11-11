@@ -21,6 +21,10 @@ nv30_surface(struct pipe_surface *ps)
    return (struct nv30_surface *)ps;
 }
 
+void
+nv30_miptree_surface_init(struct nv30_surface *, struct pipe_resource *,
+                          const struct pipe_surface *);
+
 struct nv30_miptree_level {
    uint32_t offset;
    uint32_t pitch;
