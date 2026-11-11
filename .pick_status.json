@@ -1514,7 +1514,7 @@
         "description": "tu: Update input attachment idx when MSRTSS internal is used",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f6c7f16322de7088fef812890e30a697c4f2eaf2",
         "notes": null

@@ -1776,6 +1776,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
                                VK_ATTACHMENT_STORE_OP_DONT_CARE,
                                VK_ATTACHMENT_STORE_OP_DONT_CARE);
             subpass->color_attachments[i].attachment = att_idx;
+            subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].attachment = att_idx;
             att->will_be_resolved =
                att_info->storeOp == VK_ATTACHMENT_STORE_OP_STORE;
          }
@@ -1812,6 +1813,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
                att->resolve_views = 0;
                att->user_att = subpass->depth_stencil_attachment.attachment;
                subpass->depth_stencil_attachment.attachment = att_idx;
+               subpass->input_attachments[0].attachment = att_idx;
                att->will_be_resolved =
                   (info->pDepthAttachment &&
                    info->pDepthAttachment->imageView &&
