@@ -490,3 +490,27 @@ BEGIN_TEST(ilp_sched.pending_prolog_input)
       }
    }
 END_TEST
+
+BEGIN_TEST(ilp_sched.ordered_boundary)
+   for (amd_gfx_level gfx : {GFX9, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      program->args_pending_vmem.emplace_back(PhysReg(256), v2);
+      /* Preserve the ordering of ALU around the call. */
+      //>> ds_add_u32 %0:v[0], %0:v[1], %0:m0 storage:shared semantics:volatile,atomic,rmw
+      //! v1: %0:v[4] = v_add_f32 %0:v[12], %0:v[13]
+      //! s2: %0:s[0-1] = s_swappc_b64 %0:s[2-3]
+      //! v1: %0:v[5] = v_mul_f32 %0:v[12], %0:v[13]
+      Instruction* instr = bld.ds(aco_opcode::ds_add_u32, Operand(PhysReg(256), v1),
+                                  Operand(PhysReg(257), v1), Operand(m0, s1));
+      instr->ds().sync = memory_sync_info(storage_shared, semantic_atomicrmw);
+      bld.vop2(aco_opcode::v_add_f32, Definition(PhysReg(260), v1), Operand(PhysReg(268), v1),
+               Operand(PhysReg(269), v1));
+      bld.sop1(aco_opcode::s_swappc_b64, Definition(PhysReg(0), s2), Operand(PhysReg(2), s2));
+      bld.vop2(aco_opcode::v_mul_f32, Definition(PhysReg(261), v1), Operand(PhysReg(268), v1),
+               Operand(PhysReg(269), v1));
+
+      finish_schedule_ilp_test();
+   }
+END_TEST

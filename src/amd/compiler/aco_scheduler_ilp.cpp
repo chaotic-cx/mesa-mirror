@@ -14,8 +14,9 @@
 /*
  * This pass implements a simple forward list-scheduler which works on a small
  * partial DAG of 32 nodes at any time. Only ALU instructions are scheduled
- * entirely freely. Memory load instructions must be kept in-order and any other
- * instruction must not be re-scheduled at all.
+ * entirely freely. Memory instructions must be kept in-order with each other,
+ * but may cross independent ALU. Other non-reorderable instructions retain
+ * dependencies on preceding ALU.
  *
  * The main goal of this scheduler is to create more memory clauses, schedule
  * memory loads early, and to improve ALU instruction level parallelism.
@@ -71,6 +72,7 @@ struct SchedILPContext {
    BITSET_DECLARE(reg_has_latency, 512) = { 0 };
    mask_t non_reorder_mask = 0; /* bitmask of instruction nodes which should not be reordered. */
    mask_t active_mask = 0;      /* bitmask of valid instruction nodes. */
+   uint8_t ordering_dependency = UINT8_MAX;  /* Index of latest fully ordered ILP instruction. */
    uint8_t next_non_reorderable = UINT8_MAX; /* index of next node which should not be reordered. */
    uint8_t last_non_reorderable = UINT8_MAX; /* index of last node which should not be reordered. */
    bool potential_partial_clause; /* indicates that last_non_reorderable is the last instruction in
@@ -521,11 +523,15 @@ get_cycle_info_with_mem_latency(const SchedILPContext& ctx, const Instruction* c
 bool
 is_memory_instr(const Instruction* const instr)
 {
+   /* Clock reads are code-motion barriers despite using the SMEM format. */
+   if (instr->opcode == aco_opcode::s_memtime || instr->opcode == aco_opcode::s_memrealtime)
+      return false;
+
    /* For memory instructions, we allow to reorder them with ALU if it helps
     * to form larger clauses or to increase def-use distances.
     */
-   return instr->isVMEM() || instr->isFlatLike() || instr->isSMEM() || instr->accessesLDS() ||
-          instr->isEXP();
+   return instr->isVMEM() || instr->isFlatLike() || instr->isSMEM() || instr->isDS() ||
+          instr->isLDSDIR() || instr->isEXP();
 }
 
 constexpr unsigned max_sgpr = 128;
@@ -623,10 +629,11 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
       entry.next_non_reorderable = UINT8_MAX;
 
       /* Just don't reorder these at all. */
-      if (!is_memory_instr(instr) || instr->definitions.empty() ||
-          get_sync_info(instr).semantics & semantic_volatile || ctx.is_vopd) {
+      if (!is_memory_instr(instr) || instr->definitions.empty() || ctx.is_vopd) {
          /* Add all previous instructions as dependencies. */
          entry.dependency_mask = ctx.active_mask & ~ctx.non_reorder_mask;
+         if (!ctx.is_vopd)
+            ctx.ordering_dependency = idx;
       }
 
       /* Remove non-reorderable instructions from dependencies, since WaR dependencies can interfere
@@ -635,8 +642,12 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
        * dependencies. */
       write_dep_mask &= ~ctx.non_reorder_mask;
       ctx.potential_partial_clause = true;
-   } else if (ctx.last_non_reorderable != UINT8_MAX) {
-      ctx.potential_partial_clause = false;
+   } else {
+      /* Preserve implicit effects of fully ordered instructions, e.g. calls. */
+      if (ctx.ordering_dependency != UINT8_MAX)
+         entry.dependency_mask |= BITFIELD_BIT(ctx.ordering_dependency);
+      if (ctx.last_non_reorderable != UINT8_MAX)
+         ctx.potential_partial_clause = false;
    }
 
    entry.dependency_mask |= write_dep_mask;
@@ -657,6 +668,8 @@ remove_entry(SchedILPContext& ctx, const Instruction* const instr, const uint32_
 {
    const mask_t mask = ~BITFIELD_BIT(idx);
    ctx.active_mask &= mask;
+   if (ctx.ordering_dependency == idx)
+      ctx.ordering_dependency = UINT8_MAX;
 
    int latency = 0;
    int stall = 1;
