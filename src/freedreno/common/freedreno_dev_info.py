@@ -157,6 +157,58 @@ class GPUInfo(Struct):
         s.gpu_infos.append(self)
 
 
+# a2xx is really two sub-generations, a20x and a22x, but we don't currently
+# capture that in the device-info tables
+class A2xxGPUInfo(GPUInfo):
+    def __init__(self):
+        super().__init__(
+            CHIP.A2XX,
+            gmem_align_w = 32,  gmem_align_h = 32,
+            tile_align_w = 32,  tile_align_h = 32,
+            tile_max_w   = 512,
+            tile_max_h   = ~0, # TODO
+            num_vsc_pipes = 8,
+            cs_shared_mem_size = 0,
+            num_sp_cores = 0, # TODO
+            wave_granularity = 2,
+            fibers_per_sp = 0, # TODO
+            threadsize_base = 8, # TODO: Confirm this
+        )
+
+class A3xxGPUInfo(GPUInfo):
+    def __init__(self):
+        super().__init__(
+            CHIP.A3XX,
+            gmem_align_w = 32,  gmem_align_h = 32,
+            tile_align_w = 32,  tile_align_h = 32,
+            tile_max_w   = 992, # max_bitfield_val(4, 0, 5)
+            tile_max_h   = max_bitfield_val(9, 5, 5),
+            num_vsc_pipes = 8,
+            cs_shared_mem_size = 32 * 1024,
+            num_sp_cores = 0, # TODO
+            wave_granularity = 2,
+            fibers_per_sp = 0, # TODO
+            threadsize_base = 8,
+            reg_size_vec4 = 96, # TODO: confirm this
+        )
+
+class A4xxGPUInfo(GPUInfo):
+    def __init__(self):
+        super().__init__(
+            CHIP.A4XX,
+            gmem_align_w = 32,  gmem_align_h = 32,
+            tile_align_w = 32,  tile_align_h = 32,
+            tile_max_w   = 1024, # max_bitfield_val(4, 0, 5)
+            tile_max_h   = max_bitfield_val(9, 5, 5),
+            num_vsc_pipes = 8,
+            cs_shared_mem_size = 32 * 1024,
+            num_sp_cores = 0, # TODO
+            wave_granularity = 2,
+            fibers_per_sp = 0, # TODO
+            threadsize_base = 32, # TODO: Confirm this
+            reg_size_vec4 = 48, # not measured the way a5xx was
+        )
+
 class A5xxGPUInfo(GPUInfo):
     """The a5xx parts differ in how many SP cores they have, in the size
        of their register file and how waves are allocated from it, and in

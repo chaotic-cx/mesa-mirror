@@ -5,27 +5,13 @@
 
 from freedreno_dev_info import *
 
-# a2xx is really two sub-generations, a20x and a22x, but we don't currently
-# capture that in the device-info tables
 add_gpus([
         GPUId(200),
         GPUId(201, 0x02000001),
         GPUId(205),
         GPUId(220),
         GPUId(225),
-    ], GPUInfo(
-        CHIP.A2XX,
-        gmem_align_w = 32,  gmem_align_h = 32,
-        tile_align_w = 32,  tile_align_h = 32,
-        tile_max_w   = 512,
-        tile_max_h   = ~0, # TODO
-        num_vsc_pipes = 8,
-        cs_shared_mem_size = 0,
-        num_sp_cores = 0, # TODO
-        wave_granularity = 2,
-        fibers_per_sp = 0, # TODO
-        threadsize_base = 8, # TODO: Confirm this
-    ))
+    ], A2xxGPUInfo())
 
 add_gpus([
         GPUId(305),
@@ -34,39 +20,13 @@ add_gpus([
         GPUId(330),
         GPUId(chip_id=0x03000512, name="FD305B"),
         GPUId(chip_id=0x03000620, name="FD306A"),
-    ], GPUInfo(
-        CHIP.A3XX,
-        gmem_align_w = 32,  gmem_align_h = 32,
-        tile_align_w = 32,  tile_align_h = 32,
-        tile_max_w   = 992, # max_bitfield_val(4, 0, 5)
-        tile_max_h   = max_bitfield_val(9, 5, 5),
-        num_vsc_pipes = 8,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 0, # TODO
-        wave_granularity = 2,
-        fibers_per_sp = 0, # TODO
-        threadsize_base = 8,
-        reg_size_vec4 = 96, # TODO: confirm this
-    ))
+    ], A3xxGPUInfo())
 
 add_gpus([
         GPUId(405),
         GPUId(420),
         GPUId(430),
-    ], GPUInfo(
-        CHIP.A4XX,
-        gmem_align_w = 32,  gmem_align_h = 32,
-        tile_align_w = 32,  tile_align_h = 32,
-        tile_max_w   = 1024, # max_bitfield_val(4, 0, 5)
-        tile_max_h   = max_bitfield_val(9, 5, 5),
-        num_vsc_pipes = 8,
-        cs_shared_mem_size = 32 * 1024,
-        num_sp_cores = 0, # TODO
-        wave_granularity = 2,
-        fibers_per_sp = 0, # TODO
-        threadsize_base = 32, # TODO: Confirm this
-        reg_size_vec4 = 48, # not measured the way a5xx was
-    ))
+    ], A4xxGPUInfo())
 
 # FIXME: measure on the hardware
 add_gpus([
