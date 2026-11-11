@@ -68,34 +68,6 @@ TARGETS = {
     "gc7000-r6204": ["etnaviv", "7000:6204:70003:11"],
     "gc7000-r6214": ["etnaviv", "7000:6214:70002:30"],
 
-    "a200": ["freedreno", "200"],
-    "a201": ["freedreno", "201"],
-    "a220": ["freedreno", "220"],
-    "a225": ["freedreno", "225"],
-    "a305": ["freedreno", "305"],
-    "a320": ["freedreno", "320"],
-    "a330": ["freedreno", "330"],
-    "a306": ["freedreno", "307"],
-    "a420": ["freedreno", "420"],
-    "a430": ["freedreno", "430"],
-    "a510": ["freedreno", "510"],
-    "a530": ["freedreno", "530"],
-    "a540": ["freedreno", "540"],
-    "a610": ["freedreno", "610"],
-    "a618": ["freedreno", "618"],
-    "a630": ["freedreno", "630"],
-    "a650": ["freedreno", "650"],
-    "a660": ["freedreno", "660"],
-    "a702": ["freedreno", "702"],
-    "a710": ["freedreno", "710"],
-    "a720": ["freedreno", "720"],
-    "a730": ["freedreno", "730"],
-    "a735": ["freedreno", "735"],
-    "a740": ["freedreno", "740"],
-    "a750": ["freedreno", "750"],
-    "a810": ["freedreno", "810"],
-    "a830": ["freedreno", "830"],
-
     "mali450": ["lima", None],
 
     "turing": ["nouveau", "160"],
@@ -132,6 +104,22 @@ INTEL_TARGETS = [
 for target in INTEL_TARGETS:
     assert(target not in TARGETS)
     TARGETS[target] = ["intel", target]
+
+def freedreno_targets():
+    build = os.environ.get('DRM_SHIM_PATH')
+    if build is None:
+        return
+
+    sys.path.insert(0, os.path.join(build, 'src/freedreno/drm-shim'))
+    try:
+        import freedreno_shim_targets
+    except ModuleNotFoundError:
+        return
+
+    for target, gpu_id in freedreno_shim_targets.TARGETS.items():
+        TARGETS[target] = ["freedreno", gpu_id]
+
+freedreno_targets()
 
 LD_PRELOAD = {
     "amd": "src/amd/drm-shim/libamdgpu_noop_drm_shim.so",
