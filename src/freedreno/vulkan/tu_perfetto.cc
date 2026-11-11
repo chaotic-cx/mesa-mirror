@@ -144,19 +144,6 @@ PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(TuRenderpassDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(TuRenderpassDataSource);
 
 static void
-emit_sync_timestamp(struct tu_perfetto_clocks &clocks)
-{
-   uint32_t cpu_clock_id = perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
-   uint64_t gpu_ts = clocks.gpu_ts + clocks.gpu_ts_offset;
-   TuRenderpassDataSource::Trace([=](auto tctx) {
-      MesaRenderpassDataSource<TuRenderpassDataSource,
-                               TuRenderpassTraits>::EmitClockSync(tctx, clocks.cpu,
-                                                                  gpu_ts, cpu_clock_id,
-                                                                  gpu_clock_id);
-   });
-}
-
-static void
 setup_incremental_state(TuRenderpassDataSource::TraceContext &ctx,
                         struct tu_device *dev)
 {
@@ -353,7 +340,7 @@ stage_end(struct tu_device *dev, uint64_t ts_ns, enum tu_stage_id stage_id,
       state->has_pending_clocks_sync = false;
       mtx_unlock(&state->pending_clocks_sync_mtx);
 
-      emit_sync_timestamp(clocks);
+      tu_perfetto_emit_clock_sync(&clocks);
    }
 
    uint32_t queue_id = BR_HW_QUEUE_ID;
@@ -484,6 +471,16 @@ void
 tu_perfetto_init(void)
 {
    call_once(&tu_perfetto_init_once_flag, tu_perfetto_init_once);
+}
+
+void
+tu_perfetto_emit_clock_sync(const struct tu_perfetto_clocks *clocks)
+{
+   TuRenderpassDataSource::Trace([=](auto tctx) {
+      using Base = MesaRenderpassDataSource<TuRenderpassDataSource, TuRenderpassTraits>;
+      Base::EmitClockSync(tctx, clocks->cpu, clocks->gpu_ts + clocks->gpu_ts_offset,
+                          perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME, gpu_clock_id);
+   });
 }
 
 uint64_t
