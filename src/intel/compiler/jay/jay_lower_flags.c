@@ -77,8 +77,9 @@ pass(jay_function *f)
           * can just use the canonical form as-is unselected.
           */
          if (I->op == JAY_OPCODE_DEMOTE && I->src[0].file == FLAG) {
-            jay_replace_src(&I->src[0],
-                            jay_SEL_u32(&b, I->src[0], 0, I->src[0]));
+            jay_def casted = jay_alloc_def(&b, GPR, jay_flag_bits(f), 1);
+            jay_SEL(&b, jay_flag_type(f), casted, I->src[0], 0, I->src[0]);
+            jay_replace_src(&I->src[0], casted);
          }
 
          /* Convert 1-bit boolean to 0/~0 */
