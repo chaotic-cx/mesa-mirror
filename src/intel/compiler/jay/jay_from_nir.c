@@ -477,8 +477,6 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
       BINOP(fadd_rtne, ADD_RTNE)
       BINOP(iadd, ADD)
       BINOP(fmul, MUL)
-      BINOP(imul_32x16, MUL_32X16)
-      BINOP(umul_32x16, MUL_32X16)
       BINOP(urol, ROL)
       BINOP(uror, ROR)
       BINOP(urhadd, AVG)
@@ -710,9 +708,15 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
       jay_BFI2(b, dst, src[0], src[1], src[2]);
       break;
 
-   case nir_op_ffma:
    case nir_op_imad_32x16_intel:
    case nir_op_umad_32x16_intel:
+      if (nir_src_is_zero(alu->src[2].src)) {
+         jay_MUL_32X16(b, type, dst, src[0], src[1]);
+         break;
+      }
+
+      FALLTHROUGH;
+   case nir_op_ffma:
       jay_MAD(b, type, dst, src[2], src[0], src[1]);
       break;
 

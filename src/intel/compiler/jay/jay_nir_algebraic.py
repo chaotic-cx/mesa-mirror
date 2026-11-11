@@ -82,16 +82,20 @@ lower_algebraic.extend([
 
     (('imul', 'a@32', '#b'),
      ('umad_32x16_intel', a, ('u2u16', b),
-      ('umul_32x16', ('iand', b, 0xffff0000), a))),
+      ('umad_32x16_intel', ('iand', b, 0xffff0000), ('u2u16', a), 0))),
 
     # Xe2 has MACL which is more efficient for multiplication with no constants.
     # On older platforms without MACL, use the above rule as the lowering.
     (('imul', 'a@32', b),
-     ('umad_32x16_intel', a, ('u2u16', b), ('umul_32x16', ('iand', b, 0xffff0000), a)),
+     ('umad_32x16_intel', a, ('u2u16', b),
+      ('umad_32x16_intel', ('iand', b, 0xffff0000), ('u2u16', a), 0)),
      'verx10 < 200'),
 
     (('pack_half_2x16_split', a, b),
      ('pack_32_2x16_split', ('f2f16', a), ('f2f16', b))),
+
+    (('imul_32x16', a, b), ('imad_32x16_intel', a, ('u2u16', b), 0)),
+    (('umul_32x16', a, b), ('umad_32x16_intel', a, ('u2u16', b), 0)),
 ])
 
 # Fuse iadd+ishl. Prefer imad over umad so we can fold more modifiers.
