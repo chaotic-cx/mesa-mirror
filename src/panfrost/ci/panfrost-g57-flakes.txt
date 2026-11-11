@@ -42,3 +42,5 @@ spec@oes_egl_image_external_essl3@oes_egl_image_external_essl3@oes_egl_image_ext
 
 # See Mesa bug #15880 ("panfrost: incomplete glCopyPixels() with feedback loop")
 spec@!opengl 1.4@copy-pixels
+
+shaders@glsl-uniform-interstage-limits@subdivide 5

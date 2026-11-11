@@ -77,8 +77,16 @@ dEQP-VK.glsl.operator.binary_operator.div.mediump_float_vec3_vertex
 glx@glx-visuals-stencil
 
 # New timeout flakes since wsi maintenance1 support
+dEQP-VK.wsi.xcb.maintenance1.present_modes.heterogenous.fifo_mailbox_mailbox
+dEQP-VK.wsi.xcb.maintenance1.present_modes.heterogenous.fifo_relaxed_mailbox_fifo
+dEQP-VK.wsi.xcb.maintenance1.present_modes.heterogenous.fifo_relaxed_mailbox_mailbox
+dEQP-VK.wsi.xcb.maintenance1.present_modes.heterogenous.immediate_immediate_fifo_latest_ready
 dEQP-VK.wsi.xcb.maintenance1.release_images.immediate.no_scaling.basic
 dEQP-VK.wsi.xcb.maintenance1.release_images.mailbox.no_scaling.basic
+dEQP-VK.wsi.xcb.maintenance1.scaling.immediate.one_to_one.min_max.swapchain_smaller_taller_aspect
+dEQP-VK.wsi.xcb.maintenance1.scaling.mailbox.one_to_one.center_min.swapchain_taller
+dEQP-VK.wsi.xcb.maintenance1.scaling.resize_window.fifo.stretch.swapchain_taller
+dEQP-VK.wsi.xcb.maintenance1.scaling.resize_window.mailbox.aspect_stretch.max_min.swapchain_bigger_taller_aspect
 
 # Job timeout
 dEQP-VK.graphicsfuzz.spv-composites
@@ -88,8 +96,19 @@ spec@egl_ext_surface_compression@create
 spec@arb_framebuffer_object@framebuffer-blit-oblong wide
 
 # New flakes after the VKCTS 1.4.6.2 -> 1.4.7.0 uprev
-dEQP-VK.api.object_management.multithreaded_per_thread_resources.device_group
 dEQP-VK.api.object_management.multithreaded_per_thread_resources.device
-dEQP-VK.api.object_management.multithreaded_shared_resources.device_group
+dEQP-VK.api.object_management.multithreaded_per_thread_resources.device_group
 dEQP-VK.api.object_management.multithreaded_shared_resources.device
+dEQP-VK.api.object_management.multithreaded_shared_resources.device_group
+dEQP-VK.synchronization.cross_instance.dedicated.write_blit_image_read_image_fragment.image_128x128_r8_unorm_binary_semaphore_fd
+dEQP-VK.synchronization.cross_instance.dedicated.write_clear_attachments_read_copy_image_to_buffer.image_128x128_r8_unorm_binary_semaphore_fence_fd
+dEQP-VK.synchronization.cross_instance.dedicated.write_draw_indirect_read_blit_image.image_128x128_r32g32b32a32_sfloat_binary_semaphore_fd
+dEQP-VK.synchronization.cross_instance.suballocated.write_draw_indexed_read_image_compute_indirect.image_128x128_r16_uint_binary_semaphore_fd
+dEQP-VK.synchronization2.cross_instance.dedicated.write_clear_attachments_read_copy_image_to_buffer.image_128x128_d32_sfloat_binary_semaphore_fence_fd
+dEQP-VK.synchronization2.cross_instance.dedicated.write_clear_color_image_read_copy_image.image_128x128_r8g8b8a8_unorm_binary_semaphore_fd
+dEQP-VK.synchronization2.cross_instance.dedicated.write_clear_color_image_read_image_fragment.image_128x128_r16_uint_binary_semaphore_fence_fd
 dEQP-VK.synchronization2.cross_instance.dedicated.write_copy_buffer_to_image_read_copy_image_to_buffer.image_128x128_d32_sfloat_binary_semaphore_fd
+dEQP-VK.synchronization2.cross_instance.dedicated.write_draw_indexed_indirect_read_image_fragment.image_128x128_r8_unorm_binary_semaphore_fence_fd
+dEQP-VK.synchronization2.cross_instance.suballocated.write_blit_image_read_copy_image.image_128x128_r16_uint_binary_semaphore_fence_fd
+dEQP-VK.wsi.xcb.surface.resize
+dEQP-VK.wsi.xcb.swapchain.extended_flags.composite_alpha

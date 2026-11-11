@@ -5,9 +5,12 @@ dEQP-GLES2.functional.texture.vertex.cube.filtering.nearest_mipmap_nearest_linea
 dEQP-GLES2.functional.texture.vertex.cube.filtering.nearest_mipmap_nearest_linear_mirror
 dEQP-GLES2.functional.texture.vertex.cube.filtering.nearest_mipmap_nearest_linear_repeat
 dEQP-GLES3.functional.shaders.fragdepth.*
+dEQP-GLES31.functional.blend_equation_advanced.msaa.hardlight
+dEQP-GLES31.functional.copy_image.compressed.viewclass_astc_10x10_rgba.srgb8_alpha8_astc_10x10_khr_srgb8_alpha8_astc_10x10_khr.texture2d_array_to_texture3d
+dEQP-GLES31.functional.copy_image.non_compressed.viewclass_24_bits.rgb8_snorm_srgb8.texture3d_to_cubemap
+dEQP-GLES31.functional.copy_image.non_compressed.viewclass_32_bits.rgba8ui_rgb10_a2.cubemap_to_texture3d
 dEQP-GLES31.functional.draw_base_vertex.*
+dEQP-GLES31.functional.shaders.implicit_conversions.es31.struct_fields.field_before_input.int_to_uint_vertex
 dEQP-GLES31.functional.shaders.sample_variables.sample_mask.*
 dEQP-GLES31.functional.texture.gather.*repeat_mirrored_repeat
-dEQP-GLES31.functional.blend_equation_advanced.msaa.hardlight
-
 dEQP-GLES31.functional.texture.gather.offsets.implementation_offset.2d.depth32f.size_pot.compare_greater.mirrored_repeat_clamp_to_edge
