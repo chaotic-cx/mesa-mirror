@@ -837,7 +837,7 @@ vk_pipeline_flags_feedback_loops(VkPipelineCreateFlags2KHR flags)
       feedback_loops |= VK_IMAGE_ASPECT_COLOR_BIT;
    if (flags &
        VK_PIPELINE_CREATE_2_DEPTH_STENCIL_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT)
-      feedback_loops |= VK_IMAGE_ASPECT_DEPTH_BIT;
+      feedback_loops |= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
    return feedback_loops;
 }
 
