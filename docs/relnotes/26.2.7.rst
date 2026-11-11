@@ -1,0 +1,393 @@
+Mesa 26.2.7 Release Notes / 2026-11-11
+======================================
+
+Mesa 26.2.7 is a bug fix release which fixes bugs found since the 26.2.6 release.
+
+Mesa 26.2.7 implements the OpenGL 4.6 API, but the version reported by
+glGetString(GL_VERSION) or glGetIntegerv(GL_MAJOR_VERSION) /
+glGetIntegerv(GL_MINOR_VERSION) depends on the particular driver being used.
+Some drivers don't support all the features required in OpenGL 4.6. OpenGL
+4.6 is **only** available if requested at context creation.
+Compatibility contexts may report a lower version depending on each driver.
+
+Mesa 26.2.7 implements the OpenCL 3.1 API, but the version reported by
+the CL_DEVICE_VERSION, CL_DEVICE_NUMERIC_VERSION and CL_DEVICE_OPENCL_C_ALL_VERSIONS
+clGetDeviceInfo queries depends on the particular driver being used.
+
+Mesa 26.2.7 implements the Vulkan 1.4 API, but the version reported by
+the apiVersion property of the VkPhysicalDeviceProperties struct
+depends on the particular driver being used.
+
+SHA checksums
+-------------
+
+::
+
+    TBD.
+
+
+New features
+------------
+
+- None
+
+
+Bug fixes
+---------
+
+- # va: H.264 encode spins forever in vaRenderPicture on some packed SPS headers (vl_rbsp misreads emulation prevention bytes)
+- Asahi OpenCL compiler packing assertion failed
+- Confidential issue #16794
+- Fails to build on macOS < 10.12
+- LLVM 23, riscv64, compile error gallium/auxiliary/gallivm/lp_bld_init_orc.cpp (API change?)
+- Last Of Us Part 2 Remastered has glitches on hair strands - since Mesa 26.0.1
+- RadeonSI syncrhonization/barrier issue with Clear+Dispatch (Repro included)
+- V3D: Labwc fails to allocate GBM buffers wider than 4096 pixels unless non-MSAA texture size limit is enabled
+- VC4: Kodi on Pi 3: DRM PRIME / V4L2 fails after Mesa 26.2.6 with avfilter_graph_config: Function not implemented (-38)
+- Windows ARM memory-leak
+- [ANV] Flickering black blocks in Project Wingman
+- [OpenMW] Certain shaders cause visual corruption at the bottom of the screen when anti-aliasing is enabled, possibly Z-buffer related
+- ac/radv/radeonsi: PS restricted to 2 of 6 CUs on Rembrandt 660M with fully harvested SA0 (~50% graphics perf loss)
+- anv: compute shader writes to a storage image are partly lost after a render pass cleared the image earlier in the same command buffer on Intel LNL
+- asahi: 64-bit multiply of a sign-extended sub-32-bit value produces wrong result
+- llvmpipe/lavapipe: freed device memory is never released from the memfd
+- radv: PixelInterlockOrderedEXT critical sections of consecutive draws in one subpass are not ordered (Radeon 780M, GFX11)
+- radv: VK_EXT_descriptor_heap causes  performance slow down in FSR 4.1 workloads
+- rusticl/llvmpipe: heap corruption / SIGSEGV in \`llvmpipe_set_global_binding` when kernels on two queues are released by one \`clWaitForEvents`
+- zink/ntv: pack_snorm_2x16 and unpack_snorm_2x16 unimplemented, aborts the process
+
+
+Changes
+-------
+
+Ali Milhim (1):
+
+- zink: implement snorm/unorm pack and unpack ops in ntv
+
+Benjamin Cheng (2):
+
+- radv/video_enc: fix qp map va calculation
+- radv/video_enc: fix VCN5 qp map buffer size
+
+Birk Skyum (1):
+
+- freedreno: Don't double-close imported syncobj fd
+
+Caio Oliveira (3):
+
+- intel/mda: Preserve binary data in printraw
+- nir/intel: Derive push-data divergence from its offset
+- util: Initialize memstream outputs on Xbox
+
+Calder Young (1):
+
+- intel: Exclude helper lanes for optimized divergent atomics
+
+Christian Gmeiner (2):
+
+- llvmpipe: Track global bindings per context
+- panvk: Correct maxUniformBufferRange for older archs
+
+Christoph Pillmayer (4):
+
+- pan/perf: Fix swapped block counts
+- pan/ds: Add missing percent unit
+- panvk/utrace: Fix payload assert
+- pan/ds: Report correct gpu_clock_id
+
+Dave Airlie (2):
+
+- lavapipe: fix pipeline cache size return and checks
+- gallivm: disable apx feature for now.
+
+David Rosca (6):
+
+- ac/vcn_dec: Fix division by zero in AV1 film grain params
+- ac/vcn_dec: Clamp num_y/cb/cr_points and ar_coeff_lag in AV1 film grain params
+- va: Unmap coded buffer on encode failure
+- dri: Move driDestroyConfigs from glx/dri_common and use it
+- glx: Fix driver_configs leak when creating display gpu screen
+- egl/dri2: Fix driver_configs leak when creating display gpu screen
+
+Dhruv Mark Collins (3):
+
+- tu/autotune: Order dropping an RP history reference before its reaping
+- tu/autotune: Remove latency tracking entries once their spikes are old
+- tu/autotune: Take one RP history reference per RP decided
+
+Dmitry Baryshkov (3):
+
+- freedreno/ir3: wait for the indirect grid copy before loading it
+- dri: round up the subsampled plane size on dma-buf import
+- ir3: count half registers when deciding to double the thread size
+
+Dom Cobley (1):
+
+- v3d: don't drop the last row in the sand30 blit
+
+Duncan Brawley (2):
+
+- pvr: Fix pipeline executable properties segfault
+- pvr: Support pipeline executable properties VkPipelineCreateFlags2 flags
+
+Eric Engestrom (5):
+
+- docs: add sha sum for 26.2.6
+- .pick_status.json: Update to db5503a26f76af5238bb6e706ba5daec2dbf45d2
+- .pick_status.json: Mark 9c82a78f18dd60907e380dec60c46336eab64b25 as denominated
+- .pick_status.json: Mark b492b11ecf5a72aa74f818b45c4930cd334474d8 as denominated
+- .pick_status.json: Mark 988037f55378f077e9129b3df17729ea16337fd5 as denominated
+
+Erik Faye-Lund (3):
+
+- nir: use dst_access for the store
+- panvk: restore zero-value for flush_id after copy_fbd
+- panvk: add missing flush after copy_fbd
+
+Fabricio Akio (1):
+
+- freedreno/a5xx: Program the stream output buffer stride
+
+Faith Ekstrand (2):
+
+- nir/lower_multiview: Check variable modes before deleting
+- panfrost,nir: Get rid of nir_downgrade_pls_vars()
+
+Francisco Jerez (1):
+
+- intel/gen: Fix possible corruption of instructions other than standard one/two-source layout during pre-compaction.
+
+Georg Lehmann (4):
+
+- aco/opt_postRA: check quad alignment of sgprs
+- aco/opt_postRA: fix split_vector reassign with late kill operands
+- nir/opt_load_store_vectorize: handle load_heap_descriptor
+- nir/opt_large_constants: fix constant deduplication edge case
+
+Icenowy Zheng (1):
+
+- gallivm: adapt for JITLink in LLVM 23
+
+Jeongik Cha (1):
+
+- gfxstream: guard Goldfish sync fd collection in queue submit
+
+Jesse Natalie (1):
+
+- d3d12: Fix hash lookup for command signatures
+
+Job Noorman (1):
+
+- ir3: don't emit alias.rt for relative const movs
+
+Jose Maria Casanova Crespo (5):
+
+- v3dv: pad the shader assembly BO for the QPU instruction prefetch
+- v3d: pad shader uploads for the QPU instruction prefetch
+- broadcom/compiler: align shared memory size to zero-initialization chunk
+- vc4: compute the clip window after the predraw blits
+- v3d/driconf: expose non-MSAA texture limits for labwc
+
+Karmjit Mahil (1):
+
+- tu: Skip zero sized inline uniform blocks
+
+Karol Herbst (4):
+
+- nir/load_libclc: do not compare sys_path against NULL
+- nir/load_libclc: turn sys_path into an array
+- nir/load_libclc: add llvm-23 libclc paths
+- zink: cast last operands of SpvOpGroupNonUniformShuffle* ops to unsigned
+
+Lionel Landwerlin (1):
+
+- anv: fix PIPE_CONTROL with fragment->compute barrier on Xe2+
+
+Louis-Francis Ratté-Boulianne (1):
+
+- vulkan: initialize swapchain private mutex properly
+
+Marek Olšák (3):
+
+- ac/gpu_info: calculate min/max_good_cu_per_sa correctly
+- radv: suspend conditional rendering in CmdResetQueryPool
+- radv: suspend conditional rendering in radv_barrier
+
+Mary Guillemard (4):
+
+- agx: Skip signext optimisation in case of absolute
+- hk: Properly handle pCounterBuffers being NUL
+- hk: Stop adjusting the index buffer range
+- libagx: Fix libagx_memcpy_to_aligned handling of unaligned start
+
+Matt Arsenault (1):
+
+- radv/llvm: keep the ring offsets in s[0:1] for GFX11+ compute shaders
+
+Matt Turner (2):
+
+- nir: don't hardcode dedup_entry size in static_assert
+- llvmpipe: hash cpu caps up to num_L3_caches, not 5 dwords
+
+Mel Henning (1):
+
+- nir: Fix incorrect is_ssa replacement
+
+Mengyang Liu (1):
+
+- aco: demote exec if condition is all-ones
+
+Mike Blumenkrantz (18):
+
+- st/mesa: don't release the shared pixel map view after glDrawPixels
+- st/mesa: add deref sources to the second pixel map lookup
+- st/mesa: read the b and a pixel maps from the right channels
+- st/mesa: use a new pixel map texture for each update
+- zink: copy the spirv when compiling injected tcs
+- mesa: free the trace dispatch table with the other tables
+- util/tc: don't full_copy an rp info that has ended
+- util/tc: only set end_call for a blit that ends the info
+- util/tc: advance the driver rp info before the first draw or clear
+- util/tc: advance the driver rp info for indirect and vstate draws
+- util/tc: move the driver rp info advance call list into a helper
+- util/tc: write the resolve geometry before enqueueing the resolve
+- util/tc: don't merge a resolve into a different target
+- util/tc: parse the rp info for mesh draws
+- util/tc: don't end the rp info without an end_call
+- util/tc: reset the new rp info fence before linking it
+- glsl: treat volatile as coherent when translating to nir
+- zink: reset attachment storeOp when begin_rendering has no tc info
+
+Mohamed Akram (1):
+
+- glx/apple: fix build on macOS < 10.12
+
+Nick Hamilton (1):
+
+- cso: Add quirk that stops adding samplers with border color to the cache
+
+Olivia Lee (2):
+
+- panvk: fix mark_all_access_non_uniform metadata preservation
+- pan/va: fix out-of-bounds read propagating swizzles on pseudo instructions
+
+Omar Rashwan (1):
+
+- iris: fix double free in iris_bufmgr
+
+Patrick Lerda (1):
+
+- r600: fix shaders.indexing.tmp_array.vertexid related issue
+
+Paulo Zanoni (2):
+
+- vulkan: export vk_queue_stop_submit_thread()
+- anv: extract and call anv_queue_drain() during anv_DestroyDevice()
+
+Pavel Ondračka (6):
+
+- r300: handle underflow and overflow when packing FP24 constants
+- r300: use 32-bit immediate indices when applying an index bias
+- r300: skip constant attributes when splitting a negative index bias
+- r300: clamp sampler LOD bounds before converting to integers
+- glsl: propagate invariance after lowering
+- r300: skip output modifier absolute or negated inputs
+
+Pierre-Eric Pelloux-Prayer (2):
+
+- gallium/ddebug: implement resource_release
+- radeonsi: fix debug dump of buffer descriptors
+
+Rhys Perry (1):
+
+- nir/uub: fix imul by constant with overflow
+
+Ruben Solvang (1):
+
+- llvmpipe: release freed memory from the allocation memfd
+
+Rusi Genev (3):
+
+- v3d: Use the initial sample mask for centroid interpolation
+- v3d: Fix interpolateAtOffset without MSAA
+- v3d: Fix centroid interpolation at offsets
+
+Samuel Pitoiset (4):
+
+- nir/opt_access: do not infer ACCESS_CAN_REORDER with shader interlock
+- spirv: fix memory semantics for image loads/stores
+- aco: make sure SSBO SMEM loads respect barriers
+- nir/lower_memory_model: don't skip readonly accesses
+
+Tapani Pälli (4):
+
+- anv: change assume_full_subgroups drirc detection
+- anv/dric: set anv_assume_full_subgroups for Last Of Us 2
+- anv: add anv_force_exact_glsl_fma drirc option
+- anv/drirc: use anv_force_exact_glsl_fma for Project Wingman
+
+Timothy Arceri (5):
+
+- ac,radv: move the pipe-misaligned metadata check to common code
+- radeonsi: invalidate L2 before shaders read pipe-misaligned HTILE
+- radeonsi: decompress resident depth textures rendered to after becoming resident
+- radeonsi: flush the IB on NGG -> legacy transitions on Navi21 too
+- radeonsi: write back L2 after DCC fast clears if RBs and L2 aren't coherent
+
+Vinson Lee (1):
+
+- kopper: fix unused and uninitialized warnings on macOS
+
+Xianzhong Li (1):
+
+- panfrost/csf: initialize flush_id to zero in the tiler OOM handler
+
+Xueliang Zhang (1):
+
+- radeonsi: dirty DB_Z_INFO when the sample count changes without Z/S
+
+Yiwei Zhang (14):
+
+- venus: push set template shall grab a ref on the desc set
+- venus: refactor out a vn_descriptor_set_layout_fix_create_info helper
+- venus: sanitize GetDescriptorSetLayoutSupport ignored fields
+- venus: amend a missing state in async set alloc
+- venus: properly fail mutable descriptor alloc
+- venus: respect descriptor template entry stride for accel struct
+- venus: fix missed cases in vn_descriptor_heap_get_descriptor_count
+- venus: descriptor size cache to only query supported types
+- venus: always chain dedicated reqs for buffer cache init
+- venus: image format and reqs cache to hash sType of pNext chain
+- venus: fill image mem reqs with cache locked
+- vulkan/wsi/x11: use resolved present mode to calculate image count
+- kraid/encode_v9: validate swizzle before src_info check
+- kraid/hw_tests: fix multiply overflow errors
+
+airidosas252 (1):
+
+- freedreno/fdl: Use NUM_ELEMENTS for A8XX buffer descriptors
+
+alexandre minette (1):
+
+- freedreno/ir3: use implicit LOD zero for a3xx multisample fetches
+
+faetalize (2):
+
+- util/vl_vlc: allow removebits at the top of the bit buffer
+- util/rbsp: check each byte once for emulation prevention
+
+genie1997 (1):
+
+- tu/kgsl: Force 8-channel macrotile mode on A635
+
+hamb3r (1):
+
+- dzn: Handle missing variable descriptor count layout support output
+
+mozixun (1):
+
+- zink: don't charge a batch the whole slab for a suballocated resource
+
+rowanG077 (1):
+
+- agx: fix phi register shuffling order
