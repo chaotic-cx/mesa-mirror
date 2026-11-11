@@ -294,8 +294,9 @@ write_iub(struct panvk_descriptor_set *set, uint32_t binding,
 
       const uint32_t copy_size = MIN2(count, binding_size - offset);
 
-      /* First slot is the actual buffer descriptor. */
-      write_desc_data(set, binding, 1, NO_SUBDESC, offset, data, copy_size);
+      /* on bifrost, first slot is the extra buffer descriptor. */
+      write_desc_data(set, binding, (PAN_ARCH < 9) ? 1 : 0, NO_SUBDESC, offset,
+                      data, copy_size);
 
       data += copy_size;
       offset = 0;
@@ -333,7 +334,8 @@ copy_iub(const VkCopyDescriptorSet *copy)
       const uint32_t copy_size =
          MIN2(src_copy_size, src_binding_size - src_offset);
 
-      const void *src = get_desc_slot_ptr(src_set, src_binding, 1, NO_SUBDESC);
+      const void *src = get_desc_slot_ptr(src_set, src_binding,
+                                          (PAN_ARCH < 9) ? 1 : 0, NO_SUBDESC);
       src += src_offset;
       write_iub(dst_set, copy->dstBinding, dst_offset, copy_size, src);
 
@@ -537,6 +539,7 @@ desc_set_write_immutable_samplers(struct panvk_descriptor_set *set,
    }
 }
 
+#if PAN_ARCH < 9
 static void
 panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
                uint32_t variable_count)
@@ -557,7 +560,6 @@ panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
       has_variable_count ? variable_count : binding_layout->desc_count);
    uint32_t iub_size_dev = panvk_get_iub_size(iub_desc_count);
 
-#if PAN_ARCH < 9
    struct {
       struct mali_uniform_buffer_packed ubo;
       uint32_t pad[6];
@@ -568,16 +570,8 @@ panvk_init_iub(struct panvk_descriptor_set *set, uint32_t binding,
       cfg.entries = iub_size_dev;
    }
    write_desc(set, binding, 0, &padded_desc, NO_SUBDESC);
-#else
-   struct mali_buffer_packed desc;
-
-   pan_pack(&desc, BUFFER, cfg) {
-      cfg.address = iub_data_dev;
-      cfg.size = align(iub_size_dev, 16);
-   }
-   write_desc(set, binding, 0, &desc, NO_SUBDESC);
-#endif
 }
+#endif
 
 static VkResult
 panvk_desc_pool_allocate_set(struct panvk_descriptor_pool *pool,
@@ -648,10 +642,12 @@ panvk_desc_pool_allocate_set(struct panvk_descriptor_pool *pool,
    desc_set_write_immutable_samplers(set, variable_count);
    BITSET_CLEAR(pool->free_sets, first_free_set - 1);
 
+#if PAN_ARCH < 9
    for (uint32_t b = 0; b < layout->binding_count; ++b) {
       if (layout->bindings[b].type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK)
          panvk_init_iub(set, b, variable_count);
    }
+#endif
 
    *out = set;
    return VK_SUCCESS;

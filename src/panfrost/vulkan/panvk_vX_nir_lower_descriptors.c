@@ -1,6 +1,7 @@
 /*
  * Copyright © 2021 Collabora Ltd.
  * Copyright © 2019-2026 Google LLC
+ * Copyright © 2026 Arm Ltd.
  *
  * Also derived from anv_pipeline.c which is
  * Copyright © 2015 Intel Corporation
@@ -1446,6 +1447,46 @@ upload_shader_desc_info(struct panvk_device *dev,
    desc_info->used_set_mask = lower_info->used_set_mask;
 }
 
+#if PAN_ARCH >= 9
+static bool
+lower_iubs_to_ubo_loads(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
+{
+   const struct lower_desc_ctx *ctx = data;
+
+   if (intrin->intrinsic != nir_intrinsic_load_vulkan_descriptor)
+      return false;
+
+   /* attempt to resolve the index src, potentially through a reindex chain. */
+   nir_intrinsic_instr *index = nir_src_as_intrinsic(intrin->src[0]);
+   while (index != NULL &&
+          index->intrinsic == nir_intrinsic_vulkan_resource_reindex)
+      index = nir_src_as_intrinsic(index->src[0]);
+
+   if (index == NULL || index->intrinsic != nir_intrinsic_vulkan_resource_index)
+      return false;
+
+   /* IUBs are UBOs in shaders, so we should always reach a set+binding */
+   const uint32_t set = nir_intrinsic_desc_set(index);
+   const uint32_t binding = nir_intrinsic_binding(index);
+   const struct panvk_descriptor_set_binding_layout *layout =
+      get_binding_layout(set, binding, ctx);
+   if (layout->type != VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK)
+      return false;
+
+   /* redirect the UBO set/binding to set + offset in table 62 */
+   b->cursor = nir_before_instr(&intrin->instr);
+
+   nir_def *iub_table_idx = nir_vec3(
+      /* user sets start from index 1 */
+      b, pan_nir_res_handle(b, VALHALL_RESOURCE_TABLE_IDX, set + 1, NULL),
+      nir_imm_int(b, 0),
+      nir_imm_int(b, layout->desc_idx * PANVK_DESCRIPTOR_SIZE));
+
+   nir_def_replace(&intrin->def, iub_table_idx);
+   return true;
+}
+#endif
+
 void
 panvk_per_arch(nir_lower_descriptors)(
    nir_shader *nir, struct panvk_device *dev,
@@ -1489,6 +1530,9 @@ panvk_per_arch(nir_lower_descriptors)(
       goto out;
 
 #if PAN_ARCH >= 9
+   NIR_PASS(progress, nir, nir_shader_intrinsics_pass, lower_iubs_to_ubo_loads,
+            nir_metadata_control_flow, &ctx);
+
    ctx.desc_info.num_varying_attr_descs = 0;
    /* We require Attribute Descriptors if we cannot use LD_VAR_BUF[_IMM] for
     * varyings. */
