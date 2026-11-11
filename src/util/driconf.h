@@ -456,6 +456,14 @@
                   DRI_CONF_ENUM(2,"sample_d_ignore16b") \
                   DRI_CONF_ENUM(3,"sample_d_ignore20b"))
 
+#define DRI_CONF_INTEL_TBIMR_POLY_TRIGGER_WIDTH(def) \
+   DRI_CONF_OPT_I(intel_tbimr_poly_trigger_width, def, 0, 15, \
+                  "3DSTATE_TBIMR_TILE_PASS_INFO::Poly Trigger Width - high 4 bits of the actual value (GFX35+)")
+
+#define DRI_CONF_INTEL_TBIMR_POLY_TRIGGER_HEIGHT(def) \
+   DRI_CONF_OPT_I(intel_tbimr_poly_trigger_height, def, 0, 15, \
+                  "3DSTATE_TBIMR_TILE_PASS_INFO::Poly Trigger Height - high 4 bits of the actual value (GFX35+)")
+
 /**
  * \brief Miscellaneous configuration options
  */
