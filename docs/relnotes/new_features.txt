@@ -31,3 +31,4 @@ GL_OES_texture_buffer on v3d
 GL_ARB_texture_buffer_object_rgb32 on v3d
 VK_KHR_zero_initialize_workgroup_memory on pvr
 VK_KHR_vulkan_memory_model on pvr
+VK_KHR_shader_untyped_pointers on pvr

@@ -181,6 +181,7 @@ static void pvr_physical_device_get_supported_extensions(
       .KHR_shader_subgroup_rotate = true,
       .KHR_shader_subgroup_uniform_control_flow = true,
       .KHR_shader_terminate_invocation = true,
+      .KHR_shader_untyped_pointers = true,
       .KHR_spirv_1_4 = true,
       .KHR_storage_buffer_storage_class = true,
       .KHR_swapchain = PVR_USE_WSI_PLATFORM,
@@ -523,6 +524,9 @@ static void pvr_physical_device_get_supported_features(
 
       /* VK_KHR_shader_terminate_invocation */
       .shaderTerminateInvocation = true,
+
+      /* VK_KHR_shader_untyped_pointers */
+      .shaderUntypedPointers = true,
 
       /* Vulkan 1.3 / VK_EXT_subgroup_size_control */
       .subgroupSizeControl = true,
