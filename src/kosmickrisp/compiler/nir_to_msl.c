@@ -1367,23 +1367,9 @@ intrinsic_to_msl(struct nir_to_msl_ctx *ctx, nir_intrinsic_instr *instr)
       break;
    }
    case nir_intrinsic_load_global_constant_offset: {
-      enum gl_access_qualifier access = nir_intrinsic_access(instr);
-      const char *type = msl_type_for_def(ctx->types, &instr->def);
-      const char *qualifier = global_access_qualifier(ctx, access);
-      if (access & ACCESS_ATOMIC) {
-         assert(instr->num_components == 1u &&
-                "We can only do single component with atomics");
-         P(ctx, "atomic_load_explicit((%s atomic_%s*)(", qualifier, type);
-         src_to_msl(ctx, &instr->src[0]);
-         P(ctx, "+");
-         src_to_msl(ctx, &instr->src[1]);
-         P(ctx, ", memory_order_relaxed);\n");
-      } else {
-         src_to_packed_load_offset(ctx, &instr->src[0], &instr->src[1],
-                                   qualifier,
-                                   msl_type_for_def(ctx->types, &instr->def),
-                                   instr->def.num_components);
-      }
+      src_to_packed_load_offset(ctx, &instr->src[0], &instr->src[1], "constant",
+                                msl_type_for_def(ctx->types, &instr->def),
+                                instr->def.num_components);
       P(ctx, ";\n");
       break;
    }
