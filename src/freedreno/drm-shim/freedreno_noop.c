@@ -311,37 +311,37 @@ static const struct msm_device_info device_infos[] = {
    },
    {
       .gpu_id = 710,
-      .chip_id = 0x07010000,
+      .chip_id = 0xffff07010000,
       .gmem_size = 512 * 1024,
    },
    {
       .gpu_id = 720,
-      .chip_id = 0x43020000,
+      .chip_id = 0xffff43020000,
       .gmem_size = 1024 * 1024,
    },
    {
       .gpu_id = 730,
-      .chip_id = 0x07030001,
+      .chip_id = 0xffff07030001,
       .gmem_size = 2 * 1024 * 1024,
    },
    {
       .gpu_id = 735,
-      .chip_id = 0x43030B00,
+      .chip_id = 0xffff43030b00,
       .gmem_size = 1024 * 1024 + 512 * 1024,
    },
    {
       .gpu_id = 740,
-      .chip_id = 0x43050a01,
+      .chip_id = 0xffff43050a01,
       .gmem_size = 3 * 1024 * 1024,
    },
    {
       .gpu_id = 750,
-      .chip_id = 0x43051401,
+      .chip_id = 0xffff43051401,
       .gmem_size = 3 * 1024 * 1024,
    },
    {
       .gpu_id = 810,
-      .chip_id = 0x44010000,
+      .chip_id = 0xffff44010000,
       .gmem_size = 576 * 1024,
    },
    {
