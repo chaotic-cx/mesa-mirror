@@ -184,7 +184,7 @@
         "description": "freedreno: give a201 and a307 the chip ids they report",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4e28dfe58e83141d8bea1942f42227545e8ed492",
         "notes": null

@@ -9,7 +9,7 @@ from freedreno_dev_info import *
 # capture that in the device-info tables
 add_gpus([
         GPUId(200),
-        GPUId(201),
+        GPUId(201, 0x02000001),
         GPUId(205),
         GPUId(220),
         GPUId(225),
@@ -29,7 +29,7 @@ add_gpus([
 
 add_gpus([
         GPUId(305),
-        GPUId(307),
+        GPUId(307, 0x03000600),
         GPUId(320),
         GPUId(330),
         GPUId(chip_id=0x03000512, name="FD305B"),
