@@ -181,23 +181,17 @@ fd5_emit_render_cntl(struct fd_context *ctx, bool blit, bool binning,
     * which of the cbuf(s)/zsbuf has an UBWC flag buffer.. that part
     * we could probably cache and just regenerate if framebuffer
     * state is dirty (or something like that)..
-    *
-    * Other bits seem to depend on query state, like if samples-passed
-    * query is active.
     */
-   bool samples_passed = (ctx->occlusion_queries_active > 0);
    OUT_PKT4(ring, REG_A5XX_RB_RENDER_CNTL, 1);
    OUT_RING(ring, 0x00000000 | /* RB_RENDER_CNTL */
                      COND(binning, A5XX_RB_RENDER_CNTL_BINNING_PASS) |
                      COND(binning, A5XX_RB_RENDER_CNTL_DISABLE_COLOR_PIPE) |
-                     COND(samples_passed, A5XX_RB_RENDER_CNTL_EARLYVIZOUTEN) |
                      COND(!blit, 0x8));
 
    OUT_PKT4(ring, REG_A5XX_GRAS_SC_CNTL, 1);
    OUT_RING(ring, 0x00000008 | /* GRAS_SC_CNTL */
                      COND(binning, A5XX_GRAS_SC_CNTL_BINNING_PASS) |
-                     COND(fb_read, A5XX_GRAS_SC_CNTL_FLUSH_PER_OVERLAP) |
-                     COND(samples_passed, A5XX_GRAS_SC_CNTL_EARLYVIZOUTEN));
+                     COND(fb_read, A5XX_GRAS_SC_CNTL_FLUSH_PER_OVERLAP));
 }
 
 static inline void
