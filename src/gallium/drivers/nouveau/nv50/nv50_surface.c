@@ -378,15 +378,11 @@ nv50_clear_render_target(struct pipe_context *pipe,
                          unsigned width, unsigned height,
                          bool render_condition_enabled)
 {
-   struct pipe_surface *ps = nv50_miptree_surface_new(pipe, dst->texture, dst);
+   struct nv50_surface sf = {0};
 
-   if (!ps)
-      return;
-
-   nv50_clear_render_target_internal(pipe, nv50_surface(ps), color,
-                                     dstx, dsty, width, height,
-                                     render_condition_enabled);
-   nv50_surface_destroy(pipe, ps);
+   nv50_miptree_surface_init(&sf, dst->texture, dst);
+   nv50_clear_render_target_internal(pipe, &sf, color, dstx, dsty,
+                                     width, height, render_condition_enabled);
 }
 
 static void
@@ -487,15 +483,12 @@ nv50_clear_depth_stencil(struct pipe_context *pipe,
                          unsigned width, unsigned height,
                          bool render_condition_enabled)
 {
-   struct pipe_surface *ps = nv50_miptree_surface_new(pipe, dst->texture, dst);
+   struct nv50_surface sf = {0};
 
-   if (!ps)
-      return;
-
-   nv50_clear_depth_stencil_internal(pipe, nv50_surface(ps), clear_flags,
-                                     depth, stencil, dstx, dsty, width, height,
+   nv50_miptree_surface_init(&sf, dst->texture, dst);
+   nv50_clear_depth_stencil_internal(pipe, &sf, clear_flags, depth, stencil,
+                                     dstx, dsty, width, height,
                                      render_condition_enabled);
-   nv50_surface_destroy(pipe, ps);
 }
 
 void

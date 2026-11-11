@@ -136,6 +136,11 @@ nv50_miptree_surface_new(struct pipe_context *,
                          struct pipe_resource *,
                          const struct pipe_surface *templ);
 
+void
+nv50_miptree_surface_init(struct nv50_surface *,
+                          struct pipe_resource *,
+                          const struct pipe_surface *templ);
+
 void *
 nv50_miptree_transfer_map(struct pipe_context *pctx,
                           struct pipe_resource *res,
@@ -148,6 +153,11 @@ nv50_miptree_transfer_unmap(struct pipe_context *pcontext,
                             struct pipe_transfer *ptx);
 
 #endif /* __NVC0_RESOURCE_H__ */
+
+void
+nv50_surface_init_from_miptree(struct nv50_surface *ns,
+                               struct nv50_miptree *mt,
+                               const struct pipe_surface *templ);
 
 struct nv50_surface *
 nv50_surface_from_miptree(struct nv50_miptree *mt,

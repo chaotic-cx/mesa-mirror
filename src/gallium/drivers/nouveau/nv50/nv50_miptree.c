@@ -462,20 +462,19 @@ nv50_mt_zslice_offset(const struct nv50_miptree *mt, unsigned l, unsigned z)
 /* Surface functions.
  */
 
-struct nv50_surface *
-nv50_surface_from_miptree(struct nv50_miptree *mt,
-                          const struct pipe_surface *templ)
+/* Fill ns for the level and layers of templ. This neither allocates nor takes
+ * a reference on mt, so it can fill a surface on the stack.
+ */
+void
+nv50_surface_init_from_miptree(struct nv50_surface *ns,
+                               struct nv50_miptree *mt,
+                               const struct pipe_surface *templ)
 {
-   struct pipe_surface *ps;
-   struct nv50_surface *ns = CALLOC_STRUCT(nv50_surface);
-   if (!ns)
-      return NULL;
-   ps = &ns->base;
+   struct pipe_surface *ps = &ns->base;
 
-   pipe_reference_init(&ps->reference, 1);
-   pipe_resource_reference(&ps->texture, &mt->base.base);
-
+   ps->texture = &mt->base.base;
    ps->format = templ->format;
+   ps->nr_samples = templ->nr_samples;
    ps->level = templ->level;
    ps->first_layer = templ->first_layer;
    ps->last_layer = templ->last_layer;
@@ -500,19 +499,34 @@ nv50_surface_from_miptree(struct nv50_miptree *mt,
 
    ns->width <<= mt->ms_x;
    ns->height <<= mt->ms_y;
+}
+
+struct nv50_surface *
+nv50_surface_from_miptree(struct nv50_miptree *mt,
+                          const struct pipe_surface *templ)
+{
+   struct nv50_surface *ns = CALLOC_STRUCT(nv50_surface);
+   if (!ns)
+      return NULL;
+
+   pipe_reference_init(&ns->base.reference, 1);
+   pipe_resource_reference(&ns->base.texture, &mt->base.base);
+   nv50_surface_init_from_miptree(ns, mt, templ);
 
    return ns;
 }
 
-struct pipe_surface *
-nv50_miptree_surface_new(struct pipe_context *pipe,
-                         struct pipe_resource *pt,
-                         const struct pipe_surface *templ)
+/* Like nv50_surface_init_from_miptree, with the offset of the first layer
+ * added as nv50 render targets need it.
+ */
+void
+nv50_miptree_surface_init(struct nv50_surface *ns,
+                          struct pipe_resource *pt,
+                          const struct pipe_surface *templ)
 {
    struct nv50_miptree *mt = nv50_miptree(pt);
-   struct nv50_surface *ns = nv50_surface_from_miptree(mt, templ);
-   if (!ns)
-      return NULL;
+
+   nv50_surface_init_from_miptree(ns, mt, templ);
 
    if (ns->base.first_layer) {
       const unsigned l = ns->base.level;
@@ -529,6 +543,20 @@ nv50_miptree_surface_new(struct pipe_context *pipe,
          ns->offset += mt->layer_stride * z;
       }
    }
+}
+
+struct pipe_surface *
+nv50_miptree_surface_new(struct pipe_context *pipe,
+                         struct pipe_resource *pt,
+                         const struct pipe_surface *templ)
+{
+   struct nv50_surface *ns = CALLOC_STRUCT(nv50_surface);
+   if (!ns)
+      return NULL;
+
+   pipe_reference_init(&ns->base.reference, 1);
+   pipe_resource_reference(&ns->base.texture, pt);
+   nv50_miptree_surface_init(ns, pt, templ);
 
    return &ns->base;
 }
