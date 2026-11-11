@@ -1271,7 +1271,7 @@ vk_get_command_buffer_rendering_attachment_location_info(
    if (pBeginInfo->pInheritanceInfo->renderPass != VK_NULL_HANDLE)
       return NULL;
 
-   return vk_find_struct_const(pBeginInfo,
+   return vk_find_struct_const(pBeginInfo->pInheritanceInfo,
                                RENDERING_ATTACHMENT_LOCATION_INFO_KHR);
 }
 

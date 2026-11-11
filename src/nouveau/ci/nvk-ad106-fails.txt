@@ -3685,8 +3685,6 @@ dEQP-VK.wsi.direct.swapchain.simulate_oom.pre_transform,Fail
 dEQP-VK.wsi.direct.swapchain.simulate_oom.present_mode,Fail
 
 # VKCTS 1.4.5.3 -> 1.4.6.1 uprev
-dEQP-VK.renderpasses.dynamic_rendering.partial_secondary_cmd_buff.local_read.interaction_with_shader_object,Fail
-dEQP-VK.renderpasses.dynamic_rendering.partial_secondary_cmd_buff.local_read.remap_single_attachment_shader_object,Fail
 dEQP-VK.wsi.direct.present_timing.basic.large_queue_size,Fail
 dEQP-VK.wsi.direct.present_timing.time_domain.calibration.clock_monotonic,Fail
 dEQP-VK.wsi.direct.present_timing.time_domain.calibration.clock_monotonic_raw,Fail
