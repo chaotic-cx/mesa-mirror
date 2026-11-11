@@ -2345,10 +2345,11 @@ tu_trace_read_ts(struct u_trace_context *utctx,
    struct tu_u_trace_submission_data *submission_data =
       static_cast<struct tu_u_trace_submission_data *>(flush_data);
 
-   /* Only need to stall on results for the first entry: */
-   if (offset_B == 0) {
+   if (!submission_data->submission_complete) {
       tu_queue_wait_fence(submission_data->queue, submission_data->fence,
                           1000000000);
+      submission_data->submission_complete = true;
+      tu_device_trace_submission_complete(device, submission_data);
    }
 
    uint64_t *ts = reinterpret_cast<uint64_t *>(

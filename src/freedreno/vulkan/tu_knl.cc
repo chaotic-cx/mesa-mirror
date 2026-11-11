@@ -294,6 +294,15 @@ tu_drm_submitqueue_new(struct tu_device *dev, struct tu_queue *queue)
 }
 
 void
+tu_device_trace_submission_complete(struct tu_device *dev,
+                                    struct tu_u_trace_submission_data *u_trace_submission_data)
+{
+   if (!dev->instance->knl->device_trace_submission_complete)
+      return;
+   dev->instance->knl->device_trace_submission_complete(dev, u_trace_submission_data);
+}
+
+void
 tu_drm_submitqueue_close(struct tu_device *dev, struct tu_queue *queue)
 {
    dev->instance->knl->submitqueue_close(dev, queue);

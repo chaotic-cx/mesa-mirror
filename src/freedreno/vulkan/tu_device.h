@@ -674,6 +674,7 @@ struct tu_copy_timestamp_data {
 struct tu_u_trace_submission_data
 {
    uint32_t submission_id;
+   bool submission_complete;
 
    /* We have to know when timestamps are available,
     * this queue and fence indicates it.
@@ -695,6 +696,12 @@ struct tu_u_trace_submission_data
    struct {
       /* KGSL needs a GPU memory to write submission timestamps into */
       struct tu_suballoc_bo timestamp_bo;
+
+      /* Submit-time samples of real-time and boot-time clocks */
+      struct {
+         uint64_t realtime_ns;
+         uint64_t boottime_ns;
+      } submit;
    } kgsl;
 };
 

@@ -139,6 +139,8 @@ struct tu_knl {
                                                 uint64_t *max_deviation);
    int (*device_get_suspend_count)(struct tu_device *dev, uint64_t *suspend_count);
    VkResult (*device_check_status)(struct tu_device *dev);
+   void (*device_trace_submission_complete)(struct tu_device *dev,
+                                            struct tu_u_trace_submission_data *u_trace_submission_data);
    int (*submitqueue_new)(struct tu_device *dev, struct tu_queue *queue);
    void (*submitqueue_close)(struct tu_device *dev, struct tu_queue *queue);
    VkResult (*bo_init)(struct tu_device *dev, struct vk_object_base *base,
@@ -319,6 +321,10 @@ tu_device_wait_u_trace(struct tu_device *dev, struct tu_u_trace_syncobj *syncobj
 
 VkResult
 tu_device_check_status(struct vk_device *vk_device);
+
+void
+tu_device_trace_submission_complete(struct tu_device *dev,
+                                    struct tu_u_trace_submission_data *u_trace_submission_data);
 
 int
 tu_drm_submitqueue_new(struct tu_device *dev, struct tu_queue *queue);

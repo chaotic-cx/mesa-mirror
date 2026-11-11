@@ -138,6 +138,8 @@ struct tu_perfetto_state {
 
    uint64_t gpu_max_timestamp;
    uint64_t gpu_timestamp_offset;
+
+   struct tu_perfetto_clocks kgsl_clocks;
 };
 
 void tu_perfetto_init(void);
