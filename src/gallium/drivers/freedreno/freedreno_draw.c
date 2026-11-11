@@ -280,7 +280,11 @@ update_draw_stats(struct fd_context *ctx, const struct pipe_draw_info *info,
          }
       }
 
-      ctx->stats.prims_generated += prims;
+      /* Exclude internal draws while queries are paused, matching the
+       * hardware-backed primitives-generated queries on a6xx+.
+       */
+      if (ctx->active_queries)
+         ctx->stats.prims_generated += prims;
 
       if (ctx->streamout.num_targets > 0) {
          /* Clip the prims we're writing to the size of the SO buffers. */

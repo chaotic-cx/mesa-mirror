@@ -270,7 +270,6 @@ spec@ext_transform_feedback@change-size base-shrink,Fail
 spec@ext_transform_feedback@change-size offset-shrink,Fail
 spec@ext_transform_feedback@change-size range-grow,Fail
 spec@ext_transform_feedback@change-size range-shrink,Fail
-spec@ext_transform_feedback@generatemipmap prims_generated,Fail
 spec@ext_transform_feedback@immediate-reuse-index-buffer,Fail
 spec@ext_transform_feedback@interleaved-attribs,Fail
 spec@ext_transform_feedback@intervening-read output,Fail

@@ -61,7 +61,6 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_vyuy,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_yvyu,Fail
 spec@ext_transform_feedback2@draw-auto,Fail
 
-spec@ext_transform_feedback@generatemipmap prims_generated,Fail
 spec@ext_transform_feedback@immediate-reuse-uniform-buffer,Fail
 
 spec@glsl-1.30@execution@texelfetch fs sampler3d 1x129x9-98x129x9,Fail
