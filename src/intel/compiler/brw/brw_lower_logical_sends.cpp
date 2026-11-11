@@ -876,7 +876,7 @@ lower_sampler_logical_send(const brw_builder &bld, brw_tex_inst *tex)
       if (residency)
          g0_2 |= 1 << 23; /* g0.2 bit23 : Pixel Null Mask Enable */
 
-      g0_2 |= sampler_calc_channel_mask(devinfo, tex) << 12;
+      g0_2 |= write_channel_mask << 12;
 
       if (has_const_offsets) {
          g0_2 |= (r_offset << 0) |
