@@ -746,6 +746,17 @@ private:
                      src.subnr > 31,
                   "Align1 3-source source subregister offset is not encodable.");
 
+         ERROR_IF(src.file == GEN_ARF && i == 0 && (!is_null(src) && !is_accumulator(src)),
+                  "3-source ARF src0 must be null or accumulator");
+         ERROR_IF(src.file == GEN_ARF && i == 1 &&
+                  (!(is_null(src) && inst->opcode == GEN_OP_BFN) &&
+                   !is_accumulator(src)),
+                  "3-source ARF src1 must be an accumulator");
+         ERROR_IF(src.file == GEN_ARF && i == 2 &&
+                  (!is_null(src) && !
+                   (is_accumulator(src) && gen_type_is_float(src.type))),
+                  "3-source ARF src2 must be null or float accumulator (Bspec 56619)");
+
          if (i < 2) {
             ERROR_IF(src.region.vstride != 0  &&
                      src.region.vstride != 1  &&

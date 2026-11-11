@@ -312,7 +312,9 @@ static const struct {
    { "mad (8) r0:f bad:f r2:f r3:f",
      "3-source register sources must use GRF or ARF files.", { .ge = 110 }
    },
-
+   { "bfn.((a ^ ~b) & (b ^ ~c)) (1) r0.1 f0<0> r6.2<0> r6.1<0>",
+      "3-source ARF src0 must be null or accumulator",  { .ge = 120 } },
+   { "bfn.(a | c) (1) r0.1 null r6.2<0> r6.1<0>", VALID, { .ge = 120 } },
 
    { "mov (4) r0.:d r1<4;4,1>.x:d {Align16}", VALID, { .eq = 90 } },
    { "mov (4) r0.:d r1<4;4,1>.x:d {Align16}",
