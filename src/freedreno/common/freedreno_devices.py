@@ -827,6 +827,7 @@ a7xx_gen2 = GPUProps(
         has_image_processing = True,
         has_64b_image_atomics = True,
         has_implicit_fragface_fragcoord_ij_linear = True,
+        has_resbase = True,
 
         QCTDD08049535 = True,
         QCTDD08901551 = True,
@@ -837,6 +838,7 @@ a7xx_gen2 = GPUProps(
 
 a7xx_gen3 = GPUProps(
         has_event_write_sample_count = True,
+        has_resbase = True,
         load_inline_uniforms_via_preamble_ldgk = True,
         load_shader_consts_via_preamble = True,
         has_gmem_vpc_attr_buf = True,

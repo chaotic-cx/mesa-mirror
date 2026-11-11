@@ -615,11 +615,56 @@ build_bindless(struct tu_device *dev, nir_builder *b,
    return bindless_resource_ir3(b, set, desc_offset, can_speculate_descriptor);
 }
 
+/* Loads num_dwords dwords of a bindless descriptor, starting at first_dword,
+ * from the descriptor set memory, using the descriptor set base addresses
+ * provided in shader consts.
+ */
 static nir_def *
-build_texel_buffer_size(nir_builder *b, nir_def *desc, nir_def **offset_out)
+load_descriptor_dwords(nir_builder *b,
+                       nir_def *desc,
+                       struct tu_device *dev,
+                       struct tu_shader *shader,
+                       unsigned first_dword,
+                       unsigned num_dwords)
 {
    assert(nir_def_is_intrinsic(desc));
-   nir_def *encoded_data = nir_resbase_ir3(b, 32, desc);
+   nir_intrinsic_instr *bindless = nir_def_as_intrinsic(desc);
+   assert(bindless->intrinsic == nir_intrinsic_bindless_resource_ir3);
+
+   nir_def *set_base;
+
+   if (dev->compiler->info->props.load_shader_consts_via_preamble) {
+      set_base =
+         ir3_load_driver_ubo(b, 2, &shader->const_state.bindless_base_addrs_ubo, nir_intrinsic_desc_set(bindless) * 2);
+   } else {
+      const unsigned dword_base =
+         shader->const_state.bindless_base_const_offset_vec4 * 4 + nir_intrinsic_desc_set(bindless) * 2;
+
+      set_base = nir_load_const_ir3(b, 2, 32, nir_imm_int(b, 0), .base = dword_base);
+   }
+
+   nir_def *descriptor_offset =
+      nir_iadd_imm(b, nir_imul_imm(b, bindless->src[0].ssa, FDL6_TEX_CONST_DWORDS * 4), first_dword * 4);
+   return nir_load_global_offset(
+      b, num_dwords, 32, nir_pack_64_2x32(b, set_base), descriptor_offset,
+      .access = static_cast<enum gl_access_qualifier>(ACCESS_NON_WRITEABLE | ACCESS_CAN_REORDER | ACCESS_CAN_SPECULATE),
+      .align_mul = 4, .align_offset = 0);
+}
+
+static nir_def *
+build_encoded_buffer_size(nir_builder *b, nir_def *desc, struct tu_device *dev, struct tu_shader *shader)
+{
+   if (dev->compiler->info->props.has_resbase)
+      return nir_resbase_ir3(b, 32, desc);
+
+   return load_descriptor_dwords(b, desc, dev, shader, FDL6_EMULATED_BUFFER_SIZE_DWORD, 2);
+}
+
+static nir_def *
+build_texel_buffer_size(
+   nir_builder *b, nir_def *desc, struct tu_device *dev, struct tu_shader *shader, nir_def **offset_out)
+{
+   nir_def *encoded_data = build_encoded_buffer_size(b, desc, dev, shader);
    nir_def *encoded_data_lo = nir_channel(b, encoded_data, 0);
    nir_def *encoded_data_hi = nir_channel(b, encoded_data, 1);
 
@@ -635,12 +680,11 @@ build_texel_buffer_size(nir_builder *b, nir_def *desc, nir_def **offset_out)
 }
 
 static nir_def *
-build_texel_buffer_as_image_coords(nir_builder *b,
-                                   nir_def *offset,
-                                   nir_def *desc)
+build_texel_buffer_as_image_coords(
+   nir_builder *b, nir_def *offset, nir_def *desc, struct tu_device *dev, struct tu_shader *shader)
 {
    nir_def *base_offset = nullptr;
-   nir_def *real_size = build_texel_buffer_size(b, desc, &base_offset);
+   nir_def *real_size = build_texel_buffer_size(b, desc, dev, shader, &base_offset);
    nir_def *oob = nir_uge(b, offset, real_size);
 
    offset = nir_iadd(b, offset, base_offset);
@@ -661,9 +705,8 @@ build_texel_buffer_as_image_coords(nir_builder *b,
 }
 
 static void
-lower_texel_buffers_to_image(nir_builder *b,
-                             nir_intrinsic_instr *instr,
-                             nir_def *bindless)
+lower_texel_buffers_to_image(
+   nir_builder *b, nir_intrinsic_instr *instr, nir_def *bindless, struct tu_device *dev, struct tu_shader *shader)
 {
    switch (instr->intrinsic) {
    case nir_intrinsic_bindless_image_load:
@@ -673,15 +716,13 @@ lower_texel_buffers_to_image(nir_builder *b,
       b->cursor = nir_before_instr(&instr->instr);
 
       nir_def *coord = nir_channel(b, instr->src[1].ssa, 0);
-      nir_def *coord3d =
-         build_texel_buffer_as_image_coords(b, coord, bindless);
+      nir_def *coord3d = build_texel_buffer_as_image_coords(b, coord, bindless, dev, shader);
       nir_src_rewrite(&instr->src[1], nir_pad_vector(b, coord3d, 4));
       nir_intrinsic_set_image_dim(instr, GLSL_SAMPLER_DIM_3D);
       break;
    }
    case nir_intrinsic_bindless_image_size: {
-      nir_def_replace(&instr->def,
-                      build_texel_buffer_size(b, bindless, nullptr));
+      nir_def_replace(&instr->def, build_texel_buffer_size(b, bindless, dev, shader, nullptr));
       break;
    }
    default:
@@ -713,7 +754,7 @@ lower_image_deref(struct tu_device *dev, nir_builder *b,
 
    if (dev->physical_device->compiler_options.enable_texel_buffer_emulation &&
        nir_intrinsic_image_dim(instr) == GLSL_SAMPLER_DIM_BUF) {
-      lower_texel_buffers_to_image(b, instr, bindless);
+      lower_texel_buffers_to_image(b, instr, bindless, dev, shader);
    }
 }
 
@@ -982,9 +1023,8 @@ lower_tex_immutable(struct tu_device *dev,
 }
 
 static void
-lower_tex_texel_buffer_to_image(nir_builder *b,
-                                nir_tex_instr *tex,
-                                uint32_t tex_bindless_idx)
+lower_tex_texel_buffer_to_image(
+   nir_builder *b, nir_tex_instr *tex, uint32_t tex_bindless_idx, struct tu_device *dev, struct tu_shader *shader)
 {
    if (tex->op == nir_texop_txf) {
       int coord_idx = nir_tex_instr_src_index(tex, nir_tex_src_coord);
@@ -992,17 +1032,15 @@ lower_tex_texel_buffer_to_image(nir_builder *b,
          nir_def *coord = tex->src[coord_idx].src.ssa;
          if (coord->num_components > 1)
             coord = nir_channel(b, coord, 0);
-         nir_def *coord3d = build_texel_buffer_as_image_coords(
-            b, coord, tex->src[tex_bindless_idx].src.ssa);
+         nir_def *coord3d =
+            build_texel_buffer_as_image_coords(b, coord, tex->src[tex_bindless_idx].src.ssa, dev, shader);
          nir_src_rewrite(&tex->src[coord_idx].src, coord3d);
 
          tex->sampler_dim = GLSL_SAMPLER_DIM_3D;
          tex->coord_components = 3;
       }
    } else if (tex->op == nir_texop_txs) {
-      nir_def_replace(
-         &tex->def,
-         build_texel_buffer_size(b, tex->src[tex_bindless_idx].src.ssa, nullptr));
+      nir_def_replace(&tex->def, build_texel_buffer_size(b, tex->src[tex_bindless_idx].src.ssa, dev, shader, nullptr));
    }
 }
 
@@ -1041,7 +1079,7 @@ lower_tex_impl(nir_builder *b, nir_tex_instr *tex, struct tu_device *dev,
 
    if (dev->physical_device->compiler_options.enable_texel_buffer_emulation &&
        tex->sampler_dim == GLSL_SAMPLER_DIM_BUF) {
-      lower_tex_texel_buffer_to_image(b, tex, tex_src_idx);
+      lower_tex_texel_buffer_to_image(b, tex, tex_src_idx, dev, shader);
    }
 
    if (!descriptor_valid)
@@ -1618,9 +1656,10 @@ tu_lower_io(nir_shader *shader, struct tu_device *dev,
 
    ir3_const_alloc(const_allocs, IR3_CONST_ALLOC_INLINE_UNIFORM_ADDRS, ldgk_consts, 1);
 
-   if (dev->physical_device->compiler_options.enable_ssbo_emulation) {
+   if (dev->physical_device->compiler_options.enable_ssbo_emulation ||
+       (dev->physical_device->compiler_options.enable_texel_buffer_emulation &&
+        !dev->compiler->info->props.has_resbase)) {
       const_state->num_bindless_base_addresses = layout->num_sets;
-      const_state->bindless_base_const_offset_vec4 = const_allocs->max_const_offset_vec4;
 
       if (dev->physical_device->reserved_set_idx >= 0) {
          const_state->num_bindless_base_addresses =
@@ -1631,6 +1670,8 @@ tu_lower_io(nir_shader *shader, struct tu_device *dev,
       if (!dev->compiler->info->props.load_shader_consts_via_preamble) {
          ir3_const_alloc(const_allocs, IR3_CONST_ALLOC_BINDLESS_BASE_ADDRS,
                          DIV_ROUND_UP(const_state->num_bindless_base_addresses * 2, 4), 1);
+         const_state->bindless_base_const_offset_vec4 =
+            const_allocs->consts[IR3_CONST_ALLOC_BINDLESS_BASE_ADDRS].offset_vec4;
       }
    }
 
@@ -1863,10 +1904,9 @@ tu_nir_lower_ssbo_descriptor(nir_shader *shader,
 }
 
 static nir_def *
-build_ssbo_size_from_resbase(nir_builder *b, nir_def *desc)
+build_ssbo_size(nir_builder *b, nir_def *desc, struct tu_device *dev, struct tu_shader *shader)
 {
-   assert(nir_def_is_intrinsic(desc));
-   nir_def *encoded_data = nir_resbase_ir3(b, 32, desc);
+   nir_def *encoded_data = build_encoded_buffer_size(b, desc, dev, shader);
    nir_def *encoded_data_lo = nir_channel(b, encoded_data, 0);
    nir_def *encoded_data_hi = nir_channel(b, encoded_data, 1);
 
@@ -1876,56 +1916,9 @@ build_ssbo_size_from_resbase(nir_builder *b, nir_def *desc)
    return nir_ior(b, size_lo, size_hi);
 }
 
-static nir_intrinsic_instr *
-get_ssbo_bindless(nir_intrinsic_instr *intr)
-{
-   nir_def *buffer = nir_get_io_index_src(intr)->ssa;
-   assert(nir_def_is_intrinsic(buffer));
-
-   nir_intrinsic_instr *bindless = nir_def_as_intrinsic(buffer);
-   assert(bindless->intrinsic == nir_intrinsic_bindless_resource_ir3);
-
-   return bindless;
-}
-
-static nir_def *
-build_ssbo_global_addr(nir_builder *b,
-                       nir_intrinsic_instr *bindless,
-                       struct tu_shader *shader,
-                       bool load_shader_consts_via_preamble,
-                       const struct ir3_const_allocations *const_allocs)
-{
-   nir_def *set_base;
-
-   if (load_shader_consts_via_preamble) {
-      set_base =
-         ir3_load_driver_ubo(b, 2, &shader->const_state.bindless_base_addrs_ubo,
-                             nir_intrinsic_desc_set(bindless) * 2);
-   } else {
-      const unsigned dword_base =
-         const_allocs->consts[IR3_CONST_ALLOC_BINDLESS_BASE_ADDRS].offset_vec4 *
-            4 +
-         nir_intrinsic_desc_set(bindless) * 2;
-
-      set_base =
-         nir_load_const_ir3(b, 2, 32, nir_imm_int(b, 0), .base = dword_base);
-   }
-
-   nir_def *descriptor_offset = nir_iadd_imm(b, nir_imul_imm(b, bindless->src[0].ssa, FDL6_TEX_CONST_DWORDS * 4),
-                                             FDL6_EMULATED_SSBO_ADDR_DWORD * 4);
-   nir_def *descriptor_words = nir_load_global_offset(
-      b, 2, 32, nir_pack_64_2x32(b, set_base), descriptor_offset,
-      .access = static_cast<enum gl_access_qualifier>(
-         ACCESS_NON_WRITEABLE | ACCESS_CAN_REORDER | ACCESS_CAN_SPECULATE),
-      .align_mul = 4, .align_offset = 0);
-
-   return nir_pack_64_2x32(b, descriptor_words);
-}
-
 struct lower_ssbo_address_size_state {
+   struct tu_device *dev;
    struct tu_shader *shader;
-   const struct ir3_const_allocations *const_allocs;
-   bool load_shader_consts_via_preamble;
 };
 
 static bool
@@ -1943,9 +1936,8 @@ lower_ssbo_address_size(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    b->cursor = nir_before_instr(&intr->instr);
 
    if (intr->intrinsic == nir_intrinsic_load_ssbo_address) {
-      nir_def *base = build_ssbo_global_addr(
-         b, get_ssbo_bindless(intr), state->shader,
-         state->load_shader_consts_via_preamble, state->const_allocs);
+      nir_def *base = nir_pack_64_2x32(b, load_descriptor_dwords(b, nir_get_io_index_src(intr)->ssa, state->dev,
+                                                                 state->shader, FDL6_EMULATED_SSBO_ADDR_DWORD, 2));
       nir_def *offset = intr->src[1].ssa;
 
       nir_foreach_use_safe (use, &intr->def) {
@@ -1979,8 +1971,7 @@ lower_ssbo_address_size(nir_builder *b, nir_intrinsic_instr *intr, void *data)
          }
       }
    } else {
-      nir_def *ssbo_size =
-         build_ssbo_size_from_resbase(b, nir_get_io_index_src(intr)->ssa);
+      nir_def *ssbo_size = build_ssbo_size(b, nir_get_io_index_src(intr)->ssa, state->dev, state->shader);
       nir_def_replace(&intr->def, ssbo_size);
    }
 
@@ -3752,10 +3743,8 @@ tu_shader_create(struct tu_device *dev,
       NIR_PASS(_, nir, nir_lower_ssbo, &options);
 
       struct lower_ssbo_address_size_state lower_ssbo_state = {
+         .dev = dev,
          .shader = shader,
-         .const_allocs = &const_allocs,
-         .load_shader_consts_via_preamble =
-            dev->compiler->info->props.load_shader_consts_via_preamble,
       };
       NIR_PASS(_, nir, tu_nir_lower_ssbo_address_size, &lower_ssbo_state);
    }

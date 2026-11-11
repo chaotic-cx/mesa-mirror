@@ -503,6 +503,11 @@ struct fd_dev_info {
        */
       bool prefetch_sam_helpers_quirk;
 
+      /* Whether resbase can be used. It doesn't exist on a6xx, and on
+       * a7xx gen1 it hangs the GPU, even when its result is unused.
+       */
+      bool has_resbase;
+
       /* On a750+ SUBPASS_FENCE also implicitly does CCU_RESOLVE_CLEAN */
       bool subpass_fence_cleans_resolve;
    } props;
