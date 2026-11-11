@@ -3386,23 +3386,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
                              residency;
 
    uint8_t component_mask;
-   bool sparse_tg4 = tex->op == nir_texop_tg4 && residency;
-
-   if (sparse_tg4) {
-      /* Sparse gather: response is RGBA + PNM in channel-major layout.
-       * The sampler with SIMD16 descriptor returns:
-       *  - dst+0: R channel (all lanes)
-       *  - dst+1: G channel (all lanes)
-       *  - dst+2: B channel (all lanes)
-       *  - dst+3: A channel (all lanes)
-       *  - dst+4: Pixel Null Mask (one bit per lane)
-       */
-      component_mask = WRITEMASK_XYZW;
-      unsigned color_grfs = payload_uniform ? 4 : 4 * jay_grf_per_gpr(b->shader);
-      unsigned grfs = color_grfs + 1;  /* +1 for PNM */
-      tmp = jay_alloc_def(b, UGPR, 32, grfs * jay_ugpr_per_grf(b->shader));
-      null_mask_component = color_grfs * jay_ugpr_per_grf(b->shader);
-   } else if (tex->op == nir_texop_tg4) {
+   if (tex->op == nir_texop_tg4) {
       component_mask = WRITEMASK_XYZW;
    } else if (residency) {
       /* intel_nir_lower_sparse guarantees that texturing operations only
@@ -3655,7 +3639,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
             .simd_width = simd_width);
 
    /* If we sampled into a temporary, copy out to the final */
-   if (residency && !sparse_tg4) {
+   if (residency) {
       jay_MOV(b, jay_extract(dst, 1), jay_extract(tmp, null_mask_component));
    } else if (!jay_defs_equivalent(dst, tmp)) {
       unsigned i = 0;
@@ -3664,10 +3648,6 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
       u_foreach_bit(c, component_mask) {
          jay_MOV(b, jay_extract(dst, c), jay_extract(tmp, (i++) * tmp_stride));
       }
-   }
-
-   if (sparse_tg4) {
-      jay_MOV(b, jay_extract(dst, 4), jay_extract(tmp, null_mask_component));
    }
 
    if (mesa_shader_stage_is_compute(b->shader->stage)) {
