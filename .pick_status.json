@@ -1114,7 +1114,7 @@
         "description": "v3d: fix the order of the alpha sampler state variants",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c496b60ed8cec0f3a9df35ee96f8765fe38853b7",
         "notes": null
