@@ -1734,7 +1734,7 @@
         "description": "mesa: don't advertise APIs that are not built",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "8bb1ecaa02177720758255bdd7ec34a5d15feca4",
         "notes": null
