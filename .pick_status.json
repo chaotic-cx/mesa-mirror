@@ -1054,7 +1054,7 @@
         "description": "nir/opt_group_loads: fix stack overrun",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3bceb7b6221810d199acdc4844a77ab4acad4b84",
         "notes": null
