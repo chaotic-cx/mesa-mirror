@@ -161,10 +161,11 @@ remove_trivial_phi(struct ir3_instruction *phi)
 static struct ir3_register *
 lookup_value(struct ir3_register *reg)
 {
-   if (!reg)
-      return NULL;
-   if (reg->instr->opc == OPC_META_PHI)
-      return reg->instr->data;
+   /* A removed phi can resolve to another phi that was removed later, so
+    * follow the chain until we reach a definition that is kept.
+    */
+   while (reg && reg->instr->opc == OPC_META_PHI && reg->instr->data != reg)
+      reg = reg->instr->data;
    return reg;
 }
 
