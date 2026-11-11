@@ -5454,7 +5454,7 @@
         "description": "pan/ci: restore flaky tests",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "75217eabfa8a7499de5875bbafa03b39d02418e6",
         "notes": null
