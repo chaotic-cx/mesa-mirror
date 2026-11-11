@@ -3622,7 +3622,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
             jay_alloc_def(b, UGPR, 32, jay_ugpr_per_grf(b->shader));
          jay_MOV(b, jay_extract_range(src_as_grf, 0, 4), payload[i]);
          for (unsigned j = 4; j < jay_ugpr_per_grf(b->shader); j++) {
-            jay_UNDEF(b, jay_extract(src_as_grf, j));
+            jay_UNDEF(b, JAY_TYPE_U32, jay_extract(src_as_grf, j));
          }
          payload[i] = src_as_grf;
 
@@ -3717,7 +3717,7 @@ jay_emit_instr(struct nir_to_jay_state *nj, jay_block *block, nir_instr *instr)
          if (instr->type == nir_instr_type_phi) {
             jay_PHI_DST(&nj->bld, phi_type(nd), jay_extract(def, c));
          } else {
-            jay_UNDEF(&nj->bld, jay_extract(def, c));
+            jay_UNDEF(&nj->bld, phi_type(nd), jay_extract(def, c));
          }
       }
 
@@ -4137,7 +4137,7 @@ jay_emit_eot(struct nir_to_jay_state *nj)
          }
 
          for (unsigned i = 0; i < srcs; ++i) {
-            jay_UNDEF(b, dummy_pld[i]);
+            jay_UNDEF(b, JAY_TYPE_U32, dummy_pld[i]);
          }
 
          jay_inst *send =
@@ -4199,7 +4199,7 @@ jay_emit_eot(struct nir_to_jay_state *nj)
          jay_def srcs[2];
          for (unsigned i = 0; i < 2; i++) {
             srcs[i] = jay_alloc_def(b, UGPR, 32, 1);
-            jay_UNDEF(b, srcs[i]);
+            jay_UNDEF(b, JAY_TYPE_U32, srcs[i]);
          }
 
          I = jay_SEND(b, .sfid = GEN_SFID_URB, .msg_desc = desc, .srcs = srcs,
@@ -4209,7 +4209,7 @@ jay_emit_eot(struct nir_to_jay_state *nj)
       } else {
          /* As above but for HDC URB platforms */
          jay_def data = jay_alloc_def(b, GPR, 32, 1);
-         jay_UNDEF(b, data);
+         jay_UNDEF(b, JAY_TYPE_U32, data);
 
          jay_def mask = jay_alloc_def(b, GPR, 32, 1);
          jay_MOV(b, mask, 0);

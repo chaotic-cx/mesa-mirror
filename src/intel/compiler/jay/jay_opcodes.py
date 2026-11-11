@@ -225,7 +225,7 @@ op('phi_dst', 0, 'u1 u16 u32')
 op('unit_test', 1, 'u32', Props.NO_DEST)
 
 # Produces a unstable indeterminate value. Undef in LLVM parlance.
-op('undef', 0, 'u1 u32')
+op('undef', 0, 'u1 u16 u32')
 
 op('not', 1, 'u1 u32', Props.CMOD)
 

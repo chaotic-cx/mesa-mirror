@@ -69,7 +69,7 @@ merge_to_one(jay_function *f, jay_inst **sends, jay_def *srcs, unsigned count)
 
    for (unsigned i = count; i < count_roundup; i++) {
       srcs_copy[i] = jay_alloc_def(&b, UGPR, 32, 1);
-      jay_UNDEF(&b, srcs_copy[i]);
+      jay_UNDEF(&b, JAY_TYPE_U32, srcs_copy[i]);
    }
 
    jay_def src = jay_collect_vectors(&b, srcs_copy, count_roundup);
