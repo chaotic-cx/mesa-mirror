@@ -11,16 +11,104 @@
 #include "drm-uapi/msm_drm.h"
 #include <sys/ioctl.h>
 
+#include <string.h>
+#include "freedreno_dev_info.h"
 #include "util/os_misc.h"
 #include "util/u_math.h"
 
-struct msm_device_info {
-   uint64_t chip_id;
+static const struct fd_dev_rec *device_rec;
+static uint64_t device_chip_id;
+
+static uint32_t
+rec_gpu_id(const struct fd_dev_rec *rec)
+{
+   if (rec->id.gpu_id)
+      return rec->id.gpu_id;
+
+   /* Variants such as "FD305B" name no gpu_id of their own. */
+   static const char *const prefixes[] = { "FD", "Adreno (TM) " };
+   for (unsigned i = 0; i < ARRAY_SIZE(prefixes); i++) {
+      const char *p = rec->name;
+      size_t len = strlen(prefixes[i]);
+
+      if (strncmp(p, prefixes[i], len))
+         continue;
+      p += len;
+      if (!*p)
+         continue;
+
+      const char *digits = p;
+      while (*p >= '0' && *p <= '9')
+         p++;
+      if (*p == '\0' && p != digits)
+         return atoi(digits);
+   }
+   return 0;
+}
+
+/* What a part reports where the table's id only has to recognise it. */
+static const struct {
    uint32_t gpu_id;
-   uint32_t gmem_size;
+   uint8_t shim_patch;
+} chip_id_fixups[] = {
+   { .gpu_id = 225, .shim_patch = 0x06 },
+   { .gpu_id = 305, .shim_patch = 0x20 },
+   { .gpu_id = 430, .shim_patch = 0x02 },
+   { .gpu_id = 530, .shim_patch = 0x02 },
+   { .gpu_id = 540, .shim_patch = 0x01 },
+   { .gpu_id = 630, .shim_patch = 0x01 },
+   { .gpu_id = 640, .shim_patch = 0x01 },
+   { .gpu_id = 650, .shim_patch = 0x02 },
+   { .gpu_id = 660, .shim_patch = 0x01 },
+   { .gpu_id = 680, .shim_patch = 0x01 },
 };
 
-static const struct msm_device_info *device_info;
+/* The table names a whole part with a 0xff wildcard patch level, which no
+ * real GPU reports. Report the patch level of the actual part instead of
+ * that fake id or a patch level of earlier revisions, requiring more
+ * workarounds.
+ */
+static uint64_t
+rec_chip_id(const struct fd_dev_rec *rec)
+{
+   uint64_t chip_id = rec->id.chip_id;
+   uint8_t shim_patch = 0;
+
+   for (unsigned i = 0; i < ARRAY_SIZE(chip_id_fixups); i++) {
+      if (chip_id_fixups[i].gpu_id != rec_gpu_id(rec))
+         continue;
+      shim_patch = chip_id_fixups[i].shim_patch;
+   }
+
+   if ((chip_id & 0xff) == 0xff)
+      chip_id = (chip_id & ~0xffull) | shim_patch;
+
+   return chip_id;
+}
+
+/* Prefer drm/msm entries (fuse bits set) over KGSL ones. */
+static unsigned
+rec_rank(const struct fd_dev_rec *rec)
+{
+   return !!(rec->id.chip_id >> 32);
+}
+
+static bool
+rec_better(const struct fd_dev_rec *rec, const struct fd_dev_rec *best)
+{
+   if (rec_rank(rec) != rec_rank(best))
+      return rec_rank(rec) > rec_rank(best);
+
+   /* Distinct parts can share a marketing name; only compare patch levels of one part. */
+   return (rec->id.chip_id >> 8) == (best->id.chip_id >> 8) &&
+          rec->id.chip_id > best->id.chip_id;
+}
+
+static bool
+rec_usable(const struct fd_dev_rec *rec)
+{
+   return rec->info->gmem_size != 0;
+}
 
 static int
 msm_ioctl_noop(int fd, unsigned long request, void *arg)
@@ -94,16 +182,16 @@ msm_ioctl_get_param(int fd, unsigned long request, void *arg)
 
    switch (gp->param) {
    case MSM_PARAM_GPU_ID:
-      gp->value = device_info->gpu_id;
+      gp->value = rec_gpu_id(device_rec);
       return 0;
    case MSM_PARAM_GMEM_SIZE:
-      gp->value = device_info->gmem_size;
+      gp->value = device_rec->info->gmem_size;
       return 0;
    case MSM_PARAM_GMEM_BASE:
       gp->value = 0x100000;
       return 0;
    case MSM_PARAM_CHIP_ID:
-      gp->value = device_info->chip_id;
+      gp->value = device_chip_id;
       return 0;
    case MSM_PARAM_PRIORITIES:
       gp->value = 3;
@@ -208,158 +296,19 @@ static ioctl_fn_t driver_ioctls[] = {
    [DRM_MSM_PERFCNTR_CONFIG] = msm_ioctl_noop,
 };
 
-#define CHIPID(maj, min, rev, pat)                                             \
-   ((maj << 24) | (min << 16) | (rev << 8) | (pat))
-
-/* Keep supported gpu_id aliases in sync with bin/drm-shim.py. */
-static const struct msm_device_info device_infos[] = {
-   {
-      /* First entry is default */
-      .gpu_id = 630,
-      .chip_id = CHIPID(6, 3, 0, 1),
-      .gmem_size = 1024 * 1024,
-   },
-   {
-      .gpu_id = 200,
-      .chip_id = CHIPID(2, 0, 0, 0),
-      .gmem_size = 256 * 1024,
-   },
-   {
-      .gpu_id = 201,
-      .chip_id = CHIPID(2, 0, 0, 1),
-      .gmem_size = 128 * 1024,
-   },
-   {
-      .gpu_id = 220,
-      .chip_id = CHIPID(2, 2, 0, 0),
-      .gmem_size = 512 * 1024,
-   },
-   {
-      .gpu_id = 225,
-      .chip_id = CHIPID(2, 2, 5, 6),
-      .gmem_size = 512 * 1024,
-   },
-   {
-      .gpu_id = 305,
-      .chip_id = CHIPID(3, 0, 5, 0x20),
-      .gmem_size = 256 * 1024,
-   },
-   {
-      .gpu_id = 307,
-      .chip_id = CHIPID(3, 0, 6, 0),
-      .gmem_size = 128 * 1024,
-   },
-   {
-      .gpu_id = 320,
-      .chip_id = CHIPID(3, 2, 0, 0),
-      .gmem_size = 512 * 1024,
-   },
-   {
-      .gpu_id = 330,
-      .chip_id = CHIPID(3, 3, 0, 0),
-      .gmem_size = 1024 * 1024,
-   },
-   {
-      .gpu_id = 420,
-      .chip_id = CHIPID(4, 2, 0, 0),
-      .gmem_size = 1536 * 1024,
-   },
-   {
-      .gpu_id = 430,
-      .chip_id = CHIPID(4, 3, 0, 2),
-      .gmem_size = 1536 * 1024,
-   },
-   {
-      .gpu_id = 510,
-      .chip_id = CHIPID(5, 1, 0, 0),
-      .gmem_size = 256 * 1024,
-   },
-   {
-      .gpu_id = 530,
-      .chip_id = CHIPID(5, 3, 0, 2),
-      .gmem_size = 1024 * 1024,
-   },
-   {
-      .gpu_id = 540,
-      .chip_id = CHIPID(5, 4, 0, 1),
-      .gmem_size = 1024 * 1024,
-   },
-   {
-      .gpu_id = 610,
-      .chip_id = CHIPID(6, 1, 0, 0),
-      .gmem_size = 128 * 1024 + 4 * 1024,
-   },
-   {
-      .gpu_id = 618,
-      .chip_id = CHIPID(6, 1, 8, 0),
-      .gmem_size = 512 * 1024,
-   },
-   {
-      .gpu_id = 650,
-      .chip_id = CHIPID(6, 5, 0, 2),
-      .gmem_size = 1024 * 1024 + 128 * 1024,
-   },
-   {
-      .gpu_id = 660,
-      .chip_id = CHIPID(6, 6, 0, 1),
-      .gmem_size = 1024 * 1024 + 512 * 1024,
-   },
-   {
-      .gpu_id = 702,
-      .chip_id = 0x00b207000200,
-      .gmem_size = 128 * 1024,
-   },
-   {
-      .gpu_id = 710,
-      .chip_id = 0xffff07010000,
-      .gmem_size = 512 * 1024,
-   },
-   {
-      .gpu_id = 720,
-      .chip_id = 0xffff43020000,
-      .gmem_size = 1024 * 1024,
-   },
-   {
-      .gpu_id = 730,
-      .chip_id = 0xffff07030001,
-      .gmem_size = 2 * 1024 * 1024,
-   },
-   {
-      .gpu_id = 735,
-      .chip_id = 0xffff43030b00,
-      .gmem_size = 1024 * 1024 + 512 * 1024,
-   },
-   {
-      .gpu_id = 740,
-      .chip_id = 0xffff43050a01,
-      .gmem_size = 3 * 1024 * 1024,
-   },
-   {
-      .gpu_id = 750,
-      .chip_id = 0xffff43051401,
-      .gmem_size = 3 * 1024 * 1024,
-   },
-   {
-      .gpu_id = 810,
-      .chip_id = 0xffff44010000,
-      .gmem_size = 576 * 1024,
-   },
-   {
-      .gpu_id = 830,
-      .chip_id = 0xffff44050001,
-      .gmem_size = 12 * 1024 * 1024,
-   },
-};
-
 static void
 print_supported_chips_and_abort(const char *unrecognized_env)
 {
-
    fprintf(stderr, "%s unrecognized, shim supports:\n", unrecognized_env);
 
-   for (int i = 1; i < ARRAY_SIZE(device_infos); i++) {
-      fprintf(stderr, "- gpu_id=%" PRIu32 ", chip_id=0x%" PRIx64 "\n",
-              device_infos[i].gpu_id, device_infos[i].chip_id);
+   for (unsigned i = 0; ; i++) {
+      const struct fd_dev_rec *rec = fd_dev_rec_at(i);
+      if (!rec)
+         break;
+      if (!rec_usable(rec))
+         continue;
+      fprintf(stderr, "- gpu_id=%" PRIu32 ", chip_id=0x%" PRIx64 " (%s)\n",
+              rec_gpu_id(rec), rec_chip_id(rec), rec->name);
    }
 
    abort();
@@ -379,11 +328,14 @@ msm_driver_get_device_info(void)
          abort();
       }
 
-      for (int i = 0; i < ARRAY_SIZE(device_infos); i++) {
-         if (device_infos[i].chip_id == chip_id) {
-            device_info = &device_infos[i];
-            return;
-         }
+      /* A patch level nobody has enumerated should still find its part. */
+      struct fd_dev_id id = { .gpu_id = 0, .chip_id = chip_id };
+      const struct fd_dev_rec *rec = fd_dev_rec_find(&id);
+
+      if (rec && rec_usable(rec)) {
+         device_rec = rec;
+         device_chip_id = chip_id;
+         return;
       }
 
       print_supported_chips_and_abort("FD_CHIP_ID");
@@ -391,17 +343,29 @@ msm_driver_get_device_info(void)
 
    const char *env = os_get_option("FD_GPU_ID");
 
-   if (!env) {
-      device_info = &device_infos[0];
+   int gpu_id = env ? atoi(env) : 630;
+
+   const struct fd_dev_rec *best = NULL;
+
+   for (unsigned i = 0; ; i++) {
+      const struct fd_dev_rec *rec = fd_dev_rec_at(i);
+      if (!rec)
+         break;
+      if (!rec_usable(rec) || rec_gpu_id(rec) != gpu_id)
+         continue;
+      if (!best || rec_better(rec, best))
+         best = rec;
+   }
+
+   if (best) {
+      device_rec = best;
+      device_chip_id = rec_chip_id(best);
       return;
    }
 
-   int gpu_id = atoi(env);
-   for (int i = 0; i < ARRAY_SIZE(device_infos); i++) {
-      if (device_infos[i].gpu_id == gpu_id) {
-         device_info = &device_infos[i];
-         return;
-      }
+   if (!env) {
+      fprintf(stderr, "no device info for the default gpu_id %d\n", gpu_id);
+      abort();
    }
 
    print_supported_chips_and_abort("FD_GPU_ID");

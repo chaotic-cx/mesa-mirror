@@ -8,16 +8,15 @@
 #include "util/log.h"
 #include "util/macros.h"
 
-/**
- * Table entry for a single GPU version
- */
-struct fd_dev_rec {
-   struct fd_dev_id id;
-   const char *name;
-   const struct fd_dev_info *info;
-};
-
 #include "freedreno_devices.h"
+
+const struct fd_dev_rec *
+fd_dev_rec_at(unsigned index)
+{
+   if (index >= ARRAY_SIZE(fd_dev_recs))
+      return NULL;
+   return &fd_dev_recs[index];
+}
 
 /**
  * Compare device 'id' against reference id ('ref') from gpu table.
@@ -63,6 +62,17 @@ dev_id_compare(const struct fd_dev_id *ref, const struct fd_dev_id *id)
       }
       return false;
    }
+}
+
+const struct fd_dev_rec *
+fd_dev_rec_find(const struct fd_dev_id *id)
+{
+   for (int i = 0; i < ARRAY_SIZE(fd_dev_recs); i++) {
+      if (dev_id_compare(&fd_dev_recs[i].id, id))
+         return &fd_dev_recs[i];
+   }
+
+   return NULL;
 }
 
 const struct fd_dev_info *

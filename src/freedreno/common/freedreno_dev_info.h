@@ -599,6 +599,18 @@ fd_dev_gpu_id(const struct fd_dev_id *id)
    return id->gpu_id;
 }
 
+/**
+ * Table entry for a single GPU version
+ */
+struct fd_dev_rec {
+   struct fd_dev_id id;
+   const char *name;
+   const struct fd_dev_info *info;
+};
+
+const struct fd_dev_rec *fd_dev_rec_at(unsigned index);
+const struct fd_dev_rec *fd_dev_rec_find(const struct fd_dev_id *id);
+
 /* Unmodified dev info as defined in freedreno_devices.py */
 const struct fd_dev_info *fd_dev_info_raw(const struct fd_dev_id *id);
 
