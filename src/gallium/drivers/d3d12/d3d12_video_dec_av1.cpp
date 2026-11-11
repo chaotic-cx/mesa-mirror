@@ -406,13 +406,23 @@ d3d12_video_decoder_dxva_picparams_from_pipe_picparams_av1(
    // Fix the last tile rounding when uniform_tile_spacing_flag
    if (pipe_av1->picture_parameter.pic_info_fields.uniform_tile_spacing_flag) {
       uint32_t sbPixSize = pipe_av1->picture_parameter.seq_info_fields.use_128x128_superblock ? 128 : 64;
+      /* frame_width is the upscaled width. Tiles are laid out on the coded (downscaled)
+       * width, so undo superres before deriving the last tile column.
+       * AV1 spec 7.5: FrameWidth = (UpscaledWidth * 8 + (SuperresDenom / 2)) / SuperresDenom */
+      uint32_t codedWidth = pipe_av1->picture_parameter.frame_width;
+      if (pipe_av1->picture_parameter.pic_info_fields.use_superres) {
+         uint32_t denom = pipe_av1->picture_parameter.superres_scale_denominator;
+         if (denom)
+            codedWidth = (codedWidth * 8u + (denom / 2u)) / denom;
+      }
+
       if (dxvaStructure.tiles.cols > 1) {
          uint32_t acumSbWMinusLast = 0;
          for (uint32_t i = 0; i < dxvaStructure.tiles.cols - 1u; i++)
             acumSbWMinusLast += dxvaStructure.tiles.widths[i];
 
          dxvaStructure.tiles.widths[dxvaStructure.tiles.cols-1] = static_cast<uint16_t>(
-            std::ceil(pipe_av1->picture_parameter.frame_width / (float)sbPixSize) - acumSbWMinusLast);
+            std::ceil(codedWidth / (float)sbPixSize) - acumSbWMinusLast);
       }
 
       if (dxvaStructure.tiles.rows > 1) {
