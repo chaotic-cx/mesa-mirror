@@ -148,8 +148,8 @@ struct float_mode {
    /* matches encoding of the MODE register */
    union {
       struct {
-         fp_round round32 : 2;
-         fp_round round16_64 : 2;
+         unsigned round32 : 2; /* fp_round */
+         unsigned round16_64 : 2; /* fp_round */
          unsigned denorm32 : 2;
          unsigned denorm16_64 : 2;
       };

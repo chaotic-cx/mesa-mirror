@@ -152,8 +152,8 @@ struct radv_shader_info {
       uint8_t num_linked_inputs;       /* Number of reserved per-vertex input slots in VRAM. */
       uint8_t num_linked_patch_inputs; /* Number of reserved per-patch input slots in VRAM. */
       uint8_t num_linked_outputs;
-      enum tess_primitive_mode _primitive_mode : 2;
-      enum gl_tess_spacing spacing : 2;
+      enum tess_primitive_mode _primitive_mode;
+      enum gl_tess_spacing spacing;
       bool as_es : 1;
       bool ccw : 1;
       bool point_mode : 1;

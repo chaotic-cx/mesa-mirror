@@ -57,7 +57,7 @@ enum sqtt_file_chunk_type
 };
 
 struct sqtt_file_chunk_id {
-   enum sqtt_file_chunk_type type : 8;
+   uint32_t type : 8; /* enum sqtt_file_chunk_type */
    int32_t index : 8;
    int32_t reserved : 16;
 };
