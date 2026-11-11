@@ -639,7 +639,7 @@ emit_zip(const brw_builder &lbld_before, const brw_builder &lbld_after,
    } else {
       tmp_comp_size = inst->dst.component_size(lbld_after.dispatch_width());
       tmp = lbld_after.vgrf(inst->dst.type, dst_size +
-         inst->has_sampler_residency() * reg_unit(devinfo));
+         residency_size / REG_SIZE);
    }
 
    if (inst->predicate) {
@@ -659,7 +659,7 @@ emit_zip(const brw_builder &lbld_before, const brw_builder &lbld_after,
                      byte_offset(tmp, tmp_comp_size * k));
    }
 
-   if (inst->has_sampler_residency()) {
+   if (residency_size) {
       /* Sampler messages with residency need a special attention. In the
        * first lane of the last component are located the Pixel Null Mask
        * (bits 0:15) & some upper bits we need to discard (bits 16:31). We
