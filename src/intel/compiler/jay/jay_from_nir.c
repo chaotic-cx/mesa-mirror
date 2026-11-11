@@ -695,8 +695,7 @@ jay_emit_alu(struct nir_to_jay_state *nj, nir_alu_instr *alu)
       break;
 
    case nir_op_bitfield_select:
-      assert(jay_type_size_bits(type) <= 32);
-      jay_BFN(b, JAY_TYPE_U32, dst, src[0], src[1], src[2],
+      jay_BFN(b, type, dst, src[0], src[1], src[2],
               UTIL_LUT3((a & b) | (~a & c)));
       break;
 
