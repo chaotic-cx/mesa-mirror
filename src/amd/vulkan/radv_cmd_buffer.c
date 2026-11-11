@@ -11426,6 +11426,8 @@ radv_CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo *pRe
 {
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
+   radv_suspend_conditional_rendering(cmd_buffer);
+
    /* From the Vulkan spec 1.4.358:
     *
     * "Until this command is called, mappings in the command buffer state are treated as each color
@@ -11450,6 +11452,8 @@ radv_CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo *pRe
    radv_CmdSetRenderingInputAttachmentIndices(commandBuffer, &ria_info);
 
    radv_cmd_buffer_begin_rendering(cmd_buffer, pRenderingInfo);
+
+   radv_resume_conditional_rendering(cmd_buffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -11457,7 +11461,9 @@ radv_CmdEndRendering2KHR(VkCommandBuffer commandBuffer, const VkRenderingEndInfo
 {
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
+   radv_suspend_conditional_rendering(cmd_buffer);
    radv_cmd_buffer_end_rendering(cmd_buffer, pRenderingEndInfo);
+   radv_resume_conditional_rendering(cmd_buffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL

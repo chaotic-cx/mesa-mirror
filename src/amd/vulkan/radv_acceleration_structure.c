@@ -1212,6 +1212,8 @@ radv_CmdBuildAccelerationStructuresKHR(VkCommandBuffer commandBuffer, uint32_t i
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
 
+   radv_suspend_conditional_rendering(cmd_buffer);
+
    radv_meta_begin(cmd_buffer);
    radv_meta_save(cmd_buffer, RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_CONSTANTS);
 
@@ -1221,6 +1223,8 @@ radv_CmdBuildAccelerationStructuresKHR(VkCommandBuffer commandBuffer, uint32_t i
                                         ppBuildRangeInfos, &device->meta_state.accel_struct_build.build_args);
 
    radv_meta_end(cmd_buffer);
+
+   radv_resume_conditional_rendering(cmd_buffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1232,6 +1236,8 @@ radv_CmdCopyAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopy
 
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
+
+   radv_suspend_conditional_rendering(cmd_buffer);
 
    radv_meta_begin(cmd_buffer);
    radv_meta_save(cmd_buffer, RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_CONSTANTS);
@@ -1261,6 +1267,8 @@ radv_CmdCopyAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopy
    radv_CmdDispatchIndirect2KHR(commandBuffer, &info);
 
    radv_meta_end(cmd_buffer);
+
+   radv_resume_conditional_rendering(cmd_buffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1284,6 +1292,8 @@ radv_CmdCopyMemoryToAccelerationStructureKHR(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(vk_acceleration_structure, dst, pInfo->dst);
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
+
+   radv_suspend_conditional_rendering(cmd_buffer);
 
    radv_meta_begin(cmd_buffer);
    radv_meta_save(cmd_buffer, RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_CONSTANTS);
@@ -1310,6 +1320,8 @@ radv_CmdCopyMemoryToAccelerationStructureKHR(VkCommandBuffer commandBuffer,
    radv_CmdDispatchBase(commandBuffer, 0, 0, 0, 256, 1, 1);
 
    radv_meta_end(cmd_buffer);
+
+   radv_resume_conditional_rendering(cmd_buffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1320,6 +1332,8 @@ radv_CmdCopyAccelerationStructureToMemoryKHR(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(vk_acceleration_structure, src, pInfo->src);
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
+
+   radv_suspend_conditional_rendering(cmd_buffer);
 
    radv_meta_begin(cmd_buffer);
    radv_meta_save(cmd_buffer, RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_CONSTANTS);
@@ -1365,4 +1379,6 @@ radv_CmdCopyAccelerationStructureToMemoryKHR(VkCommandBuffer commandBuffer,
    memcpy(header_data + VK_UUID_SIZE, pdev->cache_uuid, VK_UUID_SIZE);
 
    radv_update_memory_cp(cmd_buffer, pInfo->dst.deviceAddress, header_data, sizeof(header_data));
+
+   radv_resume_conditional_rendering(cmd_buffer);
 }
