@@ -8114,7 +8114,7 @@
         "description": "pco: fence before mutex release ops",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "8834fe3b86943426762c28c96bf404ddf1a92b3b",
         "notes": null
