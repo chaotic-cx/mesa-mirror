@@ -111,6 +111,7 @@ fd5_blend_state_create(struct pipe_context *pctx,
       A5XX_RB_BLEND_CNTL_ENABLE_BLEND(mrt_blend) |
       COND(so->use_dual_src_blend, A5XX_RB_BLEND_CNTL_DUAL_COLOR_IN_ENABLE) |
       COND(cso->alpha_to_coverage, A5XX_RB_BLEND_CNTL_ALPHA_TO_COVERAGE) |
+      COND(cso->alpha_to_one, A5XX_RB_BLEND_CNTL_ALPHA_TO_ONE) |
       COND(cso->independent_blend_enable, A5XX_RB_BLEND_CNTL_INDEPENDENT_BLEND);
    so->sp_blend_cntl =
       A5XX_SP_BLEND_CNTL_ENABLE_BLEND(mrt_blend) |
