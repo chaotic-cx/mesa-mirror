@@ -309,7 +309,9 @@ mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
       }
    } else {
       jay_MOV(b, dst, src)->type =
-         dst.file == FLAG ? jay_flag_type(b->func) : JAY_TYPE_U32;
+         dst.file == FLAG  ? jay_flag_type(b->func) :
+         dst.file == ACCUM ? JAY_TYPE_F32 :
+                             JAY_TYPE_U32;
    }
 }
 
