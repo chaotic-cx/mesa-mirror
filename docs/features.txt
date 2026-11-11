@@ -633,7 +633,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_EXT_depth_clip_control                             DONE (anv, dzn, hasvk, hk, kk, lvp, nvk, panvk, radv, tu, v3dv, vn)
   VK_EXT_depth_clip_enable                              DONE (anv, hasvk, hk, kk, lvp, nvk, panvk, pvr, radv, tu, v3dv/vc7+, vn)
   VK_EXT_depth_range_unrestricted                       DONE (anv/gen20+, nvk, radv, lvp, vn)
-  VK_EXT_descriptor_buffer                              DONE (anv, lvp, nvk, radv, tu)
+  VK_EXT_descriptor_buffer                              DONE (anv, lvp, nvk, panvk/v9+, radv, tu)
   VK_EXT_descriptor_heap                                DONE (anv, lvp, radv, vn)
   VK_EXT_device_address_binding_report                  DONE (anv, panvk, radv, tu)
   VK_EXT_device_fault                                   DONE (radv)

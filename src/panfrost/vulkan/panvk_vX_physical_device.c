@@ -164,6 +164,7 @@ panvk_per_arch(get_physical_device_extensions)(
 #endif
       .EXT_descriptor_indexing = PAN_ARCH >= 9,
       .EXT_dynamic_rendering_unused_attachments = true,
+      .EXT_descriptor_buffer = PAN_ARCH >= 9,
       .EXT_extended_dynamic_state = true,
       .EXT_extended_dynamic_state2 = true,
       .EXT_extended_dynamic_state3 = true,
@@ -802,6 +803,12 @@ panvk_per_arch(get_physical_device_features)(
 
       /* VK_KHR_extended_flags */
       .extendedFlags = true,
+
+      /* VK_EXT_descriptor_buffer */
+      .descriptorBuffer = PAN_ARCH >= 9,
+      .descriptorBufferCaptureReplay = false,
+      .descriptorBufferPushDescriptors = PAN_ARCH >= 9,
+      .descriptorBufferImageLayoutIgnored = PAN_ARCH >= 9,
    };
 }
 
@@ -1355,6 +1362,65 @@ panvk_per_arch(get_physical_device_properties)(
 
       /* VK_KHR_copy_memory_indirect */
       .supportedQueues = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT,
+
+      /* VK_EXT_descriptor_buffer */
+      .combinedImageSamplerDescriptorSingleArray = PAN_ARCH >= 9,
+      .bufferlessPushDescriptors = PAN_ARCH >= 9,
+      .descriptorBufferOffsetAlignment =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .maxDescriptorBufferBindings =
+         PAN_ARCH >= 9 ? MAX_SETS : 0,
+      .maxResourceDescriptorBufferBindings =
+         PAN_ARCH >= 9 ? MAX_SETS : 0,
+      .maxSamplerDescriptorBufferBindings =
+         PAN_ARCH >= 9 ? MAX_SETS : 0,
+      .maxEmbeddedImmutableSamplerBindings =
+         PAN_ARCH >= 9 ? MAX_SETS : 0,
+      .maxEmbeddedImmutableSamplers =
+         PAN_ARCH >= 9 ? MAX_PER_SET_SAMPLERS * MAX_SETS : 0,
+      .bufferCaptureReplayDescriptorDataSize = 0,
+      .imageCaptureReplayDescriptorDataSize = 0,
+      .imageViewCaptureReplayDescriptorDataSize = 0,
+      .samplerCaptureReplayDescriptorDataSize = 0,
+      .accelerationStructureCaptureReplayDescriptorDataSize = 0,
+      .EDBsamplerDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .combinedImageSamplerDescriptorSize =
+         PAN_ARCH >= 9 ? 2 * PANVK_DESCRIPTOR_SIZE : 0,
+      .sampledImageDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .storageImageDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .uniformTexelBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .robustUniformTexelBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .storageTexelBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .robustStorageTexelBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .uniformBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .robustUniformBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .storageBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .robustStorageBufferDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .inputAttachmentDescriptorSize =
+         PAN_ARCH >= 9 ? PANVK_DESCRIPTOR_SIZE : 0,
+      .accelerationStructureDescriptorSize = 0,
+      .maxSamplerDescriptorBufferRange =
+         PAN_ARCH >= 9 ? UINT32_MAX : 0,
+      .maxResourceDescriptorBufferRange =
+         PAN_ARCH >= 9 ? UINT32_MAX : 0,
+      .resourceDescriptorBufferAddressSpaceSize =
+         PAN_ARCH >= 9 ? UINT32_MAX : 0,
+      .samplerDescriptorBufferAddressSpaceSize =
+         PAN_ARCH >= 9 ? UINT32_MAX : 0,
+      .descriptorBufferAddressSpaceSize =
+         PAN_ARCH >= 9 ? UINT32_MAX : 0,
+
    };
 
    snprintf(properties->deviceName, sizeof(properties->deviceName), "%s",

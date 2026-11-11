@@ -41,3 +41,4 @@ VK_KHR_external_fence on dzn
 VK_KHR_external_fence_capabilities on dzn
 VK_EXT_attachment_feedback_loop_dynamic_state on nvk
 VK_EXT_external_memory_acquire_unmodified on pvr
+VK_EXT_descriptor_buffer on panvk/v9+
