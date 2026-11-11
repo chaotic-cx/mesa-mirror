@@ -1208,7 +1208,7 @@ tu_has_potential_stencil_feedback_loop(struct tu_cmd_buffer *cmd, const struct t
    if (stencil_att == MESA_VK_ATTACHMENT_UNUSED)
       return false;
 
-   unsigned stencil_idx = stencil_att == MESA_VK_ATTACHMENT_NO_INDEX ? 0 : stencil_att + 1;
+   unsigned stencil_idx = stencil_att == MESA_VK_ATTACHMENT_NO_INDEX ? 0 : stencil_att + TU_DYN_INPUT_ATT_OFFSET;
    return fs->fs.dynamic_input_attachments_used & (1u << stencil_idx);
 }
 

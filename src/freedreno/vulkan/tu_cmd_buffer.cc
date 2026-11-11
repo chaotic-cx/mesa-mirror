@@ -8258,8 +8258,7 @@ tu_fs_reads_dynamic_ds_input_attachment(struct tu_cmd_buffer *cmd,
    uint8_t depth_att = cmd->vk.dynamic_graphics_state.ial.depth_att;
    if (depth_att == MESA_VK_ATTACHMENT_UNUSED)
       return false;
-   unsigned depth_idx =
-      (depth_att == MESA_VK_ATTACHMENT_NO_INDEX) ? 0 : depth_att + 1;
+   unsigned depth_idx = (depth_att == MESA_VK_ATTACHMENT_NO_INDEX) ? 0 : depth_att + TU_DYN_INPUT_ATT_OFFSET;
    return fs->fs.dynamic_input_attachments_used & (1u << depth_idx);
 }
 

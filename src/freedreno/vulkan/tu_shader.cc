@@ -1096,9 +1096,9 @@ lower_input_attachment(nir_builder *b, nir_tex_instr *tex,
                        bool dynamic_renderpass)
 {
    if (dynamic_renderpass &&
-       ((tex->input_attachment_depth || tex->input_attachment_stencil) ?
-        (read_only_input_attachments & 0x1) :
-        (read_only_input_attachments & (1u << (tex->texture_index + 1)))))
+       ((tex->input_attachment_depth || tex->input_attachment_stencil)
+           ? (read_only_input_attachments & 0x1)
+           : (read_only_input_attachments & (1u << (tex->texture_index + TU_DYN_INPUT_ATT_OFFSET)))))
       return false;
 
    if (TU_DEBUG(DYNAMIC))
@@ -1117,7 +1117,7 @@ lower_input_attachment(nir_builder *b, nir_tex_instr *tex,
       assert(dynamic_renderpass);
       idx = 1;
    } else if (dynamic_renderpass) {
-      idx = (tex->texture_index + 1) * 2;
+      idx = (tex->texture_index + TU_DYN_INPUT_ATT_OFFSET) * 2;
       /* D24S8 workaround: stencil of D24S8 will be sampled as uint */
       if (nir_alu_type_get_base_type(tex->dest_type) != nir_type_float)
          idx += 1;

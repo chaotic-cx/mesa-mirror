@@ -1844,14 +1844,14 @@ tu_pipeline_builder_compile_shaders(struct tu_pipeline_builder *builder,
          if (ial->depth_att == MESA_VK_ATTACHMENT_NO_INDEX)
             attachments_referenced |= 1;
          else
-            attachments_referenced |= 1u << (ial->depth_att + 1);
+            attachments_referenced |= 1u << (ial->depth_att + TU_DYN_INPUT_ATT_OFFSET);
       }
 
       if (ial->stencil_att != MESA_VK_ATTACHMENT_UNUSED) {
          if (ial->stencil_att == MESA_VK_ATTACHMENT_NO_INDEX)
             attachments_referenced |= 1;
          else
-            attachments_referenced |= 1u << (ial->stencil_att + 1);
+            attachments_referenced |= 1u << (ial->stencil_att + TU_DYN_INPUT_ATT_OFFSET);
       }
 
       keys[MESA_SHADER_FRAGMENT].read_only_input_attachments =

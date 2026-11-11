@@ -1522,7 +1522,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
 
       if (att_info->imageView == VK_NULL_HANDLE) {
          subpass->color_attachments[i].attachment = VK_ATTACHMENT_UNUSED;
-         subpass->input_attachments[i + 1].attachment = VK_ATTACHMENT_UNUSED;
+         subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].attachment = VK_ATTACHMENT_UNUSED;
          if (subpass->resolve_attachments)
             subpass->resolve_attachments[i].attachment = VK_ATTACHMENT_UNUSED;
          if (pass->subpass_count > 1) {
@@ -1566,13 +1566,12 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
          attachment_set_ops(device, att, att_info->loadOp,
                             VK_ATTACHMENT_LOAD_OP_NONE, att_info->storeOp,
                             VK_ATTACHMENT_STORE_OP_NONE);
-         subpass->input_attachments[i + 1].patch_input_gmem = true;
+         subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].patch_input_gmem = true;
          subpass->unresolve_attachments[i].attachment = VK_ATTACHMENT_UNUSED;
          subpass->samples = static_cast<VkSampleCountFlagBits>(view->image->layout->nr_samples);
       }
       subpass->color_attachments[i].attachment = att_idx;
-      subpass->input_attachments[i + 1].attachment = att_idx;
-
+      subpass->input_attachments[i + TU_DYN_INPUT_ATT_OFFSET].attachment = att_idx;
 
       if (vk_format_is_srgb(view->vk.format))
          subpass->srgb_cntl |= 1 << i;
