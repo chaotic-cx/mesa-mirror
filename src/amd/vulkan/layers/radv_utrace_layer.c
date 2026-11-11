@@ -89,9 +89,7 @@ radv_utrace_write_timestamp(struct u_trace *ut, void *cs, void *timestamps, uint
       return true;
    }
 
-   bool suspend_cond_render = !cmd_buffer->state.cond_render.suspended;
-   if (suspend_cond_render)
-      radv_suspend_conditional_rendering(cmd_buffer);
+   radv_suspend_conditional_rendering(cmd_buffer);
 
    cmd_buffer->state.flush_bits |= AC_BARRIER_SYNC_VS | AC_BARRIER_SYNC_PS | AC_BARRIER_SYNC_CS;
 
@@ -102,8 +100,7 @@ radv_utrace_write_timestamp(struct u_trace *ut, void *cs, void *timestamps, uint
    radv_write_timestamp(cmd_buffer, va, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
    assert(cmd_buffer->cs->b->cdw <= cdw_max);
 
-   if (suspend_cond_render)
-      radv_resume_conditional_rendering(cmd_buffer);
+   radv_resume_conditional_rendering(cmd_buffer);
 
    cmd_buffer->utrace.last_cdw = cmd_buffer->cs->b->cdw;
 
