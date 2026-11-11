@@ -576,10 +576,10 @@ VkResult gfxstream_vk_wsi_init(struct gfxstream_vk_physical_device* physical_dev
 
 void gfxstream_vk_wsi_finish(struct gfxstream_vk_physical_device* physical_device);
 
+bool isNoopFence(gfxstream_vk_fence* fence);
+
 std::vector<VkSemaphore> FilterNoopSemaphores(const VkSemaphore* pSemaphores,
                                               uint32_t semaphoreCount);
-
-std::vector<VkFence> FilterNoopFences(const VkFence* pFences, uint32_t fenceCount);
 
 std::vector<VkSemaphoreSubmitInfo> FilterNoopSemaphoreSubmitInfos(
     const VkSemaphoreSubmitInfo* pSemaphoreSubmitInfos, uint32_t semaphoreSubmitInfoCount);

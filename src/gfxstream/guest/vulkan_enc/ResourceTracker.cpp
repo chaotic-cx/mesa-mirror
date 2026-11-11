@@ -5171,19 +5171,33 @@ void ResourceTracker::on_vkDestroyFence(void* context, VkDevice device, VkFence 
 VkResult ResourceTracker::on_vkResetFences(void* context, VkResult, VkDevice device,
                                            uint32_t fenceCount, const VkFence* pFences) {
     VkEncoder* enc = (VkEncoder*)context;
-    VkResult res = enc->vkResetFences(device, fenceCount, pFences, true /* do lock */);
+    if (!fenceCount) return VK_SUCCESS;
+
+    VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
+    std::vector<VkFence> hostFences;
+    hostFences.reserve(fenceCount);
+    for (uint32_t i = 0; i < fenceCount; ++i) {
+        VK_FROM_HANDLE(gfxstream_vk_fence, gfxstream_fence, pFences[i]);
+        if (isNoopFence(gfxstream_fence)) {
+            vk_fence_reset_temporary(&gfxstream_device->base, &gfxstream_fence->base);
+        } else {
+            hostFences.push_back(pFences[i]);
+        }
+    }
+    if (hostFences.empty()) return VK_SUCCESS;
+
+    VkResult res =
+        enc->vkResetFences(device, hostFences.size(), hostFences.data(), true /* do lock */);
 
     if (res != VK_SUCCESS) return res;
-
-    if (!fenceCount) return res;
 
     // Permanence: temporary
     // on fence reset, close the fence fd
     // and act like we need to GetFenceFdKHR/ImportFenceFdKHR again
     std::lock_guard<std::recursive_mutex> lock(mLock);
 #if DETECT_OS_LINUX
-    for (uint32_t i = 0; i < fenceCount; ++i) {
-        VkFence fence = pFences[i];
+    for (uint32_t i = 0; i < hostFences.size(); ++i) {
+        VkFence fence = hostFences[i];
         auto it = info_VkFence.find(fence);
         auto& info = it->second;
         if (!info.external) continue;
@@ -5356,6 +5370,11 @@ VkResult ResourceTracker::on_vkGetFenceStatus(void* context, VkResult input_resu
                                               VkFence fence) {
     VkEncoder* enc = (VkEncoder*)context;
 
+    VK_FROM_HANDLE(gfxstream_vk_fence, gfxstream_fence, fence);
+    if (isNoopFence(gfxstream_fence)) {
+        return VK_SUCCESS;
+    }
+
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
     {
         std::unique_lock<std::recursive_mutex> lock(mLock);
@@ -5396,6 +5415,13 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
     std::unique_lock<std::recursive_mutex> lock(mLock);
 
     for (uint32_t i = 0; i < fenceCount; ++i) {
+        VK_FROM_HANDLE(gfxstream_vk_fence, gfxstream_fence, pFences[i]);
+        if (isNoopFence(gfxstream_fence)) {
+            if (!waitAll) {
+                return VK_SUCCESS;
+            }
+            continue;
+        }
         auto it = info_VkFence.find(pFences[i]);
         if (it == info_VkFence.end()) continue;
         const auto& info = it->second;
