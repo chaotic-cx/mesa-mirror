@@ -478,6 +478,7 @@ populate_fs_prog_data(nir_shader *shader,
 
    if (prog_data->coarse_pixel_dispatch) {
       prog_data->uses_depth_w_coefficients |= prog_data->uses_src_depth;
+      prog_data->uses_src_xy |= prog_data->uses_src_depth;
       prog_data->uses_src_depth = false;
    }
 
