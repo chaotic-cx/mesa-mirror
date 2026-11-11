@@ -61,8 +61,13 @@ analyze_per_inst(jay_shader *shader, unsigned base_split)
                /* We do not currently split other stride sends. If/when that
                 * changes, we'll need to complicate the partition a bit.
                 */
-               assert(jay_src_stride_minmax(I, i, false) == JAY_STRIDE_4);
-               assert(jay_src_stride_minmax(I, i, true) == JAY_STRIDE_4);
+               if (i >= 0) {
+                  assert(jay_src_stride_minmax(I, i, false) == JAY_STRIDE_4);
+                  assert(jay_src_stride_minmax(I, i, true) == JAY_STRIDE_4);
+               } else {
+                  assert(jay_dst_stride_minmax(I, false) == JAY_STRIDE_4);
+                  assert(jay_dst_stride_minmax(I, true) == JAY_STRIDE_4);
+               }
                local.gpr_split += size;
             } else if (x.file == GPR && i >= 0) {
                enum jay_stride min_stride = jay_src_stride_minmax(I, i, false);
