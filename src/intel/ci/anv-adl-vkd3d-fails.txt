@@ -19,3 +19,5 @@ test_fence_pending_signal_cpu_rewind_plain,Crash
 test_structured_buffer_addressing_wrap,Fail
 test_fp16_rounding_behavior_legacy,Fail
 test_vrs_clip_distance,Fail
+test_buffer_feedback_edge_cases_dxil,Fail
+test_buffer_feedback_edge_cases_sm51,Fail

@@ -11,8 +11,6 @@ test_null_descriptor_resinfo_dxil,Fail
 
 test_undefined_structured_raw_alias_dxbc,Fail
 test_undefined_structured_raw_alias_dxil,Fail
-test_undefined_structured_raw_read_typed_dxbc,Fail
-test_undefined_structured_raw_read_typed_dxil,Fail
 
 test_copy_subresource_depth_stencil_batch,Fail
 test_uav_clear_exhaustive_descriptors,Crash
@@ -26,3 +24,4 @@ test_conservative_ssbo_vectorization_dxil_heap_desc,Fail
 test_fp16_rounding_behavior_legacy,Fail
 test_r16_texel_buffer_atomic,Fail
 test_suballocate_va_alignment,Fail
+test_raytracing_local_rs_static_sampler_collection,Fail

@@ -16,3 +16,7 @@ test_open_heap_from_address,Fail
 test_structured_buffer_addressing_wrap,Fail
 test_r16_texel_buffer_atomic,Crash
 test_suballocate_va_alignment,Fail
+
+# d3d12: ../src/nouveau/vulkan/nvk_descriptor_types.h:161: nvk_ubo_descriptor: Assertion `addr_range.address % min_cbuf_alignment == 0' failed.
+test_misaligned_root_desc_dxbc,Crash
+test_misaligned_root_desc_dxil,Crash

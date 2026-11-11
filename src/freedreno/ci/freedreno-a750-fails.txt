@@ -70,6 +70,9 @@ vkd3d-test_sampler_feedback_implicit_lod_aniso,Fail
 vkd3d-test_query_heap_cpu_resolve_timestamp,Fail
 vkd3d-test_shader_instructions_dxil,Fail
 vkd3d-test_open_heap_from_address,Fail
+vkd3d-test_fp16_rounding_behavior_legacy,Fail
+vkd3d-test_misaligned_root_desc_dxil,Fail
+vkd3d-test_misaligned_root_desc_dxbc,Fail
 
 #
 # OpenCL-CTS
