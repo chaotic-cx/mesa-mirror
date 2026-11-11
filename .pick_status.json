@@ -224,7 +224,7 @@
         "description": "freedreno/drm-shim: report the a830 chip id drm/msm reports",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "d786b6ad3eb3e28653793db346513f21f1a8b382",
         "notes": null
