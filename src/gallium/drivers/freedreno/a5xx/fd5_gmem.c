@@ -347,6 +347,8 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
 
    update_vsc_pipe(batch);
 
+   emit_msaa(ring, batch->framebuffer.samples);
+
    OUT_PKT4(ring, REG_A5XX_VPC_MODE_CNTL, 1);
    OUT_RING(ring, A5XX_VPC_MODE_CNTL_BINNING_PASS);
 
