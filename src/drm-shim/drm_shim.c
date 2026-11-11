@@ -229,8 +229,8 @@ destroy_shim(void)
 /* Initialization, which will be called from the first general library call
  * that might need to be wrapped with the shim.
  */
-static void
-init_shim(void)
+void
+drm_shim_init(void)
 {
    /* Fast path once init has been completed. */
    if (p_atomic_read(&inited))
@@ -333,7 +333,7 @@ static int file_override_open(const char *path)
 /* Override libdrm's reading of various sysfs files for device enumeration. */
 PUBLIC FILE *fopen(const char *path, const char *mode)
 {
-   init_shim();
+   drm_shim_init();
 
    int fd = file_override_open(path);
    if (fd >= 0)
@@ -347,7 +347,7 @@ PUBLIC FILE *fopen64(const char *path, const char *mode)
 /* Intercepts access(render_node_path) to trick drmGetMinorType */
 PUBLIC int access(const char *path, int mode)
 {
-   init_shim();
+   drm_shim_init();
 
    if (hide_drm_device_path(path)) {
       errno = ENOENT;
@@ -363,7 +363,7 @@ PUBLIC int access(const char *path, int mode)
 /* Intercepts open(render_node_path) to redirect it to the simulator. */
 PUBLIC int open(const char *path, int flags, ...)
 {
-   init_shim();
+   drm_shim_init();
 
    va_list ap;
    va_start(ap, flags);
@@ -399,7 +399,7 @@ PUBLIC int __open64_2(const char *path, int flags)
 
 PUBLIC int close(int fd)
 {
-   init_shim();
+   drm_shim_init();
 
    drm_shim_fd_unregister(fd);
 
@@ -410,7 +410,7 @@ PUBLIC int close(int fd)
 /* Fakes stat to return character device stuff for our fake render node. */
 PUBLIC int __xstat(int ver, const char *path, struct stat *st)
 {
-   init_shim();
+   drm_shim_init();
 
    /* Note: call real stat if we're in the process of probing for a free
     * render node!
@@ -449,7 +449,7 @@ PUBLIC int __xstat(int ver, const char *path, struct stat *st)
 /* Fakes stat to return character device stuff for our fake render node. */
 PUBLIC int __xstat64(int ver, const char *path, struct stat64 *st)
 {
-   init_shim();
+   drm_shim_init();
 
    /* Note: call real stat if we're in the process of probing for a free
     * render node!
@@ -522,7 +522,7 @@ PUBLIC int __fxstat64(int ver, int fd, struct stat64 *st)
 
 PUBLIC int stat(const char* path, struct stat* stat_buf)
 {
-   init_shim();
+   drm_shim_init();
 
    /* Note: call real stat if we're in the process of probing for a free
     * render node!
@@ -560,7 +560,7 @@ PUBLIC int stat(const char* path, struct stat* stat_buf)
 
 PUBLIC int stat64(const char* path, struct stat64* stat_buf)
 {
-   init_shim();
+   drm_shim_init();
 
    /* Note: call real stat if we're in the process of probing for a free
     * render node!
@@ -633,7 +633,7 @@ PUBLIC int fstat64(int fd, struct stat64* stat_buf)
 PUBLIC DIR *
 opendir(const char *name)
 {
-   init_shim();
+   drm_shim_init();
 
    DIR *dir = real_opendir(name);
    if (strcmp(name, "/dev/dri") == 0) {
@@ -659,7 +659,7 @@ opendir(const char *name)
 PUBLIC struct dirent *
 readdir(DIR *dir)
 {
-   init_shim();
+   drm_shim_init();
 
    struct dirent *ent = NULL;
 
@@ -687,7 +687,7 @@ readdir(DIR *dir)
 PUBLIC struct dirent64 *
 readdir64(DIR *dir)
 {
-   init_shim();
+   drm_shim_init();
 
    struct dirent64 *ent = NULL;
 
@@ -713,7 +713,7 @@ readdir64(DIR *dir)
 PUBLIC int
 closedir(DIR *dir)
 {
-   init_shim();
+   drm_shim_init();
 
    simple_mtx_lock(&shim_lock);
    _mesa_set_remove_key(opendir_set, dir);
@@ -735,7 +735,7 @@ readlink(const char *path, char *buf, size_t size)
       return real_readlink(path, buf, size);
    }
 
-   init_shim();
+   drm_shim_init();
 
    if (hide_drm_device_path(path)) {
       errno = ENOENT;
@@ -769,7 +769,7 @@ __readlink_chk(const char *path, char *buf, size_t size, size_t buflen)
 PUBLIC char *
 realpath(const char *path, char *resolved_path)
 {
-   init_shim();
+   drm_shim_init();
 
    if (strcmp(path, device_path) != 0)
       return real_realpath(path, resolved_path);

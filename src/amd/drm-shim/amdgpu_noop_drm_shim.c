@@ -221,6 +221,8 @@ static ioctl_fn_t amdgpu_ioctls[] = {
 void
 drm_shim_amdgpu_select_device(const char *gpu_id)
 {
+   drm_shim_init();
+
    if (gpu_id) {
       for (uint32_t i = 0; i < num_amdgpu_devices; i++) {
          const struct amdgpu_device *dev = &amdgpu_devices[i];
