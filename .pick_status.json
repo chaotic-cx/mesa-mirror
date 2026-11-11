@@ -794,7 +794,7 @@
         "description": "jay: Use right stride helpers for destination",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9e0b172d64d6dbfa82e6d9875e9a95c29e1c41f7",
         "notes": null
