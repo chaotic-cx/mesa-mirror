@@ -105,7 +105,25 @@ static const struct {
      "FDM is disabled due to the presence of LOAD_OP_LOAD or LOAD_OP_STORE" },
 };
 
-static uint32_t gpu_clock_id;
+/* See: https://perfetto.dev/docs/concepts/clock-sync
+ *
+ * Use sequence-scoped clock (64 <= ID < 128) for GPU clock because
+ * there's no central daemon emitting consistent snapshots for
+ * synchronization between CPU and GPU clocks on behalf of renderstages
+ * and counters producers.
+ *
+ * When CPU clock is the same with the authoritative trace clock
+ * (normally default to CLOCK_BOOTTIME), perfetto drops the
+ * non-monotonic snapshots to ensure validity of the global source clock
+ * in the resolution graph. When they are different, the clocks are
+ * marked invalid and the rest of the clock syncs will fail during trace
+ * processing.
+ *
+ * Meanwhile, since the clock is now sequence-scoped (unique per
+ * producer + writer pair within the tracing session), we can simply
+ * pick 64.
+ */
+static constexpr uint32_t gpu_clock_id = 64;
 
 static uint64_t
 get_iid()
@@ -120,30 +138,6 @@ struct TuRenderpassTraits : public perfetto::DefaultDataSourceTraits {
 
 class TuRenderpassDataSource : public MesaRenderpassDataSource<TuRenderpassDataSource,
                                                                TuRenderpassTraits> {
-   void OnStart(const StartArgs &args) override
-   {
-      MesaRenderpassDataSource<TuRenderpassDataSource, TuRenderpassTraits>::OnStart(args);
-
-      /* See: https://perfetto.dev/docs/concepts/clock-sync
-       *
-       * Use sequence-scoped clock (64 <= ID < 128) for GPU clock because
-       * there's no central daemon emitting consistent snapshots for
-       * synchronization between CPU and GPU clocks on behalf of renderstages
-       * and counters producers.
-       *
-       * When CPU clock is the same with the authoritative trace clock
-       * (normally default to CLOCK_BOOTTIME), perfetto drops the
-       * non-monotonic snapshots to ensure validity of the global source clock
-       * in the resolution graph. When they are different, the clocks are
-       * marked invalid and the rest of the clock syncs will fail during trace
-       * processing.
-       *
-       * Meanwhile, since the clock is now sequence-scoped (unique per
-       * producer + writer pair within the tracing session), we can simply
-       * pick 64.
-       */
-      gpu_clock_id = 64;
-   }
 };
 
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(TuRenderpassDataSource);
