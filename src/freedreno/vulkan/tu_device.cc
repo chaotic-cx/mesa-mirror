@@ -78,18 +78,16 @@ static void
 tu_physical_device_compiler_options_init(struct tu_physical_device *device,
                                          struct tu_instance *instance)
 {
-   /* D3D12 texel buffer range emulation requires the resbase instruction, which appeared in 7xx. */
-   if (fd_dev_gen(&device->dev_id) >= 7) {
-      if (device->info->props.max_texel_buffer_range_elements < TU_D3D12_MAX_TEXEL_BUFFER_ELEMENTS) {
-         assert(fd_dev_gen(&device->dev_id) == 7);
-         device->compiler_options.enable_texel_buffer_emulation =
-            instance->drirc.misc.enable_texel_buffer_emulation;
-      }
-      if (device->info->props.max_storage_buffer_range_bytes < TU_D3D12_MAX_STORAGE_BUFFER_RANGE_BYTES) {
-         assert(fd_dev_gen(&device->dev_id) == 7);
-         device->compiler_options.enable_ssbo_emulation =
-            instance->drirc.misc.enable_ssbo_emulation;
-      }
+   /* D3D12 texel buffer and SSBO range emulation. Without resbase the
+    * buffer size is read from the descriptor set memory.
+    */
+   if (device->info->props.max_texel_buffer_range_elements < TU_D3D12_MAX_TEXEL_BUFFER_ELEMENTS) {
+      assert(fd_dev_gen(&device->dev_id) <= 7);
+      device->compiler_options.enable_texel_buffer_emulation = instance->drirc.misc.enable_texel_buffer_emulation;
+   }
+   if (device->info->props.max_storage_buffer_range_bytes < TU_D3D12_MAX_STORAGE_BUFFER_RANGE_BYTES) {
+      assert(fd_dev_gen(&device->dev_id) <= 7);
+      device->compiler_options.enable_ssbo_emulation = instance->drirc.misc.enable_ssbo_emulation;
    }
 
    device->compiler_options.allow_oob_indirect_ubo_loads =
