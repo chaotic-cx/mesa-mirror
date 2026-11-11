@@ -77,6 +77,7 @@ class AddressSpaceStream : public IOStream {
 
     uint64_t m_backoffIters;
     uint64_t m_backoffFactor;
+    uint64_t m_backoffStartNs = 0;
 
     size_t m_ringStorageSize;
     uint32_t m_resourceId = 0;

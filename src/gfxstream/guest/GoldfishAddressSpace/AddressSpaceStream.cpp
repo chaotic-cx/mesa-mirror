@@ -12,6 +12,7 @@
 
 #include "VirtGpu.h"
 #include "util/log.h"
+#include "util/os_time.h"
 #include "util/perf/cpu_trace.h"
 
 static const size_t kReadSize = 512 * 1024;
@@ -43,6 +44,7 @@ AddressSpaceStream::AddressSpaceStream(address_space_handle_t handle, uint32_t v
       m_written(0),
       m_backoffIters(0),
       m_backoffFactor(1),
+      m_backoffStartNs(0),
       m_ringStorageSize(sizeof(struct asg_ring_storage) + m_writeBufferSize) {
     // We'll use this in the future, but at the moment,
     // it's a potential compile Werror.
@@ -385,6 +387,7 @@ ssize_t AddressSpaceStream::speculativeRead(unsigned char* readBuffer, size_t tr
         }
     }
 
+    resetBackoff();
     return actuallyRead;
 }
 
@@ -426,6 +429,7 @@ void AddressSpaceStream::ensureConsumerFinishing() {
 
         backoff();
     }
+    resetBackoff();
 }
 
 void AddressSpaceStream::ensureType1Finished() {
@@ -441,6 +445,7 @@ void AddressSpaceStream::ensureType1Finished() {
             return;
         }
     }
+    resetBackoff();
 }
 
 void AddressSpaceStream::ensureType3Finished() {
@@ -460,6 +465,7 @@ void AddressSpaceStream::ensureType3Finished() {
             return;
         }
     }
+    resetBackoff();
 }
 
 int AddressSpaceStream::type1Write(uint32_t bufferOffset, size_t size) {
@@ -485,8 +491,11 @@ int AddressSpaceStream::type1Write(uint32_t bufferOffset, size_t size) {
     uint32_t ringAvailReadNow = ring_buffer_available_read(m_context.to_host, 0);
 
     while (ringAvailReadNow >= maxOutstanding * sizeForRing) {
+        ring_buffer_yield();
+        backoff();
         ringAvailReadNow = ring_buffer_available_read(m_context.to_host, 0);
     }
+    resetBackoff();
 
     bool hostPinged = false;
     while (sent < sizeForRing) {
@@ -533,22 +542,42 @@ int AddressSpaceStream::type1Write(uint32_t bufferOffset, size_t size) {
 }
 
 void AddressSpaceStream::backoff() {
-    static const uint32_t kBackoffItersThreshold = 50000000;
-    static const uint32_t kBackoffFactorDoublingIncrement = 50000000;
-    ++m_backoffIters;
+    constexpr uint64_t kClockCheckStartIters = 256;
+    constexpr uint64_t kClockSampleIntervalMask = 63;
+    constexpr uint64_t kBackoffSleepThresholdNs = 2000000ULL;  // 2 ms
+    constexpr uint64_t kBackoffInitialSleepUs = 50;
+    constexpr uint64_t kBackoffMaxSleepUs = 250;
+    constexpr uint64_t kBackoffDoubleEverySleeps = 8;
 
-    if (m_backoffIters > kBackoffItersThreshold) {
-        usleep(m_backoffFactor);
-        uint32_t itersSoFarAfterThreshold = m_backoffIters - kBackoffItersThreshold;
-        if (itersSoFarAfterThreshold > kBackoffFactorDoublingIncrement) {
-            m_backoffFactor = m_backoffFactor << 1;
-            if (m_backoffFactor > 1000) m_backoffFactor = 1000;
-            m_backoffIters = kBackoffItersThreshold;
+    if (++m_backoffIters < kClockCheckStartIters) {
+        return;
+    }
+    if (m_backoffFactor == 1) {
+        if ((m_backoffIters & kClockSampleIntervalMask) != 0) {
+            return;
         }
+        uint64_t nowNs = static_cast<uint64_t>(os_time_get_nano()) | 1ULL;
+        if (m_backoffStartNs == 0) {
+            m_backoffStartNs = nowNs;
+            return;
+        }
+        if (nowNs - m_backoffStartNs < kBackoffSleepThresholdNs) {
+            return;
+        }
+        m_backoffFactor = kBackoffInitialSleepUs;
+        m_backoffIters = kClockCheckStartIters;
+    }
+
+    os_time_sleep(static_cast<int64_t>(m_backoffFactor));
+    if ((m_backoffIters - kClockCheckStartIters) >= kBackoffDoubleEverySleeps) {
+        m_backoffFactor <<= 1;
+        if (m_backoffFactor > kBackoffMaxSleepUs) m_backoffFactor = kBackoffMaxSleepUs;
+        m_backoffIters = kClockCheckStartIters;
     }
 }
 
 void AddressSpaceStream::resetBackoff() {
     m_backoffIters = 0;
     m_backoffFactor = 1;
+    m_backoffStartNs = 0;
 }
