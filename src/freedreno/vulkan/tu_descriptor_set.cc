@@ -1039,8 +1039,8 @@ write_emulated_texel_buffer_descriptor_common(uint32_t *dst,
    uint64_t encoded = MIN2(elements, TU_D3D12_MAX_TEXEL_BUFFER_ELEMENTS);
    encoded |= uint64_t(offset_texels & (aligment - 1)) << 30llu;
    encoded <<= 6;
-   dst[7] = A6XX_TEX_MEMOBJ_7_FLAG_LO(encoded & 0x7FFFFFF);
-   dst[8] = A6XX_TEX_MEMOBJ_8_FLAG_HI(encoded >> 26);
+   dst[FDL6_EMULATED_BUFFER_SIZE_DWORD] = A6XX_TEX_MEMOBJ_7_FLAG_LO(encoded & 0x7FFFFFF);
+   dst[FDL6_EMULATED_BUFFER_SIZE_DWORD + 1] = A6XX_TEX_MEMOBJ_8_FLAG_HI(encoded >> 26);
 
    tu_desc_set_swiz<CHIP>(dst, tu_swiz(X, Y, Z, W));
 }

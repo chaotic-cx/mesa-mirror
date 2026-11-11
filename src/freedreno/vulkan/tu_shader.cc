@@ -1911,9 +1911,8 @@ build_ssbo_global_addr(nir_builder *b,
          nir_load_const_ir3(b, 2, 32, nir_imm_int(b, 0), .base = dword_base);
    }
 
-   nir_def *descriptor_offset = nir_iadd_imm(
-      b, nir_imul_imm(b, bindless->src[0].ssa, FDL6_TEX_CONST_DWORDS * 4),
-      11 * 4);
+   nir_def *descriptor_offset = nir_iadd_imm(b, nir_imul_imm(b, bindless->src[0].ssa, FDL6_TEX_CONST_DWORDS * 4),
+                                             FDL6_EMULATED_SSBO_ADDR_DWORD * 4);
    nir_def *descriptor_words = nir_load_global_offset(
       b, 2, 32, nir_pack_64_2x32(b, set_base), descriptor_offset,
       .access = static_cast<enum gl_access_qualifier>(

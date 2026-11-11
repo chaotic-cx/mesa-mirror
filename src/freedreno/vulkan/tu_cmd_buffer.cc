@@ -4965,8 +4965,8 @@ tu_bind_descriptor_sets(struct tu_cmd_buffer *cmd,
                         va += offset;
 
                         if (cmd->device->physical_device->compiler_options.enable_ssbo_emulation) {
-                           dst_desc[11] = va;
-                           dst_desc[12] = va >> 32;
+                           dst_desc[FDL6_EMULATED_SSBO_ADDR_DWORD] = va;
+                           dst_desc[FDL6_EMULATED_SSBO_ADDR_DWORD + 1] = va >> 32;
                         }
 
                         unsigned new_offset = (va & 0x3f) >> offset_shift;

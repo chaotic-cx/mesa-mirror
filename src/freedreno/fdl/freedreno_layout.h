@@ -479,6 +479,13 @@ uint32_t fdl6_get_bank_shift(const struct fdl_ubwc_config *config);
 
 ENDC;
 
+/* Dwords of an A6XX/A7XX buffer descriptor that the D3D12 range emulation
+ * for SSBOs and texel buffers fills. They overlap the UBWC flag buffer
+ * fields, which buffers don't use.
+ */
+#define FDL6_EMULATED_BUFFER_SIZE_DWORD 7
+#define FDL6_EMULATED_SSBO_ADDR_DWORD   11
+
 #ifdef __cplusplus
 #include "common/fd_hw_common.h"
 template <chip CHIP>
