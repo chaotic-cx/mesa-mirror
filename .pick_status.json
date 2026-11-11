@@ -1124,7 +1124,7 @@
         "description": "kk: Use constant address space for load_global_constant_offset",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7c43bee7297d496befd4cc2e3713aecc24cc1561",
         "notes": null
