@@ -573,6 +573,7 @@ _mesa_get_version(const struct gl_extensions *extensions,
                   struct gl_constants *consts, gl_api api)
 {
    switch (api) {
+#if HAVE_OPENGL
    case API_OPENGL_COMPAT:
       /* Disable higher GLSL versions for legacy contexts.
        * This disallows creation of higher compatibility contexts. */
@@ -582,10 +583,17 @@ _mesa_get_version(const struct gl_extensions *extensions,
       FALLTHROUGH;
    case API_OPENGL_CORE:
       return compute_version(extensions, consts, api);
+#endif
+#if HAVE_OPENGL_ES_1
    case API_OPENGLES:
       return 11;
+#endif
+#if HAVE_OPENGL_ES_2
    case API_OPENGLES2:
       return compute_version_es2(extensions, consts);
+#endif
+   default:
+      break;
    }
    return 0;
 }
