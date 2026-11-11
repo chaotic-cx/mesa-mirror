@@ -354,7 +354,7 @@
         "description": "freedreno/a5xx: Implement alpha-to-one",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "cf0c7258ee0524709ab6d05a9aafc7415361bd23",
         "notes": null

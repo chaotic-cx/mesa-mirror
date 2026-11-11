@@ -93,9 +93,6 @@ spec@khr_texture_compression_astc@miptree-gl srgb-sd,Fail
 
 # uprev Piglit in Mesa
 spec@!opengl 1.1@large-tex,Fail
-spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one_write-z,Fail
-spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one,Fail
-spec@arb_framebuffer_object@execution@msaa-alpha-to-one,Fail
 spec@arb_framebuffer_object@framebuffer-blit-oblong tall,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-refcount,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
