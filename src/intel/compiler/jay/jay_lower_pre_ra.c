@@ -174,10 +174,15 @@ lower_immediates(jay_builder *b, jay_inst *I, struct hash_table_u64 *constants)
                        I->op == JAY_OPCODE_DP4A_UU ||
                        (ver >= 12 && I->op == JAY_OPCODE_BFE);
 
+            uint32_t imm = jay_as_uint(I->src[s]);
+            bool is_int = !jay_type_is_any_float(I->type);
+
             /* Gen9 does not support 3-src immediates */
             allowed &= ver >= 11 &&
-                       !jay_type_is_any_float(I->type) &&
-                       jay_as_uint(I->src[s]) <= UINT16_MAX;
+                       (is_int || I->type == JAY_TYPE_F16) &&
+                       (imm == (uint16_t) imm ||
+                        (jay_base_type(jay_src_type(I, s)) == JAY_TYPE_S &&
+                         (int16_t) imm == (int32_t) imm));
 
             /* MAD/DP4A can have at most one immediate source on Gfx11 */
             allowed &= (ver >= 12 || s == 0 || !jay_is_imm(I->src[0])) ||
