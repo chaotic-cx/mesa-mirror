@@ -235,6 +235,7 @@
 #include <util/os_time.h>
 #include <util/perf/cpu_trace.h>
 #include <util/perf/u_perfetto.h>
+#include <util/perf/u_perfetto_api.h>
 #include <util/perf/u_trace.h>
 #include <util/ptralloc.h>
 #include <util/ralloc.h>

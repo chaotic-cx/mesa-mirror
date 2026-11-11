@@ -7,7 +7,7 @@
 
 #include "util/u_thread.h"
 #include "util/u_cpu_detect.h"
-#include "util/perf/u_perfetto.h"
+#include "util/perf/u_perfetto_api.h"
 
 #include "macros.h"
 

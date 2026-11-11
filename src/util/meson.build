@@ -343,6 +343,7 @@ if with_perfetto
   files_mesa_util += files(
     'perf/u_perfetto.cc',
     'perf/u_perfetto.h',
+    'perf/u_perfetto_api.h',
   )
   deps_for_libmesa_util += dep_perfetto
 endif

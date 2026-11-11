@@ -27,7 +27,7 @@
 #include "u_queue.h"
 
 #include "c11/threads.h"
-#include "perf/u_perfetto.h"
+#include "perf/u_perfetto_api.h"
 #include "util/os_time.h"
 #include "util/u_string.h"
 #include "util/u_thread.h"

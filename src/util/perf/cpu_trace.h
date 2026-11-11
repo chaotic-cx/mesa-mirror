@@ -6,7 +6,7 @@
 #ifndef CPU_TRACE_H
 #define CPU_TRACE_H
 
-#include "u_perfetto.h"
+#include "u_perfetto_api.h"
 #include "u_gpuvis.h"
 #include "u_sysprof.h"
 
