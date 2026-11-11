@@ -776,6 +776,11 @@ iris_screen_create(int fd, const struct pipe_screen_config *config)
       driQueryOptionb(config->options, "intel_disable_threaded_context");
    screen->driconf.sample_d_performance =
       driQueryOptioni(config->options, "intel_sample_d_performance");
+   screen->driconf.intel_tbimr_poly_trigger_width =
+      driQueryOptioni(config->options, "intel_tbimr_poly_trigger_width");
+   screen->driconf.intel_tbimr_poly_trigger_height =
+      driQueryOptioni(config->options, "intel_tbimr_poly_trigger_height");
+
    screen->precompile = debug_get_bool_option("shader_precompile", true);
 
    isl_device_init(&screen->isl_dev, screen->devinfo);

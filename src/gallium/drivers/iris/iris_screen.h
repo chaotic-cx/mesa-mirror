@@ -219,6 +219,8 @@ struct iris_screen {
       bool force_sampler_prefetch;
       bool force_compute_surface_prefetch;
       uint8_t sample_d_performance;
+      uint8_t intel_tbimr_poly_trigger_width;
+      uint8_t intel_tbimr_poly_trigger_height;
    } driconf;
 
    /** Does the kernel support various features (KERNEL_HAS_* bitfield)? */
