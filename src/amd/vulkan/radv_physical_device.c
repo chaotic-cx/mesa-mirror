@@ -2420,7 +2420,7 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
       .maxDescriptorHeapEmbeddedSamplers = 2048,
       .samplerYcbcrConversionCount = 3,
       .sparseDescriptorHeaps = false,
-      .protectedDescriptorHeaps = false,
+      .protectedDescriptorHeaps = radv_tmz_enabled(pdev),
 
       /* VK_KHR_device_fault */
       .maxDeviceFaultCount = 1,
