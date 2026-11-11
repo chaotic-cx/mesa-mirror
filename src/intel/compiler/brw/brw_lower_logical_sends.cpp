@@ -761,9 +761,9 @@ sampler_calc_channel_mask(const intel_device_info *devinfo, brw_tex_inst *tex)
     * and we have an explicit header, we need to set up the sampler
     * writemask.  It's reversed from normal: 1 means "don't write".
     */
+   unsigned residency_regs = tex->residency;
    unsigned comps_regs =
-      DIV_ROUND_UP(regs_written(tex) - reg_unit(devinfo) * tex->residency,
-                   reg_unit(devinfo));
+      DIV_ROUND_UP(regs_written(tex), reg_unit(devinfo)) - residency_regs;
    unsigned comp_regs =
       DIV_ROUND_UP(tex->dst.component_size(tex->exec_size),
                    reg_unit(devinfo) * REG_SIZE);
