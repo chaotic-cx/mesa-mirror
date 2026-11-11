@@ -668,7 +668,7 @@ emit_zip(const brw_builder &lbld_before, const brw_builder &lbld_after,
        */
       const brw_builder rbld = lbld_after.uniform();
       brw_reg local_res_reg = component(
-         retype(offset(tmp, lbld_before, dst_size),
+         retype(byte_offset(tmp, tmp_comp_size * dst_size),
                 BRW_TYPE_UW), 0);
       brw_reg final_res_reg =
          retype(byte_offset(inst->dst,
