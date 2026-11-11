@@ -90,15 +90,32 @@ to_gen_operand(jay_function *f,
    }
 
    if (jay_is_imm(d)) {
-      /* Immediates have size restrictions but can zero extend */
+      uint32_t imm = jay_as_uint(d);
+
+      /* Immediates have size restrictions but can sign/zero extend */
       if (jay_type_size_bits(type) == 64) {
          type = jay_type_resize(type, 32);
       } else if (jay_num_isa_srcs(I) == 3) {
-         assert(jay_as_uint(d) <= UINT16_MAX);
-         type = JAY_TYPE_U16;
+         /* First apply sign-extend so we get the logical 32-bit immediate */
+         if (jay_base_type(type) == JAY_TYPE_S) {
+            imm = util_sign_extend(imm, jay_type_size_bits(type));
+         }
+
+         if (jay_type_is_any_float(type)) {
+            /* Float types need to match */
+            assert(imm <= UINT16_MAX && type == JAY_TYPE_F16);
+         } else if (jay_base_type(type) == JAY_TYPE_S &&
+                    (int16_t) imm == (int32_t) imm) {
+            /* Sign-extend 16-bit */
+            type = JAY_TYPE_S16;
+         } else {
+            /* Zero-extend 16-bit */
+            assert(imm <= UINT16_MAX);
+            type = JAY_TYPE_U16;
+         }
       }
 
-      R = gen_imm_ud(jay_as_uint(d));
+      R = gen_imm_ud(imm);
    } else if (jay_is_null(d)) {
       R = gen_null();
    } else if (d.file == UGPR || (d.file == ACCUM && I->uniform)) {
