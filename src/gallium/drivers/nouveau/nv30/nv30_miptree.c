@@ -541,22 +541,18 @@ nv30_miptree_from_handle(struct pipe_screen *pscreen,
    return &mt->base.base;
 }
 
-static struct pipe_surface *
-nv30_miptree_surface_new(struct pipe_context *pipe,
-                         struct pipe_resource *pt,
-                         const struct pipe_surface *tmpl)
+/* Fill ns for the level and layers of tmpl. This neither allocates nor takes
+ * a reference on pt, so it can fill a surface on the stack.
+ */
+void
+nv30_miptree_surface_init(struct nv30_surface *ns, struct pipe_resource *pt,
+                          const struct pipe_surface *tmpl)
 {
    struct nv30_miptree *mt = nv30_miptree(pt); /* guaranteed */
-   struct nv30_surface *ns;
-   struct pipe_surface *ps;
    struct nv30_miptree_level *lvl = &mt->level[tmpl->level];
+   struct pipe_surface *ps = &ns->base;
 
-   ns = CALLOC_STRUCT(nv30_surface);
-   if (!ns)
-      return NULL;
-   ps = &ns->base;
-
-   pipe_resource_reference(&ps->texture, pt);
+   ps->texture = pt;
    ps->format = tmpl->format;
    ps->level = tmpl->level;
    ps->first_layer = tmpl->first_layer;
@@ -570,8 +566,21 @@ nv30_miptree_surface_new(struct pipe_context *pipe,
       ns->pitch = 4096; /* random, just something the hw won't reject.. */
    else
       ns->pitch = lvl->pitch;
+}
 
-   return ps;
+static struct pipe_surface *
+nv30_miptree_surface_new(struct pipe_context *pipe,
+                         struct pipe_resource *pt,
+                         const struct pipe_surface *tmpl)
+{
+   struct nv30_surface *ns = CALLOC_STRUCT(nv30_surface);
+
+   if (!ns)
+      return NULL;
+
+   pipe_resource_reference(&ns->base.texture, pt);
+   nv30_miptree_surface_init(ns, pt, tmpl);
+   return &ns->base;
 }
 
 static void
