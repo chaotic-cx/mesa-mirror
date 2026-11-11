@@ -7,64 +7,94 @@ from freedreno_dev_info import *
 
 add_gpus([
         GPUId(200),
+    ], A2xxGPUInfo(gmem_size = 256 * 1024))
+
+add_gpus([
         GPUId(201, 0x02000001),
+    ], A2xxGPUInfo(gmem_size = 128 * 1024))
+
+add_gpus([
         GPUId(205),
+    ], A2xxGPUInfo(gmem_size = 256 * 1024))
+
+add_gpus([
         GPUId(220),
         GPUId(225),
-    ], A2xxGPUInfo())
+    ], A2xxGPUInfo(gmem_size = 512 * 1024))
 
 add_gpus([
         GPUId(305),
-        GPUId(307, 0x03000600),
-        GPUId(320),
-        GPUId(330),
+    ], A3xxGPUInfo(gmem_size = 256 * 1024))
+
+add_gpus([
         GPUId(chip_id=0x03000512, name="FD305B"),
         GPUId(chip_id=0x03000620, name="FD306A"),
-    ], A3xxGPUInfo())
+    ], A3xxGPUInfo(gmem_size = 128 * 1024))
+
+add_gpus([
+        GPUId(307, 0x03000600),
+    ], A3xxGPUInfo(gmem_size = 128 * 1024))
+
+add_gpus([
+        GPUId(320),
+    ], A3xxGPUInfo(gmem_size = 512 * 1024))
+
+add_gpus([
+        GPUId(330),
+    ], A3xxGPUInfo(gmem_size = 1024 * 1024))
 
 add_gpus([
         GPUId(405),
+    ], A4xxGPUInfo(gmem_size = 256 * 1024))
+
+add_gpus([
         GPUId(420),
         GPUId(430),
-    ], A4xxGPUInfo())
+    ], A4xxGPUInfo(gmem_size = 1536 * 1024))
 
 # FIXME: measure on the hardware
 add_gpus([
         GPUId(505),
         GPUId(506),
-    ], A5xxGPUInfo(num_sp_cores = 1, highest_bank_bit = 14,
+    ], A5xxGPUInfo(gmem_size = 128 * 1024 + 8 * 1024,
+                   num_sp_cores = 1, highest_bank_bit = 14,
                    reg_size_vec4 = 64,
                    wave_granularity = 1))
 
 add_gpus([
         GPUId(508),
-    ], A5xxGPUInfo(num_sp_cores = 1, highest_bank_bit = 14,
+    ], A5xxGPUInfo(gmem_size = 128 * 1024 + 8 * 1024,
+                   num_sp_cores = 1, highest_bank_bit = 14,
                    reg_size_vec4 = 64,
                    wave_granularity = 2))
 
 # FIXME: measure on the hardware
 add_gpus([
         GPUId(510),
-    ], A5xxGPUInfo(num_sp_cores = 2, highest_bank_bit = 14,
+    ], A5xxGPUInfo(gmem_size = 256 * 1024,
+                   num_sp_cores = 2, highest_bank_bit = 14,
                    reg_size_vec4 = 64,
                    wave_granularity = 1))
 
 add_gpus([
         GPUId(509),
         GPUId(512),
-    ], A5xxGPUInfo(num_sp_cores = 2, highest_bank_bit = 14,
+    ], A5xxGPUInfo(gmem_size = 256 * 1024 + 16 * 1024,
+                   num_sp_cores = 2, highest_bank_bit = 14,
                    reg_size_vec4 = 96,
                    wave_granularity = 1))
 
 add_gpus([
         GPUId(530),
-    ], A5xxGPUInfo(num_sp_cores = 4, highest_bank_bit = 15,
+    ], A5xxGPUInfo(gmem_size = 1024 * 1024,
+                   num_sp_cores = 4, highest_bank_bit = 15,
                    reg_size_vec4 = 64,
                    wave_granularity = 2))
 
 add_gpus([
         GPUId(540),
-    ], A5xxGPUInfo(num_sp_cores = 4, highest_bank_bit = 15,
+    ], A5xxGPUInfo(gmem_size = 1024 * 1024,
+                   num_sp_cores = 4, highest_bank_bit = 15,
                    reg_size_vec4 = 96,
                    wave_granularity = 2))
 
@@ -245,6 +275,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen1_low],
+        gmem_size = 128 * 1024 + 4 * 1024,
         num_ccu = 1,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -267,6 +298,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen1_low, GPUProps(reg_size_vec4 = 32)],
+        gmem_size = 128 * 1024 + 4 * 1024,
         num_ccu = 1,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -290,6 +322,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen1, GPUProps(blit_wfi_quirk = True)],
+        gmem_size = 512 * 1024,
         num_ccu = 1,
         tile_align_w = 32,
         tile_align_h = 32,
@@ -323,6 +356,7 @@ add_gpus([
         CHIP.A6XX,
         [a6xx_base, a6xx_gen1, GPUProps(draw_auto_stale_stride_quirk = False,
                                          predicated_binning_quirk = False)],
+        gmem_size = 512 * 1024,
         num_ccu = 1,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -354,6 +388,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen3, GPUProps(lrz_track_quirk = False)],
+        gmem_size = 512 * 1024,
         num_ccu = 1,
         tile_align_w = 96,
         tile_align_h = 16,
@@ -387,6 +422,7 @@ add_gpus([
         [a6xx_base, a6xx_gen1, GPUProps(
             QCTDD04536579 = True,
         )],
+        gmem_size = 1024 * 1024,
         num_ccu = 2,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -419,6 +455,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen2],
+        gmem_size = 1024 * 1024,
         num_ccu = 2,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -451,6 +488,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen2],
+        gmem_size = 2 * 1024 * 1024,
         num_ccu = 4,
         tile_align_w = 64,
         tile_align_h = 32,
@@ -483,6 +521,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen3],
+        gmem_size = 1024 * 1024 + 128 * 1024,
         num_ccu = 3,
         tile_align_w = 96,
         tile_align_h = 16,
@@ -521,6 +560,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen4],
+        gmem_size = 512 * 1024,
         num_ccu = 2,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -552,6 +592,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen4],
+        gmem_size = 1024 * 1024 + 512 * 1024,
         num_ccu = 3,
         tile_align_w = 96,
         tile_align_h = 16,
@@ -584,6 +625,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen4],
+        gmem_size = 1024 * 1024 + 512 * 1024,
         num_ccu = 3,
         tile_align_w = 96,
         tile_align_h = 16,
@@ -615,6 +657,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen4, GPUProps(broken_ds_ubwc_quirk = True)],
+        gmem_size = 4 * 1024 * 1024,
         num_ccu = 8,
         tile_align_w = 64,
         tile_align_h = 32,
@@ -664,6 +707,7 @@ add_gpus([
             predicated_binning_quirk = False,
             )
         ],
+        gmem_size = 128 * 1024,
         num_ccu = 1,
         tile_align_w = 32,
         tile_align_h = 16,
@@ -1029,6 +1073,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen1],
+        gmem_size = 512 * 1024,
         num_ccu = 1,
         tile_align_w = 64,
         tile_align_h = 32,
@@ -1048,6 +1093,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen1],
+        gmem_size = 1024 * 1024,
         num_ccu = 2,
         tile_align_w = 64,
         tile_align_h = 32,
@@ -1067,6 +1113,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen1],
+        gmem_size = 1024 * 1024,
         num_ccu = 2,
         tile_align_w = 64,
         tile_align_h = 16,
@@ -1086,6 +1133,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen1, GPUProps(QCTDD09112208 = True)],
+        gmem_size = 2 * 1024 * 1024,
         num_ccu = 4,
         tile_align_w = 64,
         tile_align_h = 32,
@@ -1105,6 +1153,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen1],
+        gmem_size = 2 * 1024 * 1024,
         num_ccu = 4,
         tile_align_w = 64,
         tile_align_h = 32,
@@ -1125,6 +1174,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen2, GPUProps(enable_tp_ubwc_flag_hint = True)],
+        gmem_size = 1024 * 1024 + 512 * 1024,
         num_ccu = 3,
         tile_align_w = 96,
         tile_align_h = 32,
@@ -1188,6 +1238,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen2],
+        gmem_size = 3 * 1024 * 1024,
         num_ccu = 6,
         tile_align_w = 96,
         tile_align_h = 32,
@@ -1208,6 +1259,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen2, GPUProps(QCTDD09112208 = True)],
+        gmem_size = 3 * 1024 * 1024,
         num_ccu = 6,
         tile_align_w = 96,
         tile_align_h = 32,
@@ -1268,6 +1320,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A7XX,
         [a7xx_base, a7xx_gen2, GPUProps(enable_tp_ubwc_flag_hint = True)],
+        gmem_size = 3 * 1024 * 1024,
         num_ccu = 6,
         tile_align_w = 96,
         tile_align_h = 32,
@@ -1290,6 +1343,7 @@ add_gpus([
             QCTDD10789828 = True,
             has_independent_icache_miss = True,
         )],
+        gmem_size = 3 * 1024 * 1024,
         num_ccu = 6,
         tile_align_w = 96,
         tile_align_h = 32,
@@ -1462,6 +1516,7 @@ add_gpus([
             # move to a8xx_base if confirmed needed for a830.
             has_fs_tex_prefetch = False,
         )],
+        gmem_size = 576 * 1024,
         num_ccu = 1,
         num_slices = 1,
         tile_align_w = 32,
@@ -1483,6 +1538,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A8XX,
         [a7xx_base, a7xx_gen3, a8xx_base, a8xx_gen1, a8xx_vpc_cache_lg],
+        gmem_size = 12 * 1024 * 1024,
         num_ccu = 6,
         num_slices = 3,
         tile_align_w = 96,
@@ -1505,6 +1561,7 @@ add_gpus([
          GPUProps(
             shading_rate_matches_vk = True,  # TODO confirm this
          )],
+        gmem_size = 2432 * 1024,
         num_ccu = 4,
         num_slices = 2,
         tile_align_w = 64,
@@ -1524,6 +1581,7 @@ add_gpus([
         CHIP.A8XX,
         [a7xx_base, a7xx_gen3, a8xx_base, a8xx_gen2, a8xx_vpc_cache_lg,
          GPUProps(shading_rate_matches_vk = True)],
+        gmem_size = 18 * 1024 * 1024,
         num_ccu = 6,
         num_slices = 3,
         tile_align_w = 96,
@@ -1544,6 +1602,7 @@ add_gpus([
         CHIP.A8XX,
         [a7xx_base, a7xx_gen3, a8xx_base, a8xx_gen2, a8xx_vpc_cache_lg,
          GPUProps(shading_rate_matches_vk = True)],
+        gmem_size = 12 * 1024 * 1024,
         num_ccu = 4,
         num_slices = 2,
         tile_align_w = 64,
@@ -1563,6 +1622,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A8XX,
         [a7xx_base, a7xx_gen3, a8xx_base, a8xx_gen2, a8xx_vpc_cache_lg],
+        gmem_size = 21 * 1024 * 1024 * 3 // 4,
         num_ccu = 6,
         num_slices = 3,
         tile_align_w = 96,
@@ -1581,6 +1641,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A8XX,
         [a7xx_base, a7xx_gen3, a8xx_base, a8xx_gen2, a8xx_vpc_cache_lg],
+        gmem_size = 21 * 1024 * 1024,
         num_ccu = 8,
         num_slices = 4,
         tile_align_w = 64,

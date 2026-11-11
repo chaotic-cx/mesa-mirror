@@ -133,7 +133,7 @@ class GPUInfo(Struct):
                  cs_shared_mem_size, num_sp_cores, wave_granularity, fibers_per_sp,
                  highest_bank_bit = 0, ubwc_swizzle = 0x7, macrotile_mode = 0,
                  threadsize_base = 64, max_waves = 16, compute_lb_size = 0,
-                 reg_size_vec4 = 0):
+                 reg_size_vec4 = 0, gmem_size = 0):
         self.chip          = chip.value
         self.props = Struct()
         self.props.reg_size_vec4 = reg_size_vec4
@@ -153,6 +153,7 @@ class GPUInfo(Struct):
         self.highest_bank_bit = highest_bank_bit
         self.ubwc_swizzle = ubwc_swizzle
         self.macrotile_mode = macrotile_mode
+        self.gmem_size = gmem_size
 
         s.gpu_infos.append(self)
 
@@ -160,7 +161,7 @@ class GPUInfo(Struct):
 # a2xx is really two sub-generations, a20x and a22x, but we don't currently
 # capture that in the device-info tables
 class A2xxGPUInfo(GPUInfo):
-    def __init__(self):
+    def __init__(self, gmem_size):
         super().__init__(
             CHIP.A2XX,
             gmem_align_w = 32,  gmem_align_h = 32,
@@ -173,10 +174,11 @@ class A2xxGPUInfo(GPUInfo):
             wave_granularity = 2,
             fibers_per_sp = 0, # TODO
             threadsize_base = 8, # TODO: Confirm this
+            gmem_size = gmem_size,
         )
 
 class A3xxGPUInfo(GPUInfo):
-    def __init__(self):
+    def __init__(self, gmem_size):
         super().__init__(
             CHIP.A3XX,
             gmem_align_w = 32,  gmem_align_h = 32,
@@ -190,10 +192,11 @@ class A3xxGPUInfo(GPUInfo):
             fibers_per_sp = 0, # TODO
             threadsize_base = 8,
             reg_size_vec4 = 96, # TODO: confirm this
+            gmem_size = gmem_size,
         )
 
 class A4xxGPUInfo(GPUInfo):
-    def __init__(self):
+    def __init__(self, gmem_size):
         super().__init__(
             CHIP.A4XX,
             gmem_align_w = 32,  gmem_align_h = 32,
@@ -207,14 +210,15 @@ class A4xxGPUInfo(GPUInfo):
             fibers_per_sp = 0, # TODO
             threadsize_base = 32, # TODO: Confirm this
             reg_size_vec4 = 48, # not measured the way a5xx was
+            gmem_size = gmem_size,
         )
 
 class A5xxGPUInfo(GPUInfo):
-    """The a5xx parts differ in how many SP cores they have, in the size
-       of their register file and how waves are allocated from it, and in
-       where their SoC interleaves memory."""
-    def __init__(self, num_sp_cores, highest_bank_bit, reg_size_vec4,
-                 wave_granularity):
+    """The a5xx parts differ in GMEM size, in how many SP cores they
+       have, in the size of their register file and how waves are
+       allocated from it, and in where their SoC interleaves memory."""
+    def __init__(self, gmem_size, num_sp_cores, highest_bank_bit,
+                 reg_size_vec4, wave_granularity):
         super().__init__(
             CHIP.A5XX,
             gmem_align_w = 64,  gmem_align_h = 32,
@@ -227,6 +231,7 @@ class A5xxGPUInfo(GPUInfo):
             fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
             threadsize_base = 32,
             reg_size_vec4 = reg_size_vec4,
+            gmem_size = gmem_size,
             num_sp_cores = num_sp_cores,
             highest_bank_bit = highest_bank_bit,
         )
@@ -242,7 +247,8 @@ class A6xxGPUInfo(GPUInfo):
                  cs_shared_mem_size, wave_granularity, fibers_per_sp,
                  raw_magic_regs = None, highest_bank_bit = 15,
                  ubwc_swizzle = 0x6, macrotile_mode = 1,
-                 threadsize_base = 64, max_waves = 16, num_slices = 0):
+                 threadsize_base = 64, max_waves = 16, num_slices = 0,
+                 gmem_size = 0):
         if chip == CHIP.A6XX:
             compute_lb_size = 0
         else:
@@ -265,7 +271,8 @@ class A6xxGPUInfo(GPUInfo):
                          macrotile_mode = macrotile_mode,
                          threadsize_base    = threadsize_base,
                          max_waves    = max_waves,
-                         compute_lb_size = compute_lb_size)
+                         compute_lb_size = compute_lb_size,
+                         gmem_size = gmem_size)
 
         self.num_ccu = num_ccu
         self.num_slices = num_slices

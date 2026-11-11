@@ -49,6 +49,8 @@ struct fd_dev_info {
    uint32_t highest_bank_bit;
    uint32_t ubwc_swizzle;
    uint32_t macrotile_mode;
+   /* For the drm-shim, which has no kernel to ask. */
+   uint32_t gmem_size;
 
    /* Information for private memory calculations */
    uint32_t fibers_per_sp;
