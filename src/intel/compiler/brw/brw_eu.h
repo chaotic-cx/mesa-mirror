@@ -128,6 +128,13 @@ brw_sampler_message_is_gather4(unsigned msg_type)
    case GEN_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_C:
    case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_I_C:
    case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_L_C:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_L:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_B:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_I:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_C:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_I_C:
+   case GEN_XE2_SAMPLER_MESSAGE_SAMPLE_GATHER4_PO_L_C:
       return true;
    default:
       return false;
@@ -150,7 +157,6 @@ brw_sampler_64bit_desc(const struct intel_device_info *devinfo,
 {
    /* TODO: optimization that can be enabled later */
    bool enable_lsc_backing = false;
-   /* TODO: support gather4 */
    bool is_gather4 = brw_sampler_message_is_gather4(msg_type);
    bool address_input_format;
    /* Sampler doesn't support CacheMode overwrite Field MBZ */
