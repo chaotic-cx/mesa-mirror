@@ -1928,6 +1928,19 @@ lower_sample_pos(nir_builder *b, nir_intrinsic_instr *intrin)
    nir_def_rewrite_uses_after(&intrin->def, pos);
 }
 
+static void
+lower_barycentric_at_sample(nir_builder *b, nir_intrinsic_instr *intrin)
+{
+   b->cursor = nir_before_instr(&intrin->instr);
+
+   nir_def *sample_id = nir_bcsel(
+      b,
+      nir_test_fs_config_intel(b, 1, INTEL_FS_CONFIG_MULTISAMPLE_FBO),
+      intrin->src[0].ssa, nir_imm_int(b, 0));
+
+   nir_src_rewrite(&intrin->src[0], sample_id);
+}
+
 static bool
 lower_msaa_config(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
 {
@@ -1938,6 +1951,9 @@ lower_msaa_config(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
    case nir_intrinsic_load_sample_pos:
    case nir_intrinsic_load_sample_pos_or_center:
       lower_sample_pos(b, intrin);
+      return true;
+   case nir_intrinsic_load_barycentric_at_sample:
+      lower_barycentric_at_sample(b, intrin);
       return true;
    default:
       return false;
