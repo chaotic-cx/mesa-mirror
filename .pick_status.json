@@ -1324,7 +1324,7 @@
         "description": "jay: Modify sparse tg4 operation",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "204af7e09fb93b7c808871d9d5616064d4e2993c",
         "notes": null
