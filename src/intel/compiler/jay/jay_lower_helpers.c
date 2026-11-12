@@ -158,10 +158,11 @@ jay_lower_helpers(jay_shader *shader)
    assert(shader->helpers_tracked);
    unsigned helper_flag_no =
       shader->num_regs[FLAG] - jay_phys_flag_per_virt(shader);
-   struct ctx ctx = { .helper_flag = jay_bare_reg(FLAG, 32, helper_flag_no) };
+   struct ctx ctx = { .helper_flag = jay_bare_reg(FLAG, jay_flag_bits(entry),
+                                                  helper_flag_no) };
 
    /* Initialize the helper flag sensibly based on the dispatch mask (sr0.2) */
-   jay_def sr0_2 = jay_scalar(J_ARF, 32, GEN_ARF_STATE);
+   jay_def sr0_2 = jay_scalar(J_ARF, jay_flag_bits(entry), GEN_ARF_STATE);
    sr0_2.reg = 2;
    jay_NOT(&b, ctx.helper_flag, sr0_2)->type = jay_flag_type(entry);
 
