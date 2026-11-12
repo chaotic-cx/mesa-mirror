@@ -646,7 +646,17 @@ kill_aliases(struct copy_prop_var_state *state,
 {
    /* TODO: Take into account the write_mask. */
 
-   lookup_entry_and_kill_aliases(state, copies, deref, write_mask, true);
+   nir_deref_path path;
+   nir_deref_and_path tmp = *deref;
+   if (!tmp._path) {
+      nir_deref_path_init(&path, tmp.instr, NULL);
+      tmp._path = &path;
+   }
+
+   lookup_entry_and_kill_aliases(state, copies, &tmp, write_mask, true);
+
+   if (!deref->_path)
+      nir_deref_path_finish(&path);
 }
 
 static struct copy_entry *
