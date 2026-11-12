@@ -14,6 +14,11 @@
 #include "drm-uapi/drm_fourcc.h"
 #include "util/log.h"
 
+/* Defined in AIDL PixelFormat and frameworks/native PixelFormat.h, but absent
+ * from legacy hardware/gralloc.h headers.
+ */
+#define HAL_PIXEL_FORMAT_R_8 0x38
+
 enum chroma_order {
    YCbCr,
    YCrCb,
@@ -98,6 +103,7 @@ get_hal_format_bpp(int native)
       bpp = 2;
       break;
    case HAL_PIXEL_FORMAT_STENCIL_8:
+   case HAL_PIXEL_FORMAT_R_8:
       bpp = 1;
       break;
    default:
@@ -136,6 +142,7 @@ get_fourcc_from_hal_format(int native)
     * value.
     */
    case HAL_PIXEL_FORMAT_STENCIL_8:
+   case HAL_PIXEL_FORMAT_R_8:
       return DRM_FORMAT_R8;
    case HAL_PIXEL_FORMAT_DEPTH_16:
       return DRM_FORMAT_R16;
