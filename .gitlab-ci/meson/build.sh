@@ -46,6 +46,27 @@ if [ "$CI_JOB_STAGE" = "build-for-tests" ] && [[ "$CI_JOB_NAME" != *android* ]];
   rustup default "$(python3 -c 'import tomllib; print(tomllib.load(open("'"$CI_PROJECT_DIR"'/clippy.toml", "rb"))["msrv"])')"
 fi
 
+print_sccache_stats() {
+  section_switch sccache-stats "sccache stats"
+  "$SCCACHE" --show-stats || true
+  section_end sccache-stats
+  # Summary at the end of the log, like the ccache hits in after_script.  The
+  # server doesn't survive into after_script, so it has to be done here.
+  "$SCCACHE" --show-stats | grep -E '^(Cache hits|Cache misses|Cache hits rate|Non-cacheable calls) +[0-9-]' || true
+}
+
+# Wrap rustc with sccache, like ccache does for the C/C++ compilers.  It's
+# installed outside of $PATH so that meson doesn't autodetect it for C/C++, and
+# meson would drop a bare 'sccache' wrapper for rust anyway, so use the full
+# path.
+SCCACHE=/usr/local/sccache/bin/sccache
+echo "rust = ['$SCCACHE', 'rustc']" >> native.file
+if [ -n "$CROSS" ]; then
+  sed -i -e "s|^rust = \['rustc'|rust = ['$SCCACHE', 'rustc'|" "$CROSS_FILE"
+  grep -q "^rust = \['$SCCACHE', 'rustc'" "$CROSS_FILE"
+fi
+trap print_sccache_stats EXIT
+
 # cross-xfail-$CROSS, if it exists, contains a list of tests that are expected
 # to fail for the $CROSS configuration, one per line. you can then mark those
 # tests in their meson.build with:

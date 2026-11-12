@@ -57,17 +57,27 @@
     CCACHE_COMPILERCHECK: "content"
     CCACHE_COMPRESS: "true"
     CCACHE_DIR: /cache/mesa/ccache
-  # Use ccache transparently, and print stats before/after
+    SCCACHE_DIR: /cache/mesa/sccache
+    # sccache's stats live in its server, so keep it alive until the job ends.
+    SCCACHE_IDLE_TIMEOUT: "0"
+  # Use ccache transparently, and print stats before/after.  sccache is used
+  # for rustc by meson/build.sh, which also prints its stats.
   before_script:
     - !reference [default, before_script]
     - |
       export PATH="/usr/lib/ccache:$PATH"
       export CCACHE_BASEDIR="$PWD"
+      export SCCACHE_BASEDIRS="$PWD"
       if test -x /usr/bin/ccache; then
         section_start ccache_before "ccache stats before build"
         ccache --show-stats
         section_end ccache_before
       fi
+      # Start the server here rather than on the first rustc call, so that
+      # startup problems show up clearly.
+      section_start sccache_start "sccache server start"
+      /usr/local/sccache/bin/sccache --start-server
+      section_end sccache_start
   after_script:
     - if test -x /usr/bin/ccache; then ccache --show-stats | grep "Hits:"; fi
 
