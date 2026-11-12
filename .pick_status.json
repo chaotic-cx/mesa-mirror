@@ -1044,7 +1044,7 @@
         "description": "anv/video: give VDEnc an intra prediction row store for H.264 on Gfx12.5",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f2aeb1c21e1087c296d0bc05060aaaad7be518e2",
         "notes": null
