@@ -495,6 +495,17 @@ st_nir_lower_linked_shader(struct st_context *st,
    NIR_PASS(_, nir, nir_lower_compute_system_values, &cs_options);
 }
 
+/* Return whether the shader has 64-bit values. shader_info::bit_sizes_* are
+ * the bit sizes used by the shader ORed together.
+ */
+static bool
+st_nir_uses_64bit(const nir_shader *nir)
+{
+   const unsigned bit_size = 64;
+
+   return (nir->info.bit_sizes_int | nir->info.bit_sizes_float) & bit_size;
+}
+
 static bool
 st_link_glsl_to_nir(struct gl_context *ctx,
                     struct gl_shader_program *shader_program)
@@ -547,7 +558,7 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       }
 
       nir_shader_gather_info(prog->nir, nir_shader_get_entrypoint(prog->nir));
-      if (!st->ctx->SoftFP64 && ((prog->nir->info.bit_sizes_int | prog->nir->info.bit_sizes_float) & 64) &&
+      if (!st->ctx->SoftFP64 && st_nir_uses_64bit(prog->nir) &&
           (options->lower_doubles_options & nir_lower_fp64_full_software) != 0) {
 
          /* It's not possible to use float64 on GLSL ES, so don't bother trying to
