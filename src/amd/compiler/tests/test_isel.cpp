@@ -161,6 +161,36 @@ BEGIN_TEST(isel.sparse.clause)
    }
 END_TEST
 
+BEGIN_TEST(isel.image_buffer.coherent_load)
+   QoShaderModuleCreateInfo cs = qoShaderModuleCreateInfoGLSL(COMPUTE,
+      layout(local_size_x=1) in;
+      layout(binding=0, r32f) coherent uniform imageBuffer img;
+      void main() {
+         //>> v1: %_ = buffer_load_format_x %_, (kill)%_, 0 idxen glc storage:image
+         imageStore(img, 0, imageLoad(img, 1));
+      }
+   );
+
+   PipelineBuilder pbld(get_vk_device(GFX11));
+   pbld.add_cs(cs);
+   pbld.print_ir(VK_SHADER_STAGE_COMPUTE_BIT, "ACO IR");
+END_TEST
+
+BEGIN_TEST(isel.image_buffer.volatile_load)
+   QoShaderModuleCreateInfo cs = qoShaderModuleCreateInfoGLSL(COMPUTE,
+      layout(local_size_x=1) in;
+      layout(binding=0, r32f) volatile uniform imageBuffer img;
+      void main() {
+         //>> v1: %_ = buffer_load_format_x %_, (kill)%_, 0 idxen glc storage:image semantics:volatile
+         imageStore(img, 0, imageLoad(img, 1));
+      }
+   );
+
+   PipelineBuilder pbld(get_vk_device(GFX11));
+   pbld.add_cs(cs);
+   pbld.print_ir(VK_SHADER_STAGE_COMPUTE_BIT, "ACO IR");
+END_TEST
+
 BEGIN_TEST(isel.discard_early_exit.mrtz)
    QoShaderModuleCreateInfo vs = qoShaderModuleCreateInfoGLSL(VERTEX,
       void main() {}
