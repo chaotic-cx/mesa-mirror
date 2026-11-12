@@ -367,7 +367,7 @@ propagate_backwards(jay_function *f)
              (flag ? JAY_TYPE_U1 : canonicalize_for_bit_compare(I->type)) &&
           I->op != JAY_OPCODE_PHI_DST &&
           jay_is_null(I->cond_flag) &&
-          !I->predication &&
+          !I->predication && !use->predication &&
           use->op == JAY_OPCODE_MOV &&
           use->dst.file != J_ADDRESS &&
           jay_num_values(use->dst) == jay_num_values(use->src[0]) &&

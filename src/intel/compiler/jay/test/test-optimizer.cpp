@@ -344,6 +344,24 @@ TEST_F(Optimizer, PredicateLogic)
    }
 }
 
+TEST_F(Optimizer, PredicatedCopyprop)
+{
+   NEGCASE({
+      jay_def x = jay_alloc_def(b, UGPR, 32, 1);
+      jay_def y = jay_alloc_def(b, UGPR, 32, 1);
+      jay_BROADCAST_IMM(b, x, wx, 0);
+      jay_BROADCAST_IMM(b, y, wy, 0);
+      jay_def value = jay_ADD_u32(b, x, y);
+      jay_def flag = jay_alloc_def(b, FLAG, 32, 1);
+      jay_CMP(b, JAY_TYPE_U32, GEN_CONDITION_NE, flag, wx, wy);
+
+      /* Keep the fallback out of the U32 backward-propagation match. */
+      jay_def fallback = jay_alloc_def(b, GPR, 32, 1);
+      jay_ADD(b, JAY_TYPE_F32, fallback, wx, wy);
+      jay_add_predicate(b, jay_MOV(b, out, value), flag, fallback);
+   });
+}
+
 TEST_F(Optimizer, BogusCopyprop)
 {
    NEGCASE({
