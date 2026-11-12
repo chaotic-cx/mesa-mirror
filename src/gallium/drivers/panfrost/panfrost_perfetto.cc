@@ -5,7 +5,6 @@
 
 #include <functional>
 #include <inttypes.h>
-#include <perfetto.h>
 
 #include "c11/threads.h"
 
