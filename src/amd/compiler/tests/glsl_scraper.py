@@ -36,9 +36,10 @@ binding_re = base_layout_qualifier_id_re.format('binding')
 set_re = base_layout_qualifier_id_re.format('set')
 unk_re = r'\w+(=\d+)?'
 layout_qualifier_re = r'layout\W*\((%s)+\)' % '|'.join([location_re, binding_re, set_re, unk_re, '[, ]+'])
+memory_qualifier_re = r'((coherent|volatile|restrict|readonly|writeonly)\W+)*'
 ubo_decl_re = r'uniform\W+%s(\W*{)?(?P<type_ubo>)' % (id_re%0)
 ssbo_decl_re = r'buffer\W+%s(\W*{)?(?P<type_ssbo>)' % (id_re%1)
-image_buffer_decl_re = r'uniform\W+imageBuffer\w+%s;(?P<type_img_buf>)' % (id_re%2)
+image_buffer_decl_re = r'uniform\W+imageBuffer\W+%s;(?P<type_img_buf>)' % (id_re%2)
 image_decl_re = r'uniform\W+image\w+\W+%s;(?P<type_img>)' % (id_re%3)
 texture_buffer_decl_re = r'uniform\W+textureBuffer\w+%s;(?P<type_tex_buf>)' % (id_re%4)
 combined_texture_sampler_decl_re = r'uniform\W+sampler\w+\W+%s;(?P<type_combined>)' % (id_re%5)
@@ -46,7 +47,7 @@ texture_decl_re = r'uniform\W+texture\w+\W+%s;(?P<type_tex>)' % (id_re%6)
 sampler_decl_re = r'uniform\W+sampler\w+%s;(?P<type_samp>)' % (id_re%7)
 input_re = r'in\W+%s\W+%s;(?P<type_in>)' % (type_re%0, id_re%8)
 output_re = r'out\W+%s\W+%s;(?P<type_out>)' % (type_re%1, id_re%9)
-match_decl_re = re.compile(layout_qualifier_re + r'\W*((' + r')|('.join([ubo_decl_re, ssbo_decl_re, image_buffer_decl_re, image_decl_re, texture_buffer_decl_re, combined_texture_sampler_decl_re, texture_decl_re, sampler_decl_re, input_re, output_re]) + r'))$')
+match_decl_re = re.compile(layout_qualifier_re + r'\W*' + memory_qualifier_re + r'((' + r')|('.join([ubo_decl_re, ssbo_decl_re, image_buffer_decl_re, image_decl_re, texture_buffer_decl_re, combined_texture_sampler_decl_re, texture_decl_re, sampler_decl_re, input_re, output_re]) + r'))$')
 
 class Shader:
     def __init__(self, stage):
