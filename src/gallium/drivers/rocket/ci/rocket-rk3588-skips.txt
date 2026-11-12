@@ -1,9 +1,3 @@
-Add.Op/.*
-AddQuant.Op/.*
-Conv2D.Op/.*
-DepthwiseConv2D.Op/.*
-FullyConnected.Op/.*
-
 # These tests below are additions that Rocket only supports when they can be fused to a convolution.
 Models.Op/efficientdet_010
 Models.Op/efficientdet_017

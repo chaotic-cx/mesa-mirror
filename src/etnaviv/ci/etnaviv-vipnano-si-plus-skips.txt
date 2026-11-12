@@ -1,9 +1,3 @@
-Add.Op/.*
-AddQuant.Op/.*
-Conv2D.Op/.*
-DepthwiseConv2D.Op/.*
-FullyConnected.Op/.*
-
 # GatherNd operations that are unsupported.
 # If they fail is because of a bug in the teflon test runner.
 Models.Op/movenetlightning_112
