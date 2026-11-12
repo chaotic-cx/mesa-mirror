@@ -894,7 +894,7 @@
         "description": "torx: Depend on idep_mesautilformat for generated format headers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4480dc85b5924bce7b6872dd7ab801b0a742d25c",
         "notes": null
