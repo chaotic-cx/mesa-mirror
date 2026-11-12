@@ -5839,7 +5839,8 @@ void
 nir_opt_varyings_bulk(nir_shader **shaders, uint32_t num_shaders, bool spirv,
                       unsigned max_uniform_comps, unsigned max_ubos,
                       void (*optimize)(nir_shader *, void *),
-                      void *optimize_data);
+                      void *optimize_data,
+                      nir_opt_varyings_progress *pair_progress);
 
 unsigned nir_slot_num_components(gl_varying_slot slot, mesa_shader_stage stage);
 bool nir_slot_is_sysval_output(gl_varying_slot slot,

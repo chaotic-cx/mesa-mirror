@@ -6231,13 +6231,23 @@ optimize_varyings(nir_shader *producer, nir_shader *consumer, bool spirv,
  * of stage and a driver-specific optimization callback for a single stage. It
  * then calls nir_opt_varyings and associated passes across all the shaders in
  * the pipeline to optimize. This is a convenience helper for drivers.
+ *
+ * If pair_progress is not NULL, it must have num_shaders - 1 elements.
+ * Element i receives the combined progress of all nir_opt_varyings calls
+ * with shaders[i] as the producer and shaders[i + 1] as the consumer.
  */
 void
 nir_opt_varyings_bulk(nir_shader **shaders, uint32_t num_shaders, bool spirv,
                       unsigned max_uniform_comps, unsigned max_ubos,
                       void (*optimize)(nir_shader *, void *),
-                      void *optimize_data)
+                      void *optimize_data,
+                      nir_opt_varyings_progress *pair_progress)
 {
+   if (pair_progress && num_shaders > 1) {
+      memset(pair_progress, 0,
+             (num_shaders - 1) * sizeof(pair_progress[0]));
+   }
+
    /* There is nothing to link for only 1 shader. */
    if (num_shaders == 1) {
       nir_shader *nir = shaders[0];
@@ -6298,10 +6308,14 @@ nir_opt_varyings_bulk(nir_shader **shaders, uint32_t num_shaders, bool spirv,
     */
    unsigned highest_changed_producer = 0;
    for (unsigned i = 0; i < num_shaders - 1; i++) {
-      if (optimize_varyings(shaders[i], shaders[i + 1], spirv,
-                            max_uniform_comps, max_ubos, optimize,
-                            optimize_data) &
-          nir_progress_producer)
+      nir_opt_varyings_progress progress =
+         optimize_varyings(shaders[i], shaders[i + 1], spirv,
+                           max_uniform_comps, max_ubos, optimize,
+                           optimize_data);
+
+      if (pair_progress)
+         pair_progress[i] |= progress;
+      if (progress & nir_progress_producer)
          highest_changed_producer = i;
    }
 
@@ -6309,8 +6323,13 @@ nir_opt_varyings_bulk(nir_shader **shaders, uint32_t num_shaders, bool spirv,
     * shader.
     */
    for (unsigned i = highest_changed_producer; i > 0; i--) {
-      optimize_varyings(shaders[i - 1], shaders[i], spirv, max_uniform_comps,
-                        max_ubos, optimize, optimize_data);
+      nir_opt_varyings_progress progress =
+         optimize_varyings(shaders[i - 1], shaders[i], spirv,
+                           max_uniform_comps, max_ubos, optimize,
+                           optimize_data);
+
+      if (pair_progress)
+         pair_progress[i - 1] |= progress;
    }
 
    /* Final cleanups. */

@@ -1756,12 +1756,12 @@ kk_compile_shaders(struct vk_device *device, uint32_t shader_count,
    }
 
    nir_opt_varyings_bulk(nir_shaders, total_shaders, true, UINT32_MAX,
-                         UINT32_MAX, nir_opts, NULL);
+                         UINT32_MAX, nir_opts, NULL, NULL);
    /* Second pass is required because some dEQP-VK.glsl.matrix.sub.dynamic.*
     * would fail otherwise due to vertex outputting vec4 while fragments reading
     * vec3 when in reality only vec3 is needed. */
    nir_opt_varyings_bulk(nir_shaders, total_shaders, true, UINT32_MAX,
-                         UINT32_MAX, nir_opts, NULL);
+                         UINT32_MAX, nir_opts, NULL, NULL);
 
    for (uint32_t i = 0; i < total_shaders; i++) {
       struct kk_shader *prev_stage = i > 0 ? shaders[i - 1] : NULL;

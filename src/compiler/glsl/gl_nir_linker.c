@@ -1622,7 +1622,7 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
       return;
 
    nir_opt_varyings_bulk(shaders, num_shaders, spirv, max_uniform_comps,
-                         max_ubos, optimize_varyings_opts, NULL);
+                         max_ubos, optimize_varyings_opts, NULL, NULL);
 }
 
 bool

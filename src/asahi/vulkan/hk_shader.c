@@ -1618,7 +1618,7 @@ hk_compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
    }
 
    nir_opt_varyings_bulk(shaders, shader_count, true, UINT32_MAX, UINT32_MAX,
-                         nir_opts, NULL);
+                         nir_opts, NULL, NULL);
 
    for (uint32_t i = 0; i < shader_count; i++) {
       VkResult result =

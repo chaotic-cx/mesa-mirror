@@ -3879,7 +3879,7 @@ tu_link_shaders(struct tu_device *dev,
    }
 
    nir_opt_varyings_bulk(link_shaders, link_shaders_count, true, UINT32_MAX,
-                         UINT32_MAX, link_opts, dev->compiler);
+                         UINT32_MAX, link_opts, dev->compiler, NULL);
 
    /* We have to make sure nir_recompute_io_bases is called at least once so
     * that num_inputs/num_outputs is correctly set for all shaders.
