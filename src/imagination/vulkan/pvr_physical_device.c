@@ -206,6 +206,7 @@ static void pvr_physical_device_get_supported_extensions(
       .EXT_extended_dynamic_state = true,
       .EXT_extended_dynamic_state2 = true,
       .EXT_extended_dynamic_state3 = true,
+      .EXT_external_memory_acquire_unmodified = true,
       .EXT_external_memory_dma_buf = true,
       .EXT_global_priority = true,
       .EXT_global_priority_query = true,
