@@ -296,7 +296,10 @@ protected:
       optimize();
       nir_shader_gather_info(b1->shader, b1->impl);
       nir_shader_gather_info(b2->shader, b2->impl);
-      return progress;
+
+      /* The tests only check whether the IR changed. */
+      return (nir_opt_varyings_progress)
+             (progress & (nir_progress_producer | nir_progress_consumer));
    }
 
    nir_shader_compiler_options options;

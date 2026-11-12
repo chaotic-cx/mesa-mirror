@@ -5818,6 +5818,13 @@ typedef enum {
     */
    nir_progress_producer = BITFIELD_BIT(0),
    nir_progress_consumer = BITFIELD_BIT(1),
+
+   /* Whether compaction moved a producer output that isn't a generic
+    * varying (VARn or PATCHn) to a different slot or component. This is for
+    * callers that also execute the producer without the consumer, where
+    * those outputs keep their meaning.
+    */
+   nir_progress_producer_builtin_outputs_moved = BITFIELD_BIT(2),
 } nir_opt_varyings_progress;
 
 nir_opt_varyings_progress

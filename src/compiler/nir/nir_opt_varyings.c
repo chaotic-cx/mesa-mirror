@@ -4988,6 +4988,13 @@ relocate_slot(struct linkage_info *linkage, struct scalar_slot *slot,
                  fs_vec4_type_strings[fs_vec4_type]);
 #endif /* PRINT_RELOCATE_SLOT */
 
+         if (instruction_lists[i] == &slot->producer.stores &&
+             sem.location < VARYING_SLOT_VAR0 &&
+             (sem.location != new_semantic ||
+              sem.high_16bits != new_high_16bits ||
+              nir_intrinsic_component(intr) != new_component))
+            *progress |= nir_progress_producer_builtin_outputs_moved;
+
          sem.location = new_semantic;
          sem.high_16bits = new_high_16bits;
 
