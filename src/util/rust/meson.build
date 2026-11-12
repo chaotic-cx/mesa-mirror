@@ -1,6 +1,8 @@
 # Copyright © 2026 Collabora, Ltd.
 # SPDX-License-Identifier: MIT
 
+fs = import('fs')
+
 _util_rust_args = [
   rust_global_args,
   rust_2024_lint_args,
@@ -54,7 +56,10 @@ _util_rust_bindgen = rust.bindgen(
 libutil_rust_bindgen_c = static_library(
   'util_rust_bindgen_c',
   _util_rust_bindgen[1],
-  include_directories : inc_util,
+  include_directories : [
+    inc_util,
+    fs.relative_to(meson.project_build_root(), meson.current_source_dir())
+  ],
   dependencies : [
     idep_mesautil.partial_dependency(compile_args : true, includes : true,
                                      sources : true),
