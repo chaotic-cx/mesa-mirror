@@ -1824,7 +1824,6 @@ radv_queue_submit_normal(struct radv_queue *queue, struct vk_queue_submit *submi
       }
 
       initial_preambles[0] = queue->state.initial_preamble_cs ? queue->state.initial_preamble_cs->b : NULL;
-      initial_preambles[1] = !use_ace ? NULL : queue->follower_state->initial_preamble_cs->b;
    }
 
    queue->last_shader_upload_seq = MAX2(queue->last_shader_upload_seq, shader_upload_seq);
