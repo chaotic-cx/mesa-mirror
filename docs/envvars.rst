@@ -1355,7 +1355,7 @@ Teflon environment variables
 .. envvar:: TEFLON_TEST_DATA
 
    Points to a directory containing models (``.tflite`` files) to be executed by
-   `test_teflon`. Usually, this is set to ``src/gallium/targets/teflon/tests``.
+   `test_teflon`. Usually, this is set to ``$BUILD/src/gallium/targets/teflon/tests``.
 
 .. envvar:: TEFLON_TEST_DELEGATE
 

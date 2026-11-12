@@ -1,17 +1,17 @@
 # Don't support unfused Pad operations yet
-Models.Op/yolox_000
-Models.Op/yolox_003
-Models.Op/yolox_012
-Models.Op/yolox_027
-Models.Op/yolox_042
-Models.Op/yolox_077
-Models.Op/yolox_086
+teflon/yolox_nano.0000
+teflon/yolox_nano.0003
+teflon/yolox_nano.0012
+teflon/yolox_nano.0027
+teflon/yolox_nano.0042
+teflon/yolox_nano.0077
+teflon/yolox_nano.0086
 
 # GatherNd operations that are unsupported.
 # If they fail is because of a bug in the teflon test runner.
-Models.Op/movenetlightning_112
-Models.Op/movenetlightning_141
-Models.Op/movenetlightning_152
-Models.Op/movenetthunder_112
-Models.Op/movenetthunder_141
-Models.Op/movenetthunder_152
+teflon/movenet_lightning.0112
+teflon/movenet_lightning.0141
+teflon/movenet_lightning.0152
+teflon/movenet_thunder.0112
+teflon/movenet_thunder.0141
+teflon/movenet_thunder.0152

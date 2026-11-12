@@ -1,50 +1,61 @@
 # Something seems to have changed in TensorFlow Lite and it doesn't pass any more.
 # Probably the implementation of TFLite_Detection_PostProcess is producing results in a different order.
 # The model actually detects correctly.
-Models.Op/mobiledet_ssdlite_mobiledet_coco_qat_postprocess,Fail
+teflon/ssdlite_mobiledet.whole,Fail
 
-Models.Op/yolox_104,Fail
-Models.Op/yolox_114,Fail
-Models.Op/yolox_124,Fail
-Models.Op/yolox_127,Fail
-Models.Op/yolox_130,Fail
-Models.Op/yolox_133,Fail
-Models.Op/yolox_152,Fail
-Models.Op/yolox_yolox_nano_full_integer_quant,Fail
+teflon/yolox_nano.0104,Fail
+teflon/yolox_nano.0114,Fail
+teflon/yolox_nano.0124,Fail
+teflon/yolox_nano.0127,Fail
+teflon/yolox_nano.0130,Fail
+teflon/yolox_nano.0133,Fail
+teflon/yolox_nano.0152,Fail
+teflon/yolox_nano.whole,Fail
 
-Models.Op/efficientdet_efficientdet_tflite_lite0_int8_v1,Fail
+teflon/deeplabv3.0004,Fail
+teflon/deeplabv3.0011,Fail
+teflon/deeplabv3.0022,Fail
+teflon/deeplabv3.0071,Fail
+teflon/deeplabv3.whole,Fail
 
-Models.Op/inception_inception_v1_224_quant,Fail
+teflon/efficientdet_lite0.whole,Fail
 
-Models.Op/movenetlightning_093,Fail
-Models.Op/movenetlightning_095,Fail
-Models.Op/movenetlightning_098,Fail
-Models.Op/movenetlightning_112,Fail
-Models.Op/movenetlightning_134,Fail
-Models.Op/movenetlightning_136,Fail
-Models.Op/movenetlightning_139,Fail
-Models.Op/movenetlightning_141,Fail
-Models.Op/movenetlightning_151,Fail
-Models.Op/movenetlightning_152,Fail
-Models.Op/movenetlightning_155,Fail
-Models.Op/movenetlightning_movenet_single_pose_lightning_ptq,Fail
+teflon/inception_v1.whole,Fail
 
-Models.Op/movenetthunder_093,Fail
-Models.Op/movenetthunder_095,Fail
-Models.Op/movenetthunder_098,Fail
-Models.Op/movenetthunder_112,Fail
-Models.Op/movenetthunder_134,Fail
-Models.Op/movenetthunder_136,Fail
-Models.Op/movenetthunder_139,Fail
-Models.Op/movenetthunder_141,Fail
-Models.Op/movenetthunder_151,Fail
-Models.Op/movenetthunder_152,Fail
-Models.Op/movenetthunder_155,Fail
-Models.Op/movenetthunder_movenet_single_pose_thunder_ptq,Fail
+teflon/movenet_lightning.0093,Fail
+teflon/movenet_lightning.0095,Fail
+teflon/movenet_lightning.0098,Fail
+teflon/movenet_lightning.0112,Fail
+teflon/movenet_lightning.0134,Fail
+teflon/movenet_lightning.0136,Fail
+teflon/movenet_lightning.0139,Fail
+teflon/movenet_lightning.0141,Fail
+teflon/movenet_lightning.0151,Fail
+teflon/movenet_lightning.0152,Fail
+teflon/movenet_lightning.0155,Fail
+teflon/movenet_lightning.whole,Fail
 
-Models.Op/ssdmobilenetv2_011,Fail
-Models.Op/ssdmobilenetv2_052,Fail
-Models.Op/ssdmobilenetv2_ssd_mobilenet_v2_coco_quant_postprocess,Fail
+teflon/movenet_thunder.0093,Fail
+teflon/movenet_thunder.0095,Fail
+teflon/movenet_thunder.0098,Fail
+teflon/movenet_thunder.0112,Fail
+teflon/movenet_thunder.0134,Fail
+teflon/movenet_thunder.0136,Fail
+teflon/movenet_thunder.0139,Fail
+teflon/movenet_thunder.0141,Fail
+teflon/movenet_thunder.0151,Fail
+teflon/movenet_thunder.0152,Fail
+teflon/movenet_thunder.0155,Fail
+teflon/movenet_thunder.whole,Fail
 
-Models.Op/ssdmobilenetv3_ssd_mobilenet_v3_int8,Fail
-Models.Op/vww4_vww4_128_128_INT8,Fail
+teflon/posenet_mobilenet_v1.0003,Fail
+teflon/posenet_mobilenet_v1.0007,Fail
+teflon/posenet_mobilenet_v1.0011,Fail
+teflon/posenet_mobilenet_v1.whole,Fail
+
+teflon/ssd_mobilenet_v2.0011,Fail
+teflon/ssd_mobilenet_v2.0052,Fail
+teflon/ssd_mobilenet_v2.whole,Fail
+
+teflon/ssd_mobilenet_v3.whole,Fail
+teflon/micronet_vww.whole,Fail

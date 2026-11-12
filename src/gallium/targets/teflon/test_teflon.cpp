@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -231,54 +232,51 @@ test_model_file(std::string file_name, unsigned tolerance, bool use_cache)
    close(model_fd);
 }
 
-class Models : public testing::TestWithParam<std::string> {};
+class ModelTest : public testing::Test {
+ public:
+   explicit ModelTest(std::string file_name) : file_name_(file_name) {}
 
-TEST_P(Models, Op)
-{
-   std::ostringstream file_path;
-   auto test_name = GetParam();
-   test_name.replace(test_name.find("_"), 1, "/");
-   assert(os_get_option("TEFLON_TEST_DATA"));
-   file_path << os_get_option("TEFLON_TEST_DATA") << "/models/" << test_name << ".tflite";
-
-   test_model_file(file_path.str(), TOLERANCE, true);
-}
-
-std::vector<std::string>
-get_model_files(void)
-{
-   assert(os_get_option("TEFLON_TEST_DATA"));
-   std::stringstream dir;
-   dir << os_get_option("TEFLON_TEST_DATA") << "/models";
-
-   std::vector<std::string> paths;
-   std::filesystem::recursive_directory_iterator b(dir.str());
-   for (auto const &f : b) {
-      if (f.path().extension() != ".tflite")
-         continue;
-
-      std::stringstream path;
-      path << f.path().parent_path().filename().string();
-      path << "_" << f.path().stem().string();
-      paths.push_back(path.str());
+   void TestBody() override
+   {
+      test_model_file(file_name_, TOLERANCE, true);
    }
 
-   std::sort(paths.begin(), paths.end());
+ private:
+   std::string file_name_;
+};
 
-   return paths;
-}
-
-static inline std::string
-ModelsTestCaseName(
-   const testing::TestParamInfo<std::string> &info)
+static void
+register_model_tests(void)
 {
-   return info.param;
-}
+   const char *data_dir = os_get_option("TEFLON_TEST_DATA");
+   if (!data_dir) {
+      fprintf(stderr, "TEFLON_TEST_DATA is not set\n");
+      exit(EXIT_FAILURE);
+   }
 
-INSTANTIATE_TEST_SUITE_P(
-   , Models,
-   ::testing::ValuesIn(get_model_files()),
-   ModelsTestCaseName);
+   auto dir = std::filesystem::path(data_dir) / "models";
+   if (!std::filesystem::is_directory(dir))
+      return;
+
+   std::vector<std::filesystem::path> models;
+   for (auto const &f : std::filesystem::recursive_directory_iterator(dir)) {
+      if (f.path().extension() == ".tflite")
+         models.push_back(f.path());
+   }
+
+   std::sort(models.begin(), models.end());
+
+   for (auto const &model : models) {
+      std::string family = model.parent_path().filename().string();
+      std::string suite = "teflon/" + family;
+      std::string name = model.stem().string();
+      std::string file_name = model.string();
+
+      testing::RegisterTest(
+         suite.c_str(), name.c_str(), nullptr, nullptr, __FILE__, __LINE__,
+         [file_name]() -> ModelTest * { return new ModelTest(file_name); });
+   }
+}
 
 int
 main(int argc, char **argv)
@@ -287,6 +285,7 @@ main(int argc, char **argv)
       test_model_file(std::string(argv[2]), TOLERANCE, false);
    } else {
       testing::InitGoogleTest(&argc, argv);
+      register_model_tests();
       return RUN_ALL_TESTS();
    }
 }
