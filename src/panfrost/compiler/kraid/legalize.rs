@@ -8,10 +8,10 @@ use crate::ir::*;
 use crate::liveness::*;
 use crate::model::{FAUModel, RegByteSet};
 use crate::ra;
-use compiler::bitset::{BitSet, ConstBitSet};
 use compiler::enum_as_u8::EnumAsU8;
 use compiler::smallvec::SmallVec;
 use kraid_proc_macros::EnumAsU8;
+use mesa_util::bitset::{BitSet, ConstBitSet};
 
 fn move_src_to_tmp(b: &mut impl SSABuilder, src: &mut Src, bytes: u8) {
     debug_assert!(bytes > 0 && bytes <= 8);

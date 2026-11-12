@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ir::*;
-use compiler::bitset::{BitSet, IntoBitIndex};
+use mesa_util::bitset::{BitSet, IntoBitIndex};
 use rustc_hash::FxHashMap;
 
 use std::fmt;

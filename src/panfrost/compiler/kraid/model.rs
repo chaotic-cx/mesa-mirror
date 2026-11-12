@@ -7,8 +7,8 @@ use crate::encode_v9::*;
 use crate::ir::*;
 use crate::isa::ExecUnit;
 use crate::ops::SamplePosition;
-use compiler::bitset::ConstBitSet;
 use kraid_bindings::*;
+use mesa_util::bitset::ConstBitSet;
 
 pub use kraid_bindings::pan_model as PanModel;
 

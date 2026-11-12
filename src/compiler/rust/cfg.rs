@@ -1,8 +1,8 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::bitset::BitSet;
 use crate::depth_first_search::{dfs, DepthFirstSearch};
+use mesa_util::bitset::BitSet;
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash};
 use std::iter::{Cloned, Rev};

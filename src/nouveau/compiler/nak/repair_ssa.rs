@@ -3,8 +3,8 @@
 
 use crate::ir::*;
 
-use compiler::bitset::BitSet;
 use compiler::union_find::UnionFind;
+use mesa_util::bitset::BitSet;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::cell::RefCell;
 use std::cmp::Reverse;

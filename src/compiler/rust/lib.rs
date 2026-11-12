@@ -3,7 +3,6 @@
 
 pub mod as_slice;
 pub mod bindings;
-pub mod bitset;
 pub mod cfg;
 pub mod dataflow;
 pub mod depth_first_search;

@@ -1,7 +1,7 @@
 // Copyright © 2026 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use compiler::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 use rustc_hash::FxHashMap;
 
 use crate::ir::*;

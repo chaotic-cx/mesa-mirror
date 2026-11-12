@@ -8,8 +8,8 @@ use crate::ir::*;
 use crate::isa::ExecUnit;
 use crate::ops::*;
 
-use compiler::bitset::BitSet;
 use kraid_bindings::*;
+use mesa_util::bitset::BitSet;
 
 #[derive(Default)]
 struct VaStatCount {

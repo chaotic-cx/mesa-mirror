@@ -8,7 +8,7 @@ use crate::liveness::{
     BlockLiveness, LiveSet, Liveness, NextUseBlockLiveness, NextUseLiveness,
 };
 
-use compiler::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cell::RefCell;
 use std::cmp::{max, Ordering, Reverse};

@@ -5,7 +5,7 @@ use crate::builder::*;
 use crate::ir::*;
 use crate::ops::*;
 use crate::ssa_value::AllocSSA;
-use compiler::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 use std::ops::Range;
 
 const MAX_COPY_SIZE_LOG2: u32 = 3; // COPY.i64 is the maximum

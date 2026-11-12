@@ -1,8 +1,8 @@
 // Copyright © 2026 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use compiler::bitset::IntoBitIndex;
 use compiler::lower_bounded::*;
+use mesa_util::bitset::IntoBitIndex;
 use std::fmt;
 use std::ops::{Deref, DerefMut, Range};
 

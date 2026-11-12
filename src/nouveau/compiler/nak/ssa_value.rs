@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ir::{HasRegFile, RegFile};
-use compiler::bitset::IntoBitIndex;
 use compiler::lower_bounded::*;
+use mesa_util::bitset::IntoBitIndex;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 

@@ -1,7 +1,7 @@
 // Copyright © 2025 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 
 /// A trait implementing a depth-first search over a graph
 pub trait DepthFirstSearch {

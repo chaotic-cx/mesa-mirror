@@ -1407,8 +1407,8 @@ pub fn gen_encoder(
     let mut ts = quote! {
         use crate::isa::*;
         use crate::data_type::DataType;
-        use compiler::bitset::ConstBitSet;
         use compiler::enum_as_u8::EnumAsU8;
+        use mesa_util::bitset::ConstBitSet;
         use mesa_util::bitview::*;
         use super::{SrRead, SrWrite};
 

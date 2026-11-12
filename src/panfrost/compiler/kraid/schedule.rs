@@ -5,7 +5,7 @@ use crate::ir::*;
 use crate::liveness::*;
 use crate::ops::{MemoryEffect, VaryingUpdateMode};
 use crate::ssa_value::SSAValueAllocator;
-use compiler::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 

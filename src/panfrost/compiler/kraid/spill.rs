@@ -7,8 +7,8 @@ use crate::ops::{OpCopy, OpPhiDst, OpPhiSrc};
 use crate::phi::{PhiMap, PhiWordSet};
 use crate::ssa_value::{AllocSSA, SSAValueIndexedVec};
 
-use compiler::bitset::BitSet;
 use compiler::dataflow::BackwardDataflow;
+use mesa_util::bitset::BitSet;
 use rustc_hash::FxHashMap;
 use std::cmp::{Ord, Ordering, PartialOrd, Reverse};
 use std::collections::BinaryHeap;

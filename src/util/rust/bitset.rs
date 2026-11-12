@@ -23,8 +23,8 @@
 use std::cmp::{max, min};
 use std::marker::PhantomData;
 use std::ops::{
-    Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor,
-    BitXorAssign, Range, RangeFull, Sub, SubAssign,
+    Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Range,
+    RangeFull, Sub, SubAssign,
 };
 
 /// Converts a value into a bit index
@@ -185,11 +185,7 @@ impl Iterator for WordIdxMaskIter {
 
 impl std::iter::FusedIterator for WordIdxMaskIter {}
 
-const fn any_set_in_range(
-    words: &[u32],
-    start: BitIndex,
-    end: BitIndex,
-) -> bool {
+const fn any_set_in_range(words: &[u32], start: BitIndex, end: BitIndex) -> bool {
     let mut iter = WordIdxMaskIter::new(start, end);
     while let Some((word, mask)) = iter.next_const() {
         if words[word] & mask != 0 {
@@ -199,11 +195,7 @@ const fn any_set_in_range(
     false
 }
 
-const fn all_set_in_range(
-    words: &[u32],
-    start: BitIndex,
-    end: BitIndex,
-) -> bool {
+const fn all_set_in_range(words: &[u32], start: BitIndex, end: BitIndex) -> bool {
     let mut iter = WordIdxMaskIter::new(start, end);
     while let Some((word, mask)) = iter.next_const() {
         if (!words[word]) & mask != 0 {
@@ -213,11 +205,7 @@ const fn all_set_in_range(
     true
 }
 
-const fn count_set_in_range(
-    words: &[u32],
-    start: BitIndex,
-    end: BitIndex,
-) -> usize {
+const fn count_set_in_range(words: &[u32], start: BitIndex, end: BitIndex) -> usize {
     let mut count = 0_usize;
     let mut iter = WordIdxMaskIter::new(start, end);
     while let Some((word, mask)) = iter.next_const() {
@@ -241,10 +229,7 @@ const fn unset_range(words: &mut [u32], start: BitIndex, end: BitIndex) {
 }
 
 #[inline]
-fn find_next_set(
-    word_fn: impl Fn(usize) -> Option<u32>,
-    start: BitIndex,
-) -> Option<BitIndex> {
+fn find_next_set(word_fn: impl Fn(usize) -> Option<u32>, start: BitIndex) -> Option<BitIndex> {
     let mut word = start.word;
     let mut mask = u32::MAX << start.bit;
     loop {
@@ -361,34 +346,17 @@ fn find_aligned_set_range(
     assert!(align_mul.is_power_of_two());
     assert!(align_offset < align_mul);
     if align_mul >= 32 {
-        find_large_aligned_set_range(
-            word_fn,
-            start,
-            count,
-            align_mul,
-            align_offset,
-        )
+        find_large_aligned_set_range(word_fn, start, count, align_mul, align_offset)
     } else if align_offset + count <= align_mul {
-        find_small_aligned_set_range(
-            word_fn,
-            start,
-            count,
-            align_mul,
-            align_offset,
-        )
+        find_small_aligned_set_range(word_fn, start, count, align_mul, align_offset)
     } else {
         let search_count = align_mul - align_offset;
         debug_assert!(search_count < count);
 
         let mut cur = start;
         loop {
-            let idx = find_small_aligned_set_range(
-                &word_fn,
-                cur,
-                search_count,
-                align_mul,
-                align_offset,
-            )?;
+            let idx =
+                find_small_aligned_set_range(&word_fn, cur, search_count, align_mul, align_offset)?;
 
             // That only checked for the first search_count bits.  Nowe we
             // have to check for the rest.
@@ -480,9 +448,7 @@ macro_rules! impl_const_bit_set_binop {
         $assign_bin_op:ident,
         |$a:ident, $b:ident| $impl:expr,
     ) => {
-        impl<const W: usize> $AssignBinOp<&ConstBitSet<W, $K>>
-            for ConstBitSet<W, $K>
-        {
+        impl<const W: usize> $AssignBinOp<&ConstBitSet<W, $K>> for ConstBitSet<W, $K> {
             fn $assign_bin_op(&mut self, rhs: &ConstBitSet<W, $K>) {
                 for w in 0..W {
                     let $a = self.words[w];
@@ -492,23 +458,16 @@ macro_rules! impl_const_bit_set_binop {
             }
         }
 
-        impl<const W: usize> $AssignBinOp<ConstBitSet<W, $K>>
-            for ConstBitSet<W, $K>
-        {
+        impl<const W: usize> $AssignBinOp<ConstBitSet<W, $K>> for ConstBitSet<W, $K> {
             fn $assign_bin_op(&mut self, rhs: ConstBitSet<W, $K>) {
                 self.$assign_bin_op(&rhs);
             }
         }
 
-        impl<const W: usize> $BinOp<&ConstBitSet<W, $K>>
-            for ConstBitSet<W, $K>
-        {
+        impl<const W: usize> $BinOp<&ConstBitSet<W, $K>> for ConstBitSet<W, $K> {
             type Output = ConstBitSet<W, $K>;
 
-            fn $bin_op(
-                mut self,
-                rhs: &ConstBitSet<W, $K>,
-            ) -> ConstBitSet<W, $K> {
+            fn $bin_op(mut self, rhs: &ConstBitSet<W, $K>) -> ConstBitSet<W, $K> {
                 self.$assign_bin_op(rhs);
                 self
             }
@@ -517,10 +476,7 @@ macro_rules! impl_const_bit_set_binop {
         impl<const W: usize> $BinOp<ConstBitSet<W, $K>> for ConstBitSet<W, $K> {
             type Output = ConstBitSet<W, $K>;
 
-            fn $bin_op(
-                mut self,
-                rhs: ConstBitSet<W, $K>,
-            ) -> ConstBitSet<W, $K> {
+            fn $bin_op(mut self, rhs: ConstBitSet<W, $K>) -> ConstBitSet<W, $K> {
                 self.$assign_bin_op(rhs);
                 self
             }
@@ -540,10 +496,7 @@ macro_rules! impl_const_bit_set {
                 }
             }
 
-            pub const fn contains_any_in_range(
-                &self,
-                range: Range<$K>,
-            ) -> bool {
+            pub const fn contains_any_in_range(&self, range: Range<$K>) -> bool {
                 assert!(
                     range.end as usize <= W * 32,
                     "ConstBitSet index out of bounds",
@@ -630,41 +583,15 @@ macro_rules! impl_const_bit_set {
             }
         }
 
-        impl_const_bit_set_binop!(
-            $K,
-            BitAnd,
-            bitand,
-            BitAndAssign,
-            bitand_assign,
-            |a, b| a & b,
-        );
+        impl_const_bit_set_binop!($K, BitAnd, bitand, BitAndAssign, bitand_assign, |a, b| a
+            & b,);
 
-        impl_const_bit_set_binop!(
-            $K,
-            BitOr,
-            bitor,
-            BitOrAssign,
-            bitor_assign,
-            |a, b| a | b,
-        );
+        impl_const_bit_set_binop!($K, BitOr, bitor, BitOrAssign, bitor_assign, |a, b| a | b,);
 
-        impl_const_bit_set_binop!(
-            $K,
-            BitXor,
-            bitxor,
-            BitXorAssign,
-            bitxor_assign,
-            |a, b| a ^ b,
-        );
+        impl_const_bit_set_binop!($K, BitXor, bitxor, BitXorAssign, bitxor_assign, |a, b| a
+            ^ b,);
 
-        impl_const_bit_set_binop!(
-            $K,
-            Sub,
-            sub,
-            SubAssign,
-            sub_assign,
-            |a, b| a & !b,
-        );
+        impl_const_bit_set_binop!($K, Sub, sub, SubAssign, sub_assign, |a, b| a & !b,);
     };
 }
 
@@ -862,14 +789,8 @@ impl BitSet<usize> {
         align_offset: usize,
     ) -> Option<usize> {
         let word_fn = |w| self.words.get(w).cloned();
-        find_aligned_set_range(
-            word_fn,
-            start.into(),
-            count,
-            align_mul,
-            align_offset,
-        )
-        .map(BitIndex::into)
+        find_aligned_set_range(word_fn, start.into(), count, align_mul, align_offset)
+            .map(BitIndex::into)
     }
 
     /// Search for a set of `count` consecutive elements that are not present in
@@ -891,15 +812,9 @@ impl BitSet<usize> {
             // returning Some(!0) ensures that we will always find a unset bit
             Some(!self.words.get(w).cloned().unwrap_or(0))
         };
-        find_aligned_set_range(
-            word_fn,
-            start.into(),
-            count,
-            align_mul,
-            align_offset,
-        )
-        .unwrap()
-        .into()
+        find_aligned_set_range(word_fn, start.into(), count, align_mul, align_offset)
+            .unwrap()
+            .into()
     }
 }
 
@@ -942,10 +857,7 @@ impl<K> BitSet<K> {
         added_bits
     }
 
-    pub fn s(
-        &self,
-        _: RangeFull,
-    ) -> BitSetStream<impl '_ + BitSetStreamTrait, K> {
+    pub fn s(&self, _: RangeFull) -> BitSetStream<impl '_ + BitSetStreamTrait, K> {
         BitSetStream(
             BitSetStreamFromBitSet {
                 iter: self.words.iter().copied(),
@@ -1383,9 +1295,7 @@ mod tests {
 
     #[test]
     fn test_next_unset() {
-        for test_range in
-            &[0..0, 42..1337, 1337..1337, 31..32, 32..33, 63..64, 64..65]
-        {
+        for test_range in &[0..0, 42..1337, 1337..1337, 31..32, 32..33, 63..64, 64..65] {
             let mut set = BitSet::new();
             for i in test_range.clone() {
                 set.insert(i);

@@ -7670,7 +7670,7 @@ impl_display_for_op!(OpSrcBar);
 mod phi {
     #[allow(unused_imports)]
     use crate::ir::{OpPhiDsts, OpPhiSrcs};
-    use compiler::bitset::IntoBitIndex;
+    use mesa_util::bitset::IntoBitIndex;
     use std::fmt;
 
     /// A phi node

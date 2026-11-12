@@ -4,7 +4,7 @@
 use crate::api::{GetDebugFlags, DEBUG};
 use crate::ir::*;
 
-use compiler::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 use rustc_hash::FxHashMap;
 
 struct PhiMap {

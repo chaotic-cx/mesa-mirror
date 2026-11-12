@@ -5,7 +5,7 @@ use crate::{
     api::{GetDebugFlags, DEBUG},
     ir::*,
 };
-use compiler::bitset::BitSet;
+use mesa_util::bitset::BitSet;
 
 struct DeadCodePass {
     any_dead: bool,

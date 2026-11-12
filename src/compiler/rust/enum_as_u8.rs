@@ -1,7 +1,7 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::bitset::ConstBitSet;
+use mesa_util::bitset::ConstBitSet;
 use std::fmt;
 use std::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Sub,

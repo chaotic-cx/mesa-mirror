@@ -3,7 +3,6 @@
 
 _compiler_rs_sources = [
   'as_slice.rs',
-  'bitset.rs',
   'cfg.rs',
   'dataflow.rs',
   'depth_first_search.rs',

@@ -5,8 +5,8 @@ use crate::api::{GetDebugFlags, DEBUG};
 use crate::ir::*;
 use crate::liveness::{BlockLiveness, Liveness, SimpleLiveness};
 
-use compiler::bitset::BitSet;
 use compiler::union_find::UnionFind;
+use mesa_util::bitset::BitSet;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::cmp::{max, min, Ordering};
 

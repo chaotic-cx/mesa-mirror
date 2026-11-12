@@ -3,8 +3,8 @@
 
 use crate::ir::*;
 
-use compiler::bitset::BitSet;
 use compiler::dataflow::BackwardDataflow;
+use mesa_util::bitset::BitSet;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::{max, min, Ord, Ordering};
 
