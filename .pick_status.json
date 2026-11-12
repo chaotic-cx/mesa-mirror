@@ -1994,7 +1994,7 @@
         "description": "ac/vcn_dec: Use max_num_ref_frames for h264 ref_id_size",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "79af03556ce365a108577b713dfa4056f794a2c1",
         "notes": null
