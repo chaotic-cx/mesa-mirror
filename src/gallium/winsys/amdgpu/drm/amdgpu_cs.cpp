@@ -1545,8 +1545,11 @@ static int amdgpu_cs_submit_ib_userq(struct amdgpu_userq *userq,
    syncobj_dependencies_list[num_syncobj_dependencies - 1] = aws->vm_timeline_syncobj;
    syncobj_dependencies_points[num_syncobj_dependencies - 1] = vm_timeline_point;
 
-   /* Syncobj signals. Adding 1 for cs submission fence. */
-   unsigned num_syncobj_to_signal = csc->syncobj_to_signal.num + 1;
+   /* Syncobj signals. Adding 1 for cs submission fence (has to fit in a 16bit uint) */
+   if (csc->syncobj_to_signal.num > UINT16_MAX - 1)
+      return -EINVAL;
+
+   uint16_t num_syncobj_to_signal = csc->syncobj_to_signal.num + 1;
    uint32_t *syncobj_signal_list =
       (uint32_t*)alloca(num_syncobj_to_signal * sizeof(uint32_t));
    uint64_t *syncobj_signal_points =
