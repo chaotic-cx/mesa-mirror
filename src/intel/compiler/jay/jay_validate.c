@@ -278,8 +278,7 @@ validate_inst(struct validate_state *validate, jay_inst *I)
 
    /* We should not be clobbering multiple flags in SIMD16 with a mov.u32 */
    CHECK(!(I->dst.file == FLAG &&
-           jay_type_size_bits(I->type) >
-              jay_type_size_bits(jay_flag_type(validate->func))));
+           jay_type_size_bits(I->type) > jay_flag_bits(validate->func)));
 
    unsigned num_srcs = I->num_srcs;
 

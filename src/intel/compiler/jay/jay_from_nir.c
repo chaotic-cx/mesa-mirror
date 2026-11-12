@@ -2574,7 +2574,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    case nir_intrinsic_ballot: {
       jay_def val = nj_src(intr->src[0]);
-      assert(intr->def.bit_size == jay_type_size_bits(jay_flag_type(b->func)));
+      assert(intr->def.bit_size == jay_flag_bits(b->func));
 
       if (nir_src_is_const(intr->src[0]) && nir_src_as_bool(intr->src[0])) {
          jay_MOV(b, dst, emit_active_lane_mask(nj));
@@ -2588,7 +2588,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    }
 
    case nir_intrinsic_ballot_relaxed:
-      assert(intr->def.bit_size == jay_type_size_bits(jay_flag_type(b->func)));
+      assert(intr->def.bit_size == jay_flag_bits(b->func));
       jay_MOV(b, dst, nj_src(intr->src[0]));
       break;
 
