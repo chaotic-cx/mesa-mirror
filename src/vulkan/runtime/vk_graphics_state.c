@@ -1026,16 +1026,20 @@ vk_color_blend_state_init(struct vk_color_blend_state *cb,
    cb->logic_op_enable = cb_info->logicOpEnable;
    cb->logic_op = cb_info->logicOp;
 
-   assert(cb_info->attachmentCount <= MESA_VK_MAX_COLOR_ATTACHMENTS);
-   cb->attachment_count = cb_info->attachmentCount;
-
-   /* Per spec, pAttachments is ignored if BLEND_ENABLES, BLEND_EQUATIONS,
-    * WRITE_MASKS, and BLEND_ADVANCED are all dynamic.
+   /* Per spec, attachmentCount and pAttachments are ignored if
+    * BLEND_ENABLES, BLEND_EQUATIONS, WRITE_MASKS, and BLEND_ADVANCED are all
+    * dynamic. BLEND_ADVANCED is implicitly dynamic when
+    * advancedBlendCoherentOperations is not enabled.
     */
    bool full_dynamic = IS_DYNAMIC(CB_BLEND_ENABLES) &&
                        IS_DYNAMIC(CB_BLEND_EQUATIONS) &&
                        IS_DYNAMIC(CB_WRITE_MASKS) &&
                        IS_DYNAMIC(CB_BLEND_ADVANCED);
+
+   if (!full_dynamic) {
+      assert(cb_info->attachmentCount <= MESA_VK_MAX_COLOR_ATTACHMENTS);
+      cb->attachment_count = cb_info->attachmentCount;
+   }
 
    /* Advanced blend state is ignored if CB_BLEND_ADVANCED is dynamic */
    const VkPipelineColorBlendAdvancedStateCreateInfoEXT *advanced = NULL;
@@ -1044,9 +1048,8 @@ vk_color_blend_state_init(struct vk_color_blend_state *cb,
          PIPELINE_COLOR_BLEND_ADVANCED_STATE_CREATE_INFO_EXT);
    }
 
-   for (uint32_t a = 0; a < cb_info->attachmentCount; a++) {
-      const VkPipelineColorBlendAttachmentState *att =
-         full_dynamic ? NULL : &cb_info->pAttachments[a];
+   for (uint32_t a = 0; a < cb->attachment_count; a++) {
+      const VkPipelineColorBlendAttachmentState *att = &cb_info->pAttachments[a];
 
       cb->attachments[a] = (struct vk_color_blend_attachment_state) {
          .blend_enable = IS_DYNAMIC(CB_BLEND_ENABLES) || att->blendEnable,
@@ -1071,7 +1074,8 @@ vk_color_blend_state_init(struct vk_color_blend_state *cb,
       vk_find_struct_const(cb_info->pNext, PIPELINE_COLOR_WRITE_CREATE_INFO_EXT);
    if (!IS_DYNAMIC(CB_COLOR_WRITE_ENABLES) && cw_info != NULL) {
       uint8_t color_write_enables = 0;
-      assert(cb_info->attachmentCount == cw_info->attachmentCount);
+      assert(full_dynamic ||
+             cb_info->attachmentCount == cw_info->attachmentCount);
       for (uint32_t a = 0; a < cw_info->attachmentCount; a++) {
          if (cw_info->pColorWriteEnables[a])
             color_write_enables |= BITFIELD_BIT(a);
