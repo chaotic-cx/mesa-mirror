@@ -82,6 +82,8 @@ fd6_calc_gmem_cache_offsets(const struct fd_dev_info *info, unsigned gmemsize_by
 
    /* TODO we could unify gen7/gen8 setup.. gen7 is a subset.. */
    if (info->chip == 8) {
+      unsigned offset;
+
       gmem->depth_cache_fraction = info->props.gmem_ccu_depth_cache_fraction;
       gmem->depth_cache_size     = info->props.gmem_per_ccu_depth_cache_size;
       gmem->color_cache_fraction = info->props.gmem_ccu_color_cache_fraction;
@@ -98,8 +100,17 @@ fd6_calc_gmem_cache_offsets(const struct fd_dev_info *info, unsigned gmemsize_by
       sysmem->vpc_pos_buf_size     = info->props.sysmem_vpc_pos_buf_size;
       sysmem->vpc_bv_pos_buf_size  = info->props.sysmem_vpc_bv_pos_buf_size;
 
-      __calc_gmem_cache_offsets(info, gmemsize_bytes, sysmem);
-      return __calc_gmem_cache_offsets(info, gmemsize_bytes, gmem);
+      /* If you hit either of these two asserts, the corresponding VPC/CCU cache
+       * sizes coming from the device table exceed the size of GMEM.  Pointing
+       * to a mistake in the device table.
+       */
+      offset = __calc_gmem_cache_offsets(info, gmemsize_bytes, sysmem);
+      assert(offset < gmemsize_bytes);
+
+      offset = __calc_gmem_cache_offsets(info, gmemsize_bytes, gmem);
+      assert(offset < gmemsize_bytes);
+
+      return offset;
    } else if (info->props.has_gmem_vpc_attr_buf) {
       sysmem->vpc_attr_buf_size = info->props.sysmem_vpc_attr_buf_size;
       sysmem->vpc_attr_buf_offset = sysmem->color_ccu_offset + color_cache_size;
