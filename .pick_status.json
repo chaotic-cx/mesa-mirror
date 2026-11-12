@@ -144,7 +144,7 @@
         "description": "panfrost: Remove redundant perfetto header include",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "382d2240f3b01f341488ab86be8672e4c4950e49",
         "notes": null
