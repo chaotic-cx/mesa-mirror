@@ -3,4 +3,5 @@
 
 pub mod bitset;
 pub mod bitview;
+pub mod enum_as_u8;
 pub mod format;

@@ -1407,9 +1407,10 @@ pub fn gen_encoder(
     let mut ts = quote! {
         use crate::isa::*;
         use crate::data_type::DataType;
-        use compiler::enum_as_u8::EnumAsU8;
         use mesa_util::bitset::ConstBitSet;
         use mesa_util::bitview::*;
+        use mesa_util::enum_as_u8::EnumAsU8;
+        use mesa_util_proc::EnumAsU8;
         use super::{SrRead, SrWrite};
 
         pub type InstructionInfo = super::InstructionInfo<SrcSwizzle, DstLanes>;

@@ -17,10 +17,10 @@ use crate::ssa_value::{AllocSSA, SSAValueAllocator};
 use crate::swizzle::{AsmSwizzleWiden, SwizzleByte, SwizzleWord};
 use acorn::Acorn;
 use compiler::cfg::CFGBuilder;
-use compiler::enum_as_u8::EnumAsU8;
 use compiler::float16::F16;
 use kraid_hw_runner::{HwError, InvocationInfo, TestRunner};
 use mesa_util::bitview::BitViewable;
+use mesa_util::enum_as_u8::EnumAsU8;
 use rustc_hash::FxBuildHasher;
 
 /// Enables libpanfrost_decode logs for debugging purposes.

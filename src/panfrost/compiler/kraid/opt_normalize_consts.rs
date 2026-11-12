@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{ir::*, swizzle::AsmSwizzleWiden};
-use compiler::{enum_as_u8::EnumAsU8, float16::F16};
+use compiler::float16::F16;
+use mesa_util::enum_as_u8::EnumAsU8;
 
 fn get_other_variants(op: &Op) -> &[DataType] {
     use DataType::*;

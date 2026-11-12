@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ir::{DataType, SmallConstant};
-use compiler::enum_as_u8::*;
+use mesa_util::enum_as_u8::*;
 
 #[derive(Debug)]
 pub enum EncodeError {

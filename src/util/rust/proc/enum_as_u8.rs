@@ -70,10 +70,10 @@ pub fn derive_enum_as_u8(input: TokenStream) -> TokenStream {
     let try_from_err = format!("Invalid {ident_s} variant.");
     let imp = quote! {
         impl EnumAsU8 for #ident {
-            type VariantSet = compiler::enum_as_u8::U8EnumSet<#ident, #var_set_u32s>;
-            const VARIANTS: compiler::enum_as_u8::U8EnumSet<#ident, #var_set_u32s> = {
+            type VariantSet = mesa_util::enum_as_u8::U8EnumSet<#ident, #var_set_u32s>;
+            const VARIANTS: mesa_util::enum_as_u8::U8EnumSet<#ident, #var_set_u32s> = {
                 unsafe {
-                    compiler::enum_as_u8::U8EnumSet::from_u8_array([#variants_ts])
+                    mesa_util::enum_as_u8::U8EnumSet::from_u8_array([#variants_ts])
                 }
             };
             const MAX_DISCRIMINANT: u8 = {
@@ -100,7 +100,7 @@ pub fn derive_enum_as_u8(input: TokenStream) -> TokenStream {
         impl TryFrom<u8> for #ident {
             type Error = &'static str;
 
-            fn try_from(u: u8) -> Result<Self, &'static str> {
+            fn try_from(u: u8) -> std::result::Result<Self, &'static str> {
                 if Self::VARIANTS.contains_u8(u) {
                     Ok(unsafe { Self::from_u8_unchecked(u) })
                 } else {

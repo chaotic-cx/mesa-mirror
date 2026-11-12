@@ -6,7 +6,6 @@ _compiler_rs_sources = [
   'cfg.rs',
   'dataflow.rs',
   'depth_first_search.rs',
-  'enum_as_u8.rs',
   'float16.rs',
   'lower_bounded.rs',
   'memstream.rs',
@@ -193,12 +192,6 @@ idep_acorn_rs = declare_dependency(
 
 idep_compiler_rs = declare_dependency(
   link_with : _libcompiler_rs,
-)
-
-dep_syn = dependency('syn',
-  version : '>= 2.0.15',
-  fallback : ['syn-2-rs', 'dep_syn'],
-  required : true,
 )
 
 _libcompiler_proc_rs = static_library(

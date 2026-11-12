@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 use crate::data_type::DataType;
-use compiler::enum_as_u8::*;
 use compiler::float16::F16;
-use kraid_proc_macros::{AsmSwizzleWiden, EnumAsU8};
+use kraid_proc_macros::AsmSwizzleWiden;
+use mesa_util::enum_as_u8::*;
+use mesa_util_proc::EnumAsU8;
 use std::fmt;
 use std::num::NonZeroU16;
 

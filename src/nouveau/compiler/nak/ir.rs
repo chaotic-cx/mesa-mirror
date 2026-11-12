@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 extern crate mesa_util;
+extern crate mesa_util_proc;
 extern crate nak_ir_proc;
 
 use mesa_util::bitview::{
@@ -20,9 +21,10 @@ pub use crate::ssa_value::*;
 use compiler::as_slice::*;
 use compiler::cfg::CFG;
 use compiler::dataflow::ForwardDataflow;
-use compiler::enum_as_u8::EnumAsU8;
 use compiler::smallvec::SmallVec;
 use compiler::vec_pair::VecPair;
+use mesa_util::enum_as_u8::EnumAsU8;
+use mesa_util_proc::EnumAsU8;
 use nak_ir_proc::*;
 use std::cmp::{max, min};
 use std::fmt;

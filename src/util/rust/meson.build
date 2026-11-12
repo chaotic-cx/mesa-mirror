@@ -89,8 +89,20 @@ _libmesa_util_rs = static_library(
   link_with : [_libmesa_util_bindings_rs],
 )
 
+dep_syn = dependency('syn',
+  version : '>= 2.0.15',
+  fallback : ['syn-2-rs', 'dep_syn'],
+  required : true,
+)
+
+_libmesa_util_proc_rs = rust.proc_macro(
+  'mesa_util_proc',
+  'proc/lib.rs',
+  dependencies : [dep_syn],
+)
+
 idep_mesa_util_rs = declare_dependency(
-  link_with : _libmesa_util_rs,
+  link_with : [_libmesa_util_rs, _libmesa_util_proc_rs],
 )
 
 util_rs_bindgen_args = [

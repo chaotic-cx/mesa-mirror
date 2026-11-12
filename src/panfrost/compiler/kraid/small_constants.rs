@@ -2,8 +2,8 @@
 // Copyright © 2026 Arm Ltd.
 // SPDX-License-Identifier: MIT
 
-use compiler::enum_as_u8::EnumAsU8;
 use compiler::smallvec::SmallVec;
+use mesa_util::enum_as_u8::EnumAsU8;
 
 use crate::ir::*;
 use crate::model::SmallConstantTable;

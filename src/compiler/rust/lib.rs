@@ -6,7 +6,6 @@ pub mod bindings;
 pub mod cfg;
 pub mod dataflow;
 pub mod depth_first_search;
-pub mod enum_as_u8;
 pub mod float16;
 pub mod lower_bounded;
 pub mod memstream;

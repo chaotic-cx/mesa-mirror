@@ -45,11 +45,6 @@ pub fn derive_asm_swizzle_widen(input: TokenStream) -> TokenStream {
     swizzle::derive_asm_swizzle_widen(input)
 }
 
-#[proc_macro_derive(EnumAsU8)]
-pub fn derive_enum_as_u8(input: TokenStream) -> TokenStream {
-    compiler_proc::enum_as_u8::derive_enum_as_u8(input)
-}
-
 #[proc_macro_derive(FromVariants)]
 pub fn derive_from_variants(input: TokenStream) -> TokenStream {
     compiler_proc::from_variants::derive_from_variants(input)

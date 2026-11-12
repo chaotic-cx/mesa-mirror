@@ -17,11 +17,11 @@ pub use crate::swizzle::Swizzle;
 use crate::swizzle::*;
 use compiler::as_slice::*;
 use compiler::cfg::CFG;
-use compiler::enum_as_u8::*;
 use compiler::float16::F16;
 use compiler::smallvec::*;
-use kraid_proc_macros::EnumAsU8;
 use mesa_util::bitview::BitViewable;
+use mesa_util::enum_as_u8::*;
+use mesa_util_proc::EnumAsU8;
 
 use std::fmt;
 use std::num::{NonZeroU32, NonZeroU64};

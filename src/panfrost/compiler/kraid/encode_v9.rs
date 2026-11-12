@@ -11,8 +11,8 @@ use crate::isa::*;
 use crate::ops::{self, *};
 use crate::swizzle::*;
 
-use compiler::{as_slice::AsArray, enum_as_u8::EnumAsU8, index_of};
-use mesa_util::bitview::*;
+use compiler::{as_slice::AsArray, index_of};
+use mesa_util::{bitview::*, enum_as_u8::EnumAsU8};
 use paste::paste;
 use rustc_hash::FxHashMap;
 

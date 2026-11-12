@@ -25,9 +25,10 @@
 use crate::data_type::{NumericType, PartialDataType};
 use crate::foldable::{FoldDataView, Foldable, PerCompFoldable};
 use crate::ir::*;
-use compiler::enum_as_u8::EnumAsU8;
 use compiler::float16::F16;
-use kraid_proc_macros::{EnumAsU8, FromVariants, Opcode, variants};
+use kraid_proc_macros::{FromVariants, Opcode, variants};
+use mesa_util::enum_as_u8::EnumAsU8;
+use mesa_util_proc::EnumAsU8;
 use std::cmp::Ordering;
 use std::fmt;
 use std::num::FpCategory;
