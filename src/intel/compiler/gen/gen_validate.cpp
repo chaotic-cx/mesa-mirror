@@ -1533,6 +1533,11 @@ private:
             ERROR_IF(src_indirect && vstride == GEN_VSTRIDE_ONE_DIMENSIONAL,
                      "Vx1 and VxH indirect addressing are not allowed for float, bfloat, and 64-bit source types.");
          }
+
+         if (devinfo->ver >= 20 && (type == GEN_TYPE_B || type == GEN_TYPE_UB)) {
+            ERROR_IF(src_indirect && vstride == GEN_VSTRIDE_ONE_DIMENSIONAL,
+                     "Vx1 and VxH indirect addressing are not allowed for byte source types.");
+         }
       }
 
       if (is_double_precision) {

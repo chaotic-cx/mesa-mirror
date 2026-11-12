@@ -598,6 +598,36 @@ static const struct {
    },
    { "mov (4) r0:df r[a0.0]<VxH;1,0>:df", SAME_ERROR, { .ge = 125, .has_64bit_float = true } },
 
+   { "mov (8) r0:b r[a0.0]<VxH;8,1>:b",   VALID, { .lt = 200 } },
+   { "mov (8) r0:b r[a0.0]<VxH;1,0>:b",   VALID, { .lt = 200 } },
+   { "mov (8) r0:ub r[a0.0]<VxH;8,1>:ub", VALID, { .lt = 200 } },
+   { "mov (8) r0:ub r[a0.0]<VxH;1,0>:ub", VALID, { .lt = 200 } },
+   { "mov (8) r0:ud r[a0.0]<VxH;1,0>:ub", VALID, { .lt = 200 } },
+
+   { "mov (8) r0:b r[a0.0]<VxH;8,1>:b",
+     "Vx1 and VxH indirect addressing are not allowed for byte source types.", { .ge = 200 }
+   },
+   { "mov (8) r0:b r[a0.0]<VxH;1,0>:b",   SAME_ERROR, { .ge = 200 } },
+   { "mov (8) r0:ub r[a0.0]<VxH;8,1>:ub", SAME_ERROR, { .ge = 200 } },
+   { "mov (8) r0:ub r[a0.0]<VxH;1,0>:ub", SAME_ERROR, { .ge = 200 } },
+   { "mov (8) r0:ud r[a0.0]<VxH;1,0>:ub", SAME_ERROR, { .ge = 200 } },
+
+   { "mov (1) r0:b r[a0.0]<0;1,0>:b",   VALID },
+   { "mov (1) r0:ub r[a0.0]<0;1,0>:ub", VALID },
+   { "mov (8) r0:b r[a0.0]<0;1,0>:b",   VALID },
+   { "mov (8) r0:ub r[a0.0]<0;1,0>:ub", VALID },
+
+   { "mov (8) r0:w r[a0.0]<VxH;8,1>:w",   VALID },
+   { "mov (8) r0:w r[a0.0]<VxH;1,0>:w",   VALID },
+   { "mov (8) r0:uw r[a0.0]<VxH;8,1>:uw", VALID },
+   { "mov (8) r0:uw r[a0.0]<VxH;1,0>:uw", VALID },
+   { "mov (8) r0:d r[a0.0]<VxH;8,1>:d",   VALID },
+   { "mov (8) r0:d r[a0.0]<VxH;1,0>:d",   VALID },
+   { "mov (8) r0:ud r[a0.0]<VxH;8,1>:ud", VALID },
+   { "mov (8) r0:ud r[a0.0]<VxH;1,0>:ud", VALID },
+   { "mov (8) r0<2>:ub r[a0.0]<VxH;1,0>:uw", VALID },
+   { "mov (8) r0<4>:b r[a0.0]<VxH;1,0>:d",   VALID },
+
 
    { "add (8) r0<2>:hf r1:f r2:hf", VALID, { .lt = 125 } },
    { "add (8) r0<2>:hf r1:f r2:hf",
