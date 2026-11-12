@@ -908,8 +908,7 @@ vk_image_info_to_ahb_usage(VkFormat vk_format,
    const VkImageCompressionControlEXT *compression_control =
       vk_find_struct_const(image_info_pnext, IMAGE_COMPRESSION_CONTROL_EXT);
    if (compression_control &&
-       (compression_control->flags & VK_IMAGE_COMPRESSION_DISABLED_EXT) &&
-       !vk_format_is_depth_or_stencil(vk_format))
+       (compression_control->flags & VK_IMAGE_COMPRESSION_DISABLED_EXT))
       force_linear = true;
 
    if (force_linear)
