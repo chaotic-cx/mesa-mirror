@@ -792,7 +792,8 @@ count_block(const struct glsl_type *blk_type, unsigned *num_blocks,
 static bool
 gather_packed_block_info(void *mem_ctx, struct gl_shader_program *prog,
                          struct hash_table *block_hash,
-                         nir_deref_instr *deref, enum block_type block_type)
+                         nir_deref_instr *deref, enum block_type block_type,
+                         bool raster_pos_copy)
 {
 
    nir_variable_mode mask = nir_var_mem_ubo | nir_var_mem_ssbo;
@@ -808,16 +809,32 @@ gather_packed_block_info(void *mem_ctx, struct gl_shader_program *prog,
    if (block_type == BLOCK_SSBO && !nir_variable_is_in_ssbo(var))
       return true;
 
-   /* Process the block.  Bail if there was an error. */
-   struct link_uniform_block_active *b =
-      process_block(mem_ctx, block_hash, var);
-   if (b == NULL) {
-      linker_error(prog,
-                   "uniform block `%s' has mismatching definitions",
-                   glsl_without_array(var->type) == var->interface_type ?
-                      glsl_get_type_name(var->type) :
-                      glsl_get_type_name(var->interface_type));
-      return false;
+   struct link_uniform_block_active *b;
+
+   if (raster_pos_copy) {
+      /* The blocks of gl_program::raster_pos_nir are those of the vertex
+       * shader, which keeps all the variables that the copy uses, but they
+       * don't have the explicit types yet.
+       */
+      const struct hash_entry *entry =
+         _mesa_hash_table_search(block_hash,
+                                 glsl_get_type_name(var->interface_type));
+      assert(entry);
+      if (!entry)
+         return true;
+
+      b = (struct link_uniform_block_active *) entry->data;
+   } else {
+      /* Process the block.  Bail if there was an error. */
+      b = process_block(mem_ctx, block_hash, var);
+      if (b == NULL) {
+         linker_error(prog,
+                      "uniform block `%s' has mismatching definitions",
+                      glsl_without_array(var->type) == var->interface_type ?
+                         glsl_get_type_name(var->type) :
+                         glsl_get_type_name(var->interface_type));
+         return false;
+      }
    }
 
    assert(b->type != NULL);
@@ -836,7 +853,7 @@ gather_packed_block_info(void *mem_ctx, struct gl_shader_program *prog,
 static bool
 gather_packed_blocks_info(void *mem_ctx, struct gl_shader_program *prog,
                           nir_shader *shader, struct hash_table *block_hash,
-                          enum block_type block_type)
+                          enum block_type block_type, bool raster_pos_copy)
 {
    bool success = true;
    nir_foreach_function_impl(impl, shader) {
@@ -855,13 +872,13 @@ gather_packed_blocks_info(void *mem_ctx, struct gl_shader_program *prog,
             nir_deref_instr *deref = nir_src_as_deref(intr->src[0]);
             success |=
                gather_packed_block_info(mem_ctx, prog, block_hash, deref,
-                                        block_type);
+                                        block_type, raster_pos_copy);
 
             if (intr->intrinsic == nir_intrinsic_copy_deref) {
                deref = nir_src_as_deref(intr->src[1]);
                success |=
                   gather_packed_block_info(mem_ctx, prog, block_hash, deref,
-                                           block_type);
+                                           block_type, raster_pos_copy);
             }
          }
       }
@@ -976,7 +993,16 @@ allocate_uniform_blocks(void *mem_ctx, struct hash_table *block_hash,
    if (!prog->data->spirv) {
       /* Gather packed ubo information by looping over derefs */
       if (!gather_packed_blocks_info(mem_ctx, prog, shader->Program->nir,
-                                     block_hash, block_type))
+                                     block_hash, block_type, false))
+         return;
+
+      /* The raster position copy of the vertex shader can use elements of
+       * block arrays that the vertex shader no longer uses.
+       */
+      if (shader->Program->raster_pos_nir &&
+          !gather_packed_blocks_info(mem_ctx, prog,
+                                     shader->Program->raster_pos_nir,
+                                     block_hash, block_type, true))
          return;
 
       /* Count the number of active uniform blocks.  Count the total number of

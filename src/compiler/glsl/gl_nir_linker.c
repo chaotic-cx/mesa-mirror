@@ -520,6 +520,73 @@ can_remove_var(nir_variable *var, UNUSED void *data)
    return true;
 }
 
+/* Variables used by gl_program::raster_pos_nir must stay in the vertex shader
+ * so that the uniform linker gives them storage.
+ */
+static bool
+can_remove_var_raster_pos(nir_variable *var, void *data)
+{
+   struct set *raster_pos_vars = (struct set *)data;
+
+   if (var->name && _mesa_set_search(raster_pos_vars, var->name))
+      return false;
+
+   return can_remove_var(var, NULL);
+}
+
+/* Give the variables of gl_program::raster_pos_nir the types, locations and
+ * bindings that linking assigned to the same variables in the vertex shader,
+ * and the same number of buffers.
+ */
+static void
+link_raster_pos_variables(struct gl_shader_program *prog)
+{
+   struct gl_linked_shader *vs = prog->_LinkedShaders[MESA_SHADER_VERTEX];
+   if (!vs || !vs->Program->raster_pos_nir)
+      return;
+
+   const nir_variable_mode modes = nir_var_uniform | nir_var_image |
+                                   nir_var_mem_ubo | nir_var_mem_ssbo;
+   struct hash_table *vars =
+      _mesa_hash_table_create(NULL, _mesa_hash_string, _mesa_key_string_equal);
+
+   nir_foreach_variable_with_modes(var, vs->Program->nir, modes) {
+      if (var->name)
+         _mesa_hash_table_insert(vars, var->name, var);
+   }
+
+   nir_foreach_variable_with_modes(var, vs->Program->raster_pos_nir, modes) {
+      struct hash_entry *entry =
+         var->name ? _mesa_hash_table_search(vars, var->name) : NULL;
+      if (!entry)
+         continue;
+
+      nir_variable *linked = (nir_variable *)entry->data;
+      if (linked->data.mode != var->data.mode)
+         continue;
+
+      /* Uniform arrays may have been resized and blocks given explicit
+       * layouts.
+       */
+      var->type = linked->type;
+      var->interface_type = linked->interface_type;
+      var->num_state_slots = MIN2(var->num_state_slots,
+                                  linked->num_state_slots);
+      var->data = linked->data;
+   }
+
+   nir_fixup_deref_types(vs->Program->raster_pos_nir);
+
+   /* The linker only sets these in the vertex shader. Lowering atomic
+    * counters to shader storage buffers puts them after num_ssbos.
+    */
+   vs->Program->raster_pos_nir->info.num_ubos = vs->Program->info.num_ubos;
+   vs->Program->raster_pos_nir->info.num_ssbos = vs->Program->info.num_ssbos;
+   vs->Program->raster_pos_nir->info.num_abos = vs->Program->info.num_abos;
+
+   _mesa_hash_table_destroy(vars, NULL);
+}
+
 static void
 set_always_active_io(nir_shader *shader, nir_variable_mode io_mode)
 {
@@ -4178,14 +4245,31 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
                                                consts->Program[i].MaxUniformComponents);
          }
 
-         const nir_remove_dead_variables_options opts = {
+         const nir_variable_mode modes =
+            nir_var_uniform | nir_var_image | nir_var_mem_ubo |
+            nir_var_mem_ssbo | nir_var_system_value;
+         nir_remove_dead_variables_options opts = {
             .can_remove_var = can_remove_var,
          };
-         nir_remove_dead_variables(shader->Program->nir,
-                                   nir_var_uniform | nir_var_image |
-                                   nir_var_mem_ubo | nir_var_mem_ssbo |
-                                   nir_var_system_value,
-                                   &opts);
+         struct set *raster_pos_vars = NULL;
+         nir_shader *raster_pos_nir = shader->Program->raster_pos_nir;
+
+         if (raster_pos_nir) {
+            nir_remove_dead_variables(raster_pos_nir, modes, &opts);
+
+            raster_pos_vars = _mesa_set_create(NULL, _mesa_hash_string,
+                                               _mesa_key_string_equal);
+            nir_foreach_variable_with_modes(var, raster_pos_nir, modes) {
+               if (var->name)
+                  _mesa_set_add(raster_pos_vars, var->name);
+            }
+
+            opts.can_remove_var = can_remove_var_raster_pos;
+            opts.can_remove_var_data = raster_pos_vars;
+         }
+
+         nir_remove_dead_variables(shader->Program->nir, modes, &opts);
+         _mesa_set_destroy(raster_pos_vars, NULL);
 
          if (shader->Program->info.stage == MESA_SHADER_FRAGMENT) {
             nir_shader *nir = shader->Program->nir;
@@ -4218,6 +4302,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
    check_image_resources(consts, exts, prog);
    gl_nir_link_assign_atomic_counter_resources(consts, prog);
    gl_nir_link_check_atomic_counter_resources(consts, prog);
+   link_raster_pos_variables(prog);
 
    /* OpenGL ES < 3.1 requires that a vertex shader and a fragment shader both
     * be present in a linked program. GL_ARB_ES2_compatibility doesn't say

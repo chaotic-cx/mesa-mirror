@@ -1652,6 +1652,14 @@ gl_nir_link_uniforms(const struct gl_constants *consts,
 
          nir_shader *nir = sh->Program->nir;
          add_var_use_shader(nir, state.referenced_uniforms[stage]);
+
+         /* The raster position copy of the vertex shader can use uniforms
+          * that the vertex shader no longer uses.
+          */
+         if (sh->Program->raster_pos_nir) {
+            add_var_use_shader(sh->Program->raster_pos_nir,
+                               state.referenced_uniforms[stage]);
+         }
       }
 
       if(!consts->DisableUniformArrayResize) {
