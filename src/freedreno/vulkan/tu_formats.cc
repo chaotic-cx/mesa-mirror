@@ -878,15 +878,6 @@ tu_GetPhysicalDeviceImageFormatProperties2(
    if (external_info && external_info->handleType != 0) {
       if (external_info->handleType ==
           VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) {
-         /* Turnip cannot import VK_FORMAT_S8_UINT AHBs because stencil-only
-          * AHBs are linear, while depth/stencil images must be tiled.
-          */
-         if (base_info->format == VK_FORMAT_S8_UINT) {
-            result = vk_errorf(physical_device, VK_ERROR_FORMAT_NOT_SUPPORTED,
-                               "VK_FORMAT_S8_UINT AHB import is not supported");
-            goto fail;
-         }
-
          result = vk_android_get_ahb_image_properties(physicalDevice,
                                                       base_info, base_props);
          if (result != VK_SUCCESS)
