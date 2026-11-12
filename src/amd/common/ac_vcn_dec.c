@@ -1985,7 +1985,7 @@ vcn_build_decode_cmd(struct ac_video_dec *decoder, struct ac_video_dec_decode_cm
       index_codec->message_id = RDECODE_MESSAGE_AVC;
       codec_size = build_avc_msg(&cmd_buf, cmd, codec);
       ref_id_list = cmd->codec_param.avc.ref_frame_id_list;
-      ref_id_size = cmd->codec_param.avc.curr_pic_ref_frame_num;
+      ref_id_size = cmd->codec_param.avc.max_num_ref_frames;
       break;
    case AC_VIDEO_CODEC_HEVC:
       index_codec->message_id = RDECODE_MESSAGE_HEVC;
