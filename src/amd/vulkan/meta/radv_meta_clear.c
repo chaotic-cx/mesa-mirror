@@ -1672,21 +1672,14 @@ radv_cmd_buffer_clear_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
 
    radv_meta_begin_rendering(cmd_buffer);
 
-   assert(render->color_att_count == pRenderingInfo->colorAttachmentCount);
-   for (uint32_t i = 0; i < render->color_att_count; i++) {
-      if (render->color_att[i].iview == NULL ||
-          pRenderingInfo->pColorAttachments[i].loadOp != VK_ATTACHMENT_LOAD_OP_CLEAR)
-         continue;
-
-      VkClearAttachment clear_att = {
-         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-         .colorAttachment = i,
-         .clearValue = pRenderingInfo->pColorAttachments[i].clearValue,
-      };
-
-      radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info);
-   }
-
+   /* HTILE is loaded and cached by draws even during color-only clears that don't touch Z/S, which means
+    * we can't fast-clear HTILE in parallel with slow color clears.
+    *
+    * To prevent issues, we do the following:
+    * - clear Z/S first
+    * - if compute or CP DMA is busy after the Z/S clear, wait for it. (so that slow color clears don't load
+    *   HTILE while HTILE is still being cleared)
+    */
    if (render->ds_att.iview != NULL) {
       VkClearAttachment clear_att = {.aspectMask = 0};
 
@@ -1706,7 +1699,28 @@ radv_cmd_buffer_clear_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
 
       if (clear_att.aspectMask != 0) {
          radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info);
+
+         if (sync_info.post_flush & (AC_BARRIER_SYNC_CS | AC_BARRIER_SYNC_CP_DMA)) {
+            /* TODO: do this only when any of the other clears are draws */
+            cmd_buffer->state.flush_bits |= sync_info.post_flush;
+            sync_info.post_flush = 0;
+         }
       }
+   }
+
+   assert(render->color_att_count == pRenderingInfo->colorAttachmentCount);
+   for (uint32_t i = 0; i < render->color_att_count; i++) {
+      if (render->color_att[i].iview == NULL ||
+          pRenderingInfo->pColorAttachments[i].loadOp != VK_ATTACHMENT_LOAD_OP_CLEAR)
+         continue;
+
+      VkClearAttachment clear_att = {
+         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+         .colorAttachment = i,
+         .clearValue = pRenderingInfo->pColorAttachments[i].clearValue,
+      };
+
+      radv_subpass_clear_attachment(cmd_buffer, &clear_att, &sync_info);
    }
 
    radv_meta_end_rendering(cmd_buffer);
