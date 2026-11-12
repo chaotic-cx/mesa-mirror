@@ -1408,8 +1408,8 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_PKT4(ring, REG_A5XX_TPL1_TP_FS_ROTATION_CNTL, 1);
    OUT_RING(ring, 0x00000000); /* TPL1_TP_FS_ROTATION_CNTL */
 
-   OUT_PKT4(ring, REG_A5XX_UNKNOWN_E004, 1);
-   OUT_RING(ring, 0x00000000); /* UNKNOWN_E004 */
+   OUT_PKT4(ring, REG_A5XX_GRAS_CL_ARRAY_SIZE, 1);
+   OUT_RING(ring, 0x00000000); /* GRAS_CL_ARRAY_SIZE */
 
    OUT_PKT4(ring, REG_A5XX_GRAS_SU_LAYERED, 1);
    OUT_RING(ring, 0x00000000); /* GRAS_SU_LAYERED */

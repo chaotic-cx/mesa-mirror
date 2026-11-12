@@ -158,6 +158,7 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<value value="0x06" name="TFMT5_8_SINT"/>
 	<value value="0x08" name="TFMT5_4_4_4_4_UNORM"/>
 	<value value="0x0a" name="TFMT5_5_5_5_1_UNORM"/>
+	<value value="0x0c" name="TFMT5_1_5_5_5_UNORM"/> <!-- read only -->
 	<value value="0x0e" name="TFMT5_5_6_5_UNORM"/>
 	<value value="0x0f" name="TFMT5_8_8_UNORM"/>
 	<value value="0x10" name="TFMT5_8_8_SNORM"/>
@@ -1840,7 +1841,11 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 		<bitfield name="CULL_MASK" low="8" high="15"/>
 	</bitset>
 	<reg32 offset="0xe001" name="GRAS_VS_CL_CNTL" type="a5xx_gras_xs_cl_cntl"/>
-	<reg32 offset="0xe004" name="UNKNOWN_E004"/> <!-- always 00000000? -->
+	<reg32 offset="0xe004" name="GRAS_CL_ARRAY_SIZE" type="uint">
+		<doc>
+			The render target's layer count minus one.
+		</doc>
+	</reg32>
 	<reg32 offset="0xe005" name="GRAS_CNTL">
 		<!-- see also RB_RENDER_CONTROL0 -->
 		<bitfield name="IJ_PERSP_PIXEL" pos="0" type="boolean"/>
@@ -1883,7 +1888,18 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 		<bitfield name="MAX" low="16" high="31" type="ufixed" radix="4"/>
 	</reg32>
 	<reg32 offset="0xe092" name="GRAS_SU_POINT_SIZE" type="fixed" radix="4"/>
-	<reg32 offset="0xe093" name="GRAS_SU_LAYERED"/>
+	<!--
+		Like a6xx's GRAS_SU_GS_SIV_CNTL.  The a530 GL blob sets this,
+		PC_GS_LAYERED and VPC_GS_SIV_CNTL.LAYERLOC for a GS writing
+		gl_Layer.  Unlike a6xx, there seems to be no VS variant: with no GS,
+		setting PC_GS_LAYERED hangs the GPU, and with just these two set
+		the VS's gl_Layer output is ignored (everything lands in layer 0).
+		Bit 1 is presumably WRITES_VIEW like a6xx, but the a530 blob has no
+		viewport arrays to check that with.
+	-->
+	<reg32 offset="0xe093" name="GRAS_SU_LAYERED">
+		<bitfield name="WRITES_LAYER" pos="0" type="boolean"/>
+	</reg32>
 	<reg32 offset="0xe094" name="GRAS_SU_DEPTH_PLANE_CNTL">
 		<bitfield name="FRAG_WRITES_Z" pos="0" type="boolean"/>
 		<bitfield name="UNK1" pos="1" type="boolean"/>
@@ -2268,6 +2284,8 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 	</doc>
 	<reg64 offset="0xe240" name="RB_DEPTH_FLAG_BUFFER_BASE" type="waddress"/>
 	<reg32 offset="0xe242" name="RB_DEPTH_FLAG_BUFFER_PITCH">
+		<bitfield name="PITCH" low="0" high="10" shr="6" type="uint"/>
+		<bitfield name="ARRAY_PITCH" low="11" high="31" shr="6" type="uint"/>
 	</reg32>
 	<array offset="0xe243" name="RB_MRT_FLAG_BUFFER" stride="4" length="8">
 		<reg64 offset="0" name="ADDR" type="waddress"/>
@@ -2311,7 +2329,14 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		<!-- one bit per varying component: -->
 		<reg32 offset="0" name="DISABLE"/>
 	</array>
-	<reg32 offset="0xe298" name="VPC_GS_SIV_CNTL"/>
+	<!--
+		Like a6xx's VPC_GS_SIV_CNTL (see GRAS_SU_LAYERED).  The blob writes
+		0xffff with no gl_Layer written.  The GS's gl_Layer is an ordinary
+		varying at LAYERLOC, which the FS can read as a flat input.
+	-->
+	<reg32 offset="0xe298" name="VPC_GS_SIV_CNTL">
+		<bitfield name="LAYERLOC" low="0" high="7" type="uint"/>
+	</reg32>
 	<reg32 offset="0xe29a" name="VPC_CLIP_CNTL">
 		<bitfield name="CLIP_MASK" low="0" high="7" type="uint"/>
 		<!-- there can be up to 8 total clip/cull distance outputs,
@@ -2419,7 +2444,9 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		<bitfield name="CLIP_MASK" low="0" high="7"/>
 	</reg32>
 	<reg32 offset="0xe38c" name="PC_RESTART_INDEX"/>
-	<reg32 offset="0xe38d" name="PC_GS_LAYERED"/>
+	<reg32 offset="0xe38d" name="PC_GS_LAYERED">
+		<bitfield name="WRITES_LAYER" pos="0" type="boolean"/>
+	</reg32>
 	<reg32 offset="0xe38e" name="PC_GS_PARAM">
 		<bitfield name="MAX_VERTICES" low="0" high="9" type="uint"/><!-- vertices - 1 -->
 		<bitfield name="INVOCATIONS" low="11" high="15" type="uint"/><!-- invoc - 1 -->
@@ -2465,6 +2492,7 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		<reg32 offset="0x0" name="INSTR">
 			<!-- IDX appears to index into VFD_FETCH[] -->
 			<bitfield name="IDX" low="0" high="4" type="uint"/>
+			<bitfield name="OFFSET" low="5" high="16"/>
 			<bitfield name="INSTANCED" pos="17" type="boolean"/>
 			<bitfield name="FORMAT" low="20" high="27" type="a5xx_vtx_fmt"/>
 			<bitfield name="SWAP" low="28" high="29" type="a3xx_color_swap"/>
