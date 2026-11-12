@@ -10,6 +10,7 @@
 #include "panfrost/compiler/pan_compiler.h"
 #include "panfrost/compiler/pan_nir.h"
 #include "util/perf/cpu_trace.h"
+#include <sys/stat.h>
 
 #include "panfrost/model/pan_model.h"
 #include "valhall/valhall.h"
@@ -1374,6 +1375,26 @@ bifrost_dump_shader(nir_shader *nir, struct util_dynarray *binary,
    const char *dump_dir = os_get_option_secure("BIFROST_MESA_DUMP_DIR");
    if (dump_dir == NULL)
       return;
+
+   struct stat statbuf;
+   if (stat(dump_dir, &statbuf) != 0) {
+      int err = errno;
+      if (err == ENOENT) {
+         fprintf(stderr, "PAN: Directory %s does not exist, creating\n",
+                 dump_dir);
+         if (mkdir(dump_dir, 0755) != 0) {
+            fprintf(stderr, "PAN: Failed to create directory %s\n", dump_dir);
+            return;
+         }
+      } else {
+         fprintf(stderr, "PAN: Error opening %s: %s\n", dump_dir,
+                 strerror(err));
+         return;
+      }
+   } else if (!S_ISDIR(statbuf.st_mode)) {
+      fprintf(stderr, "PAN: %s exists, but is not a directory\n", dump_dir);
+      return;
+   }
 
    bool has_src_blake3 = false;
    for (uint32_t i = 0; i < BLAKE3_OUT_LEN && !has_src_blake3; ++i)
