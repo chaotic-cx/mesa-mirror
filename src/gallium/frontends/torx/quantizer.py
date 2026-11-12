@@ -212,7 +212,8 @@ class TorxQuantizer(Quantizer):
                     # activation so the observer sees clamped values.
                     self._annotate_with_optional_fused_act(node, input_qspec_map)
 
-                elif node.target == torch.ops.aten.add.Tensor:
+                elif node.target in (torch.ops.aten.add.Tensor,
+                                     torch.ops.aten.add_.Tensor):
                     input_qspec_map = {}
                     input_qspec_map[node.args[0]] = self.io_spec
                     input_qspec_map[node.args[1]] = self.io_spec
@@ -227,7 +228,8 @@ class TorxQuantizer(Quantizer):
                     if _shares_input_quantization(node):
                         self._annotate_shared_io(node, [node.args[0]])
 
-                elif node.target == torch.ops.aten.sigmoid.default:
+                elif node.target in (torch.ops.aten.sigmoid.default,
+                                     torch.ops.aten.sigmoid_.default):
                     output = node.meta.get("val")
                     if isinstance(output, torch.Tensor) and output.dim() == 4:
                         node.meta[Q_ANNOTATION_KEY] = QuantizationAnnotation(
