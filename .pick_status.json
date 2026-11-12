@@ -804,7 +804,7 @@
         "description": "torx: Quantize in-place additions",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a0a98f0f52605c3ca63ccf5faec45e617e1fa5c9",
         "notes": null
