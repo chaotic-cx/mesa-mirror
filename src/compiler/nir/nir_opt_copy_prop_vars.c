@@ -593,18 +593,21 @@ lookup_entry_and_kill_aliases(struct copy_prop_var_state *state,
       /*
        * Fast path for regular variables: different variables can't alias
        * each other's destinations, so only the same-variable bucket needs
-       * the full dst+src check.
+       * the full dst+src check.  Don't create a bucket for a variable we
+       * aren't tracking, there is nothing in it to kill.
        */
-      struct copies_dynarray *cpda =
-         copies_array_for_var(state, copies, write_var);
-      struct util_dynarray *copies_array = &cpda->arr;
+      struct hash_entry *ht_entry =
+         _mesa_hash_table_search(&copies->ht, write_var);
+      if (ht_entry) {
+         struct copies_dynarray *cpda =
+            get_copies_array_from_ht_entry(state, copies, ht_entry);
 
-      lookup_entry_and_kill_aliases_copy_array(state, copies_array, deref,
-                                               write_mask, remove_entry,
-                                               &entry, &entry_removed);
+         lookup_entry_and_kill_aliases_copy_array(state, &cpda->arr, deref,
+                                                  write_mask, remove_entry,
+                                                  &entry, &entry_removed);
 
-      if (copies_array->size == 0) {
-         _mesa_hash_table_remove_key(&copies->ht, deref->_path->path[0]->var);
+         if (cpda->arr.size == 0)
+            _mesa_hash_table_remove(&copies->ht, ht_entry);
       }
 
       /*
