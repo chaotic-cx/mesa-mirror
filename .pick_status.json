@@ -764,7 +764,7 @@
         "description": "d3d12: Preserve raw texel bits in clear_texture",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "438be4f9a0890fd9afb8c80e9c539f1253708fa8",
         "notes": null

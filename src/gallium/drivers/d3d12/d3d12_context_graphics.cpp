@@ -45,6 +45,7 @@
 #include "util/u_memory.h"
 #include "util/u_upload_mgr.h"
 #include "util/u_sample_positions.h"
+#include "util/u_surface.h"
 #include "util/u_dl.h"
 #include "nir_to_dxil.h"
 
@@ -2043,6 +2044,143 @@ d3d12_clear_depth_stencil(struct pipe_context *pctx,
    d3d12_surface_destroy(NULL, &surf->base);
 }
 
+static enum pipe_format
+d3d12_get_clear_uint_format(struct d3d12_screen *screen,
+                            const struct pipe_resource *pres,
+                            DXGI_FORMAT res_dxgi_format)
+{
+   if (util_format_is_compressed(pres->format) ||
+       util_format_is_yuv(pres->format) ||
+       util_format_get_blockwidth(pres->format) != 1 ||
+       util_format_get_blockheight(pres->format) != 1)
+      return PIPE_FORMAT_NONE;
+
+   unsigned bits = util_format_get_blocksizebits(pres->format);
+
+   if (screen->opts12.RelaxedFormatCastingSupported &&
+       !(pres->bind & PIPE_BIND_SHARED)) {
+      switch (bits) {
+      case 8:   return PIPE_FORMAT_R8_UINT;
+      case 16:  return PIPE_FORMAT_R16_UINT;
+      case 32:  return PIPE_FORMAT_R8G8B8A8_UINT;
+      case 64:  return PIPE_FORMAT_R16G16B16A16_UINT;
+      case 128: return PIPE_FORMAT_R32G32B32A32_UINT;
+      default:  return PIPE_FORMAT_NONE;
+      }
+   }
+
+   static const enum pipe_format candidates[] = {
+      PIPE_FORMAT_R8_UINT,
+      PIPE_FORMAT_R8G8_UINT,
+      PIPE_FORMAT_R16_UINT,
+      PIPE_FORMAT_R8G8B8A8_UINT,
+      PIPE_FORMAT_R16G16_UINT,
+      PIPE_FORMAT_R10G10B10A2_UINT,
+      PIPE_FORMAT_R32_UINT,
+      PIPE_FORMAT_R16G16B16A16_UINT,
+      PIPE_FORMAT_R32G32_UINT,
+      PIPE_FORMAT_R32G32B32A32_UINT,
+   };
+
+   for (unsigned i = 0; i < ARRAY_SIZE(candidates); ++i) {
+      enum pipe_format cand = candidates[i];
+      if (util_format_get_blocksizebits(cand) != bits)
+         continue;
+      if (d3d12_get_resource_rt_format(cand) == res_dxgi_format ||
+          d3d12_get_typeless_format(cand) == res_dxgi_format)
+         return cand;
+   }
+
+   return PIPE_FORMAT_NONE;
+}
+
+static void
+d3d12_clear_texture(struct pipe_context *pctx,
+                    struct pipe_resource *pres,
+                    unsigned level,
+                    const struct pipe_box *box,
+                    const void *data)
+{
+   if (box->width <= 0 || box->height <= 0 || box->depth <= 0)
+      return;
+
+   if (util_format_is_depth_or_stencil(pres->format)) {
+      u_default_clear_texture(pctx, pres, level, box, data);
+      return;
+   }
+
+   struct d3d12_screen *screen = d3d12_screen(pctx->screen);
+   struct d3d12_resource *res = d3d12_resource(pres);
+   ID3D12Resource *d3d12_res = d3d12_resource_resource(res);
+
+   if (d3d12_res) {
+      D3D12_RESOURCE_DESC res_desc = GetDesc(d3d12_res);
+      if (res_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) {
+         enum pipe_format uint_format =
+            d3d12_get_clear_uint_format(screen, pres, res_desc.Format);
+
+         if (uint_format != PIPE_FORMAT_NONE &&
+             pctx->screen->is_format_supported(pctx->screen, uint_format,
+                                               pres->target, pres->nr_samples,
+                                               pres->nr_storage_samples,
+                                               PIPE_BIND_RENDER_TARGET)) {
+            struct pipe_surface tmpl;
+            u_surface_default_template(&tmpl, pres);
+            tmpl.format = uint_format;
+            tmpl.level = level;
+            tmpl.first_layer = box->z;
+            tmpl.last_layer = box->z + box->depth - 1;
+
+            union pipe_color_union color = {};
+            util_format_unpack_rgba(uint_format, color.ui, data, 1);
+
+            bool has_layers = screen->base.caps.vs_instanceid &&
+                              screen->base.caps.vs_layer_viewport;
+            if (has_layers || box->depth == 1) {
+               pctx->clear_render_target(pctx, &tmpl, &color,
+                                         box->x, box->y,
+                                         box->width, box->height, false);
+            } else {
+               for (int l = 0; l < box->depth; ++l) {
+                  tmpl.first_layer = tmpl.last_layer = box->z + l;
+                  pctx->clear_render_target(pctx, &tmpl, &color,
+                                            box->x, box->y,
+                                            box->width, box->height, false);
+               }
+            }
+            return;
+         }
+      }
+   }
+
+   if (pres->nr_samples > 1) {
+      u_default_clear_texture(pctx, pres, level, box, data);
+      return;
+   }
+
+   struct pipe_transfer *dst_trans = nullptr;
+   uint8_t *dst_map = static_cast<uint8_t *>(
+      pipe_texture_map_3d(pctx, pres, level,
+                          PIPE_MAP_WRITE | PIPE_MAP_DISCARD_RANGE,
+                          box->x, box->y, box->z,
+                          box->width, box->height, box->depth,
+                          &dst_trans));
+   if (!dst_map)
+      return;
+
+   union util_color uc = {};
+   unsigned blocksize = util_format_get_blocksize(pres->format);
+   assert(blocksize <= sizeof(uc));
+   memcpy(&uc, data, blocksize);
+
+   util_fill_box(dst_map, pres->format,
+                 dst_trans->stride, dst_trans->layer_stride,
+                 0, 0, 0,
+                 box->width, box->height, box->depth, &uc);
+
+   pctx->texture_unmap(pctx, dst_trans);
+}
+
 static void
 d3d12_clear(struct pipe_context *pctx,
             unsigned buffers,
@@ -2301,6 +2439,7 @@ d3d12_init_graphics_context_functions(struct d3d12_context *ctx)
    ctx->base.clear = d3d12_clear;
    ctx->base.clear_render_target = d3d12_clear_render_target;
    ctx->base.clear_depth_stencil = d3d12_clear_depth_stencil;
+   ctx->base.clear_texture = d3d12_clear_texture;
    ctx->base.draw_vbo = d3d12_draw_vbo;
    ctx->base.draw_vbo_buffers = util_draw_vbo_buffers;
    ctx->base.launch_grid = d3d12_launch_grid;
