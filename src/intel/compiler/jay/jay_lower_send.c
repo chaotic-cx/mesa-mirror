@@ -16,7 +16,7 @@ lower_send_desc_mlen(jay_function *func,
                      struct util_dynarray *addr_desc_imm)
 {
    if (I->op == JAY_OPCODE_PACK_MLEN) {
-      assert(jay_index(I->dst) != JAY_SENTINEL);
+      assert(jay_base_index(I->dst) != JAY_SENTINEL);
       assert(I->dst.file == J_ADDRESS);
 
       /* Add the instruction to the array for quick access */
@@ -64,7 +64,7 @@ lower_send_desc_mlen(jay_function *func,
          if (jay_is_null(I->src[i])) {
             /* The whole descriptor is an immediate */
             I->src[i] = jay_imm(bits);
-         } else if (jay_index(I->src[i]) != JAY_SENTINEL) {
+         } else if (jay_base_index(I->src[i]) != JAY_SENTINEL) {
             /* A portion of the descriptor is dynamic and gets OR'd with the
              * immediate portion by a PACK_MLEN instruction.
              */
@@ -72,7 +72,7 @@ lower_send_desc_mlen(jay_function *func,
             jay_inst *pack_mlen = NULL;
 
             util_dynarray_foreach(addr_desc_imm, jay_inst *, etr) {
-               if (jay_index((*etr)->dst) == jay_index(I->src[i])) {
+               if (jay_defs_equivalent((*etr)->dst, I->src[i])) {
                   pack_mlen = *etr;
                   util_dynarray_delete_unordered_ptr(addr_desc_imm,
                                                      jay_inst *, etr);
