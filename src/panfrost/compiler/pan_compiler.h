@@ -642,6 +642,9 @@ pan_res_handle(unsigned table, unsigned index)
 void pan_disassemble(FILE *fp, const void *code, size_t size, uint64_t gpu_id,
                      bool verbose);
 
+void pan_disassemble_bi(FILE *fp, const void *code, size_t size, unsigned arch,
+                        bool verbose);
+
 void pan_stats_verbose_prologue(FILE *f, const char *prefix, unsigned arch,
                                 const struct pan_model *model);
 

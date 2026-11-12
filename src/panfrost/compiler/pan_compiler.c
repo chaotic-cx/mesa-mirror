@@ -521,18 +521,28 @@ void
 pan_disassemble(FILE *fp, const void *code, size_t size, uint64_t gpu_id,
                 bool verbose)
 {
-   if (pan_arch(gpu_id) >= 9) {
+   if (pan_arch(gpu_id) >= 6) {
+      pan_disassemble_bi(fp, code, size, pan_arch(gpu_id), verbose);
+   } else {
+      unsigned quirks = midgard_get_quirks(pan_prod_id(gpu_id));
+      disassemble_midgard(fp, code, size, quirks, verbose);
+   }
+}
+
+void
+pan_disassemble_bi(FILE *fp, const void *code, size_t size, unsigned arch,
+                   bool verbose)
+{
+   assert(arch >= 6);
+
+   if (arch >= 9) {
 #ifdef WITH_PANFROST_RUST
-      kraid_disassemble(fp, code, size, verbose, pan_arch(gpu_id));
+      kraid_disassemble(fp, code, size, verbose, arch);
 #else
       disassemble_valhall(fp, (const uint64_t *)code, size, verbose);
 #endif
-   }
-   else if (pan_arch(gpu_id) >= 6)
+   } else {
       disassemble_bifrost(fp, code, size, verbose);
-   else {
-      unsigned quirks = midgard_get_quirks(pan_prod_id(gpu_id));
-      disassemble_midgard(fp, code, size, quirks, verbose);
    }
 }
 

@@ -1369,8 +1369,9 @@ idvs_variant_suffix(enum bi_idvs_mode idvs)
 }
 
 static void
-bifrost_dump_shader(nir_shader *nir, struct util_dynarray *binary,
-                    enum bi_idvs_mode idvs, uint32_t offset, uint32_t size)
+bifrost_dump_shader(nir_shader *nir, unsigned arch,
+                    struct util_dynarray *binary, enum bi_idvs_mode idvs,
+                    uint32_t offset, uint32_t size)
 {
    const char *dump_dir = os_get_option_secure("BIFROST_MESA_DUMP_DIR");
    if (dump_dir == NULL)
@@ -1433,6 +1434,22 @@ bifrost_dump_shader(nir_shader *nir, struct util_dynarray *binary,
               nir->info.name ?: "<unnamed>", path);
    } else {
       fprintf(stderr, "PAN: Failed to dump %s to %s\n",
+              nir->info.name ?: "<unnamed>", path);
+   }
+
+   if (dump_stream)
+      fclose(dump_stream);
+
+   /* Dump the disassembly */
+   snprintf(path, sizeof(path), "%s/%s.%s%s.s", dump_dir, id,
+            _mesa_shader_stage_to_file_ext(nir->info.stage),
+            idvs_variant_suffix(idvs));
+   dump_stream = fopen(path, "w");
+
+   if (dump_stream) {
+      pan_disassemble_bi(dump_stream, binary->data + offset, size, arch, true);
+   } else {
+      fprintf(stderr, "PAN: Failed to dump %s disassembly to %s\n",
               nir->info.name ?: "<unnamed>", path);
    }
 
@@ -1568,14 +1585,15 @@ bifrost_compile_shader_nir(nir_shader *nir,
       enum bi_idvs_mode mode =
          arch >= 12 ? BI_IDVS_ALL : BI_IDVS_POSITION;
       uint32_t size_prim = info->vs.secondary_offset ?: binary->size;
-      bifrost_dump_shader(nir, binary, mode, 0, size_prim);
+      bifrost_dump_shader(nir, arch, binary, mode, 0, size_prim);
       if (info->vs.secondary_enable && mode != BI_IDVS_ALL) {
          uint32_t offs = info->vs.secondary_offset;
          uint32_t size_sec = binary->size - offs;
-         bifrost_dump_shader(nir, binary, BI_IDVS_VARYING, offs, size_sec);
+         bifrost_dump_shader(nir, arch, binary, BI_IDVS_VARYING, offs,
+                             size_sec);
       }
    } else {
-      bifrost_dump_shader(nir, binary, BI_IDVS_NONE, 0, binary->size);
+      bifrost_dump_shader(nir, arch, binary, BI_IDVS_NONE, 0, binary->size);
    }
 
    info->ubo_mask &= (1 << nir->info.num_ubos) - 1;
