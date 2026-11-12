@@ -578,13 +578,16 @@ emit(struct jay_codegen *jc,
    case JAY_OPCODE_MOV_INDIRECT:
       /* UGPR broadcasts are both useless (degrading to a plain move) and would
        * generate incorrect code (since we do not zero out the offset). Just
-       * assert that we don't see them, we handled them during isel.
+       * assert that we don't see them, we handled them during isel.  Sub-dword
+       * reads can select a byte or word within a scalar UGPR.
        */
       assert(I->src[0].file == GPR ||
-             (I->src[0].file == UGPR && jay_num_values(I->src[0]) > 1));
+             (I->src[0].file == UGPR &&
+              (jay_num_values(I->src[0]) > 1 ||
+               jay_type_size_bits(I->type) < 32)));
 
       gen->src[0] = gen_grf(0, I->src[1].reg);
-      gen->src[0].type = GEN_TYPE_UD;
+      gen->src[0].type = to_gen_reg_type(I->type);
       gen->src[0].indirect = true;
       gen->src[0].addr_imm = 0;
 
