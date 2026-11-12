@@ -86,6 +86,14 @@ pub fn derive_enum_as_u8(input: TokenStream) -> TokenStream {
                 self as u8
             }
 
+            fn from_u8(u: u8) -> Option<Self> {
+                if Self::VARIANTS.contains_u8(u) {
+                    Some(unsafe { Self::from_u8_unchecked(u) })
+                } else {
+                    None
+                }
+            }
+
             unsafe fn from_u8_unchecked(u: u8) -> Self {
                 unsafe { std::mem::transmute(u) }
             }
@@ -101,11 +109,7 @@ pub fn derive_enum_as_u8(input: TokenStream) -> TokenStream {
             type Error = &'static str;
 
             fn try_from(u: u8) -> std::result::Result<Self, &'static str> {
-                if Self::VARIANTS.contains_u8(u) {
-                    Ok(unsafe { Self::from_u8_unchecked(u) })
-                } else {
-                    Err(#try_from_err)
-                }
+                Self::from_u8(u).ok_or(#try_from_err)
             }
         }
     };

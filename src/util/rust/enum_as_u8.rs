@@ -17,6 +17,8 @@ pub trait EnumAsU8: Sized {
 
     fn as_u8(self) -> u8;
 
+    fn from_u8(u: u8) -> Option<Self>;
+
     unsafe fn from_u8_unchecked(u: u8) -> Self;
 }
 
