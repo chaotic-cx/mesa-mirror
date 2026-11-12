@@ -6833,6 +6833,10 @@ struct gfx8_border_color {
 
 extern const struct gfx8_border_color anv_default_border_colors[];
 
+union isl_color_value
+anv_sampler_border_color_value(const struct anv_physical_device *pdevice,
+                               VkFormat format, VkClearColorValue value);
+
 struct anv_sampler_state {
    /* Hashing key for embedded samplers */
    struct anv_embedded_sampler_key embedded_key;

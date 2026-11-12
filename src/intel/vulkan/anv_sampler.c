@@ -6,6 +6,31 @@
 
 #include "genxml/genX_bits.h"
 
+union isl_color_value
+anv_sampler_border_color_value(const struct anv_physical_device *pdevice,
+                               VkFormat format, VkClearColorValue value)
+{
+   union isl_color_value color = { .u32 = {
+      value.uint32[0],
+      value.uint32[1],
+      value.uint32[2],
+      value.uint32[3],
+   } };
+
+   const struct anv_format *format_desc =
+      format != VK_FORMAT_UNDEFINED ? anv_get_format(pdevice, format) : NULL;
+
+   if (format_desc && format_desc->n_planes == 1 &&
+       !isl_swizzle_is_identity(format_desc->planes[0].swizzle)) {
+      const struct anv_format_plane *fmt_plane = &format_desc->planes[0];
+
+      assert(!isl_format_has_int_channel(fmt_plane->isl_format));
+      color = isl_color_value_swizzle(color, fmt_plane->swizzle, true);
+   }
+
+   return color;
+}
+
 VkResult anv_GetSamplerOpaqueCaptureDescriptorDataEXT(
     VkDevice                                    _device,
     const VkSamplerCaptureDescriptorDataInfoEXT* pInfo,
@@ -66,24 +91,9 @@ border_color_load(struct anv_device *device,
       border_color_offset = sampler->custom_border_color_state.offset;
       border_color_ptr = sampler->custom_border_color_state.map;
 
-      union isl_color_value color = { .u32 = {
-         sampler->vk.border_color_value.uint32[0],
-         sampler->vk.border_color_value.uint32[1],
-         sampler->vk.border_color_value.uint32[2],
-         sampler->vk.border_color_value.uint32[3],
-      } };
-
-      const struct anv_format *format_desc =
-         sampler->vk.format != VK_FORMAT_UNDEFINED ?
-         anv_get_format(device->physical, sampler->vk.format) : NULL;
-
-      if (format_desc && format_desc->n_planes == 1 &&
-          !isl_swizzle_is_identity(format_desc->planes[0].swizzle)) {
-         const struct anv_format_plane *fmt_plane = &format_desc->planes[0];
-
-         assert(!isl_format_has_int_channel(fmt_plane->isl_format));
-         color = isl_color_value_swizzle(color, fmt_plane->swizzle, true);
-      }
+      union isl_color_value color =
+         anv_sampler_border_color_value(device->physical, sampler->vk.format,
+                                        sampler->vk.border_color_value);
 
       memcpy(border_color_ptr, color.u32, sizeof(color));
    }
@@ -192,25 +202,9 @@ VkResult anv_RegisterCustomBorderColorEXT(
    *pIndex = anv_state_reserved_array_pool_state_index(
       &device->custom_border_colors, color_state);
 
-   union isl_color_value color = { .u32 = {
-         pBorderColor->customBorderColor.uint32[0],
-         pBorderColor->customBorderColor.uint32[1],
-         pBorderColor->customBorderColor.uint32[2],
-         pBorderColor->customBorderColor.uint32[3],
-      }
-   };
-
-   const struct anv_format *format_desc =
-      pBorderColor->format != VK_FORMAT_UNDEFINED ?
-      anv_get_format(device->physical, pBorderColor->format) : NULL;
-
-   if (format_desc && format_desc->n_planes == 1 &&
-       !isl_swizzle_is_identity(format_desc->planes[0].swizzle)) {
-      const struct anv_format_plane *fmt_plane = &format_desc->planes[0];
-
-      assert(!isl_format_has_int_channel(fmt_plane->isl_format));
-      color = isl_color_value_swizzle(color, fmt_plane->swizzle, true);
-   }
+   union isl_color_value color =
+      anv_sampler_border_color_value(device->physical, pBorderColor->format,
+                                     pBorderColor->customBorderColor);
 
    memcpy(color_state.map, color.u32, sizeof(color));
 

@@ -1396,6 +1396,14 @@ genX(emit_sampler_state)(const struct anv_device *device,
 
       if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350
+         /* Apply the format swizzle when needed */
+         const union isl_color_value border_color =
+            anv_sampler_border_color_value(
+               pdevice,
+               vk_border_color_is_custom(vk_state->border_color) ?
+               vk_state->format : VK_FORMAT_UNDEFINED,
+               vk_state->border_color_value);
+
          struct GENX(SAMPLER_STATE_EXTENDED) sampler_state = {
             .SamplerDisable = false,
 
@@ -1440,10 +1448,10 @@ genX(emit_sampler_state)(const struct anv_device *device,
             vk_state->reduction_mode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
             .YCRCBBorderMode = YCRCBBM_PASSTHROUGH,
 
-            .BorderColorRed = vk_state->border_color_value.float32[0],
-            .BorderColorGreen = vk_state->border_color_value.float32[1],
-            .BorderColorBlue = vk_state->border_color_value.float32[2],
-            .BorderColorAlpha = vk_state->border_color_value.float32[3],
+            .BorderColorRed = border_color.f32[0],
+            .BorderColorGreen = border_color.f32[1],
+            .BorderColorBlue = border_color.f32[2],
+            .BorderColorAlpha = border_color.f32[3],
             /* Bspec 57016 (r77793) HSD 22021085527. Also refer to the names of
              * values and description in the dri option.
              */
