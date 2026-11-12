@@ -2340,7 +2340,13 @@ lower_lsc_memory_fence_and_interlock(const brw_builder &bld, struct brw_send_ins
       send->src[SENDG_SRC_IND_0_DESC] = brw_reg();
       send->src[SENDG_SRC_IND_1_DESC] = brw_reg();
       send->dst = brw_reg();
+      send->size_written = 0;
       send->efficient_64bit = true;
+
+      /* There is no response register for the scheduling fence to wait on.
+       * Wait for the SENDG completion token instead.
+       */
+      bld.after(send).uniform().SYNC(TGL_SYNC_ALLWR);
    } else {
       send->src[SEND_SRC_DESC]     = brw_imm_ud(0);
       send->src[SEND_SRC_EX_DESC]  = brw_imm_ud(0);

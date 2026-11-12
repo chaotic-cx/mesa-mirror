@@ -4442,10 +4442,16 @@ emit_rt_lsc_fence(const brw_builder &bld,
    send->mlen = reg_unit(devinfo); /* g0 header */
    send->ex_mlen = 0;
    /* Temp write for scheduling */
-   send->size_written = REG_SIZE * reg_unit(devinfo);
+   send->size_written = bld.shader->key->use_efficient_64bit ?
+                        0 : REG_SIZE * reg_unit(devinfo);
    send->has_side_effects = true;
 
-   ubld.emit(FS_OPCODE_SCHEDULING_FENCE, ubld.null_reg_ud(), tmp);
+   if (bld.shader->key->use_efficient_64bit) {
+      ubld.SYNC(TGL_SYNC_ALLWR);
+      ubld.emit(FS_OPCODE_SCHEDULING_FENCE);
+   } else {
+      ubld.emit(FS_OPCODE_SCHEDULING_FENCE, ubld.null_reg_ud(), tmp);
+   }
 }
 
 
