@@ -115,6 +115,8 @@ arch=armhf
 
 . .gitlab-ci/container/build-rust.sh build
 
+. .gitlab-ci/container/build-sccache.sh
+
 . .gitlab-ci/container/build-bindgen.sh
 
 apt-get purge -y "${EPHEMERAL[@]}"

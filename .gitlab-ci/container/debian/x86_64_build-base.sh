@@ -103,6 +103,8 @@ pip3 install --break-system-packages "ci-fairy[s3] @ git+https://gitlab.freedesk
 
 . .gitlab-ci/container/build-rust.sh build
 
+. .gitlab-ci/container/build-sccache.sh
+
 ############### Uninstall ephemeral packages
 
 apt-get purge -y "${EPHEMERAL[@]}"

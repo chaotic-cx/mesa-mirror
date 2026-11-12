@@ -19,7 +19,7 @@ include:
   - .gitlab-ci/conditional-build-image-tags.yml
 
 variables:
-  DEBIAN_BUILD_BASE_TAG: "20261028-meson192"
+  DEBIAN_BUILD_BASE_TAG: "20261111-sccache"
   DEBIAN_BUILD_TAG: "20260923-rust-cross"
 
   DEBIAN_TEST_BASE_TAG: "20261109-weston-race"
@@ -28,9 +28,9 @@ variables:
   DEBIAN_TEST_VIDEO_TAG: "20261103-fluster08"
   DEBIAN_TEST_VK_TAG: "20261113-vkd3d"
 
-  ALPINE_X86_64_BUILD_TAG: "20261112-wp150"
+  ALPINE_X86_64_BUILD_TAG: "20261115-sccache"
 
-  FEDORA_X86_64_BUILD_TAG: "20261112-wp150"
+  FEDORA_X86_64_BUILD_TAG: "20261115-sccache"
 
   KERNEL_TAG: "v7.1-mesa-cb36"
   KERNEL_REPO: "gfx-ci/linux"

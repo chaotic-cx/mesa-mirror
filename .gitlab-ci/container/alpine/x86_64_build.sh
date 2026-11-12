@@ -71,6 +71,8 @@ pip3 install --break-system-packages sphinx===8.2.3 hawkmoth===0.19.0
 
 . .gitlab-ci/container/build-rust.sh build
 
+. .gitlab-ci/container/build-sccache.sh
+
 . .gitlab-ci/container/build-libdrm.sh
 
 EXTRA_MESON_ARGS='--prefix=/usr' \
