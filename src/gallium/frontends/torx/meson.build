@@ -26,5 +26,8 @@ libtorx_st = static_library(
   [libtorx_files, sha1_h],
   gnu_symbol_visibility : 'hidden',
   include_directories : [ inc_include, inc_src, inc_util, inc_gallium, inc_gallium_aux ],
-  dependencies : [ dep_executorch.partial_dependency(compile_args: true, includes: true) ],
+  dependencies : [
+    idep_mesautilformat,
+    dep_executorch.partial_dependency(compile_args: true, includes: true),
+  ],
 )
