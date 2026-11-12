@@ -6315,32 +6315,17 @@ VkResult ResourceTracker::on_vkCreateSemaphore(void* context, VkResult input_res
     info.isTimeline = typeCi && (typeCi->semaphoreType == VK_SEMAPHORE_TYPE_TIMELINE);
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
-    if (exportSyncFd) {
-        if (mFeatureInfo.hasVirtioGpuNativeSync &&
-            !(mCaps.params[kParamFencePassing] && mCaps.vulkanCapset.externalSync)) {
-            VkResult result;
-            int64_t osHandle;
-            uint64_t hostFenceHandle = gfxstream_vk_semaphore_to_host_u64(*pSemaphore);
-
-            result = createFence(device, hostFenceHandle, osHandle);
-            if (result != VK_SUCCESS) return result;
-
-            info.syncFd.emplace(osHandle);
-        } else {
+    if (exportSyncFd && !mFeatureInfo.hasVirtioGpuNativeSync) {
 #if GFXSTREAM_ENABLE_GUEST_GOLDFISH
-            ensureSyncDeviceFd();
+        ensureSyncDeviceFd();
 
-            if (exportSyncFd) {
-                int syncFd = -1;
-                goldfish_sync_queue_work(
-                    mSyncDeviceFd, gfxstream_vk_semaphore_to_host_u64(*pSemaphore) /* the handle */,
-                    GOLDFISH_SYNC_VULKAN_SEMAPHORE_SYNC /* thread handle (doubling as type field) */
-                    ,
-                    &syncFd);
-                info.syncFd.emplace(syncFd);
-            }
+        int syncFd = -1;
+        goldfish_sync_queue_work(
+            mSyncDeviceFd, gfxstream_vk_semaphore_to_host_u64(*pSemaphore) /* the handle */,
+            GOLDFISH_SYNC_VULKAN_SEMAPHORE_SYNC /* thread handle (doubling as type field) */,
+            &syncFd);
+        info.syncFd.emplace(syncFd);
 #endif
-        }
     }
 #endif
 
@@ -6379,6 +6364,25 @@ VkResult ResourceTracker::on_vkGetSemaphoreFdKHR(void* context, VkResult, VkDevi
             result = acquireSync(syncId, osHandle);
             if (result != VK_SUCCESS) {
                 mesa_loge("unable to create host sync object");
+                return result;
+            }
+
+            *pFd = (int)osHandle;
+            return VK_SUCCESS;
+        } else if (mFeatureInfo.hasVirtioGpuNativeSync) {
+            uint64_t syncId = ++mAtomicId;
+            int64_t osHandle = -1;
+
+            VkResult result = enc->vkGetSemaphoreGOOGLE(device, pGetFdInfo->semaphore, syncId,
+                                                        true /* do lock */);
+            if (result != VK_SUCCESS) {
+                mesa_loge("unable to get the semaphore");
+                return result;
+            }
+
+            result = createFence(device, syncId, osHandle);
+            if (result != VK_SUCCESS) {
+                mesa_loge("Failed to export sync handle for semaphore!");
                 return result;
             }
 
