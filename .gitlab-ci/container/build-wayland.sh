@@ -11,7 +11,7 @@ section_start wayland "Building Wayland"
 # FEDORA_X86_64_BUILD_TAG
 
 export LIBWAYLAND_VERSION="1.25.0"
-export WAYLAND_PROTOCOLS_VERSION="1.49"
+export WAYLAND_PROTOCOLS_VERSION="1.50"
 
 git clone https://gitlab.freedesktop.org/wayland/wayland
 cd wayland
