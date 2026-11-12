@@ -28,7 +28,7 @@
 #endif
 
 #ifndef AMDGPU_VA_RANGE_HIGH
-#define AMDGPU_VA_RANGE_HIGH	0x2
+#define AMDGPU_VA_RANGE_HIGH   0x2
 #endif
 
 /* Set to 1 for verbose output showing committed sparse buffer ranges. */
@@ -394,7 +394,7 @@ void *amdgpu_bo_map(struct radeon_winsys *rws,
             if (acs && amdgpu_bo_is_referenced_by_cs_with_usage(acs, bo,
                                                                 RADEON_USAGE_WRITE)) {
                acs->flush_cs(acs->flush_data,
-			    RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
+                             RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
                return NULL;
             }
 
@@ -405,7 +405,7 @@ void *amdgpu_bo_map(struct radeon_winsys *rws,
          } else {
             if (acs && amdgpu_bo_is_referenced_by_cs(acs, bo)) {
                acs->flush_cs(acs->flush_data,
-			    RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
+                             RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
                return NULL;
             }
 
@@ -429,7 +429,7 @@ void *amdgpu_bo_map(struct radeon_winsys *rws,
                if (amdgpu_bo_is_referenced_by_cs_with_usage(acs, bo,
                                                             RADEON_USAGE_WRITE)) {
                   acs->flush_cs(acs->flush_data,
-			       RADEON_FLUSH_START_NEXT_GFX_IB_NOW, NULL);
+                                RADEON_FLUSH_START_NEXT_GFX_IB_NOW, NULL);
                } else {
                   /* Try to avoid busy-waiting in amdgpu_bo_wait. */
                   if (p_atomic_read(&bo->num_active_ioctls))
@@ -444,7 +444,7 @@ void *amdgpu_bo_map(struct radeon_winsys *rws,
             if (acs) {
                if (amdgpu_bo_is_referenced_by_cs(acs, bo)) {
                   acs->flush_cs(acs->flush_data,
-			       RADEON_FLUSH_START_NEXT_GFX_IB_NOW, NULL);
+                                RADEON_FLUSH_START_NEXT_GFX_IB_NOW, NULL);
                } else {
                   /* Try to avoid busy-waiting in amdgpu_bo_wait. */
                   if (p_atomic_read(&bo->num_active_ioctls))
@@ -1814,8 +1814,8 @@ static bool amdgpu_bo_get_handle(struct radeon_winsys *rws,
 }
 
 static struct pb_buffer_lean *amdgpu_bo_from_ptr(struct radeon_winsys *rws,
-					    void *pointer, uint64_t size,
-					    enum radeon_bo_flag flags)
+                                                 void *pointer, uint64_t size,
+                                                 enum radeon_bo_flag flags)
 {
     struct amdgpu_winsys *aws = amdgpu_winsys(rws);
     ac_drm_bo buf_handle;
