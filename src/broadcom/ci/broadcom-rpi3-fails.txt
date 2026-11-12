@@ -1275,9 +1275,6 @@ spec@arb_framebuffer_srgb@blit texture srgb_to_linear upsample enabled clear,Fai
 spec@arb_framebuffer_srgb@blit texture srgb_to_linear upsample enabled render,Fail
 
 spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail

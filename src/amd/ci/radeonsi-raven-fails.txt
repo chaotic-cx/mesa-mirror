@@ -2,9 +2,6 @@ glx@glx-make-current,Fail
 glx@glx-multi-window-single-context,Fail
 glx@glx-swap-event_async,Fail
 glx@glx-swap-pixmap-bad,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
 spec@!opengl 3.2@gl-3.2-adj-prims cull-back pv-last,Fail
 spec@!opengl 3.2@gl-3.2-adj-prims cull-front pv-last,Fail
 spec@!opengl 3.2@gl-3.2-adj-prims line cull-back pv-last,Fail
@@ -48,8 +45,6 @@ program@execute@vector-conversion,Fail
 program@run kernel with max work item sizes,Fail
 
 # uprev Piglit in Mesa
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_external_objects@vk-semaphores,Crash
 spec@ext_external_objects@vk-semaphores-2,Crash

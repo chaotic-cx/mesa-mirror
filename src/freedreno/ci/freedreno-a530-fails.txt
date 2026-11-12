@@ -108,9 +108,6 @@ spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb@sRGB decode,Fail
 spec@arb_shader_image_load_store@invalid,Crash
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@arb_shader_image_load_store@qualifiers,Fail
 spec@arb_shader_image_load_store@qualifiers@r11f_g11f_b10f/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
 spec@arb_shader_image_load_store@qualifiers@r11f_g11f_b10f/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail

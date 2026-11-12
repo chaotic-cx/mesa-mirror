@@ -8,9 +8,6 @@ glx@glx_arb_sync_control@waitformsc,Fail
 shaders@glsl-max-varyings >max_varying_components,Fail
 shaders@glsl-uniform-interstage-limits@subdivide 5,Fail
 shaders@glsl-uniform-interstage-limits@subdivide 5- statechanges,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
 spec@!opengl 1.1@copyteximage 1d,Fail
 spec@!opengl 1.1@copyteximage 2d,Fail
 spec@!opengl 1.1@line-smooth-coverage,Fail
@@ -1087,6 +1084,4 @@ spec@glsl-1.50@execution@geometry@primitive-types gl_lines_adjacency,Fail
 spec@glsl-1.50@execution@geometry@primitive-types gl_points,Fail
 spec@glsl-1.50@execution@interface-vs-named-to-gs-array,Fail
 spec@glsl-1.50@execution@primitive-id-no-gs-line,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 

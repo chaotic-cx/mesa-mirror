@@ -671,9 +671,6 @@ spec@arb_texture_cube_map@copyteximage cube samples=6,Fail
 spec@arb_texture_rectangle@copyteximage rect samples=2,Fail
 spec@arb_texture_rectangle@copyteximage rect samples=4,Fail
 spec@arb_texture_rectangle@copyteximage rect samples=6,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 
 glx@glx-make-current,Fail
 glx@glx-multi-window-single-context,Fail

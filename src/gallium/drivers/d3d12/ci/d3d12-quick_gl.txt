@@ -11,9 +11,6 @@ spec@arb_internalformat_query2@max dimensions related pname checks@GL_MAX_WIDTH,
 spec@!opengl 1.0@gl-1.0-beginend-coverage,Fail
 spec@!opengl 1.0@gl-1.0-beginend-coverage@glFlush,Fail
 spec@!opengl 1.0@gl-1.0-blend-func,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
 spec@!opengl 1.1@line-smooth-coverage,Fail
 spec@!opengl 1.1@line-smooth-stipple,Fail
 spec@!opengl 1.1@linestipple,Fail

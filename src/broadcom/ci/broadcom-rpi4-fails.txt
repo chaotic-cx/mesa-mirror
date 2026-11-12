@@ -384,9 +384,6 @@ TransferPixelsTest,Fail
 KHR-GLES31.core.geometry_shader.layered_fbo.fb_texture_invalid_level_number,Fail
 
 # uprev Piglit in Mesa
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-export-tex,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail

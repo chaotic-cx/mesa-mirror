@@ -157,7 +157,8 @@ bool lower_packed_varying_needs_lowering(nir_shader *shader, nir_variable *var,
 
 void
 gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
-                               struct gl_shader_program *prog, bool spirv);
+                               struct gl_shader_program *prog, bool spirv,
+                               bool keep_raster_pos_vs);
 
 #ifdef __cplusplus
 } /* extern "C" */

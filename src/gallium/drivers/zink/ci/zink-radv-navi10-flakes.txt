@@ -20,9 +20,6 @@ dEQP-GLES31.functional.texture.filtering.cube_array.sizes.8x8x6_linear_mipmap_ne
 dEQP-GLES31.functional.texture.gather.basic.cube.rgba8i.no_corners.size_pot.mirrored_repeat_clamp_to_edge
 glx@glx-make-current
 glx@glx-multithread-texture
-spec@!opengl 1.0@rasterpos
-spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked
-spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked
 spec@arb_fragment_shader_interlock@arb_fragment_shader_interlock-image-load-store
 spec@arb_tessellation_shader@arb_tessellation_shader-tes-gs-max-output -small -scan 1 50
 spec@arb_texture_multisample@texelfetch fs sampler2dms 4 1x71-501x71

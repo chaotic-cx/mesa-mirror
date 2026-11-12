@@ -998,9 +998,6 @@ spec@nv_primitive_restart@primitive-restart-draw-mode-quads,Fail
 # uprev Piglit in Mesa
 spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
 spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_texture_cube_map@copyteximage cube,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail

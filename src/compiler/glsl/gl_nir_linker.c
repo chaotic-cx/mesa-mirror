@@ -1571,14 +1571,85 @@ optimize_varyings_opts(nir_shader *nir, void *data)
    gl_nir_opts(nir);
 }
 
+/* Gather the built-in output slots written by the shader, as a mask of slots
+ * for each component.
+ */
+static void
+gather_builtin_output_slots(nir_shader *nir, uint32_t slots[4])
+{
+   memset(slots, 0, 4 * sizeof(slots[0]));
+
+   nir_foreach_function_impl(impl, nir) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr(instr, block) {
+            if (instr->type != nir_instr_type_intrinsic)
+               continue;
+
+            nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+            if (intr->intrinsic != nir_intrinsic_store_output)
+               continue;
+
+            nir_io_semantics sem = nir_intrinsic_io_semantics(intr);
+            unsigned mask = nir_intrinsic_write_mask(intr) <<
+                            nir_intrinsic_component(intr);
+            nir_src *offset = nir_get_io_offset_src(intr);
+            unsigned first = sem.location, num_slots = sem.num_slots;
+
+            if (nir_src_is_const(*offset)) {
+               first += nir_src_as_uint(*offset);
+               num_slots = 1;
+            }
+
+            if (first >= VARYING_SLOT_VAR0)
+               continue;
+
+            assert(first + num_slots <= VARYING_SLOT_VAR0);
+            uint32_t slot_mask = BITFIELD_RANGE(first, num_slots);
+            u_foreach_bit(c, mask)
+               slots[c] |= slot_mask;
+         }
+      }
+   }
+}
+
+/* The raster position and feedback/select modes only run the vertex shader
+ * (section 14.7 "Current Raster Position" of the compatibility profile spec),
+ * but varying optimizations remove vertex shader outputs that the next stage
+ * doesn't read and propagate constant outputs into the next stage. Return
+ * whether any built-in output that they need was removed. User-defined
+ * outputs aren't saved in the raster position.
+ *
+ * This can't tell whether the outputs were moved to other slots or
+ * components, which nir_opt_varyings reports.
+ */
+static bool
+raster_pos_outputs_removed(nir_shader *before, nir_shader *after)
+{
+   uint32_t slots_before[4], slots_after[4];
+
+   gather_builtin_output_slots(before, slots_before);
+   gather_builtin_output_slots(after, slots_after);
+
+   for (unsigned c = 0; c < 4; c++) {
+      if (slots_before[c] & ~slots_after[c])
+         return true;
+   }
+   return false;
+}
+
 /**
  * Lower load_deref and store_deref on input/output variables to load_input
  * and store_output intrinsics, and perform varying optimizations and
  * compaction.
+ *
+ * If keep_raster_pos_vs is set and the optimizations remove or move vertex
+ * shader outputs, a copy of the vertex shader from before the optimizations
+ * is kept in gl_program::raster_pos_nir.
  */
 void
 gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
-                               struct gl_shader_program *prog, bool spirv)
+                               struct gl_shader_program *prog, bool spirv,
+                               bool keep_raster_pos_vs)
 {
    nir_shader *shaders[MESA_SHADER_MESH_STAGES];
    unsigned num_shaders = 0;
@@ -1621,8 +1692,33 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
    if (debug_get_bool_option("MESA_GLSL_DISABLE_IO_OPT", false))
       return;
 
+   /* The vertex shader can only lose outputs if there is a next stage. */
+   struct gl_linked_shader *vs = prog->_LinkedShaders[MESA_SHADER_VERTEX];
+   nir_shader *raster_pos_nir = NULL;
+
+   if (keep_raster_pos_vs && vs && num_shaders > 1) {
+      assert(shaders[0] == vs->Program->nir);
+      raster_pos_nir = nir_shader_clone(NULL, vs->Program->nir);
+   }
+
+   nir_opt_varyings_progress progress[MESA_SHADER_MESH_STAGES] = {0};
+
    nir_opt_varyings_bulk(shaders, num_shaders, spirv, max_uniform_comps,
-                         max_ubos, optimize_varyings_opts, NULL, NULL);
+                         max_ubos, optimize_varyings_opts, NULL, progress);
+
+   if (raster_pos_nir) {
+      /* Compaction can move the components of an output around, such as
+       * sorting the components of a color by how they are interpolated,
+       * without removing any of them.
+       */
+      if ((progress[0] & nir_progress_producer_builtin_outputs_moved) ||
+          raster_pos_outputs_removed(raster_pos_nir, vs->Program->nir)) {
+         ralloc_free(vs->Program->raster_pos_nir);
+         vs->Program->raster_pos_nir = raster_pos_nir;
+      } else {
+         ralloc_free(raster_pos_nir);
+      }
+   }
 }
 
 bool
@@ -1650,7 +1746,7 @@ gl_nir_link_spirv(const struct pipe_screen *screen,
    if (!prelink_lowering(screen, consts, exts, prog, linked_shader, num_shaders))
       return false;
 
-   gl_nir_lower_optimize_varyings(consts, prog, true);
+   gl_nir_lower_optimize_varyings(consts, prog, true, false);
 
    for (unsigned i = 0; i < MESA_SHADER_MESH_STAGES; i++) {
       struct gl_linked_shader *shader = prog->_LinkedShaders[i];

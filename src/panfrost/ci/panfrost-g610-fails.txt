@@ -286,9 +286,6 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-export-tex,Fail
 spec@ext_multisampled_render_to_texture2@mrt,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
 spec@arb_shader_image_load_store@invalid,Crash
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1D/rgba32f,Fail
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1DArray/rgba32f,Fail
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r11f_g11f_b10f,Fail

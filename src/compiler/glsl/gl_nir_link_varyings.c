@@ -4305,7 +4305,8 @@ link_varyings(const struct pipe_screen *screen,
    }
 
    /* Lower IO and thoroughly optimize and compact varyings. */
-   gl_nir_lower_optimize_varyings(consts, prog, false);
+   gl_nir_lower_optimize_varyings(consts, prog, false,
+                                  api == API_OPENGL_COMPAT);
 
    /* Report linker errors if shaders use too many inputs/outputs. This should
     * be done after all dead varyings are eliminated and all other varyings are
@@ -4473,7 +4474,7 @@ link_mesh_pipeline_varyings(const struct pipe_screen *screen,
 
    assert(prog->data->LinkStatus != LINKING_FAILURE);
 
-   gl_nir_lower_optimize_varyings(consts, prog, false);
+   gl_nir_lower_optimize_varyings(consts, prog, false, false);
 
    /* Check IO limits after linkage. */
    if (prog->_LinkedShaders[MESA_SHADER_FRAGMENT]) {

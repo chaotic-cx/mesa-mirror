@@ -1,6 +1,5 @@
 glx@glx-make-current
 glx@glx-multithread-texture
-spec@!opengl 1.0@rasterpos
 spec@!opengl 1.1@depthstencil-default_fb-blit samples=4
 spec@!opengl 1.1@depthstencil-default_fb-copypixels samples=6
 spec@arb_fragment_shader_interlock@arb_fragment_shader_interlock-image-load-store

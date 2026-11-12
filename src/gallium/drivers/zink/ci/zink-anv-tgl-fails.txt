@@ -39,11 +39,6 @@ spec@!opengl 1.1@polygon-mode-offset@config 6: Expected blue pixel in center,Fai
 spec@!opengl 1.1@polygon-mode-offset@config 6: Expected white pixel on right edge,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 6: Expected white pixel on top edge,Fail
 
-# Frontend issue across multiple drivers.
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
-
 # polygon-mode: glPolygonMode(front=GL_LINE, back=GL_FILL), glCullMode(GL_NONE/GL_FALSE/GL_NO_ERROR) failed
 # At position 0, found prim GL_FILL instead of GL_LINE
 # polygon-mode: glPolygonMode(front=GL_POINT, back=GL_FILL), glCullMode(GL_NONE/GL_FALSE/GL_NO_ERROR) failed
@@ -151,8 +146,6 @@ glx@glx-multi-window-single-context,Fail
 # uprev Piglit in Mesa
 spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
 spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.2@tex3d-over-1gb,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_shader_storage_buffer_object@max-ssbo-size@fs,Crash

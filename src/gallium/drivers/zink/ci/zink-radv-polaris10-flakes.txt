@@ -10,7 +10,6 @@ dEQP-GLES31.functional.texture.specification.teximage3d_depth.depth24_stencil8_c
 dEQP-GLES31.functional.texture.specification.teximage3d_depth.depth32f_stencil8_cube_array
 glx@glx-make-current
 glx@glx-multithread-texture
-spec@!opengl 1.0@rasterpos
 spec@!opengl 1.1@getteximage-depth@GL_TEXTURE_1D-GL_DEPTH_COMPONENT32
 spec@!opengl 1.2@tex3d-maxsize
 spec@arb_query_buffer_object@qbo@query-GL_GEOMETRY_SHADER_INVOCATIONS-ASYNC-GL_INT

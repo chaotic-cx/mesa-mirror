@@ -4,11 +4,6 @@ glx@glx-multi-window-single-context,Fail
 
 glx@glx-swap-pixmap-bad,Fail
 
-spec@!opengl 1.0@rasterpos,Fail
-
-spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
-
 # Fail: nothing rendered.
 spec@!opengl 2.0@vs-point_size-zero,Fail
 
@@ -74,8 +69,6 @@ spec@!opengl 1.1@line-smooth-stipple,Fail
 
 # Uprev Piglit in Mesa
 glx@glx-multithread-buffer-busy-tracking-bug,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.1@large-tex,Fail
 spec@!opengl 1.1@large-tex@test_image_load_store,Fail
 spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash

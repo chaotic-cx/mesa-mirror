@@ -292,9 +292,6 @@ spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageCube
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageCubeArray/rgba32f,Fail
 spec@arb_shader_image_load_store@layer,Fail
 spec@arb_shader_image_load_store@layer@image2DMSArray/non-layered binding test,Fail
-spec@!opengl 1.0@rasterpos,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
-spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@arb_shader_image_size@builtin,Fail
 spec@arb_shader_image_size@builtin@rgba16f/Fragment/imageCubeArray size test/16x16x6x1,Fail
 spec@arb_shader_image_size@builtin@rgba16i/Fragment/imageCubeArray size test/16x16x6x1,Fail
