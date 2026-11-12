@@ -337,6 +337,7 @@ struct anv_vdenc_pipe_buf {
    struct anv_address pak_obj;
    struct anv_address tile_row_store;
    struct anv_address cu_count;
+   uint32_t ipdl_cache_offset;
 };
 
 static void
@@ -457,8 +458,11 @@ anv_vdenc_emit_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
 #endif
 
 #if GFX_VERx10 == 125
+      vdenc_buf.IntraPredictionRowStoreBuffer.Address =
+         (struct anv_address) { NULL, p->ipdl_cache_offset };
       vdenc_buf.IntraPredictionRowStoreBuffer.PictureFields =
-         ANV_VID_PIC(cmd->device, NULL);
+         ANV_VID_PIC(cmd->device, NULL,
+                     .CacheSelect = p->ipdl_cache_offset != 0);
       vdenc_buf.ColocatedMVAVCWriteBuffer.Address = p->col_mv_avc_write;
       vdenc_buf.ColocatedMVAVCWriteBuffer.PictureFields =
          ANV_VID_PIC(cmd->device, p->col_mv_avc_write.bo);
@@ -682,10 +686,18 @@ anv_h264_emit_mfx_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
       buf.StreamOutDataDestinationAttributes =
          ANV_VID_ATTR(cmd->device, buf.StreamOutDataDestinationAddress.bo);
 
+#if GFX_VERx10 == 125
+      buf.IntraRowStoreScratchBufferAddress =
+         (struct anv_address) { NULL, ANV_H264_ROWSTORE_IPDL_OFFSET };
+      buf.IntraRowStoreScratchBufferAttributes =
+         ANV_VID_ATTR(cmd->device, NULL,
+                      .RowStoreScratchBufferCacheSelect = 1);
+#else
       buf.IntraRowStoreScratchBufferAddress =
          ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_H264_INTRA_ROW_STORE);
       buf.IntraRowStoreScratchBufferAttributes =
          ANV_VID_ATTR(cmd->device, buf.IntraRowStoreScratchBufferAddress.bo);
+#endif
 
       buf.DeblockingFilterRowStoreScratchAddress =
          ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_H264_DEBLOCK_FILTER_ROW_STORE);
@@ -911,6 +923,7 @@ anv_h264_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
          anv_image_dmv_top_address(base_ref_iv, base_ref_array_layer);
 
    buf.scaled_8x = anv_image_ds_4x_address(base_ref_iv, base_ref_array_layer);
+   buf.ipdl_cache_offset = ANV_H264_ROWSTORE_IPDL_OFFSET;
 #endif
 
    anv_vdenc_emit_pipe_buf_addr_state(cmd, &buf);
