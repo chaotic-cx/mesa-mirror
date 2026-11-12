@@ -658,7 +658,7 @@ radv_dump_queue_state(struct radv_queue *queue, const char *dump_dir, const char
                found = true;
             }
 
-            struct radv_shader *shader = radv_find_shader(device, waves[0].pc);
+            struct radv_shader *shader = radv_find_shader(device, waves[i].pc);
             if (shader) {
                radv_dump_annotated_shader(device, shader, shader->info.stage, waves, num_waves, f);
                if (waves[i].matched)
