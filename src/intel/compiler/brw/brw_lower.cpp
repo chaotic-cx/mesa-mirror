@@ -1077,7 +1077,8 @@ brw_lower_indirect_mov(brw_shader &s)
          /* Check if offset is odd or even so that we can choose either high or
           * low byte from the result.
           */
-         brw_reg is_odd = ibld.AND(offset, brw_imm_ud(1));
+         brw_reg is_odd =
+            ibld.AND(subscript(offset, BRW_TYPE_UW, 0), brw_imm_uw(1));
 
          /* Make sure offset is word (2-bytes) aligned */
          offset = ibld.AND(offset, brw_imm_uw(~1));
