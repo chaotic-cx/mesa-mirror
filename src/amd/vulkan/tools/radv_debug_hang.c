@@ -233,10 +233,15 @@ radv_finish_trace(struct radv_device *device)
 }
 
 static void
-radv_dump_trace(const struct radv_device *device, struct ac_cmdbuf *cs, FILE *f)
+radv_dump_trace(const struct radv_device *device, const struct radv_winsys_submit_info *submit_info, FILE *f)
 {
    fprintf(f, "Trace ID: %x\n", device->trace_data->primary_id);
-   device->ws->cs_dump(cs, f, (const int *)&device->trace_data->primary_id, 2, RADV_CS_DUMP_TYPE_MAIN_IBS);
+
+   assert(submit_info->cs_count <= 2);
+   for (uint32_t i = 0; i < submit_info->cs_count; i++) {
+      device->ws->cs_dump(submit_info->cs_array[i], f, (const int *)&device->trace_data->primary_id, 2,
+                          RADV_CS_DUMP_TYPE_MAIN_IBS);
+   }
 }
 
 static void
@@ -942,7 +947,7 @@ radv_check_gpu_hangs(struct radv_queue *queue, const struct radv_winsys_submit_i
 
       switch (i) {
       case RADV_DEVICE_FAULT_CHUNK_TRACE:
-         radv_dump_trace(device, submit_info->cs_array[0], f);
+         radv_dump_trace(device, submit_info, f);
          break;
       case RADV_DEVICE_FAULT_CHUNK_QUEUE_STATE:
          radv_dump_queue_state(queue, dump_dir, wave_dump, f);
