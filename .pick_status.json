@@ -644,7 +644,7 @@
         "description": "intel/compiler: Handle load_barycentric_at_sample in lower_msaa_config",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "79fa3eba11c640c3d1c9326fd85ba6a138638da1",
         "notes": null
