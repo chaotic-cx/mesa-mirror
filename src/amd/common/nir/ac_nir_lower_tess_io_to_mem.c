@@ -329,7 +329,9 @@ lower_ls_output_store(nir_builder *b,
     * So writes to those outputs in VS-as-LS are simply ignored.
     */
    const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
-   if (io_sem.location == VARYING_SLOT_LAYER || io_sem.location == VARYING_SLOT_VIEWPORT) {
+   if (io_sem.location == VARYING_SLOT_LAYER ||
+       io_sem.location == VARYING_SLOT_VIEWPORT ||
+       io_sem.location == VARYING_SLOT_PRIMITIVE_SHADING_RATE) {
       nir_instr_remove(&intrin->instr);
       return true;
    }
