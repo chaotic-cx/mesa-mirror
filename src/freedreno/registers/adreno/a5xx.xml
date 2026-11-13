@@ -1407,6 +1407,7 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<reg32 offset="0x0512" name="RBBM_CFG_DBGBUS_MISR0"/>
 	<reg32 offset="0x0513" name="RBBM_CFG_DBGBUS_MISR1"/>
 	<reg32 offset="0x0533" name="RBBM_ISDB_CNT"/>
+	<reg64 offset="0x054e" name="RBBM_PIPESTAT_CINVOCATIONS"/>
 	<reg32 offset="0xf000" name="RBBM_SECVID_TRUST_CONFIG"/>
 	<reg32 offset="0xf400" name="RBBM_SECVID_TRUST_CNTL"/>
 	<reg32 offset="0xf800" name="RBBM_SECVID_TSB_TRUSTED_BASE_LO"/>
