@@ -275,7 +275,7 @@ static const struct msm_device_info device_infos[] = {
    },
    {
       .gpu_id = 540,
-      .chip_id = CHIPID(5, 4, 0, 2),
+      .chip_id = CHIPID(5, 4, 0, 1),
       .gmem_size = 1024 * 1024,
    },
    {

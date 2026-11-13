@@ -204,7 +204,7 @@
         "description": "freedreno/drm-shim: report the a540's chip id as 0x05040001",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c1e7c1f4224789f0bc4cc847cecde350e2c6d2f2",
         "notes": null
