@@ -4121,7 +4121,7 @@ jay_emit_eot(struct nir_to_jay_state *nj)
             /* There's no flag register being initialized to predicate the
              * instruction, we have to prepare one ourselves.
              */
-            pred = jay_alloc_def(b, FLAG, 32, 1);
+            pred = jay_alloc_def(b, FLAG, jay_flag_bits(b->func), 1);
             jay_MOV(b, pred, 0);
          }
 
