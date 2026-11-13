@@ -98,6 +98,7 @@ static const struct jay_latency_table xe2_latency = {
 
 static const struct jay_latency_table xe3_latency = {
    .parent = &general_latency,
+   .sampler_l3 = 550,
 };
 
 static const struct jay_latency_table *
