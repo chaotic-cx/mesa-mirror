@@ -2032,6 +2032,8 @@ RadeonSI driver environment variables
       Flush all caches at the beginning of IBs.
    ``bo_history``
       Logs BO VA operations and CS flushes.
+   ``bo_all``
+      Always add all BOs to CS. Useful to debug VM FAULT issues.
 
 r600 driver environment variables
 ---------------------------------

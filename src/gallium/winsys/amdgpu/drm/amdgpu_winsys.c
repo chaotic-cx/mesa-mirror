@@ -36,10 +36,6 @@ char amdgpu_userq_str[AMDGPU_MAX_QUEUES][8] = {
 static struct hash_table *dev_tab = NULL;
 static simple_mtx_t dev_tab_mutex = SIMPLE_MTX_INITIALIZER;
 
-#if MESA_DEBUG
-DEBUG_GET_ONCE_BOOL_OPTION(all_bos, "RADEON_ALL_BOS", false)
-#endif
-
 /* Helper function to do the ioctls needed for setup and init. */
 static bool do_winsys_init(struct amdgpu_winsys *aws,
                            const struct amdgpu_winsys_options *options,
@@ -59,7 +55,7 @@ static bool do_winsys_init(struct amdgpu_winsys *aws,
    aws->check_vm = options->check_vm;
    aws->noop_cs = options->noop_cs;
 #if MESA_DEBUG
-   aws->debug_all_bos = debug_get_option_all_bos();
+   aws->debug_all_bos = options->list_all_bo;
 #endif
    aws->reserve_vmid = options->reserve_vmid;
    aws->userq_job_log = options->userq_job_log;

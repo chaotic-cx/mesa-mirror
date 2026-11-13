@@ -1998,7 +1998,7 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
 
 #if MESA_DEBUG
    /* Prepare the buffer list. */
-   if (aws->debug_all_bos) {
+   if (unlikely(aws->debug_all_bos)) {
       /* The buffer list contains all buffers. This is a slow path that
        * ensures that no buffer is missing in the BO list.
        */

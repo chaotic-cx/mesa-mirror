@@ -138,6 +138,7 @@ enum
    DBG_NO_DMA_SHADERS,
    DBG_IB_CACHES_FLUSH,
    DBG_BO_HISTORY,
+   DBG_BO_LIST_ALL,
 
    /* 3D engine options: */
    DBG_NO_NGG,

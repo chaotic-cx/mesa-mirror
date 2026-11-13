@@ -48,6 +48,7 @@ static const struct debug_named_value radeonsi_debug_options[] = {
    {"nodmashaders", DBG(NO_DMA_SHADERS), "Disable uploading shaders via CP DMA and map them directly."},
    {"ibcachesflush", DBG(IB_CACHES_FLUSH), "Flush all caches at the beginning of IBs."},
    {"bo_history", DBG(BO_HISTORY), "Logs BO VA operations and CS flushes."},
+   {"bo_all", DBG(BO_LIST_ALL), "Always add all BOs to CS."},
 
    /* 3D engine options: */
    {"nongg", DBG(NO_NGG), "Disable NGG and use the legacy pipeline."},
@@ -322,6 +323,7 @@ struct pipe_screen *radeonsi_screen_create(int fd, const struct pipe_screen_conf
       .noop_cs = debug_get_bool_option("RADEON_NOOP", false),
       .ib_caches_flush = debug_flags & DBG(IB_CACHES_FLUSH),
       .dump_bo_history = debug_flags & DBG(BO_HISTORY),
+      .list_all_bo = debug_flags & DBG(BO_LIST_ALL),
    };
 
 #ifdef HAVE_AMDGPU_VIRTIO
