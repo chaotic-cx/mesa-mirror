@@ -1,5 +1,5 @@
 [wrap-file]
-directory = npu-model-zoo-20261111-teflon-models
-source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261111-teflon-models/npu-model-zoo-20261111-teflon-models.tar.gz
-source_filename = npu-model-zoo-20261111-teflon-models.tar.gz
-source_hash = 9e0bf77e7cf0d5a7ac0947eb0b69e49f6ed73143d0edf953d56c63b526e7cd0c
+directory = npu-model-zoo-20261113-resnet-18
+source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261113-resnet-18/npu-model-zoo-20261113-resnet-18.tar.gz
+source_filename = npu-model-zoo-20261113-resnet-18.tar.gz
+source_hash = ee39c9a31024a4a45f0f79dd2cf69dcf3d3e21cf7d6fe993b23eef41460796b3
