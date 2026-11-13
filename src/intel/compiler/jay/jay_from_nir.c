@@ -1576,8 +1576,9 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    /* Without transpose we write at GRF granularity. Pad out. */
    if (dst.file == UGPR && !transpose) {
-      tmp = jay_alloc_def(b, UGPR, 32,
-                          jay_num_values(dst) * jay_ugpr_per_grf(b->shader));
+      unsigned nr = jay_num_values(dst);
+      unsigned stride = jay_ugpr_per_grf(b->shader);
+      tmp = jay_alloc_def(b, UGPR, 32, ((nr - 1) * stride) + 1);
    }
 
    jay_def srcs[] = { offset, data };
