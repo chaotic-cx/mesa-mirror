@@ -545,10 +545,7 @@ etna_screen_is_format_supported(struct pipe_screen *pscreen,
    }
 
    if (usage & PIPE_BIND_SAMPLER_VIEW) {
-      uint32_t fmt = ETNA_NO_MATCH;
-
-      if (gpu_supports_texture_format(screen, format))
-         fmt = translate_texture_format(format, screen);
+      bool supported = gpu_supports_texture_format(screen, format);
 
       /* lower_txf_ms_dynamic(..) always fetches four samples, so 4x is the
        * only multisample layout that can be sampled.
@@ -556,9 +553,9 @@ etna_screen_is_format_supported(struct pipe_screen *pscreen,
       if (sample_count > 1 &&
           (sample_count != ETNA_MAX_SAMPLES ||
            !gpu_supports_texture_desc(screen)))
-         fmt = ETNA_NO_MATCH;
+         supported = false;
 
-      if (fmt != ETNA_NO_MATCH)
+      if (supported)
          allowed |= PIPE_BIND_SAMPLER_VIEW;
    }
 
