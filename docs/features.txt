@@ -346,7 +346,7 @@ Khronos, ARB, and OES extensions that are not part of any OpenGL or OpenGL ES ve
   GL_EXT_texture_compression_astc_decode_mode           DONE (panfrost/v7+)
   GL_EXT_texture_norm16                                 DONE (freedreno, r600, radeonsi, nvc0, softpipe, llvmpipe, virgl, zink, iris, crocus, v3d, panfrost)
   GL_EXT_texture_sRGB_R8                                DONE (all drivers that support GLES 3.0+)
-  GL_EXT_texture_shadow_lod                             DONE (asahi, crocus/gen6+, iris, llvmpipe, nvc0, radeonsi, r600/evergreen+, virgl)
+  GL_EXT_texture_shadow_lod                             DONE (asahi, crocus/gen6+, iris, llvmpipe, nvc0, radeonsi, r600/evergreen+, v3d, virgl)
   GL_EXT_texture_view                                   DONE (all drivers that support GL_OES_texture_view)
   GL_EXT_YUV_target                                     DONE (freedreno/a6xx+)
   GL_KHR_blend_equation_advanced_coherent               DONE (freedreno/a5xx+, llvmpipe, panfrost, zink, asahi, iris/gen9+, v3d)

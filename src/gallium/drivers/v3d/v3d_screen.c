@@ -268,6 +268,7 @@ v3d_init_screen_caps(struct v3d_screen *screen)
         caps->texture_barrier = true;
         caps->polygon_offset_clamp = true;
         caps->texture_query_lod = true;
+        caps->texture_shadow_lod = true;
 
         caps->query_timestamp =
         caps->query_time_elapsed = screen->has_cpu_queue && screen->has_multisync;
