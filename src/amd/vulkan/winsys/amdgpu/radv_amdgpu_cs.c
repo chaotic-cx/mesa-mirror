@@ -426,6 +426,7 @@ radv_amdgpu_cs_grow(struct ac_cmdbuf *_cs, size_t min_size)
       cs->base.cdw = 0;
       cs->status = VK_ERROR_OUT_OF_DEVICE_MEMORY;
       radv_amdgpu_restore_last_ib(cs);
+      return;
    }
 
    cs->ib_mapped = radv_buffer_map(&cs->ws->base, cs->ib_buffer);
@@ -436,6 +437,7 @@ radv_amdgpu_cs_grow(struct ac_cmdbuf *_cs, size_t min_size)
       /* VK_ERROR_MEMORY_MAP_FAILED is not valid for vkEndCommandBuffer. */
       cs->status = VK_ERROR_OUT_OF_DEVICE_MEMORY;
       radv_amdgpu_restore_last_ib(cs);
+      return;
    }
 
    cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer);
