@@ -226,7 +226,7 @@ lower_rt_intrinsics_impl(nir_function_impl *impl,
 
          case nir_intrinsic_load_ray_geometry_index: {
             nir_def *geometry_index_dw =
-               nir_load_global(b, 1, 32, nir_iadd_imm(b, hit_in.prim_leaf_ptr, 4));
+               nir_load_global(b, 1, 32, hit_in.prim_leaf_ptr);
             sysval = nir_iand_imm(b, geometry_index_dw, BITFIELD_MASK(24));
             break;
          }
