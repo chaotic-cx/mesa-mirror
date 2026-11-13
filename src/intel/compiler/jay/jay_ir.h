@@ -950,6 +950,21 @@ jay_ugpr_per_gpr(jay_shader *s)
    return jay_ugpr_per_grf(s) * jay_grf_per_gpr(s);
 }
 
+/*
+ * Byte offset of a GPR/UGPR def from the start of the register file, as
+ * used for indirect addressing. Registers are in 16-bit units.
+ */
+static inline unsigned
+jay_reg_offset_B(const jay_shader *s, jay_def x)
+{
+   struct jay_register_block block =
+      jay_lookup_block(&s->partition, x.reg, x.file);
+   unsigned reg_width = 2 * (x.file == UGPR ? 1 : s->dispatch_width);
+
+   return block.start_grf * s->devinfo->grf_size +
+          (x.reg - block.start_gpr) * reg_width;
+}
+
 static inline unsigned
 jay_phys_flag_per_virt(jay_shader *s)
 {

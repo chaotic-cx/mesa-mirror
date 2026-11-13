@@ -193,13 +193,7 @@ pass(jay_function *func)
          unsigned nr = VxH ? jay_simd_width_physical(func->shader, I) : 1;
          jay_def a0 = jay_bare_regs(J_ADDRESS, 32, addr, DIV_ROUND_UP(nr, 2));
 
-         struct jay_register_block block =
-            jay_lookup_block(&func->shader->partition, I->src[0].reg,
-                             I->src[0].file);
-         unsigned reg_width =
-            2 * (I->src[0].file == UGPR ? 1 : func->shader->dispatch_width);
-         unsigned offset_B = block.start_grf * func->shader->devinfo->grf_size +
-                             (I->src[0].reg - block.start_gpr) * reg_width;
+         unsigned offset_B = jay_reg_offset_B(func->shader, I->src[0]);
 
          b.cursor = jay_before_inst(I);
          jay_inst *add = jay_ADD(&b, JAY_TYPE_U16, a0, I->src[1], offset_B);
