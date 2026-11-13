@@ -545,10 +545,9 @@ pub fn test_foldable_op_with(
                             assert_eq!(*u, d);
                         }
                         DstType::F32 => {
-                            assert!(f32_eq(
-                                f32::from_bits(*u),
-                                f32::from_bits(d)
-                            ));
+                            let a = f32::from_bits(*u);
+                            let b = f32::from_bits(d);
+                            assert!(f32_eq(a, b), "{fold_src:?} => {a} (expected) vs {b} (device)");
                         }
                         typ => panic!("Can't auto-test {typ:?} data"),
                     }
@@ -2904,6 +2903,38 @@ fn test_max_ugpr() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn get_foldable_f32(a: &mut Acorn) -> u32 {
+    let exp = a.get_uint(12);
+    let mant = a.get_uint(23);
+
+    match exp >> 9 {
+        7 => (-0.0f32).to_bits(),
+        6 => 0.0f32.to_bits(),
+        5 => (-f32::INFINITY).to_bits(),
+        4 => f32::INFINITY.to_bits(),
+        3 => (-f32::NAN).to_bits(),
+        2 => f32::NAN.to_bits(),
+        _ => (mant | exp << 23) as u32,
+    }
+}
+
+#[test]
+pub fn test_op_fmnmx() {
+    for bits in 0..=0x7 {
+        let op = OpFMnMx {
+            dst: Dst::None,
+            srcs: [0.into(), 0.into()],
+            min: (bits & 0x4 == 0x4).into(),
+            ftz: false,
+            nan: bits & 0x2 == 0x2,
+            xorsign: bits & 0x1 == 0x1,
+        };
+
+        let mut a = Acorn::new();
+        test_foldable_op_with(op, |_| get_foldable_f32(&mut a));
+    }
 }
 
 /// Verifies that we can implement fmax(fmin(a, b(is_not_negative)), -b) patterns with fmnmx.xorsign

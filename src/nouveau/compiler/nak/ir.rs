@@ -1470,7 +1470,7 @@ fn fmt_dst_slice(f: &mut fmt::Formatter<'_>, dsts: &[Dst]) -> fmt::Result {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum FoldData {
     Pred(bool),
     Carry(bool),
@@ -2850,7 +2850,7 @@ impl DisplayOp for OpFFma {
 impl_display_for_op!(OpFFma);
 
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpFMnMx {
     #[dst_type(F32)]
     pub dst: Dst,
@@ -2879,6 +2879,48 @@ impl DisplayOp for OpFMnMx {
     }
 }
 impl_display_for_op!(OpFMnMx);
+
+impl Foldable for OpFMnMx {
+    fn fold(&self, _sm: &ShaderModelInfo, f: &mut OpFoldData<'_>) {
+        let a = f.get_f32_src(self, &self.srcs[0]);
+        let b = f.get_f32_src(self, &self.srcs[1]);
+        let min = f.get_pred_src(self, &self.min);
+
+        let op = if min { PartialOrd::lt } else { PartialOrd::gt };
+
+        // Canonical NaN results are represented by None are not impacted by
+        // xorsigns behavior.
+        let res = if a == 0.0 && b == 0.0 {
+            if min && a.is_sign_negative() || !min && a.is_sign_positive() {
+                Some(a)
+            } else {
+                Some(b)
+            }
+        } else if !a.is_nan() && !b.is_nan() {
+            Some(if op(&a, &b) { a } else { b })
+        } else if (a.is_nan() && b.is_nan()) || self.nan {
+            None
+        } else if a.is_nan() {
+            Some(b)
+        } else {
+            Some(a)
+        };
+
+        let res = if let Some(mut res) = res {
+            if self.xorsign {
+                let sign =
+                    (a.to_bits() & 0x80000000) ^ (b.to_bits() & 0x80000000);
+                res = f32::from_bits((res.to_bits() & 0x7fff_ffff) | sign);
+            }
+
+            res
+        } else {
+            f32::from_bits(0x7fff_ffff)
+        };
+
+        f.set_f32_dst(self, &self.dst, res);
+    }
+}
 
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
