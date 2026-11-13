@@ -204,7 +204,7 @@
         "description": "vl: Add plane order for NV16 and P210 formats",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "fc29093f6a7ec5e1ba69f8959ed3344096bcaf4e",
         "notes": null

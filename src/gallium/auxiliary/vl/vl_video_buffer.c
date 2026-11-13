@@ -95,12 +95,14 @@ vl_video_buffer_plane_order(enum pipe_format format)
       return const_resource_plane_order_YVU;
 
    case PIPE_FORMAT_NV12:
+   case PIPE_FORMAT_NV16:
    case PIPE_FORMAT_NV21:
    case PIPE_FORMAT_Y8_U8_V8_444_UNORM:
    case PIPE_FORMAT_Y8_U8_V8_440_UNORM:
    case PIPE_FORMAT_P010:
    case PIPE_FORMAT_P012:
    case PIPE_FORMAT_P016:
+   case PIPE_FORMAT_P210:
    case PIPE_FORMAT_IYUV:
       return const_resource_plane_order_YUV;
 
