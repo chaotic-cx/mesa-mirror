@@ -15,6 +15,10 @@ ethosu_lower_graph(struct ethosu_subgraph *subgraph,
 unsigned
 ethosu_feature_map_span(const struct ethosu_feature_map *fm);
 
+void
+ethosu_fc_lowered_dims(const struct pipe_ml_operation *poperation,
+                       unsigned in[4], unsigned out[4]);
+
 bool
 ethosu_scatter_nd_as_pad(const struct pipe_ml_operation *scatter,
                          struct pipe_ml_operation *pad);

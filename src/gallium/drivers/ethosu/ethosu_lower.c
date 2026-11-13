@@ -271,8 +271,7 @@ ethosu_fc_batch_rows(const struct pipe_ml_operation *poperation)
 }
 
 static bool
-ethosu_fc_uses_batched_shape(const struct ethosu_subgraph *subgraph,
-                             const struct pipe_ml_operation *poperation)
+ethosu_fc_uses_batched_shape(const struct pipe_ml_operation *poperation)
 {
    return poperation->type == PIPE_ML_OPERATION_TYPE_FULLY_CONNECTED &&
           ethosu_fc_batch_rows(poperation) > 1;
@@ -284,9 +283,8 @@ ethosu_fc_uses_batched_shape(const struct ethosu_subgraph *subgraph,
  * spatial size, and a batched fully connected then folds the rows into a
  * near-square plane, overriding the width either set.  The layout
  * decision mirrors the lowering by reading the shapes from here. */
-static void
-ethosu_fc_lowered_dims(const struct ethosu_subgraph *subgraph,
-                       const struct pipe_ml_operation *poperation,
+void
+ethosu_fc_lowered_dims(const struct pipe_ml_operation *poperation,
                        unsigned in[4], unsigned out[4])
 {
    const struct pipe_tensor *input = poperation->input_tensors[0];
@@ -316,7 +314,7 @@ ethosu_fc_lowered_dims(const struct ethosu_subgraph *subgraph,
       out[3] = weight->dims[2];
    }
 
-   if (ethosu_fc_uses_batched_shape(subgraph, poperation)) {
+   if (ethosu_fc_uses_batched_shape(poperation)) {
       unsigned rows = ethosu_fc_batch_rows(poperation);
       unsigned width = ethosu_fc_batch_width(rows);
 
@@ -341,7 +339,7 @@ ethosu_written_wd(const struct ethosu_subgraph *subgraph,
    if (producer->type == PIPE_ML_OPERATION_TYPE_FULLY_CONNECTED) {
       unsigned in[4], out[4];
 
-      ethosu_fc_lowered_dims(subgraph, producer, in, out);
+      ethosu_fc_lowered_dims(producer, in, out);
       *width = out[2];
       *depth = out[3];
       return;
@@ -369,7 +367,7 @@ ethosu_read_wd(const struct ethosu_subgraph *subgraph,
        consumer->input_tensors[0]->index == ptensor->index) {
       unsigned in[4], out[4];
 
-      ethosu_fc_lowered_dims(subgraph, consumer, in, out);
+      ethosu_fc_lowered_dims(consumer, in, out);
       *width = in[2];
       *depth = in[3];
       return;
@@ -1029,7 +1027,7 @@ ethosu_lower_fully_connected(struct ethosu_subgraph *subgraph,
    struct pipe_tensor *weight = poperation->fcon.weight_tensor;
    unsigned in[4], out[4];
 
-   ethosu_fc_lowered_dims(subgraph, poperation, in, out);
+   ethosu_fc_lowered_dims(poperation, in, out);
    for (unsigned i = 0; i < 4; i++) {
       flat_input.dims[i] = in[i];
       spatial_output.dims[i] = out[i];
