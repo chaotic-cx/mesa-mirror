@@ -73,6 +73,11 @@ lower_algebraic.extend([
     (('iadd', ('imul_32x16(is_only_used_by_iadd)', a, b), c),
      ('imad_32x16_intel', a, ('u2u16', b), c)),
 
+    # Fuse multiply-subtract. We put the ineg on the 32-bit source, not the
+    # 16-bit source, to correctly handle b = INT16_MIN.
+    (('iadd', ('ineg(is_only_used_by_iadd)', ('imul_32x16(is_used_once)', a, b)), c),
+     ('imad_32x16_intel', ('ineg', a), ('u2u16', b), c)),
+
     (('iadd', ('umul_32x16(is_only_used_by_iadd)', a, b), c),
      ('umad_32x16_intel', a, ('u2u16', b), c)),
 
