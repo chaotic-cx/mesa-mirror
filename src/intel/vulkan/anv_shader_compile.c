@@ -774,6 +774,16 @@ populate_bs_prog_key(struct brw_bs_prog_key *key,
    key->pipeline_ray_flags = ray_flags;
 }
 
+static const struct vk_color_attachment_location_state *
+get_static_fs_color_map(const struct vk_graphics_pipeline_state *state)
+{
+   if (state == NULL || state->cal == NULL || state->rp == NULL ||
+       !vk_render_pass_state_has_attachment_info(state->rp))
+      return NULL;
+
+   return state->cal;
+}
+
 static void
 anv_shader_hash_state(struct vk_physical_device *device,
                       const struct vk_graphics_pipeline_state *state,
@@ -1093,8 +1103,6 @@ rt_write_efficient_64bit(nir_builder *b, signed rt, void *data)
 {
    struct anv_shader_data *shader_data = data;
    const struct anv_pipeline_bind_map *bind_map = &shader_data->bind_map;
-   const struct vk_color_attachment_location_state *cal = shader_data->fs_color_map;
-
    if (rt < 0 && shader_data->bind_map.surface_count == 0)
       return nir_imm_int64(b, 0);
 
@@ -1105,16 +1113,11 @@ rt_write_efficient_64bit(nir_builder *b, signed rt, void *data)
                                .range = anv_drv_const_size(drv_data.gfx.fs_color_offset));
 
    if (rt >= 0) {
-      if (cal != NULL) {
-         /* If the attachment is unused, keep the RT write on the first render
-          * target item which is the null surface.
-          */
-         for (uint32_t i = 0; i < ARRAY_SIZE(cal->color_map); i++) {
-            if (cal->color_map[i] == rt) {
-               color_offset = nir_iadd_imm(
-                  b, color_offset, (i + 1) * ANV_SURFACE_STATE_SIZE);
-            }
-         }
+      if (shader_data->fs_color_map != NULL) {
+         const uint32_t map =
+            anv_get_fs_color_map(shader_data->fs_color_map, shader_data->fs_color_att_count);
+         const uint32_t index = (map >> (rt * 4)) & 0xf;
+         color_offset = nir_iadd_imm(b, color_offset, index * ANV_SURFACE_STATE_SIZE);
       } else {
          nir_def *map =
             nir_load_push_data_intel(b, 1, 32, nir_imm_int(b, 0),
@@ -2354,7 +2357,11 @@ anv_shader_compile(struct vk_device *vk_device,
          shader_data->key.fs.prefer_simd32 =
             shader_data->workaround != NULL &&
             shader_data->workaround->prefer_simd32_fs;
-         shader_data->fs_color_map = state != NULL ? state->cal : NULL;
+         if (shader_data->key.base.use_efficient_64bit) {
+            shader_data->fs_color_map = get_static_fs_color_map(state);
+            if (shader_data->fs_color_map != NULL)
+               shader_data->fs_color_att_count = state->rp->color_attachment_count;
+         }
          break;
       case MESA_SHADER_COMPUTE:
          populate_cs_prog_key(&shader_data->key.cs, vk_device->physical,

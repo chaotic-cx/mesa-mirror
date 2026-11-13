@@ -118,6 +118,7 @@ struct anv_shader_data {
    bool uses_bt_for_push_descs;
 
    const struct vk_color_attachment_location_state *fs_color_map;
+   uint32_t fs_color_att_count;
 
    const unsigned *code;
 
