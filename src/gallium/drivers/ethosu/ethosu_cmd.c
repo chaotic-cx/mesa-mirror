@@ -225,6 +225,21 @@ emit_strides(
 }
 
 static void
+check_feature_map(struct ethosu_subgraph *subgraph,
+                  const struct ethosu_feature_map *feature_map)
+{
+   if (feature_map->shape.width <= FEATURE_MAP_MAX_DIM &&
+       feature_map->shape.height <= FEATURE_MAP_MAX_DIM &&
+       feature_map->shape.depth <= FEATURE_MAP_MAX_DIM)
+      return;
+
+   mesa_loge("ethosu: %ux%ux%u feature map exceeds the NPU limit of %u",
+             feature_map->shape.width, feature_map->shape.height,
+             feature_map->shape.depth, FEATURE_MAP_MAX_DIM);
+   subgraph->failed = true;
+}
+
+static void
 emit_ifm(struct ethosu_subgraph *subgraph, struct ethosu_feature_map *feature_map)
 {
    if (feature_map->has_scalar) {
@@ -232,6 +247,8 @@ emit_ifm(struct ethosu_subgraph *subgraph, struct ethosu_feature_map *feature_ma
       EMIT0(NPU_SET_IFM_ZERO_POINT, feature_map->zero_point);
       return;
    }
+
+   check_feature_map(subgraph, feature_map);
 
    if (u85_fm_chained(subgraph, feature_map)) {
       EMIT0(NPU_SET_IFM_REGION, feature_map->chain_id);
@@ -294,6 +311,8 @@ emit_padding(struct ethosu_subgraph *subgraph, struct ethosu_operation *operatio
 static void
 emit_ofm(struct ethosu_subgraph *subgraph, struct ethosu_feature_map *feature_map)
 {
+   check_feature_map(subgraph, feature_map);
+
    if (u85_fm_chained(subgraph, feature_map)) {
       EMIT0(NPU_SET_OFM_REGION, feature_map->chain_id);
       EMIT0(NPU_SET_OFM_HEIGHT_M1, feature_map->shape.height - 1);
@@ -798,6 +817,7 @@ emit_ifm2(struct ethosu_subgraph *subgraph, struct ethosu_operation *operation, 
    } else if (u85_fm_chained(subgraph, &operation->ifm2)) {
       EMIT0(NPU_SET_IFM2_REGION, operation->ifm2.chain_id);
    } else {
+      check_feature_map(subgraph, &operation->ifm2);
       EMIT0(NPU_SET_IFM2_REGION, operation->ifm2.region);
       emit_addresses(subgraph, &operation->ifm2, NPU_SET_IFM2_BASE0, NPU_SET_IFM2_BASE1, NPU_SET_IFM2_BASE2, NPU_SET_IFM2_BASE3);
       emit_tiles(subgraph, &operation->ifm2, NPU_SET_IFM2_HEIGHT0_M1, NPU_SET_IFM2_HEIGHT1_M1, NPU_SET_IFM2_WIDTH0_M1);
