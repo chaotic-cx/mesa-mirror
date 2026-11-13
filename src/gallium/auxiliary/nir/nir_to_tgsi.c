@@ -3698,6 +3698,14 @@ ntt_fix_nir_options(struct pipe_screen *screen, struct nir_shader *s,
        !options->lower_uadd_sat ||
        !options->lower_usub_sat ||
        !options->lower_uniforms_to_ubo ||
+       !options->lower_pack_unorm_2x16 ||
+       !options->lower_pack_snorm_2x16 ||
+       !options->lower_unpack_unorm_2x16 ||
+       !options->lower_unpack_snorm_2x16 ||
+       !options->lower_pack_unorm_4x8 ||
+       !options->lower_pack_snorm_4x8 ||
+       !options->lower_unpack_unorm_4x8 ||
+       !options->lower_unpack_snorm_4x8 ||
        options->has_rotate8 ||
        options->has_rotate16 ||
        options->has_rotate32 ||
@@ -3717,6 +3725,14 @@ ntt_fix_nir_options(struct pipe_screen *screen, struct nir_shader *s,
       new_options->lower_uadd_sat = true;
       new_options->lower_usub_sat = true;
       new_options->lower_uniforms_to_ubo = true;
+      new_options->lower_pack_unorm_2x16 = true;
+      new_options->lower_pack_snorm_2x16 = true;
+      new_options->lower_unpack_unorm_2x16 = true;
+      new_options->lower_unpack_snorm_2x16 = true;
+      new_options->lower_pack_unorm_4x8 = true;
+      new_options->lower_pack_snorm_4x8 = true;
+      new_options->lower_unpack_unorm_4x8 = true;
+      new_options->lower_unpack_snorm_4x8 = true;
       new_options->lower_fsqrt = lower_fsqrt;
       new_options->has_rotate8 = false;
       new_options->has_rotate16 = false;
