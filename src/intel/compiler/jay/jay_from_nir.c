@@ -2316,8 +2316,19 @@ load_push_data(struct nir_to_jay_state *nj,
          offset = jay_ADD_u32(b, offset, base_offset % 4);
 
       jay_foreach_comp(dst, c) {
-         jay_SHUFFLE(b, JAY_TYPE_U | intr->def.bit_size, jay_extract(dst, c),
-                     push_data, c ? jay_ADD_u32(b, offset, c * sz) : offset);
+         jay_def addr = c ? jay_ADD_u32(b, offset, c * sz) : offset;
+         if (intr->def.bit_size == 8 && !jay_is_uniform(addr)) {
+            /* Byte VxH reads are unsupported.  The payload is word-aligned,
+             * so read the containing word and extract the requested byte.
+             */
+            jay_def aligned = jay_AND_u32(b, addr, ~1u);
+            jay_def word = jay_SHUFFLE_u16(b, push_data, aligned);
+            jay_SHR(b, JAY_TYPE_U16, jay_extract(dst, c), word,
+                    jay_SHL_u32(b, jay_AND_u32(b, addr, 1), 3));
+         } else {
+            jay_SHUFFLE(b, JAY_TYPE_U | intr->def.bit_size,
+                        jay_extract(dst, c), push_data, addr);
+         }
       }
    }
 }
