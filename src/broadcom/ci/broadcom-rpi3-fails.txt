@@ -903,7 +903,6 @@ spec@arb_es2_compatibility@texwrap formats@GL_RGB565- swizzled,Fail
 spec@arb_fragment_coord_conventions@fp-arb-fragment-coord-conventions-integer,Fail
 spec@arb_fragment_coord_conventions@fp-arb-fragment-coord-conventions-none,Fail
 spec@arb_fragment_program@fp-indirections2,Fail
-spec@arb_fragment_program@minmax,Fail
 spec@arb_framebuffer_object@fbo-attachments-blit-scaled-linear,Fail
 spec@arb_framebuffer_object@fbo-blit-stretch,Fail
 spec@arb_framebuffer_object@framebuffer-blit-oblong tall,Fail
@@ -948,6 +947,11 @@ spec@ext_direct_state_access@textures@TextureSubImage2DEXT,Fail
 spec@ext_framebuffer_blit@fbo-blit-check-limits,Fail
 spec@glsl-1.10@execution@loops@glsl-fs-unroll-explosion,Crash
 spec@glsl-1.10@execution@loops@glsl-vs-unroll-explosion,Crash
+
+# Hardware only support up to 8 vec4s varyings, and with
+# fragment.position, it is less that minimum required for fragment
+# input vertex (10)
+spec@arb_fragment_program@minmax,Fail
 
 # Hardware does not support MIN_LOD nor MAX_LOD
 spec@!opengl 1.2@lodclamp,Fail
