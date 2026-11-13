@@ -1651,7 +1651,7 @@ kgsl_queue_submit(struct tu_queue *queue, void *_submit,
    if (u_trace_submission_data) {
       mtx_lock(&queue->device->kgsl_profiling_mutex);
       result =
-         tu_suballoc_bo_alloc(&u_trace_submission_data->kgsl_timestamp_bo, &queue->device->kgsl_profiling_suballoc,
+         tu_suballoc_bo_alloc(&u_trace_submission_data->kgsl.timestamp_bo, &queue->device->kgsl_profiling_suballoc,
                               sizeof(struct kgsl_cmdbatch_profiling_buffer), 4);
       mtx_unlock(&queue->device->kgsl_profiling_mutex);
       if (result != VK_SUCCESS) {
@@ -1664,7 +1664,7 @@ kgsl_queue_submit(struct tu_queue *queue, void *_submit,
 
    struct kgsl_cmdbatch_profiling_buffer *profiling_buffer = NULL;
    if (u_trace_submission_data) {
-      struct tu_suballoc_bo *bo = &u_trace_submission_data->kgsl_timestamp_bo;
+      struct tu_suballoc_bo *bo = &u_trace_submission_data->kgsl.timestamp_bo;
 
       profile_obj = (struct kgsl_command_object) {
          .offset = bo->iova - bo->bo->iova,
@@ -1844,8 +1844,8 @@ fail_submit:
    if (result != VK_SUCCESS && u_trace_submission_data && !profiling_submitted) {
       mtx_lock(&queue->device->kgsl_profiling_mutex);
       tu_suballoc_bo_free(&queue->device->kgsl_profiling_suballoc,
-                          &u_trace_submission_data->kgsl_timestamp_bo);
-      u_trace_submission_data->kgsl_timestamp_bo = {};
+                          &u_trace_submission_data->kgsl.timestamp_bo);
+      u_trace_submission_data->kgsl.timestamp_bo = {};
       mtx_unlock(&queue->device->kgsl_profiling_mutex);
    }
 

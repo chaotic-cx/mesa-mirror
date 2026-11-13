@@ -692,8 +692,10 @@ struct tu_u_trace_submission_data
     */
    uint64_t gpu_ts_offset;
 
-   /* KGSL needs a GPU memory to write submission timestamps into */
-   struct tu_suballoc_bo kgsl_timestamp_bo;
+   struct {
+      /* KGSL needs a GPU memory to write submission timestamps into */
+      struct tu_suballoc_bo timestamp_bo;
+   } kgsl;
 };
 
 VkResult

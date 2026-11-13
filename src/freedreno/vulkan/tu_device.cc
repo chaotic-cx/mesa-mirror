@@ -2576,10 +2576,10 @@ tu_u_trace_submission_data_finish(
       }
    }
 
-   if (submission_data->kgsl_timestamp_bo.bo) {
+   if (submission_data->kgsl.timestamp_bo.bo) {
       mtx_lock(&device->kgsl_profiling_mutex);
       tu_suballoc_bo_free(&device->kgsl_profiling_suballoc,
-                        &submission_data->kgsl_timestamp_bo);
+                        &submission_data->kgsl.timestamp_bo);
       mtx_unlock(&device->kgsl_profiling_mutex);
    }
 
