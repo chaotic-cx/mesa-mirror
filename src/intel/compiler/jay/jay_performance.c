@@ -27,6 +27,10 @@ struct jay_latency_table {
    unsigned delta;
    unsigned delta_math;
    unsigned arf;
+   unsigned demote;
+   unsigned dpas_1;
+   unsigned dpas_2;
+   unsigned dpas_8;
 
    unsigned slm16;
    unsigned slm32;
@@ -58,6 +62,10 @@ static const struct jay_latency_table general_latency = {
    .delta = 1,    /* Extra cycles for wider SIMD sizes. */
    .delta_math = 4,
    .arf = 16, /* Latency for ARF dependencies. */
+   .demote = 100,
+   .dpas_1 = 22,
+   .dpas_2 = 23,
+   .dpas_8 = 33,
 
    /* Message latencies. */
    /* SIMD16 SLM messages take 28 cycles when accessing the same location,
@@ -142,7 +150,7 @@ jay_latency(jay_shader *s, jay_inst *I, bool bias_acc)
       }
    } else if (I->op == JAY_OPCODE_DEMOTE) {
       /* Try to hoist demotes without waiting prematurely on sends. */
-      return 100;
+      return LAT(lat, demote);
    } else if (I->op == JAY_OPCODE_MATH) {
       unsigned sz = jay_simd_width_logical(s, I);
       unsigned scale = (sz <= 8) ? 0 : (sz == 16) ? 1 : 3;
@@ -151,13 +159,13 @@ jay_latency(jay_shader *s, jay_inst *I, bool bias_acc)
       /* This is correct for Xe2 and PTL but not for older/newer platforms */
       switch (jay_dpas_rcount(I)) {
       case 1:
-         return 22;
+         return LAT(lat, dpas_1);
       case 2:
-         return 23;
+         return LAT(lat, dpas_2);
       case 8:
-         return 33;
+         return LAT(lat, dpas_8);
       default:
-         return 33;
+         return LAT(lat, dpas_8);
       }
    } else if (jay_is_flag(I->dst) ||
               !jay_is_null(I->cond_flag) ||
