@@ -2389,7 +2389,7 @@ update_fs_color_map(struct anv_gfx_dynamic_state *hw_state,
    if (fs_prog_data == NULL || !fs_prog_data->uses_fs_color_map)
       return;
 
-   SET(FS_COLOR_MAP, fs_color_map, anv_get_fs_color_map(&dyn->cal));
+   SET(FS_COLOR_MAP, fs_color_map, anv_get_fs_color_map(&dyn->cal, gfx->color_att_count));
 }
 #endif
 
@@ -2433,7 +2433,7 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
                         ANV_CMD_DIRTY_RENDER_TARGETS))
          update_fs_color_offset(hw_state, gfx);
 
-      if ((gfx->dirty & ANV_CMD_DIRTY_PS) ||
+      if ((gfx->dirty & (ANV_CMD_DIRTY_PS | ANV_CMD_DIRTY_RENDER_TARGETS)) ||
           BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_COLOR_ATTACHMENT_MAP))
          update_fs_color_map(hw_state, dyn, gfx);
    }
