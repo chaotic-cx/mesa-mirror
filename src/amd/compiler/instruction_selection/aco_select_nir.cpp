@@ -446,10 +446,7 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
 
    if (instr->op == nir_texop_txf || instr->op == nir_texop_fragment_fetch_amd ||
        instr->op == nir_texop_fragment_mask_fetch_amd || instr->op == nir_texop_txf_ms) {
-      aco_opcode op = level_zero || instr->sampler_dim == GLSL_SAMPLER_DIM_MS ||
-                            instr->sampler_dim == GLSL_SAMPLER_DIM_SUBPASS_MS
-                         ? aco_opcode::image_load
-                         : aco_opcode::image_load_mip;
+      aco_opcode op = has_lod ? aco_opcode::image_load_mip : aco_opcode::image_load;
       Operand vdata = instr->is_sparse ? emit_tfe_init(bld, tmp_dst) : Operand(v1);
       MIMG_instruction* tex =
          emit_mimg(bld, op, {tmp_dst}, resource, Operand(s4), args, disable_wqm, vdata);
