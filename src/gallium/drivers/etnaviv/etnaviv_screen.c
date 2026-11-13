@@ -540,12 +540,7 @@ etna_screen_is_format_supported(struct pipe_screen *pscreen,
    }
 
    if (usage & PIPE_BIND_DEPTH_STENCIL) {
-      uint32_t fmt = translate_depth_format(format);
-
-      if (!eil_format_supports_depth_stencil(screen->info, format))
-         fmt = ETNA_NO_MATCH;
-
-      if (fmt != ETNA_NO_MATCH)
+      if (eil_format_supports_depth_stencil(screen->info, format))
          allowed |= PIPE_BIND_DEPTH_STENCIL;
    }
 
