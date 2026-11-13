@@ -446,11 +446,13 @@ radv_decompress_depth_stencil(struct radv_cmd_buffer *cmd_buffer, struct radv_im
 {
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
+   const bool use_gang = cmd_buffer->qf == RADV_QUEUE_TRANSFER;
    struct radv_barrier_data barrier = {0};
 
-   if (cmd_buffer->qf != RADV_QUEUE_GENERAL && cmd_buffer->qf != RADV_QUEUE_COMPUTE &&
-       !radv_cmd_buffer_is_transfer_gang(cmd_buffer))
+   if (cmd_buffer->qf != RADV_QUEUE_GENERAL && cmd_buffer->qf != RADV_QUEUE_COMPUTE && !use_gang)
       return;
+
+   enum ac_barrier_flags *flush_bits = use_gang ? &cmd_buffer->gang.flush_bits : &cmd_buffer->state.flush_bits;
 
    barrier.layout_transitions.depth_stencil_expand = 1;
    radv_describe_layout_transition(cmd_buffer, &barrier);
@@ -461,18 +463,40 @@ radv_decompress_depth_stencil(struct radv_cmd_buffer *cmd_buffer, struct radv_im
    if (use_draw_based_decompression) {
       radv_process_depth_stencil(cmd_buffer, image, subresourceRange, sample_locs);
 
-      cmd_buffer->state.flush_bits |=
-         AC_BARRIER_SYNC_AND_INV_DB | (pdev->info.gfx_level < GFX10 ? AC_BARRIER_SYNC_AND_INV_DB_META : 0);
+      *flush_bits |= AC_BARRIER_SYNC_AND_INV_DB | (pdev->info.gfx_level < GFX10 ? AC_BARRIER_SYNC_AND_INV_DB_META : 0);
    } else {
+      /* Fallback to compute because HTILE decompression on SDMA isn't possible. */
+      if (use_gang) {
+         if (!radv_gang_init(cmd_buffer))
+            return;
+
+         /* Wait for all pending work on SDMA. */
+         cmd_buffer->gang.sem.leader_value++;
+         if (radv_flush_gang_leader_semaphore(cmd_buffer)) {
+            radv_wait_gang_leader(cmd_buffer);
+            cmd_buffer->gang.flush_bits |= AC_BARRIER_INV_L2;
+         }
+
+         /* Emit pending cache flushes on ACE. */
+         radv_gang_cache_flush(cmd_buffer);
+      }
+
       u_foreach_bit (i, subresourceRange->aspectMask) {
          VkImageSubresourceRange range = *subresourceRange;
          range.aspectMask = 1 << i;
 
          radv_expand_depth_stencil_compute(cmd_buffer, image, &range);
 
-         cmd_buffer->state.flush_bits |= AC_BARRIER_SYNC_CS | AC_BARRIER_INV_VMEM |
-                                         radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                                               VK_ACCESS_2_SHADER_WRITE_BIT, 0, image, &range);
+         *flush_bits |= AC_BARRIER_SYNC_CS | AC_BARRIER_INV_VMEM |
+                        radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                              VK_ACCESS_2_SHADER_WRITE_BIT, 0, image, &range);
+      }
+
+      if (use_gang) {
+         /* Wait on SDMA for the ACE decompress to finish. */
+         cmd_buffer->gang.sem.follower_value++;
+         if (radv_flush_gang_follower_semaphore(cmd_buffer))
+            radv_wait_gang_follower(cmd_buffer);
       }
    }
 
@@ -488,9 +512,9 @@ radv_decompress_depth_stencil(struct radv_cmd_buffer *cmd_buffer, struct radv_im
       /* If image stores update HTILE, we must invalidate L2 metadata before clearing. Unfortunately,
        * only VK_ACCESS_2_SHADER_STORAGE_READ_BIT sets that, while WRITE_BIT doesn't.
        */
-      cmd_buffer->state.flush_bits |= radv_dst_access_flush(
-         cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-         VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, 0, image, subresourceRange);
+      *flush_bits |= radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                           VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                                           0, image, subresourceRange);
    }
 
    /* Reset the HiZ range in HTILE to [0, 1] because the decompress pass doesn't do it.
@@ -498,5 +522,5 @@ radv_decompress_depth_stencil(struct radv_cmd_buffer *cmd_buffer, struct radv_im
     * For compute-based decompression without image stores updating HTILE, we also need to clear the compression
     * bits to uncompressed.
     */
-   cmd_buffer->state.flush_bits |= radv_clear_htile_rmw_to_uncompressed(cmd_buffer, image, subresourceRange, preserve);
+   *flush_bits |= radv_clear_htile_rmw_to_uncompressed(cmd_buffer, image, subresourceRange, preserve);
 }
