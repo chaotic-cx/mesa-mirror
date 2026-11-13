@@ -36,9 +36,10 @@ panvk_utrace_create_buffer(struct u_trace_context *utctx, uint64_t size_B)
    simple_mtx_unlock(&dev->utrace.copy_buf_heap_lock);
 
    if (!addr_dev) {
-      mesa_loge("Couldn't allocate utrace buffer (size = 0x%" PRIx64 ")."
-                "Provide larger PANVK_UTRACE_CLONE_MEM_SIZE (current = 0x%" PRIx64 ")",
-                size_B, dev->utrace.copy_buf_heap_bo->bo->size);
+      mesa_loge(
+         "Couldn't allocate utrace buffer (size = 0x%" PRIx64 ")."
+         "Provide larger PANVK_UTRACE_CLONE_MEM_SIZE (current = 0x%" PRIx64 ")",
+         size_B, dev->utrace.copy_buf_heap_bo->bo->size);
       return NULL;
    }
 
@@ -88,7 +89,8 @@ panvk_utrace_read_ts(struct u_trace_context *utctx, void *timestamps,
 
    assert(props->timestamp_frequency);
 
-   /* The buffer may be NULL if its clone-time allocation failed; the trace
+   /* The buffer may be NULL if its clone-time allocation failed or if the copy
+    * BO is full/hasn't been initialized; the trace
     * point has no valid timestamp. */
    if (!buf) {
       mesa_loge("utrace: missing timestamp buffer (clone alloc failed); "
@@ -120,8 +122,9 @@ panvk_utrace_get_data(struct u_trace_context *utctx, void *buffer,
 {
    const struct panvk_utrace_buf *buf = buffer;
 
-   /* The buffer may be NULL if its clone-time allocation failed; report
-    * no data rather than dereferencing NULL. */
+   /* The buffer may be NULL if its clone-time allocation failed or if the copy
+    * BO is full/hasn't been initialized; report no data rather than
+    * dereferencing NULL. */
    if (!buf) {
       mesa_loge("utrace: missing indirect data buffer (clone alloc failed); "
                 "reporting no data for this trace point");

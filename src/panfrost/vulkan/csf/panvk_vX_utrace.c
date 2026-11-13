@@ -139,9 +139,12 @@ panvk_utrace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct cs_builder *b = get_builder(cmdbuf, ut);
    const struct panvk_utrace_buf *buf = timestamps;
-   const uint64_t addr = buf->dev + offset_B;
 
-   cmd_write_timestamp(dev, b, addr, *cs_info->ts_async_op);
+   /* The buf might be NULL if create_buffer fails. */
+   if (buf) {
+      const uint64_t addr = buf->dev + offset_B;
+      cmd_write_timestamp(dev, b, addr, *cs_info->ts_async_op);
+   }
 
    return true;
 }
@@ -156,6 +159,11 @@ panvk_utrace_capture_data(struct u_trace *ut, void *cs, void *dst_buffer,
    struct panvk_utrace_cs_info *cs_info = cs;
    struct cs_builder *b = get_builder(cs_info->cmdbuf, ut);
    const struct panvk_utrace_buf *dst_buf = dst_buffer;
+
+   /* The buf might be NULL if create_buffer fails. */
+   if (!dst_buf)
+      return;
+
    const uint64_t dst_addr = dst_buf->dev + dst_offset_B;
    const uint64_t src_addr = src_offset_B;
 
