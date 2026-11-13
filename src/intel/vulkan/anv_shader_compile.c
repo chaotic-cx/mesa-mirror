@@ -828,6 +828,21 @@ anv_shader_hash_state(struct vk_physical_device *device,
          _mesa_blake3_update(&blake3_ctx, &color_mask, sizeof(color_mask));
          populate_fs_prog_key(&key.fs, device, NULL, state, stages);
          _mesa_blake3_update(&blake3_ctx, &key.fs, sizeof(key.fs));
+
+         if (key.base.use_efficient_64bit) {
+            /* In efficient 64bit addressing mode, static RT addresses also
+             * embed the attachment mapping, so the cache key must include more
+             * than the set of enabled output locations in color_mask.
+             */
+            const struct vk_color_attachment_location_state *cal = get_static_fs_color_map(state);
+            const bool dynamic = cal == NULL;
+
+            if (!dynamic) {
+               const uint32_t map = anv_get_fs_color_map(cal, state->rp->color_attachment_count);
+
+               _mesa_blake3_update(&blake3_ctx, &map, sizeof(map));
+            }
+         }
          break;
       }
       case VK_SHADER_STAGE_COMPUTE_BIT:
