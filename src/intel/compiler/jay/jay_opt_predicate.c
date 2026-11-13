@@ -25,6 +25,9 @@ predicate_block(jay_builder *b,
     * Predicating uniform instructions only works with uniform flags (where we
     * know lane 0 is set correctly and we're not electing another lane).
     * NoMask-forced opcode hit this and are mostly unpredicatable anyway.
+    *
+    * Don't predicate SEND with GATEWAY message. Jay scoreboarding pass insert
+    * sync.bar unconditionally.
     */
    jay_foreach_inst_in_block(block, I) {
       if (jay_uses_implicit_flag(I) ||
@@ -32,6 +35,8 @@ predicate_block(jay_builder *b,
           I->op == JAY_OPCODE_MIN ||
           I->op == JAY_OPCODE_MAX ||
           I->op == JAY_OPCODE_CSEL ||
+          (I->op == JAY_OPCODE_SEND &&
+           jay_send_sfid(I) == GEN_SFID_MESSAGE_GATEWAY) ||
           jay_opcode_infos[I->op].no_mask ||
           (!uniform_condition && I->uniform) ||
           (--limit) < 0)
