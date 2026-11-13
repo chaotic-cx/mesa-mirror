@@ -181,6 +181,11 @@ radv_retile_dcc(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image)
 {
    const bool use_gang = cmd_buffer->qf == RADV_QUEUE_TRANSFER;
 
+   if (cmd_buffer->qf != RADV_QUEUE_GENERAL && cmd_buffer->qf != RADV_QUEUE_COMPUTE && !use_gang)
+      return;
+
+   enum ac_barrier_flags *flush_bits = use_gang ? &cmd_buffer->gang.flush_bits : &cmd_buffer->state.flush_bits;
+
    /* Fallback to compute because retiling DCC on SDMA isn't possible. */
    if (use_gang) {
       if (!radv_gang_init(cmd_buffer))
@@ -197,25 +202,13 @@ radv_retile_dcc(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image)
       radv_gang_cache_flush(cmd_buffer);
    }
 
-   assert(cmd_buffer->qf == RADV_QUEUE_GENERAL || cmd_buffer->qf == RADV_QUEUE_COMPUTE ||
-          (cmd_buffer->qf == RADV_QUEUE_TRANSFER && cmd_buffer->gang.cs->hw_ip == AMD_IP_COMPUTE));
-
-   const enum ac_barrier_flags dst_flush = radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                                                 VK_ACCESS_2_SHADER_READ_BIT, 0, image, NULL);
-   if (use_gang)
-      cmd_buffer->gang.flush_bits |= dst_flush;
-   else
-      cmd_buffer->state.flush_bits |= dst_flush;
+   *flush_bits |= radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_SHADER_READ_BIT,
+                                        0, image, NULL);
 
    radv_compute_retile_dcc(cmd_buffer, image);
 
-   const enum ac_barrier_flags src_flush =
-      AC_BARRIER_SYNC_CS | radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                                 VK_ACCESS_2_SHADER_WRITE_BIT, 0, image, NULL);
-   if (use_gang)
-      cmd_buffer->gang.flush_bits |= src_flush;
-   else
-      cmd_buffer->state.flush_bits |= src_flush;
+   *flush_bits |= AC_BARRIER_SYNC_CS | radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                                             VK_ACCESS_2_SHADER_WRITE_BIT, 0, image, NULL);
 
    if (use_gang) {
       /* Wait on SDMA for the ACE retile to finish. */
