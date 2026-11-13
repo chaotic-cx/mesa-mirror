@@ -1457,7 +1457,8 @@ get_image_format_properties(struct panvk_physical_device *physical_device,
        (format_feature_flags &
         (VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
          VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
-       !(image_flags & VK_IMAGE_CREATE_2_CUBE_COMPATIBLE_BIT_KHR) &&
+       (!(image_flags & VK_IMAGE_CREATE_2_CUBE_COMPATIBLE_BIT_KHR) ||
+         (image_flags & VK_IMAGE_CREATE_2_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_BIT_EXT)) &&
        !(all_usage & VK_IMAGE_USAGE_2_STORAGE_BIT_KHR)) {
       sampleCounts |=
          get_image_format_sample_counts(physical_device, info->format);
