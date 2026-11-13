@@ -355,6 +355,7 @@ static const struct {
    OP(SHR_ODD_SUBSPANS_BY_4, SHR, 1),
    OP(SHR, SHR, 2),
    OP(MOV_INDIRECT, MOV, 2),
+   OP(MOVI, MOVI, 2),
    OP(SYNC, SYNC, 1),
    OP(WHILE, WHILE, 0),
    OP(XOR, XOR, 2),
@@ -617,6 +618,26 @@ emit(struct jay_codegen *jc,
          gen->src[0] = gen_restride(gen->src[0], 0, 1, 0);
       }
       break;
+
+   case JAY_OPCODE_MOVI: {
+      unsigned base_B = jay_reg_offset_B(f->shader, I->src[0]);
+      unsigned grf_size = jc->devinfo->grf_size;
+
+      assert(jay_type_size_bits(I->type) == 32);
+      /* a0.n[5:0] + imm[5:0] wraps within the GRF, so the data must not
+       * cross a GRF boundary.
+       */
+      assert(base_B % grf_size + 4 * f->shader->dispatch_width <= grf_size);
+
+      gen->src[0] = gen_grf(0, I->src[1].reg);
+      gen->src[0].type = GEN_TYPE_UD;
+      gen->src[0].indirect = true;
+      gen->src[0].addr_imm = 0;
+      gen->src[0] = gen_restride(gen->src[0], 1, 1, 0);
+      assert(base_B <= UINT16_MAX);
+      gen->src[1] = gen_imm_uw(base_B);
+      break;
+   }
 
    case JAY_OPCODE_HALT:
       if (jay_halt_predicate_all(I)) {

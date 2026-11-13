@@ -238,6 +238,11 @@ op('shuffle', 2, 'u1 u8 u16 u32')
 # in bytes inside the register file (as an address register).
 op('mov_indirect', 2, 'u8 u16 u32')
 
+# Move indexed. src0=data (one GPR within one GRF), src1=a0 window (a0.0 or
+# a0.8) holding per-channel subregister byte offsets. The register base is
+# supplied as the src1 immediate at codegen.
+op('movi', 2, 'u32')
+
 # Shuffle with a constant lane index.
 op('broadcast_imm', 1, 'u1 u32', 0, ['unsigned lane'])
 

@@ -1004,7 +1004,8 @@ jay_is_shuffle_like(const jay_inst *I)
    return I->op == JAY_OPCODE_SHUFFLE ||
           I->op == JAY_OPCODE_QUAD_SWIZZLE ||
           I->op == JAY_OPCODE_BROADCAST_IMM ||
-          I->op == JAY_OPCODE_MOV_INDIRECT;
+          I->op == JAY_OPCODE_MOV_INDIRECT ||
+          I->op == JAY_OPCODE_MOVI;
 }
 
 static inline bool
