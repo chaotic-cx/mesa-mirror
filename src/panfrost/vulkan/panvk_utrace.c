@@ -21,6 +21,37 @@ to_dev(struct u_trace_context *utctx)
    return container_of(utctx, struct panvk_device, utrace.utctx);
 }
 
+static uint32_t
+get_utrace_clone_mem_size()
+{
+   return debug_get_num_option("PANVK_UTRACE_CLONE_MEM_SIZE", 0xa00000);
+}
+
+static VkResult
+get_utrace_heap_bo_locked(struct panvk_device *dev)
+{
+   simple_mtx_assert_locked(&dev->utrace.copy_buf_heap_lock);
+
+   if (dev->utrace.copy_buf_heap_bo)
+      return VK_SUCCESS;
+
+   VkResult result = panvk_priv_bo_create(
+      dev, get_utrace_clone_mem_size(), 0, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT,
+      "utrace copy buffer", &dev->utrace.copy_buf_heap_bo);
+   if (result != VK_SUCCESS) {
+      mesa_loge("Couldn't allocate utrace copy-buffer BO (size = 0x%" PRIx32
+                ")."
+                "Trace data from this point on will be dropped.",
+                get_utrace_clone_mem_size());
+      return result;
+   }
+
+   util_vma_heap_init(&dev->utrace.copy_buf_heap,
+                      dev->utrace.copy_buf_heap_bo->addr.dev,
+                      dev->utrace.copy_buf_heap_bo->bo->size);
+   return VK_SUCCESS;
+}
+
 void *
 panvk_utrace_create_buffer(struct u_trace_context *utctx, uint64_t size_B)
 {
@@ -31,8 +62,11 @@ panvk_utrace_create_buffer(struct u_trace_context *utctx, uint64_t size_B)
    const uint64_t alignment = 0x40;
 
    simple_mtx_lock(&dev->utrace.copy_buf_heap_lock);
+   VkResult result = get_utrace_heap_bo_locked(dev);
    const uint64_t addr_dev =
-      util_vma_heap_alloc(&dev->utrace.copy_buf_heap, size_B, alignment);
+      result == VK_SUCCESS
+         ? util_vma_heap_alloc(&dev->utrace.copy_buf_heap, size_B, alignment)
+         : 0;
    simple_mtx_unlock(&dev->utrace.copy_buf_heap_lock);
 
    if (!addr_dev) {
