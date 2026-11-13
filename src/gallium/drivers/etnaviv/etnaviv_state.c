@@ -772,7 +772,8 @@ etna_vertex_elements_state_create(struct pipe_context *pctx,
       unsigned buffer_idx = elements[idx].vertex_buffer_index;
       unsigned element_size = util_format_get_blocksize(elements[idx].src_format);
       unsigned end_offset = elements[idx].src_offset + element_size;
-      uint32_t format_type, normalize;
+      uint8_t format_type;
+      uint32_t normalize;
 
       if (nonconsecutive)
          start_offset = elements[idx].src_offset;

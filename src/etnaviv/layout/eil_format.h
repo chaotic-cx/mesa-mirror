@@ -24,14 +24,14 @@ enum ENUM_PACKED eil_emulation {
 static_assert(sizeof(enum eil_emulation) == sizeof(uint8_t), "enum eil_emulation must be packed");
 
 struct eil_format {
-   uint32_t vtx; /* FE_DATA_TYPE_* */
-   enum etna_feature vtx_gate;
-   uint32_t tex; /* TEXTURE_FORMAT_* */
-   enum etna_feature tex_gate;
-   uint32_t pe; /* PE_FORMAT_* */
-   enum etna_feature pe_gate;
-   enum eil_emulation emulation;
    enum pipe_format emulated; /* enum pipe_format the HW really sees */
+   enum eil_emulation emulation;
+   uint8_t vtx; /* FE_DATA_TYPE_* */
+   enum etna_feature vtx_gate;
+   uint8_t tex; /* TEXTURE_FORMAT_* */
+   enum etna_feature tex_gate;
+   uint8_t pe; /* PE_FORMAT_* */
+   enum etna_feature pe_gate;
 
    bool has_vtx    : 1;
    bool has_tex    : 1;
