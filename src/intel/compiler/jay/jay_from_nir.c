@@ -1574,17 +1574,10 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    jay_def tmp = dst;
    unsigned dst_stride = transpose ? 1 : MAX2(ndata->bit_size / 32, 1);
 
-   if (dst.file == UGPR) {
-      if (transpose) {
-         /* Transpose writes whole GRFs, so round up */
-         tmp = jay_alloc_def(b, UGPR, 32,
-                             ALIGN_POT(jay_num_values(dst),
-                                       jay_ugpr_per_grf(b->shader)));
-      } else {
-         /* Without transpose we write at GRF granularity. Pad out. */
-         tmp = jay_alloc_def(b, UGPR, 32,
-                             jay_num_values(dst) * jay_ugpr_per_grf(b->shader));
-      }
+   /* Without transpose we write at GRF granularity. Pad out. */
+   if (dst.file == UGPR && !transpose) {
+      tmp = jay_alloc_def(b, UGPR, 32,
+                          jay_num_values(dst) * jay_ugpr_per_grf(b->shader));
    }
 
    jay_def srcs[] = { offset, data };
