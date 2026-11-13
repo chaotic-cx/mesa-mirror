@@ -1996,7 +1996,6 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
    }
    simple_mtx_unlock(&aws->bo_fence_lock);
 
-#if MESA_DEBUG
    /* Prepare the buffer list. */
    if (unlikely(aws->debug_all_bos)) {
       /* The buffer list contains all buffers. This is a slow path that
@@ -2025,7 +2024,6 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
       }
       simple_mtx_unlock(&aws->global_bo_list_lock);
    }
-#endif
 
    if (acs->ip_type == AMD_IP_GFX && queue_type != USERQ)
       aws->gfx_bo_list_counter += num_submit_real_buffers;

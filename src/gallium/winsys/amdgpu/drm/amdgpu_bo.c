@@ -306,14 +306,12 @@ void amdgpu_bo_destroy(struct amdgpu_winsys *aws, struct pb_buffer_lean *_buf)
 
    ac_drm_bo_free(aws->dev, bo->bo);
 
-#if MESA_DEBUG
    if (aws->debug_all_bos) {
       simple_mtx_lock(&aws->global_bo_list_lock);
       list_del(&bo->global_list_item);
       aws->num_buffers--;
       simple_mtx_unlock(&aws->global_bo_list_lock);
    }
-#endif
 
    /* Close all KMS handles retrieved for other DRM file descriptions */
    simple_mtx_lock(&aws->sws_list_lock);
@@ -566,14 +564,12 @@ void amdgpu_bo_unmap(struct radeon_winsys *rws, struct pb_buffer_lean *buf)
 
 static void amdgpu_add_buffer_to_global_list(struct amdgpu_winsys *aws, struct amdgpu_bo_real *bo)
 {
-#if MESA_DEBUG
    if (aws->debug_all_bos) {
       simple_mtx_lock(&aws->global_bo_list_lock);
       list_addtail(&bo->global_list_item, &aws->global_bo_list);
       aws->num_buffers++;
       simple_mtx_unlock(&aws->global_bo_list_lock);
    }
-#endif
 }
 
 static unsigned amdgpu_get_optimal_alignment(struct amdgpu_winsys *aws,

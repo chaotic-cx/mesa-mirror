@@ -54,9 +54,7 @@ static bool do_winsys_init(struct amdgpu_winsys *aws,
 
    aws->check_vm = options->check_vm;
    aws->noop_cs = options->noop_cs;
-#if MESA_DEBUG
    aws->debug_all_bos = options->list_all_bo;
-#endif
    aws->reserve_vmid = options->reserve_vmid;
    aws->userq_job_log = options->userq_job_log;
    aws->ib_caches_flush = options->ib_caches_flush;
@@ -116,9 +114,7 @@ static void do_winsys_deinit(struct amdgpu_winsys *aws)
    pb_cache_deinit(&aws->bo_cache);
    _mesa_hash_table_destroy(aws->bo_export_table, NULL);
    simple_mtx_destroy(&aws->sws_list_lock);
-#if MESA_DEBUG
    simple_mtx_destroy(&aws->global_bo_list_lock);
-#endif
    simple_mtx_destroy(&aws->bo_export_table_lock);
 
    ac_addrlib_destroy(aws->addrlib);
@@ -550,15 +546,11 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
 
       /* init reference */
       pipe_reference_init(&aws->reference, 1);
-#if MESA_DEBUG
       list_inithead(&aws->global_bo_list);
-#endif
       aws->bo_export_table = util_hash_table_create_ptr_keys();
 
       (void) simple_mtx_init(&aws->sws_list_lock, mtx_plain);
-#if MESA_DEBUG
       (void) simple_mtx_init(&aws->global_bo_list_lock, mtx_plain);
-#endif
       (void) simple_mtx_init(&aws->bo_fence_lock, mtx_plain);
       (void) simple_mtx_init(&aws->stats_lock, mtx_plain);
       (void) simple_mtx_init(&aws->bo_export_table_lock, mtx_plain);
