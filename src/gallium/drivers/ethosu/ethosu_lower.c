@@ -1214,7 +1214,7 @@ ethosu_lower_argmax_u85(struct ethosu_subgraph *subgraph,
    const unsigned channels = input->dims[3];
    const unsigned elements = input->dims[1] * input->dims[2];
    /* IFM and OFM height fields are 16 bits. */
-   const unsigned max_elements = 1 << 16;
+   const unsigned max_elements = FEATURE_MAP_MAX_DIM;
    struct ethosu_operation operation;
    struct ethosu_feature_map input_fm;
    struct ethosu_feature_map output_fm;
@@ -1254,7 +1254,7 @@ ethosu_lower_argmax_u65(struct ethosu_subgraph *subgraph,
    struct pipe_tensor *output = poperation->output_tensors[0];
    const unsigned channels = input->dims[3];
    const unsigned elements = input->dims[1] * input->dims[2];
-   const unsigned max_elements = 1 << 16;
+   const unsigned max_elements = FEATURE_MAP_MAX_DIM;
    const unsigned rows_per_chunk = max_elements / input->dims[2];
    const unsigned max_chunk_elements = MIN2(elements,
                                             rows_per_chunk * input->dims[2]);

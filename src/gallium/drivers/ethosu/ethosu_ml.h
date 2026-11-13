@@ -22,6 +22,7 @@
 #define SHRAM_LUT_BASE(lut)         ((SHRAM_TOTAL_BANKS - SHRAM_RESERVED_END_BANKS) * \
                                      SHRAM_BANK_SIZE_BYTES + (lut) * LUT8_SIZE)
 #define SOFTMAX_MAX_DEPTH           4095
+#define FEATURE_MAP_MAX_DIM         65536
 #define ACC_BITS                    32 /* Use for now always 32-bit accumulators */
 #define IFM_GRANULE                 8
 #define ACC_GRANULE                 16

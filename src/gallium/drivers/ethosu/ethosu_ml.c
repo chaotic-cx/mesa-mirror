@@ -329,7 +329,8 @@ ethosu_argmax_supported(struct pipe_ml_device *pdevice,
    if (operation->argmax.axis != 3 || input->type_size != 1 ||
        output->type_size != 4 || input->dims[0] != 1 ||
        input->is_signed != output->is_signed || !input->dims[3] ||
-       !input->dims[1] || !input->dims[2] || input->dims[2] > (1 << 16) ||
+       !input->dims[1] || !input->dims[2] ||
+       input->dims[2] > FEATURE_MAP_MAX_DIM ||
        (ethosu_ml_device(pdevice)->is_u65 && input->dims[3] > 127) ||
        (!ethosu_ml_device(pdevice)->is_u65 && input->dims[3] > (1 << 15)))
       return false;
@@ -354,6 +355,54 @@ ethosu_space_batch_supported(const struct pipe_ml_operation *operation)
           operation->space_batch.after_y >= 0 &&
           operation->space_batch.before_x >= 0 &&
           operation->space_batch.after_x >= 0;
+}
+
+static bool
+ethosu_dims_fit(const unsigned dims[4])
+{
+   return dims[1] <= FEATURE_MAP_MAX_DIM &&
+          dims[2] <= FEATURE_MAP_MAX_DIM &&
+          dims[3] <= FEATURE_MAP_MAX_DIM;
+}
+
+static bool
+ethosu_tensors_fit(struct pipe_tensor **tensors, unsigned count)
+{
+   for (unsigned i = 0; i < count; i++) {
+      if (tensors[i] && !tensors[i]->data && !ethosu_dims_fit(tensors[i]->dims))
+         return false;
+   }
+
+   return true;
+}
+
+static bool
+ethosu_feature_maps_fit(const struct pipe_ml_operation *operation)
+{
+   switch (operation->type) {
+   case PIPE_ML_OPERATION_TYPE_RESHAPE:
+      return true;
+   case PIPE_ML_OPERATION_TYPE_CONCATENATION:
+   case PIPE_ML_OPERATION_TYPE_PACK:
+      return ethosu_tensors_fit(operation->input_tensors,
+                                operation->input_count);
+   case PIPE_ML_OPERATION_TYPE_SPLIT:
+   case PIPE_ML_OPERATION_TYPE_UNPACK:
+   case PIPE_ML_OPERATION_TYPE_STRIDED_SLICE:
+      return ethosu_tensors_fit(operation->output_tensors,
+                                operation->output_count);
+   case PIPE_ML_OPERATION_TYPE_FULLY_CONNECTED: {
+      unsigned in[4], out[4];
+
+      ethosu_fc_lowered_dims(operation, in, out);
+      return ethosu_dims_fit(in) && ethosu_dims_fit(out);
+   }
+   default:
+      return ethosu_tensors_fit(operation->input_tensors,
+                                operation->input_count) &&
+             ethosu_tensors_fit(operation->output_tensors,
+                                operation->output_count);
+   }
 }
 
 bool
@@ -471,7 +520,9 @@ ethosu_ml_operation_supported(struct pipe_ml_device *pdevice,
                   output->type_size == 1 &&
                   input->is_signed == output->is_signed &&
                   input->dims[3] > 1 &&
-                  input->dims[3] <= SOFTMAX_MAX_DEPTH;
+                  input->dims[3] <= SOFTMAX_MAX_DEPTH &&
+                  (uint64_t)input->dims[1] * input->dims[2] <=
+                     FEATURE_MAP_MAX_DIM;
       break;
    }
    case PIPE_ML_OPERATION_TYPE_SPLIT: {
@@ -559,7 +610,7 @@ ethosu_ml_operation_supported(struct pipe_ml_device *pdevice,
       supported = false;
    }
 
-   return supported;
+   return supported && ethosu_feature_maps_fit(operation);
 }
 
 static void
