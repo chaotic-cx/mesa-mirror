@@ -2,7 +2,6 @@ dEQP-VK.api.external.memory.dma_buf.dedicated.buffer.info,Fail
 dEQP-VK.api.external.memory.opaque_fd.dedicated.buffer.info,Fail
 dEQP-VK.api.external.memory.opaque_fd.suballocated.buffer.info,Fail
 
-dEQP-VK.draw.renderpass.basic_draw.misc.maintenance5,Crash
 dEQP-VK.pipeline.monolithic.timestamp.misc_tests.consistent_results,Fail
 
 # From venus-lavapipe-full
@@ -10,7 +9,6 @@ dEQP-VK.draw.renderpass.multiple_interpolation.structured.with_sample_decoration
 
 # Failed with native lavapipe as well
 dEQP-VK.mesh_shader.ext.smoke.fast_lib.depth_only_triangles_position_components,Fail
-dEQP-VK.mesh_shader.ext.smoke.monolithic.depth_only_points_position_components,Fail
 dEQP-VK.mesh_shader.ext.smoke.monolithic.depth_only_triangles_position_components,Fail
 dEQP-VK.mesh_shader.ext.smoke.optimized_lib.depth_only_triangles_position_components,Fail
 
@@ -23,5 +21,6 @@ dEQP-VK.tessellation.tesscoord.isolines_equal_spacing_execution_mode_in_tesc,Fai
 dEQP-VK.api.driver_properties.conformance_version,Fail
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+dEQP-VK.api.array.oversized_array.wsi.direct_drm.get_physical_device_display_plane_properties2,Fail
 dEQP-VK.api.array.oversized_array.wsi.direct_drm.get_physical_device_display_properties,Fail
 dEQP-VK.tessellation.tesscoord.quads_fractional_even_spacing_execution_mode_in_tesc,Fail

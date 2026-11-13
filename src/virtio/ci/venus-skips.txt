@@ -95,4 +95,5 @@ dEQP-VK.api.external.memory.dma_buf.dedicated.device_only.import_multiple_times
 
 # New timeouts with VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.api.external.memory.dma_buf.dedicated.host_visible.import_multiple_times
+dEQP-VK.api.external.memory.dma_buf.suballocated.device_only.import_multiple_times
 dEQP-VK.api.external.memory.dma_buf.suballocated.host_visible.import_multiple_times

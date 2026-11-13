@@ -378,14 +378,6 @@ vk_xfermodes3,Fail
 # Initial ANGLE failures
 angle-dEQP-GLES2.functional.shaders.algorithm.rgb_to_hsl_vertex,Fail
 
-# Early-fragment multisample autotune regressions
-dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_alpha_to_coverage_samples_2_maintenance5,Fail
-dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_alpha_to_coverage_samples_4_maintenance5,Fail
-dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_samples_2,Fail
-dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_samples_2_maintenance5,Fail
-dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_samples_4,Fail
-dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_samples_4_maintenance5,Fail
-
 # Autotune regression
 angle-dEQP-GLES3.functional.fbo.msaa.2_samples.rg8,Fail
 angle-dEQP-GLES3.functional.fbo.msaa.4_samples.rg8,Fail
@@ -455,3 +447,5 @@ dEQP-VK.renderpasses.renderpass2.fragment_density_map.4_views.render_copy.densit
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 asan-dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+gmem-dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+gmem-dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_frag.case_1,Fail

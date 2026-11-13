@@ -3,20 +3,15 @@ dEQP-VK.sparse_resources.buffer.ssbo.read_write.sparse_residency_non_resident_st
 dEQP-VK.wsi.display.create_display_mode,Fail
 
 # VKCTS 1.4.5.3 -> 1.4.6.1 uprev
-dEQP-VK.api.copy_and_blit.core.use_after_copy.d16_unorm.general.32x32x2_img2img_msaa,Fail
-dEQP-VK.api.copy_and_blit.core.use_after_copy.d32_sfloat.general.32x32x2,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.d16_unorm.general.32x32x2,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.d16_unorm.general.32x32x2_regions,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.d32_sfloat.general.32x32x1_regions,Fail
 dEQP-VK.api.copy_and_blit.core.use_after_copy.d32_sfloat.general.32x32x2_regions,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.d32_sfloat.general.32x32x2_regions_img2img,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.d32_sfloat_s8_uint.general.32x32x2_img2img,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.x8_d24_unorm_pack32.general.32x32x1_regions,Fail
 dEQP-VK.api.copy_and_blit.core.use_after_copy.x8_d24_unorm_pack32.general.32x32x2,Fail
 dEQP-VK.api.copy_and_blit.core.use_after_copy.x8_d24_unorm_pack32.general.32x32x2_img2img,Fail
-dEQP-VK.api.copy_and_blit.core.use_after_copy.x8_d24_unorm_pack32.general.32x32x2_regions,Fail
+dEQP-VK.api.copy_and_blit.core.use_after_copy.x8_d24_unorm_pack32.general.32x32x2_img2img_msaa,Fail
 
 dEQP-VK.api.driver_properties.conformance_version,Fail
-
-# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
-dEQP-VK.api.copy_and_blit.core.use_after_copy.d16_unorm.general.32x32x1,Fail
-dEQP-VK.api.copy_and_blit.core.use_after_copy.d16_unorm.general.32x32x1_regions,Fail
-dEQP-VK.api.copy_and_blit.core.use_after_copy.d16_unorm.general.32x32x2_img2img,Fail
-dEQP-VK.api.copy_and_blit.core.use_after_copy.d32_sfloat.general.32x32x2_img2img_msaa,Fail
-
-# https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16182
-dEQP-VK.wsi.display_control.swapchain_counter,Crash

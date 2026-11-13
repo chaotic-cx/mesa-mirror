@@ -880,8 +880,8 @@ dEQP-VK.api.driver_properties.conformance_version,Fail
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.binding_model.descriptor_heap.binding_mapping.heap_with_constant_offset.fragment.acceleration_structure,Crash
-dEQP-VK.binding_model.descriptor_heap.binding_mapping.heap_with_indirect_index.fragment.storage_buffer,Crash
 dEQP-VK.binding_model.descriptor_heap.binding_mapping.heap_with_push_index.fragment.storage_buffer,Crash
+dEQP-VK.info.device_memory_budget_multi_instance,Fail
 dEQP-VK.multiview.multisample_resolve.no_queries.5_10_5_10,Crash
 dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.1_2_4_8,Crash
 dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.8_1_1_8,Crash
