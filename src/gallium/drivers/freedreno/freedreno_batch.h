@@ -273,6 +273,11 @@ struct fd_batch {
     */
    uint8_t pipeline_stats_queries_active[3];
 
+   /* a5xx: a primitives-generated query samples the primitive counters in
+    * this batch, so the counters run during its first pass only.
+    */
+   bool prim_counters_sampled;
+
    /* cached samples (in case multiple queries need to reference
     * the same sample snapshot)
     */

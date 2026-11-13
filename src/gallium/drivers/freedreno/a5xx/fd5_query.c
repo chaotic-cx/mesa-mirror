@@ -272,6 +272,103 @@ static const struct fd_acc_sample_provider timestamp_raw = {
 };
 
 /*
+ * Primitives Generated Query:
+ *
+ * Read from RBBM_PIPESTAT_CINVOCATIONS, as on a6xx.  In GMEM mode the tiles
+ * replay the draws, and the counter would count them again, so the tile
+ * code runs the counters only in the first pass, the binning pass or else
+ * the first tile; the later tiles' samples then add nothing.
+ */
+
+static void
+sample_prim_counter_start(struct fd_acc_query *aq, struct fd_ringbuffer *ring)
+{
+   OUT_WFI5(ring);
+
+   OUT_PKT7(ring, CP_REG_TO_MEM, 3);
+   OUT_RING(ring, CP_REG_TO_MEM_0_REG(REG_A5XX_RBBM_PIPESTAT_CINVOCATIONS) |
+                     CP_REG_TO_MEM_0_CNT(2) | CP_REG_TO_MEM_0_IS_64B);
+   OUT_RELOC(ring, query_sample(aq, start));
+}
+
+static void
+sample_prim_counter_stop(struct fd_acc_query *aq, struct fd_ringbuffer *ring)
+{
+   OUT_WFI5(ring);
+
+   OUT_PKT7(ring, CP_REG_TO_MEM, 3);
+   OUT_RING(ring, CP_REG_TO_MEM_0_REG(REG_A5XX_RBBM_PIPESTAT_CINVOCATIONS) |
+                     CP_REG_TO_MEM_0_CNT(2) | CP_REG_TO_MEM_0_IS_64B);
+   OUT_RELOC(ring, query_sample(aq, stop));
+
+   /* result += stop - start: */
+   OUT_PKT7(ring, CP_MEM_TO_MEM, 9);
+   OUT_RING(ring, CP_MEM_TO_MEM_0_DOUBLE | CP_MEM_TO_MEM_0_NEG_C |
+                     CP_MEM_TO_MEM_0_WAIT_FOR_MEM_WRITES);
+   OUT_RELOC(ring, query_sample(aq, result)); /* dst */
+   OUT_RELOC(ring, query_sample(aq, result)); /* srcA */
+   OUT_RELOC(ring, query_sample(aq, stop));   /* srcB */
+   OUT_RELOC(ring, query_sample(aq, start));  /* srcC */
+}
+
+static void
+primitives_generated_resume(struct fd_acc_query *aq,
+                            struct fd_batch *batch) assert_dt
+{
+   batch->prim_counters_sampled = true;
+
+   sample_prim_counter_start(aq, batch->draw);
+   if (batch->binning)
+      sample_prim_counter_start(aq, batch->binning);
+}
+
+static void
+primitives_generated_pause(struct fd_acc_query *aq,
+                           struct fd_batch *batch) assert_dt
+{
+   sample_prim_counter_stop(aq, batch->draw);
+   if (batch->binning)
+      sample_prim_counter_stop(aq, batch->binning);
+}
+
+static void
+primitives_generated_result(struct fd_acc_query *aq,
+                            struct fd_acc_query_sample *s,
+                            union pipe_query_result *result)
+{
+   struct fd5_query_sample *sp = fd5_query_sample(s);
+   result->u64 = sp->result;
+}
+
+static const struct fd_acc_sample_provider primitives_generated = {
+   .query_type = PIPE_QUERY_PRIMITIVES_GENERATED,
+   .size = sizeof(struct fd5_query_sample),
+   .resume = primitives_generated_resume,
+   .pause = primitives_generated_pause,
+   .result = primitives_generated_result,
+};
+
+void
+fd5_start_prim_counters(struct fd_batch *batch, struct fd_ringbuffer *ring)
+{
+   if (!batch->prim_counters_sampled)
+      return;
+
+   OUT_PKT7(ring, CP_EVENT_WRITE, 1);
+   OUT_RING(ring, CP_EVENT_WRITE_0_EVENT(START_PRIMITIVE_CTRS));
+}
+
+void
+fd5_stop_prim_counters(struct fd_batch *batch, struct fd_ringbuffer *ring)
+{
+   if (!batch->prim_counters_sampled)
+      return;
+
+   OUT_PKT7(ring, CP_EVENT_WRITE, 1);
+   OUT_RING(ring, CP_EVENT_WRITE_0_EVENT(STOP_PRIMITIVE_CTRS));
+}
+
+/*
  * Performance Counter (batch) queries:
  *
  * Only one of these is active at a time, per design of the gallium
@@ -483,4 +580,6 @@ fd5_query_context_init(struct pipe_context *pctx) disable_thread_safety_analysis
    fd_acc_query_register_provider(pctx, &time_elapsed);
    fd_acc_query_register_provider(pctx, &timestamp);
    fd_acc_query_register_provider(pctx, &timestamp_raw);
+
+   fd_acc_query_register_provider(pctx, &primitives_generated);
 }

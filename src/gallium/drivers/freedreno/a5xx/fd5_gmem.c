@@ -22,6 +22,7 @@
 #include "fd5_format.h"
 #include "fd5_gmem.h"
 #include "fd5_program.h"
+#include "fd5_query.h"
 #include "fd5_zsa.h"
 
 static void
@@ -357,8 +358,13 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
    OUT_PKT4(ring, REG_A5XX_RB_WINDOW_OFFSET, 1);
    OUT_RING(ring, A5XX_RB_WINDOW_OFFSET_X(0) | A5XX_RB_WINDOW_OFFSET_Y(0));
 
+   /* count primitives in the binning pass only, not again in the tiles: */
+   fd5_start_prim_counters(batch, ring);
+
    /* emit IB to binning drawcmds: */
    fd5_emit_ib(ring, batch->binning);
+
+   fd5_stop_prim_counters(batch, ring);
 
    fd_reset_wfi(batch);
 
@@ -508,6 +514,9 @@ fd5_emit_tile_init(struct fd_batch *batch) assert_dt
       fd5_emit_lrz_flush(batch, ring);
       patch_draws(batch, USE_VISIBILITY);
    } else {
+      /* count primitives in the first tile only, stopped after it: */
+      fd5_start_prim_counters(batch, ring);
+
       patch_draws(batch, IGNORE_VISIBILITY);
    }
 
@@ -752,6 +761,9 @@ fd5_emit_tile_gmem2mem(struct fd_batch *batch, const struct fd_tile *tile)
    const struct fd_gmem_stateobj *gmem = batch->gmem_state;
    struct pipe_framebuffer_state *pfb = &batch->framebuffer;
 
+   if (!use_hw_binning(batch) && tile == &gmem->tile[0])
+      fd5_stop_prim_counters(batch, batch->gmem);
+
    if (batch->resolve & (FD_BUFFER_DEPTH | FD_BUFFER_STENCIL)) {
       struct fd_resource *rsc = fd_resource(pfb->zsbuf.texture);
 
@@ -805,6 +817,9 @@ fd5_emit_sysmem_prep(struct fd_batch *batch) assert_dt
    OUT_RING(ring, 0x0);
 
    fd5_event_write(batch, ring, PC_CCU_INVALIDATE_COLOR, false);
+
+   /* a single pass, so the primitive counters run through it: */
+   fd5_start_prim_counters(batch, ring);
 
    OUT_PKT4(ring, REG_A5XX_PC_POWER_CNTL, 1);
    OUT_RING(ring, ctx->screen->info->num_sp_cores - 1); /* PC_POWER_CNTL */
@@ -864,6 +879,8 @@ fd5_emit_sysmem_fini(struct fd_batch *batch)
 
    OUT_PKT7(ring, CP_SKIP_IB2_ENABLE_GLOBAL, 1);
    OUT_RING(ring, 0x0);
+
+   fd5_stop_prim_counters(batch, ring);
 
    fd5_emit_lrz_flush(batch, ring);
 

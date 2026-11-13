@@ -11,6 +11,12 @@
 
 #include "pipe/p_context.h"
 
+#include "freedreno_batch.h"
+
 void fd5_query_context_init(struct pipe_context *pctx);
+
+void fd5_start_prim_counters(struct fd_batch *batch,
+                             struct fd_ringbuffer *ring);
+void fd5_stop_prim_counters(struct fd_batch *batch, struct fd_ringbuffer *ring);
 
 #endif /* FD5_QUERY_H_ */
