@@ -375,4 +375,16 @@ int ethosu_round_up_divide(int a, int b);
 
 int ethosu_quantize_scale(double scale, int32_t *shift, bool reduced);
 
+static inline bool
+ethosu_is_feature_map_in_io(const struct ethosu_feature_map *fm)
+{
+   if (fm->region != IO_REGION || !fm->tensor || fm->has_scalar)
+      return false;
+
+   if (fm->activation_storage == ETHOSU_ACTIVATION_STORAGE_CHAINED)
+      return false;
+
+   return true;
+}
+
 #endif /* ETHOSU_ML_H */

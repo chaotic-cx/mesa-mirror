@@ -3491,18 +3491,6 @@ ethosu_set_feature_map_tiles(struct ethosu_feature_map *fm)
    fm->tiles.width_0 = fm->shape.width;
 }
 
-static bool
-ethosu_is_feature_map_in_io(const struct ethosu_feature_map *fm)
-{
-   if (fm->region != IO_REGION || !fm->tensor || fm->has_scalar)
-      return false;
-
-   if (fm->activation_storage == ETHOSU_ACTIVATION_STORAGE_CHAINED)
-      return false;
-
-   return true;
-}
-
 static void
 ethosu_add_feature_map_base(struct ethosu_subgraph *subgraph,
                             const unsigned *required_sizes,
