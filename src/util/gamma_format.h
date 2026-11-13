@@ -19,17 +19,16 @@ struct gamma_header {
    uint64_t chunk_count;
 };
 
+#define GAMMA_CHUNK_TYPE_DRIVER_BIT (1u << 31)
+
 enum gamma_chunk_type {
    gamma_chunk_type_acceleration_structure,
    gamma_chunk_type_build_info,
-   gamma_chunk_type_driver_start = 0x80000000,
-
-   gamma_chunk_type_trace_info_radv = gamma_chunk_type_driver_start,
-   gamma_chunk_type_ray_history_radv,
 };
 
 struct gamma_chunk_header {
-   enum gamma_chunk_type type;
+   /* enum gamma_chunk_type or driver-specific type if GAMMA_CHUNK_TYPE_DRIVER_BIT is set */
+   uint32_t type;
    uint64_t size;
 };
 

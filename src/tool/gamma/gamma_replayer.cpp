@@ -281,7 +281,7 @@ gamma_replayer::load(FILE *file)
       fread(&chunk_header, sizeof(chunk_header), 1, file);
 
       if (chunk_header.type == gamma_chunk_type_acceleration_structure ||
-          chunk_header.type >= gamma_chunk_type_driver_start) {
+          (chunk_header.type & GAMMA_CHUNK_TYPE_DRIVER_BIT)) {
          continue;
       } else if (chunk_header.type == gamma_chunk_type_build_info) {
          std::unique_ptr<gamma_acceleration_structure_build> build =

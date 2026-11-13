@@ -8,6 +8,13 @@
 
 #include <stdint.h>
 
+enum radv_gamma_chunk_type {
+   radv_gamma_chunk_type_trace_info,
+   radv_gamma_chunk_type_ray_history,
+};
+
+#define RADV_GAMMA_CHUNK_TYPE(type) (GAMMA_CHUNK_TYPE_DRIVER_BIT | radv_gamma_chunk_type_##type)
+
 struct radv_gamma_trace_info {
    uint64_t bvh8 : 1;
    uint64_t padding : 63;

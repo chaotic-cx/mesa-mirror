@@ -252,7 +252,7 @@ void
 gamma_file_view_radv::load_driver_specific(FILE *file, const gamma_chunk_header *chunk_header,
                                            const gamma_header *header)
 {
-   if (chunk_header->type == gamma_chunk_type_trace_info_radv) {
+   if (chunk_header->type == RADV_GAMMA_CHUNK_TYPE(trace_info)) {
       assert(chunk_header->size == sizeof(radv_gamma_trace_info));
       trace_info = (radv_gamma_trace_info *)malloc(sizeof(radv_gamma_trace_info));
       fread(trace_info, sizeof(radv_gamma_trace_info), 1, file);

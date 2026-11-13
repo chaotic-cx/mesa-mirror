@@ -204,7 +204,7 @@ gamma_file_view::load(FILE *file, const gamma_header *header)
       } else if (chunk_header.type == gamma_chunk_type_build_info) {
          fseek(file, chunk_header.size, SEEK_CUR);
          continue;
-      } else if (chunk_header.type >= gamma_chunk_type_driver_start) {
+      } else if (chunk_header.type & GAMMA_CHUNK_TYPE_DRIVER_BIT) {
          load_driver_specific(file, &chunk_header, header);
       } else {
          fprintf(stderr, "gamma: Invalid gamma_chunk_type\n");
