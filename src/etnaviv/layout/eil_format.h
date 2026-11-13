@@ -15,11 +15,13 @@
 extern "C" {
 #endif
 
-enum eil_emulation {
+enum ENUM_PACKED eil_emulation {
    EIL_EMU_NONE,
    EIL_EMU_DEPTH32F,
    EIL_EMU_128BIT,
 };
+
+static_assert(sizeof(enum eil_emulation) == sizeof(uint8_t), "enum eil_emulation must be packed");
 
 struct eil_format {
    uint32_t vtx; /* FE_DATA_TYPE_* */
