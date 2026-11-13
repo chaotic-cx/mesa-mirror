@@ -6,12 +6,16 @@
 
 #include <vulkan/vulkan.h>
 
-#include <memory>
+#include <atomic>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
 #include <vector>
+
+#include "gfxstream_vk_private.h"
+#include "util/simple_mtx.h"
 
 namespace gfxstream {
 namespace vk {
@@ -36,8 +40,8 @@ struct DescriptorBindingElementWrite {
         VkWriteDescriptorSetAccelerationStructureKHR accelerationStructure;
     };
 
-    std::weak_ptr<bool> alive;
-    std::weak_ptr<bool> samplerAlive;
+    AliveTokenRef alive;
+    AliveTokenRef samplerAlive;
 };
 
 struct DescriptorBindingSparseWrite {
@@ -81,8 +85,9 @@ struct ReifiedDescriptorSet {
     VkDescriptorPool pool;
     VkDescriptorSetLayout setLayout;
     uint64_t poolId;
-    bool allocationPending;
+    std::atomic<bool> allocationPending{false};
     bool allocatedFromPoolIds = false;
+    std::atomic<bool> hasPendingWrites{false};
 
     // Indexed first by binding number
     DescriptorWriteTable allWrites;
@@ -98,15 +103,21 @@ struct ReifiedDescriptorSet {
 };
 
 struct DescriptorPoolAllocationInfo {
-    VkDevice device;
-    VkDescriptorPoolCreateFlags createFlags;
+    DescriptorPoolAllocationInfo() { simple_mtx_init(&poolLock, mtx_plain); }
+    ~DescriptorPoolAllocationInfo() { simple_mtx_destroy(&poolLock); }
+    DescriptorPoolAllocationInfo(const DescriptorPoolAllocationInfo&) = delete;
+    DescriptorPoolAllocationInfo& operator=(const DescriptorPoolAllocationInfo&) = delete;
+
+    simple_mtx_t poolLock;
+    VkDevice device = VK_NULL_HANDLE;
+    VkDescriptorPoolCreateFlags createFlags = 0;
 
     // TODO: This should be in a single fancy data structure of some kind.
     std::vector<uint64_t> freePoolIds;
     std::unordered_set<uint64_t> allocedPoolIds;
     std::unordered_set<VkDescriptorSet> allocedSets;
-    uint32_t maxSets;
-    uint32_t usedSets;
+    uint32_t maxSets = 0;
+    uint32_t usedSets = 0;
 
     // Fine-grained tracking of descriptor counts in individual pools
     struct DescriptorCountInfo {
@@ -120,7 +131,8 @@ struct DescriptorPoolAllocationInfo {
 struct DescriptorSetLayoutInfo {
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     std::vector<VkDescriptorBindingFlags> bindingFlags;
-    uint32_t refcount;
+    std::optional<VkAllocationCallbacks> destroyAllocator;
+    std::atomic<uint32_t> refcount{0};
 };
 
 void clearReifiedDescriptorSet(ReifiedDescriptorSet* set);
@@ -162,11 +174,11 @@ bool hasVariableDescriptorCountLayout(const VkDescriptorSetAllocateInfo* pAlloca
 VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo);
 void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
                                   const uint32_t* variableDescriptorCount = nullptr);
-void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+bool fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
                                   VkDescriptorSet set, bool allocatedFromPoolIds = true,
                                   const uint32_t* variableDescriptorCount = nullptr);
 VkResult validateAndApplyVirtualDescriptorSetAllocation(
-    const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets);
+    VkDevice device, const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets);
 
 // Returns false if set wasn't found in its pool.
 bool removeDescriptorSetFromPool(VkDescriptorSet set, bool usePoolIds);

@@ -188,12 +188,16 @@ def emit_custom_resource_preprocess(typeInfo, api, cgen):
 
 def emit_custom_resource_postprocess(typeInfo, api, cgen):
     if api.name in ENCODER_CUSTOM_RESOURCE_POSTPROCESS:
-        cgen.stmt(make_event_handler_call( \
+        callExpr = make_event_handler_call( \
             "sResourceTracker",
             api,
             ENCODER_THIS_PARAM,
             api.getRetVarExpr(),
-            cgen))
+            cgen)
+        if api.name in ("vkCreateDescriptorUpdateTemplate", "vkCreateDescriptorUpdateTemplateKHR"):
+            cgen.stmt("%s = %s" % (api.getRetVarExpr(), callExpr))
+        else:
+            cgen.stmt(callExpr)
 
 def emit_count_marshal(typeInfo, param, cgen):
     if param.typeName in VULKAN_TYPES_THAT_ARE_NEVER_TRANSMITTED:
@@ -228,12 +232,12 @@ def emit_marshal(typeInfo, param, cgen):
 def get_gfxstream_vk_type_name(vk_type_name):
     return "gfxstream_" + re.sub(r'(?<!^)(?=[A-Z][a-z]|(?<=[a-z])[A-Z])', '_', vk_type_name).lower()
 
-def emit_unmarshal(typeInfo, param, cgen):
+def emit_unmarshal(typeInfo, param, cgen, api=None):
     iterateVulkanType(
         typeInfo, param,
         VulkanMarshalingCodegen( \
             cgen, STREAM, ROOT_TYPE_DEFAULT_VALUE, param.paramName,
-           API_PREFIX_UNMARSHAL, direction="read", action=param.action, variant="guest"))
+           API_PREFIX_UNMARSHAL, direction="read", action=param.action, variant="guest", api=api))
 
 def emit_deepcopy(typeInfo, param, cgen):
     res = \
@@ -272,23 +276,51 @@ def custom_encoder_args(api):
         params.append(api.getRetVarExpr())
     return params
 
-def emit_handlemap_destroy(typeInfo, param, cgen):
+NEEDS_UNREGISTER_TYPES = {
+    "VkCommandPool",
+    "VkCommandBuffer",
+    "VkQueue",
+    "VkDeviceMemory",
+    "VkSemaphore",
+    "VkFence",
+}
+
+def get_destroy_call_args(param_type_name, elem_expr, api):
+    alloc_expr = "nullptr"
+    if api is not None:
+        for p in api.parameters:
+            if p.typeName == "VkAllocationCallbacks":
+                alloc_expr = p.paramName
+                break
+    if param_type_name in ("VkInstance", "VkDevice"):
+        return "(%s, %s)" % (elem_expr, alloc_expr)
+    if param_type_name == "VkCommandBuffer":
+        alloc_expr = "&gfxstream_vk_command_pool_from_handle(commandPool)->base.alloc"
+    return "(%s, %s, %s)" % (api.parameters[0].paramName, elem_expr, alloc_expr)
+
+def emit_handlemap_destroy(typeInfo, param, cgen, api=None):
     gfxstreamType = get_gfxstream_vk_type_name(param.typeName)
+    needsUnregister = param.typeName in NEEDS_UNREGISTER_TYPES
     if param.pointerIndirectionLevels > 0:
         lenAccess = cgen.generalLengthAccess(param, parentVarName=None)
         cgen.beginIf(param.paramName)
         if lenAccess and lenAccess != "1":
             cgen.beginFor("uint32_t i = 0", "i < %s" % lenAccess, "++i")
-            cgen.stmt("sResourceTracker->unregister_%s(%s[i])" % (param.typeName, param.paramName))
-            cgen.stmt("delete_%s(%s[i])" % (gfxstreamType, param.paramName))
+            elemExpr = "%s[i]" % param.paramName
+            if needsUnregister:
+                cgen.stmt("sResourceTracker->unregister_%s(%s)" % (param.typeName, elemExpr))
+            cgen.stmt("delete_%s%s" % (gfxstreamType, get_destroy_call_args(param.typeName, elemExpr, api)))
             cgen.endFor()
         else:
-            cgen.stmt("sResourceTracker->unregister_%s(*%s)" % (param.typeName, param.paramName))
-            cgen.stmt("delete_%s(*%s)" % (gfxstreamType, param.paramName))
+            elemExpr = "*%s" % param.paramName
+            if needsUnregister:
+                cgen.stmt("sResourceTracker->unregister_%s(%s)" % (param.typeName, elemExpr))
+            cgen.stmt("delete_%s%s" % (gfxstreamType, get_destroy_call_args(param.typeName, elemExpr, api)))
         cgen.endIf()
     else:
-        cgen.stmt("sResourceTracker->unregister_%s(%s)" % (param.typeName, param.paramName))
-        cgen.stmt("delete_%s(%s)" % (gfxstreamType, param.paramName))
+        if needsUnregister:
+            cgen.stmt("sResourceTracker->unregister_%s(%s)" % (param.typeName, param.paramName))
+        cgen.stmt("delete_%s%s" % (gfxstreamType, get_destroy_call_args(param.typeName, param.paramName, api)))
 
 class EncodingParameters(object):
     def __init__(self, api, typeInfo=None, customUnwrap=None):
@@ -441,9 +473,13 @@ def emit_parameter_encode_do_parameter_write(typeInfo, api, cgen, customUnwrap=N
 
 def emit_parameter_encode_read(typeInfo, api, cgen):
     encodingParams = EncodingParameters(api, typeInfo)
+    createParams = [p for p in encodingParams.toRead if p.action == "create"]
+    if createParams and (api.getRetTypeExpr() == "VkResult" or
+                         any("len" in p.attribs and p.attribs["len"] != "1" for p in createParams)):
+        cgen.stmt("bool guestCreateAllocFailed = false")
 
     for p in encodingParams.toRead:
-        emit_unmarshal(typeInfo, p, cgen)
+        emit_unmarshal(typeInfo, p, cgen, api=api)
         emit_transform(typeInfo, p, cgen, variant="fromhost")
 
 def emit_post(typeInfo, api, cgen):
@@ -465,7 +501,7 @@ def emit_post(typeInfo, api, cgen):
     emit_custom_resource_postprocess(typeInfo, api, cgen)
 
     for p in encodingParams.toDestroy:
-        emit_handlemap_destroy(typeInfo, p, cgen)
+        emit_handlemap_destroy(typeInfo, p, cgen, api=api)
 
 def emit_pool_free(cgen):
     cgen.stmt("clearPoolIfNeeded(&encodeCount, mImpl->pool(), %s)" % STREAM)
@@ -481,6 +517,11 @@ def emit_return_unmarshal(typeInfo, api, cgen):
     cgen.stmt("%s %s = (%s)0" % (retType, retVar, retType))
     cgen.stmt("%s->read(&%s, %s)" % \
               (STREAM, retVar, cgen.sizeofExpr(api.retType)))
+    encodingParams = EncodingParameters(api, typeInfo)
+    if retType == "VkResult" and any(p.action == "create" for p in encodingParams.toRead):
+        cgen.beginIf("guestCreateAllocFailed && %s >= VK_SUCCESS" % retVar)
+        cgen.stmt("%s = VK_ERROR_OUT_OF_HOST_MEMORY" % retVar)
+        cgen.endIf()
 
 def emit_return(typeInfo, api, cgen):
     if api.getRetTypeExpr() == "void":

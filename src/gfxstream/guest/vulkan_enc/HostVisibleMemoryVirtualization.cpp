@@ -7,7 +7,6 @@
 #include <set>
 
 #include "ResourceTracker.h"
-#include "Resources.h"
 #include "VkEncoder.h"
 #include "util/detect_os.h"
 #include "util/log.h"
@@ -34,12 +33,25 @@ CoherentMemory::CoherentMemory(GoldfishAddressSpaceBlockPtr block, uint64_t gpuA
 #endif  // DETECT_OS_ANDROID
 
 CoherentMemory::~CoherentMemory() {
-    ResourceTracker::getThreadLocalEncoder()->vkFreeMemorySyncGOOGLE(mDevice, mMemory, nullptr,
-                                                                     false);
+    if (mMemory != VK_NULL_HANDLE) {
+        const VkAllocationCallbacks* pAlloc = mAllocator ? &(*mAllocator) : nullptr;
+        ResourceTracker::getThreadLocalEncoder()->vkFreeMemorySyncGOOGLE(mDevice, mMemory, pAlloc,
+                                                                         false);
+    }
     util_vma_heap_finish(&mHeap);
 }
 
 VkDeviceMemory CoherentMemory::getDeviceMemory() const { return mMemory; }
+
+void CoherentMemory::setAllocator(const VkAllocationCallbacks* pAllocator) {
+    if (pAllocator) {
+        mAllocator = *pAllocator;
+    } else {
+        mAllocator.reset();
+    }
+}
+
+void CoherentMemory::detachDeviceMemory() { mMemory = VK_NULL_HANDLE; }
 
 bool CoherentMemory::subAllocate(uint64_t size, uint8_t** ptr, uint64_t& offset) {
     if (!mBaseAddr || size == 0) return false;

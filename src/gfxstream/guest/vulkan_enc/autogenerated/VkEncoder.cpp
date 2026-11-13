@@ -39,10 +39,10 @@
 #include "AlignedBuf.h"
 #include "BumpPool.h"
 #include "ResourceTracker.h"
-#include "Resources.h"
 #include "Validation.h"
 #include "VulkanStreamGuest.h"
 #include "gfxstream/guest/IOStream.h"
+#include "gfxstream_vk_private.h"
 #include "goldfish_vk_counting_guest.h"
 #include "goldfish_vk_deepcopy_guest.h"
 #include "goldfish_vk_marshaling_guest.h"
@@ -134,12 +134,18 @@ VkResult VkEncoder::vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo,
                                          (const VkInstanceCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pInstance));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pInstance = create_gfxstream_vk_instance(cgen_var_0);
-    sResourceTracker->register_VkInstance(*pInstance);
+    *pInstance = cgen_var_0 ? create_gfxstream_vk_instance(pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pInstance)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateInstance_VkResult_return = (VkResult)0;
     stream->read(&vkCreateInstance_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateInstance_VkResult_return >= VK_SUCCESS) {
+        vkCreateInstance_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     sResourceTracker->on_vkCreateInstance(this, vkCreateInstance_VkResult_return, pCreateInfo,
                                           pAllocator, pInstance);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
@@ -160,8 +166,7 @@ void VkEncoder::vkDestroyInstance(VkInstance instance, const VkAllocationCallbac
     writeStreamVal(&streamPtr, gfxstream_vk_instance_to_host_u64(instance));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkInstance(instance);
-    delete_gfxstream_vk_instance(instance);
+    delete_gfxstream_vk_instance(instance, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -199,6 +204,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDevices(VkInstance instance, uint32_t* pP
             }
         }
     }
+    bool guestCreateAllocFailed = false;
     uint64_t check_pPhysicalDeviceCount = stream->getBe64();
     if (pPhysicalDeviceCount) {
         if (!(check_pPhysicalDeviceCount)) {
@@ -216,13 +222,28 @@ VkResult VkEncoder::vkEnumeratePhysicalDevices(VkInstance instance, uint32_t* pP
             stream->alloc((void**)&cgen_var_0, (*pPhysicalDeviceCount) * 8);
             stream->read(cgen_var_0, (*pPhysicalDeviceCount) * 8);
             for (uint32_t k = 0; k < (*pPhysicalDeviceCount); ++k) {
-                pPhysicalDevices[k] = create_gfxstream_vk_physical_device(cgen_var_0[k]);
-                sResourceTracker->register_VkPhysicalDevice(pPhysicalDevices[k]);
+                pPhysicalDevices[k] = cgen_var_0[k] ? create_gfxstream_vk_physical_device(
+                                                          instance, nullptr, cgen_var_0[k])
+                                                    : VK_NULL_HANDLE;
+                if (cgen_var_0[k] && !(pPhysicalDevices[k])) {
+                    guestCreateAllocFailed = true;
+                }
+            }
+            if (guestCreateAllocFailed) {
+                for (uint32_t k = 0; k < (*pPhysicalDeviceCount); ++k) {
+                    if (pPhysicalDevices[k]) {
+                        delete_gfxstream_vk_physical_device(instance, pPhysicalDevices[k], nullptr);
+                        pPhysicalDevices[k] = VK_NULL_HANDLE;
+                    }
+                }
             }
         }
     }
     VkResult vkEnumeratePhysicalDevices_VkResult_return = (VkResult)0;
     stream->read(&vkEnumeratePhysicalDevices_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkEnumeratePhysicalDevices_VkResult_return >= VK_SUCCESS) {
+        vkEnumeratePhysicalDevices_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkEnumeratePhysicalDevices_VkResult_return;
@@ -478,12 +499,19 @@ VkResult VkEncoder::vkCreateDevice(VkPhysicalDevice physicalDevice,
                                        (const VkDeviceCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pDevice));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pDevice = create_gfxstream_vk_device(cgen_var_0);
-    sResourceTracker->register_VkDevice(*pDevice);
+    *pDevice = cgen_var_0 ? create_gfxstream_vk_device(physicalDevice, pAllocator, cgen_var_0)
+                          : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pDevice)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateDevice_VkResult_return = (VkResult)0;
     stream->read(&vkCreateDevice_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateDevice_VkResult_return >= VK_SUCCESS) {
+        vkCreateDevice_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     sResourceTracker->on_vkCreateDevice(this, vkCreateDevice_VkResult_return, physicalDevice,
                                         pCreateInfo, pAllocator, pDevice);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
@@ -505,8 +533,7 @@ void VkEncoder::vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pA
     writeStreamVal(&streamPtr, gfxstream_vk_device_to_host_u64(device));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkDevice(device);
-    delete_gfxstream_vk_device(device);
+    delete_gfxstream_vk_device(device, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -810,8 +837,7 @@ void VkEncoder::vkGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uin
     writeStreamVal(&streamPtr, (uint64_t)(*pQueue));
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pQueue = create_gfxstream_vk_queue(cgen_var_0);
-    sResourceTracker->register_VkQueue(*pQueue);
+    *pQueue = cgen_var_0 ? create_gfxstream_vk_queue(device, nullptr, cgen_var_0) : VK_NULL_HANDLE;
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -911,12 +937,19 @@ VkResult VkEncoder::vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo
                                          (VkMemoryAllocateInfo*)(local_pAllocateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pMemory));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pMemory = create_gfxstream_vk_device_memory(cgen_var_0);
-    sResourceTracker->register_VkDeviceMemory(*pMemory);
+    *pMemory = cgen_var_0 ? create_gfxstream_vk_device_memory(device, pAllocator, cgen_var_0)
+                          : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pMemory)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkAllocateMemory_VkResult_return = (VkResult)0;
     stream->read(&vkAllocateMemory_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkAllocateMemory_VkResult_return >= VK_SUCCESS) {
+        vkAllocateMemory_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkAllocateMemory_VkResult_return;
@@ -941,7 +974,7 @@ void VkEncoder::vkFreeMemory(VkDevice device, VkDeviceMemory memory,
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
     sResourceTracker->unregister_VkDeviceMemory(memory);
-    delete_gfxstream_vk_device_memory(memory);
+    delete_gfxstream_vk_device_memory(device, memory, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1441,12 +1474,19 @@ VkResult VkEncoder::vkCreateFence(VkDevice device, const VkFenceCreateInfo* pCre
                                       (const VkFenceCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pFence));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pFence = create_gfxstream_vk_fence(cgen_var_0);
-    sResourceTracker->register_VkFence(*pFence);
+    *pFence =
+        cgen_var_0 ? create_gfxstream_vk_fence(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pFence)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateFence_VkResult_return = (VkResult)0;
     stream->read(&vkCreateFence_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateFence_VkResult_return >= VK_SUCCESS) {
+        vkCreateFence_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateFence_VkResult_return;
@@ -1467,7 +1507,7 @@ void VkEncoder::vkDestroyFence(VkDevice device, VkFence fence,
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
     sResourceTracker->unregister_VkFence(fence);
-    delete_gfxstream_vk_fence(fence);
+    delete_gfxstream_vk_fence(device, fence, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1569,12 +1609,19 @@ VkResult VkEncoder::vkCreateSemaphore(VkDevice device, const VkSemaphoreCreateIn
                                           (const VkSemaphoreCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pSemaphore));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pSemaphore = create_gfxstream_vk_semaphore(cgen_var_0);
-    sResourceTracker->register_VkSemaphore(*pSemaphore);
+    *pSemaphore =
+        cgen_var_0 ? create_gfxstream_vk_semaphore(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pSemaphore)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateSemaphore_VkResult_return = (VkResult)0;
     stream->read(&vkCreateSemaphore_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateSemaphore_VkResult_return >= VK_SUCCESS) {
+        vkCreateSemaphore_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateSemaphore_VkResult_return;
@@ -1595,7 +1642,7 @@ void VkEncoder::vkDestroySemaphore(VkDevice device, VkSemaphore semaphore,
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
     sResourceTracker->unregister_VkSemaphore(semaphore);
-    delete_gfxstream_vk_semaphore(semaphore);
+    delete_gfxstream_vk_semaphore(device, semaphore, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1619,12 +1666,19 @@ VkResult VkEncoder::vkCreateQueryPool(VkDevice device, const VkQueryPoolCreateIn
                                           (const VkQueryPoolCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pQueryPool));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pQueryPool = create_gfxstream_vk_query_pool(cgen_var_0);
-    sResourceTracker->register_VkQueryPool(*pQueryPool);
+    *pQueryPool = cgen_var_0 ? create_gfxstream_vk_query_pool(device, pAllocator, cgen_var_0)
+                             : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pQueryPool)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateQueryPool_VkResult_return = (VkResult)0;
     stream->read(&vkCreateQueryPool_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateQueryPool_VkResult_return >= VK_SUCCESS) {
+        vkCreateQueryPool_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateQueryPool_VkResult_return;
@@ -1644,8 +1698,7 @@ void VkEncoder::vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool,
     writeStreamVal(&streamPtr, gfxstream_vk_query_pool_to_host_u64(queryPool));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkQueryPool(queryPool);
-    delete_gfxstream_vk_query_pool(queryPool);
+    delete_gfxstream_vk_query_pool(device, queryPool, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1715,12 +1768,19 @@ VkResult VkEncoder::vkCreateBuffer(VkDevice device, const VkBufferCreateInfo* pC
                                        (VkBufferCreateInfo*)(local_pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pBuffer));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pBuffer = create_gfxstream_vk_buffer(cgen_var_0);
-    sResourceTracker->register_VkBuffer(*pBuffer);
+    *pBuffer =
+        cgen_var_0 ? create_gfxstream_vk_buffer(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pBuffer)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateBuffer_VkResult_return = (VkResult)0;
     stream->read(&vkCreateBuffer_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateBuffer_VkResult_return >= VK_SUCCESS) {
+        vkCreateBuffer_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateBuffer_VkResult_return;
@@ -1740,8 +1800,7 @@ void VkEncoder::vkDestroyBuffer(VkDevice device, VkBuffer buffer,
     writeStreamVal(&streamPtr, gfxstream_vk_buffer_to_host_u64(buffer));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkBuffer(buffer);
-    delete_gfxstream_vk_buffer(buffer);
+    delete_gfxstream_vk_buffer(device, buffer, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1778,12 +1837,19 @@ VkResult VkEncoder::vkCreateImage(VkDevice device, const VkImageCreateInfo* pCre
                                       (VkImageCreateInfo*)(local_pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pImage));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pImage = create_gfxstream_vk_image(cgen_var_0);
-    sResourceTracker->register_VkImage(*pImage);
+    *pImage =
+        cgen_var_0 ? create_gfxstream_vk_image(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pImage)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateImage_VkResult_return = (VkResult)0;
     stream->read(&vkCreateImage_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateImage_VkResult_return >= VK_SUCCESS) {
+        vkCreateImage_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateImage_VkResult_return;
@@ -1803,8 +1869,7 @@ void VkEncoder::vkDestroyImage(VkDevice device, VkImage image,
     writeStreamVal(&streamPtr, gfxstream_vk_image_to_host_u64(image));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkImage(image);
-    delete_gfxstream_vk_image(image);
+    delete_gfxstream_vk_image(device, image, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1855,12 +1920,19 @@ VkResult VkEncoder::vkCreateImageView(VkDevice device, const VkImageViewCreateIn
                                           (const VkImageViewCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pView));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pView = create_gfxstream_vk_image_view(cgen_var_0);
-    sResourceTracker->register_VkImageView(*pView);
+    *pView = cgen_var_0 ? create_gfxstream_vk_image_view(device, pAllocator, cgen_var_0)
+                        : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pView)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateImageView_VkResult_return = (VkResult)0;
     stream->read(&vkCreateImageView_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateImageView_VkResult_return >= VK_SUCCESS) {
+        vkCreateImageView_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateImageView_VkResult_return;
@@ -1880,8 +1952,7 @@ void VkEncoder::vkDestroyImageView(VkDevice device, VkImageView imageView,
     writeStreamVal(&streamPtr, gfxstream_vk_image_view_to_host_u64(imageView));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkImageView(imageView);
-    delete_gfxstream_vk_image_view(imageView);
+    delete_gfxstream_vk_image_view(device, imageView, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1906,12 +1977,19 @@ VkResult VkEncoder::vkCreateCommandPool(VkDevice device, const VkCommandPoolCrea
                                             &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pCommandPool));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pCommandPool = create_gfxstream_vk_command_pool(cgen_var_0);
-    sResourceTracker->register_VkCommandPool(*pCommandPool);
+    *pCommandPool = cgen_var_0 ? create_gfxstream_vk_command_pool(device, pAllocator, cgen_var_0)
+                               : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pCommandPool)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateCommandPool_VkResult_return = (VkResult)0;
     stream->read(&vkCreateCommandPool_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateCommandPool_VkResult_return >= VK_SUCCESS) {
+        vkCreateCommandPool_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateCommandPool_VkResult_return;
@@ -1932,7 +2010,7 @@ void VkEncoder::vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool,
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
     sResourceTracker->unregister_VkCommandPool(commandPool);
-    delete_gfxstream_vk_command_pool(commandPool);
+    delete_gfxstream_vk_command_pool(device, commandPool, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -1983,17 +2061,41 @@ VkResult VkEncoder::vkAllocateCommandBuffers(VkDevice device,
             writeStreamVal(&streamPtr, (uint64_t)(pCommandBuffers[k]));
         }
     }
+    bool guestCreateAllocFailed = false;
     if (pAllocateInfo->commandBufferCount) {
         uint64_t* cgen_var_0;
         stream->alloc((void**)&cgen_var_0, pAllocateInfo->commandBufferCount * 8);
         stream->read(cgen_var_0, pAllocateInfo->commandBufferCount * 8);
         for (uint32_t k = 0; k < pAllocateInfo->commandBufferCount; ++k) {
-            pCommandBuffers[k] = create_gfxstream_vk_command_buffer(cgen_var_0[k]);
-            sResourceTracker->register_VkCommandBuffer(pCommandBuffers[k]);
+            pCommandBuffers[k] =
+                cgen_var_0[k]
+                    ? create_gfxstream_vk_command_buffer(
+                          device,
+                          &gfxstream_vk_command_pool_from_handle(pAllocateInfo->commandPool)
+                               ->base.alloc,
+                          cgen_var_0[k])
+                    : VK_NULL_HANDLE;
+            if (cgen_var_0[k] && !(pCommandBuffers[k])) {
+                guestCreateAllocFailed = true;
+            }
+        }
+        if (guestCreateAllocFailed) {
+            for (uint32_t k = 0; k < pAllocateInfo->commandBufferCount; ++k) {
+                if (pCommandBuffers[k]) {
+                    delete_gfxstream_vk_command_buffer(
+                        device, pCommandBuffers[k],
+                        &gfxstream_vk_command_pool_from_handle(pAllocateInfo->commandPool)
+                             ->base.alloc);
+                    pCommandBuffers[k] = VK_NULL_HANDLE;
+                }
+            }
         }
     }
     VkResult vkAllocateCommandBuffers_VkResult_return = (VkResult)0;
     stream->read(&vkAllocateCommandBuffers_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkAllocateCommandBuffers_VkResult_return >= VK_SUCCESS) {
+        vkAllocateCommandBuffers_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkAllocateCommandBuffers_VkResult_return;
@@ -2033,7 +2135,9 @@ void VkEncoder::vkFreeCommandBuffers(VkDevice device, VkCommandPool commandPool,
     if (pCommandBuffers) {
         for (uint32_t i = 0; i < commandBufferCount; ++i) {
             sResourceTracker->unregister_VkCommandBuffer(pCommandBuffers[i]);
-            delete_gfxstream_vk_command_buffer(pCommandBuffers[i]);
+            delete_gfxstream_vk_command_buffer(
+                device, pCommandBuffers[i],
+                &gfxstream_vk_command_pool_from_handle(commandPool)->base.alloc);
         }
     }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
@@ -2516,12 +2620,19 @@ VkResult VkEncoder::vkCreateEvent(VkDevice device, const VkEventCreateInfo* pCre
                                       (const VkEventCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pEvent));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pEvent = create_gfxstream_vk_event(cgen_var_0);
-    sResourceTracker->register_VkEvent(*pEvent);
+    *pEvent =
+        cgen_var_0 ? create_gfxstream_vk_event(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pEvent)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateEvent_VkResult_return = (VkResult)0;
     stream->read(&vkCreateEvent_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateEvent_VkResult_return >= VK_SUCCESS) {
+        vkCreateEvent_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateEvent_VkResult_return;
@@ -2541,8 +2652,7 @@ void VkEncoder::vkDestroyEvent(VkDevice device, VkEvent event,
     writeStreamVal(&streamPtr, gfxstream_vk_event_to_host_u64(event));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkEvent(event);
-    delete_gfxstream_vk_event(event);
+    delete_gfxstream_vk_event(device, event, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -2621,12 +2731,19 @@ VkResult VkEncoder::vkCreateBufferView(VkDevice device, const VkBufferViewCreate
                                            &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pView));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pView = create_gfxstream_vk_buffer_view(cgen_var_0);
-    sResourceTracker->register_VkBufferView(*pView);
+    *pView = cgen_var_0 ? create_gfxstream_vk_buffer_view(device, pAllocator, cgen_var_0)
+                        : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pView)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateBufferView_VkResult_return = (VkResult)0;
     stream->read(&vkCreateBufferView_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateBufferView_VkResult_return >= VK_SUCCESS) {
+        vkCreateBufferView_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateBufferView_VkResult_return;
@@ -2646,8 +2763,7 @@ void VkEncoder::vkDestroyBufferView(VkDevice device, VkBufferView bufferView,
     writeStreamVal(&streamPtr, gfxstream_vk_buffer_view_to_host_u64(bufferView));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkBufferView(bufferView);
-    delete_gfxstream_vk_buffer_view(bufferView);
+    delete_gfxstream_vk_buffer_view(device, bufferView, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -2673,12 +2789,19 @@ VkResult VkEncoder::vkCreateShaderModule(VkDevice device,
                                              &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pShaderModule));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pShaderModule = create_gfxstream_vk_shader_module(cgen_var_0);
-    sResourceTracker->register_VkShaderModule(*pShaderModule);
+    *pShaderModule = cgen_var_0 ? create_gfxstream_vk_shader_module(device, pAllocator, cgen_var_0)
+                                : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pShaderModule)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateShaderModule_VkResult_return = (VkResult)0;
     stream->read(&vkCreateShaderModule_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateShaderModule_VkResult_return >= VK_SUCCESS) {
+        vkCreateShaderModule_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateShaderModule_VkResult_return;
@@ -2698,8 +2821,7 @@ void VkEncoder::vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModu
     writeStreamVal(&streamPtr, gfxstream_vk_shader_module_to_host_u64(shaderModule));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkShaderModule(shaderModule);
-    delete_gfxstream_vk_shader_module(shaderModule);
+    delete_gfxstream_vk_shader_module(device, shaderModule, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -2725,12 +2847,20 @@ VkResult VkEncoder::vkCreatePipelineCache(VkDevice device,
                                               &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pPipelineCache));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pPipelineCache = create_gfxstream_vk_pipeline_cache(cgen_var_0);
-    sResourceTracker->register_VkPipelineCache(*pPipelineCache);
+    *pPipelineCache = cgen_var_0
+                          ? create_gfxstream_vk_pipeline_cache(device, pAllocator, cgen_var_0)
+                          : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pPipelineCache)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreatePipelineCache_VkResult_return = (VkResult)0;
     stream->read(&vkCreatePipelineCache_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreatePipelineCache_VkResult_return >= VK_SUCCESS) {
+        vkCreatePipelineCache_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreatePipelineCache_VkResult_return;
@@ -2750,8 +2880,7 @@ void VkEncoder::vkDestroyPipelineCache(VkDevice device, VkPipelineCache pipeline
     writeStreamVal(&streamPtr, gfxstream_vk_pipeline_cache_to_host_u64(pipelineCache));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkPipelineCache(pipelineCache);
-    delete_gfxstream_vk_pipeline_cache(pipelineCache);
+    delete_gfxstream_vk_pipeline_cache(device, pipelineCache, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -2875,17 +3004,33 @@ VkResult VkEncoder::vkCreateComputePipelines(VkDevice device, VkPipelineCache pi
             writeStreamVal(&streamPtr, (uint64_t)(pPipelines[k]));
         }
     }
+    bool guestCreateAllocFailed = false;
     if (createInfoCount) {
         uint64_t* cgen_var_0;
         stream->alloc((void**)&cgen_var_0, createInfoCount * 8);
         stream->read(cgen_var_0, createInfoCount * 8);
         for (uint32_t k = 0; k < createInfoCount; ++k) {
-            pPipelines[k] = create_gfxstream_vk_pipeline(cgen_var_0[k]);
-            sResourceTracker->register_VkPipeline(pPipelines[k]);
+            pPipelines[k] = cgen_var_0[k]
+                                ? create_gfxstream_vk_pipeline(device, pAllocator, cgen_var_0[k])
+                                : VK_NULL_HANDLE;
+            if (cgen_var_0[k] && !(pPipelines[k])) {
+                guestCreateAllocFailed = true;
+            }
+        }
+        if (guestCreateAllocFailed) {
+            for (uint32_t k = 0; k < createInfoCount; ++k) {
+                if (pPipelines[k]) {
+                    delete_gfxstream_vk_pipeline(device, pPipelines[k], pAllocator);
+                    pPipelines[k] = VK_NULL_HANDLE;
+                }
+            }
         }
     }
     VkResult vkCreateComputePipelines_VkResult_return = (VkResult)0;
     stream->read(&vkCreateComputePipelines_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateComputePipelines_VkResult_return >= VK_SUCCESS) {
+        vkCreateComputePipelines_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateComputePipelines_VkResult_return;
@@ -2905,8 +3050,7 @@ void VkEncoder::vkDestroyPipeline(VkDevice device, VkPipeline pipeline,
     writeStreamVal(&streamPtr, gfxstream_vk_pipeline_to_host_u64(pipeline));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkPipeline(pipeline);
-    delete_gfxstream_vk_pipeline(pipeline);
+    delete_gfxstream_vk_pipeline(device, pipeline, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -2932,12 +3076,20 @@ VkResult VkEncoder::vkCreatePipelineLayout(VkDevice device,
                                                &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pPipelineLayout));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pPipelineLayout = create_gfxstream_vk_pipeline_layout(cgen_var_0);
-    sResourceTracker->register_VkPipelineLayout(*pPipelineLayout);
+    *pPipelineLayout = cgen_var_0
+                           ? create_gfxstream_vk_pipeline_layout(device, pAllocator, cgen_var_0)
+                           : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pPipelineLayout)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreatePipelineLayout_VkResult_return = (VkResult)0;
     stream->read(&vkCreatePipelineLayout_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreatePipelineLayout_VkResult_return >= VK_SUCCESS) {
+        vkCreatePipelineLayout_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreatePipelineLayout_VkResult_return;
@@ -2957,8 +3109,7 @@ void VkEncoder::vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipeli
     writeStreamVal(&streamPtr, gfxstream_vk_pipeline_layout_to_host_u64(pipelineLayout));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkPipelineLayout(pipelineLayout);
-    delete_gfxstream_vk_pipeline_layout(pipelineLayout);
+    delete_gfxstream_vk_pipeline_layout(device, pipelineLayout, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -2982,12 +3133,19 @@ VkResult VkEncoder::vkCreateSampler(VkDevice device, const VkSamplerCreateInfo* 
                                         (const VkSamplerCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pSampler));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pSampler = create_gfxstream_vk_sampler(cgen_var_0);
-    sResourceTracker->register_VkSampler(*pSampler);
+    *pSampler =
+        cgen_var_0 ? create_gfxstream_vk_sampler(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pSampler)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateSampler_VkResult_return = (VkResult)0;
     stream->read(&vkCreateSampler_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateSampler_VkResult_return >= VK_SUCCESS) {
+        vkCreateSampler_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateSampler_VkResult_return;
@@ -3007,8 +3165,7 @@ void VkEncoder::vkDestroySampler(VkDevice device, VkSampler sampler,
     writeStreamVal(&streamPtr, gfxstream_vk_sampler_to_host_u64(sampler));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkSampler(sampler);
-    delete_gfxstream_vk_sampler(sampler);
+    delete_gfxstream_vk_sampler(device, sampler, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -3036,12 +3193,20 @@ VkResult VkEncoder::vkCreateDescriptorSetLayout(VkDevice device,
         &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pSetLayout));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pSetLayout = create_gfxstream_vk_descriptor_set_layout(cgen_var_0);
-    sResourceTracker->register_VkDescriptorSetLayout(*pSetLayout);
+    *pSetLayout = cgen_var_0
+                      ? create_gfxstream_vk_descriptor_set_layout(device, pAllocator, cgen_var_0)
+                      : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pSetLayout)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateDescriptorSetLayout_VkResult_return = (VkResult)0;
     stream->read(&vkCreateDescriptorSetLayout_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateDescriptorSetLayout_VkResult_return >= VK_SUCCESS) {
+        vkCreateDescriptorSetLayout_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateDescriptorSetLayout_VkResult_return;
@@ -3063,8 +3228,7 @@ void VkEncoder::vkDestroyDescriptorSetLayout(VkDevice device,
     writeStreamVal(&streamPtr, gfxstream_vk_descriptor_set_layout_to_host_u64(descriptorSetLayout));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkDescriptorSetLayout(descriptorSetLayout);
-    delete_gfxstream_vk_descriptor_set_layout(descriptorSetLayout);
+    delete_gfxstream_vk_descriptor_set_layout(device, descriptorSetLayout, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -3090,12 +3254,20 @@ VkResult VkEncoder::vkCreateDescriptorPool(VkDevice device,
                                                &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pDescriptorPool));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pDescriptorPool = create_gfxstream_vk_descriptor_pool(cgen_var_0);
-    sResourceTracker->register_VkDescriptorPool(*pDescriptorPool);
+    *pDescriptorPool = cgen_var_0
+                           ? create_gfxstream_vk_descriptor_pool(device, pAllocator, cgen_var_0)
+                           : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pDescriptorPool)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateDescriptorPool_VkResult_return = (VkResult)0;
     stream->read(&vkCreateDescriptorPool_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateDescriptorPool_VkResult_return >= VK_SUCCESS) {
+        vkCreateDescriptorPool_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateDescriptorPool_VkResult_return;
@@ -3115,8 +3287,7 @@ void VkEncoder::vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descri
     writeStreamVal(&streamPtr, gfxstream_vk_descriptor_pool_to_host_u64(descriptorPool));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkDescriptorPool(descriptorPool);
-    delete_gfxstream_vk_descriptor_pool(descriptorPool);
+    delete_gfxstream_vk_descriptor_pool(device, descriptorPool, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -3167,17 +3338,33 @@ VkResult VkEncoder::vkAllocateDescriptorSets(VkDevice device,
             writeStreamVal(&streamPtr, (uint64_t)(pDescriptorSets[k]));
         }
     }
+    bool guestCreateAllocFailed = false;
     if (pAllocateInfo->descriptorSetCount) {
         uint64_t* cgen_var_0;
         stream->alloc((void**)&cgen_var_0, pAllocateInfo->descriptorSetCount * 8);
         stream->read(cgen_var_0, pAllocateInfo->descriptorSetCount * 8);
         for (uint32_t k = 0; k < pAllocateInfo->descriptorSetCount; ++k) {
-            pDescriptorSets[k] = create_gfxstream_vk_descriptor_set(cgen_var_0[k]);
-            sResourceTracker->register_VkDescriptorSet(pDescriptorSets[k]);
+            pDescriptorSets[k] =
+                cgen_var_0[k] ? create_gfxstream_vk_descriptor_set(device, nullptr, cgen_var_0[k])
+                              : VK_NULL_HANDLE;
+            if (cgen_var_0[k] && !(pDescriptorSets[k])) {
+                guestCreateAllocFailed = true;
+            }
+        }
+        if (guestCreateAllocFailed) {
+            for (uint32_t k = 0; k < pAllocateInfo->descriptorSetCount; ++k) {
+                if (pDescriptorSets[k]) {
+                    delete_gfxstream_vk_descriptor_set(device, pDescriptorSets[k], nullptr);
+                    pDescriptorSets[k] = VK_NULL_HANDLE;
+                }
+            }
         }
     }
     VkResult vkAllocateDescriptorSets_VkResult_return = (VkResult)0;
     stream->read(&vkAllocateDescriptorSets_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkAllocateDescriptorSets_VkResult_return >= VK_SUCCESS) {
+        vkAllocateDescriptorSets_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkAllocateDescriptorSets_VkResult_return;
@@ -3217,8 +3404,7 @@ VkResult VkEncoder::vkFreeDescriptorSets(VkDevice device, VkDescriptorPool descr
     stream->read(&vkFreeDescriptorSets_VkResult_return, sizeof(VkResult));
     if (pDescriptorSets) {
         for (uint32_t i = 0; i < descriptorSetCount; ++i) {
-            sResourceTracker->unregister_VkDescriptorSet(pDescriptorSets[i]);
-            delete_gfxstream_vk_descriptor_set(pDescriptorSets[i]);
+            delete_gfxstream_vk_descriptor_set(device, pDescriptorSets[i], nullptr);
         }
     }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
@@ -3583,17 +3769,33 @@ VkResult VkEncoder::vkCreateGraphicsPipelines(VkDevice device, VkPipelineCache p
             writeStreamVal(&streamPtr, (uint64_t)(pPipelines[k]));
         }
     }
+    bool guestCreateAllocFailed = false;
     if (createInfoCount) {
         uint64_t* cgen_var_0;
         stream->alloc((void**)&cgen_var_0, createInfoCount * 8);
         stream->read(cgen_var_0, createInfoCount * 8);
         for (uint32_t k = 0; k < createInfoCount; ++k) {
-            pPipelines[k] = create_gfxstream_vk_pipeline(cgen_var_0[k]);
-            sResourceTracker->register_VkPipeline(pPipelines[k]);
+            pPipelines[k] = cgen_var_0[k]
+                                ? create_gfxstream_vk_pipeline(device, pAllocator, cgen_var_0[k])
+                                : VK_NULL_HANDLE;
+            if (cgen_var_0[k] && !(pPipelines[k])) {
+                guestCreateAllocFailed = true;
+            }
+        }
+        if (guestCreateAllocFailed) {
+            for (uint32_t k = 0; k < createInfoCount; ++k) {
+                if (pPipelines[k]) {
+                    delete_gfxstream_vk_pipeline(device, pPipelines[k], pAllocator);
+                    pPipelines[k] = VK_NULL_HANDLE;
+                }
+            }
         }
     }
     VkResult vkCreateGraphicsPipelines_VkResult_return = (VkResult)0;
     stream->read(&vkCreateGraphicsPipelines_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateGraphicsPipelines_VkResult_return >= VK_SUCCESS) {
+        vkCreateGraphicsPipelines_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateGraphicsPipelines_VkResult_return;
@@ -3619,12 +3821,19 @@ VkResult VkEncoder::vkCreateFramebuffer(VkDevice device, const VkFramebufferCrea
                                             &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pFramebuffer));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pFramebuffer = create_gfxstream_vk_framebuffer(cgen_var_0);
-    sResourceTracker->register_VkFramebuffer(*pFramebuffer);
+    *pFramebuffer = cgen_var_0 ? create_gfxstream_vk_framebuffer(device, pAllocator, cgen_var_0)
+                               : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pFramebuffer)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateFramebuffer_VkResult_return = (VkResult)0;
     stream->read(&vkCreateFramebuffer_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateFramebuffer_VkResult_return >= VK_SUCCESS) {
+        vkCreateFramebuffer_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateFramebuffer_VkResult_return;
@@ -3644,8 +3853,7 @@ void VkEncoder::vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer,
     writeStreamVal(&streamPtr, gfxstream_vk_framebuffer_to_host_u64(framebuffer));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkFramebuffer(framebuffer);
-    delete_gfxstream_vk_framebuffer(framebuffer);
+    delete_gfxstream_vk_framebuffer(device, framebuffer, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -3670,12 +3878,19 @@ VkResult VkEncoder::vkCreateRenderPass(VkDevice device, const VkRenderPassCreate
                                            &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pRenderPass));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pRenderPass = create_gfxstream_vk_render_pass(cgen_var_0);
-    sResourceTracker->register_VkRenderPass(*pRenderPass);
+    *pRenderPass = cgen_var_0 ? create_gfxstream_vk_render_pass(device, pAllocator, cgen_var_0)
+                              : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pRenderPass)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateRenderPass_VkResult_return = (VkResult)0;
     stream->read(&vkCreateRenderPass_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateRenderPass_VkResult_return >= VK_SUCCESS) {
+        vkCreateRenderPass_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateRenderPass_VkResult_return;
@@ -3695,8 +3910,7 @@ void VkEncoder::vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass,
     writeStreamVal(&streamPtr, gfxstream_vk_render_pass_to_host_u64(renderPass));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkRenderPass(renderPass);
-    delete_gfxstream_vk_render_pass(renderPass);
+    delete_gfxstream_vk_render_pass(device, renderPass, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -4954,8 +5168,7 @@ void VkEncoder::vkGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQu
     writeStreamVal(&streamPtr, (uint64_t)(*pQueue));
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pQueue = create_gfxstream_vk_queue(cgen_var_0);
-    sResourceTracker->register_VkQueue(*pQueue);
+    *pQueue = cgen_var_0 ? create_gfxstream_vk_queue(device, nullptr, cgen_var_0) : VK_NULL_HANDLE;
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -5123,15 +5336,24 @@ VkResult VkEncoder::vkCreateDescriptorUpdateTemplate(
         (const VkDescriptorUpdateTemplateCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pDescriptorUpdateTemplate));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pDescriptorUpdateTemplate = create_gfxstream_vk_descriptor_update_template(cgen_var_0);
-    sResourceTracker->register_VkDescriptorUpdateTemplate(*pDescriptorUpdateTemplate);
+    *pDescriptorUpdateTemplate =
+        cgen_var_0 ? create_gfxstream_vk_descriptor_update_template(device, pAllocator, cgen_var_0)
+                   : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pDescriptorUpdateTemplate)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateDescriptorUpdateTemplate_VkResult_return = (VkResult)0;
     stream->read(&vkCreateDescriptorUpdateTemplate_VkResult_return, sizeof(VkResult));
-    sResourceTracker->on_vkCreateDescriptorUpdateTemplate(
-        this, vkCreateDescriptorUpdateTemplate_VkResult_return, device, pCreateInfo, pAllocator,
-        pDescriptorUpdateTemplate);
+    if (guestCreateAllocFailed && vkCreateDescriptorUpdateTemplate_VkResult_return >= VK_SUCCESS) {
+        vkCreateDescriptorUpdateTemplate_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    vkCreateDescriptorUpdateTemplate_VkResult_return =
+        sResourceTracker->on_vkCreateDescriptorUpdateTemplate(
+            this, vkCreateDescriptorUpdateTemplate_VkResult_return, device, pCreateInfo, pAllocator,
+            pDescriptorUpdateTemplate);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateDescriptorUpdateTemplate_VkResult_return;
@@ -5153,8 +5375,7 @@ void VkEncoder::vkDestroyDescriptorUpdateTemplate(
                    gfxstream_vk_descriptor_update_template_to_host_u64(descriptorUpdateTemplate));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkDescriptorUpdateTemplate(descriptorUpdateTemplate);
-    delete_gfxstream_vk_descriptor_update_template(descriptorUpdateTemplate);
+    delete_gfxstream_vk_descriptor_update_template(device, descriptorUpdateTemplate, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -5237,12 +5458,20 @@ VkResult VkEncoder::vkCreateSamplerYcbcrConversion(
         (const VkSamplerYcbcrConversionCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pYcbcrConversion));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pYcbcrConversion = create_gfxstream_vk_sampler_ycbcr_conversion(cgen_var_0);
-    sResourceTracker->register_VkSamplerYcbcrConversion(*pYcbcrConversion);
+    *pYcbcrConversion =
+        cgen_var_0 ? create_gfxstream_vk_sampler_ycbcr_conversion(device, pAllocator, cgen_var_0)
+                   : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pYcbcrConversion)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateSamplerYcbcrConversion_VkResult_return = (VkResult)0;
     stream->read(&vkCreateSamplerYcbcrConversion_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateSamplerYcbcrConversion_VkResult_return >= VK_SUCCESS) {
+        vkCreateSamplerYcbcrConversion_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateSamplerYcbcrConversion_VkResult_return;
@@ -5264,8 +5493,7 @@ void VkEncoder::vkDestroySamplerYcbcrConversion(VkDevice device,
     writeStreamVal(&streamPtr, gfxstream_vk_sampler_ycbcr_conversion_to_host_u64(ycbcrConversion));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkSamplerYcbcrConversion(ycbcrConversion);
-    delete_gfxstream_vk_sampler_ycbcr_conversion(ycbcrConversion);
+    delete_gfxstream_vk_sampler_ycbcr_conversion(device, ycbcrConversion, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -5523,12 +5751,19 @@ VkResult VkEncoder::vkCreateRenderPass2(VkDevice device, const VkRenderPassCreat
                                             &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pRenderPass));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pRenderPass = create_gfxstream_vk_render_pass(cgen_var_0);
-    sResourceTracker->register_VkRenderPass(*pRenderPass);
+    *pRenderPass = cgen_var_0 ? create_gfxstream_vk_render_pass(device, pAllocator, cgen_var_0)
+                              : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pRenderPass)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateRenderPass2_VkResult_return = (VkResult)0;
     stream->read(&vkCreateRenderPass2_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateRenderPass2_VkResult_return >= VK_SUCCESS) {
+        vkCreateRenderPass2_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateRenderPass2_VkResult_return;
@@ -5696,12 +5931,20 @@ VkResult VkEncoder::vkCreatePrivateDataSlot(VkDevice device,
                                                 &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pPrivateDataSlot));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pPrivateDataSlot = create_gfxstream_vk_private_data_slot(cgen_var_0);
-    sResourceTracker->register_VkPrivateDataSlot(*pPrivateDataSlot);
+    *pPrivateDataSlot = cgen_var_0
+                            ? create_gfxstream_vk_private_data_slot(device, pAllocator, cgen_var_0)
+                            : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pPrivateDataSlot)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreatePrivateDataSlot_VkResult_return = (VkResult)0;
     stream->read(&vkCreatePrivateDataSlot_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreatePrivateDataSlot_VkResult_return >= VK_SUCCESS) {
+        vkCreatePrivateDataSlot_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreatePrivateDataSlot_VkResult_return;
@@ -5721,8 +5964,7 @@ void VkEncoder::vkDestroyPrivateDataSlot(VkDevice device, VkPrivateDataSlot priv
     writeStreamVal(&streamPtr, gfxstream_vk_private_data_slot_to_host_u64(privateDataSlot));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkPrivateDataSlot(privateDataSlot);
-    delete_gfxstream_vk_private_data_slot(privateDataSlot);
+    delete_gfxstream_vk_private_data_slot(device, privateDataSlot, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -7828,15 +8070,25 @@ VkResult VkEncoder::vkCreateDescriptorUpdateTemplateKHR(
         (const VkDescriptorUpdateTemplateCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pDescriptorUpdateTemplate));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pDescriptorUpdateTemplate = create_gfxstream_vk_descriptor_update_template(cgen_var_0);
-    sResourceTracker->register_VkDescriptorUpdateTemplate(*pDescriptorUpdateTemplate);
+    *pDescriptorUpdateTemplate =
+        cgen_var_0 ? create_gfxstream_vk_descriptor_update_template(device, pAllocator, cgen_var_0)
+                   : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pDescriptorUpdateTemplate)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateDescriptorUpdateTemplateKHR_VkResult_return = (VkResult)0;
     stream->read(&vkCreateDescriptorUpdateTemplateKHR_VkResult_return, sizeof(VkResult));
-    sResourceTracker->on_vkCreateDescriptorUpdateTemplateKHR(
-        this, vkCreateDescriptorUpdateTemplateKHR_VkResult_return, device, pCreateInfo, pAllocator,
-        pDescriptorUpdateTemplate);
+    if (guestCreateAllocFailed &&
+        vkCreateDescriptorUpdateTemplateKHR_VkResult_return >= VK_SUCCESS) {
+        vkCreateDescriptorUpdateTemplateKHR_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    vkCreateDescriptorUpdateTemplateKHR_VkResult_return =
+        sResourceTracker->on_vkCreateDescriptorUpdateTemplateKHR(
+            this, vkCreateDescriptorUpdateTemplateKHR_VkResult_return, device, pCreateInfo,
+            pAllocator, pDescriptorUpdateTemplate);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateDescriptorUpdateTemplateKHR_VkResult_return;
@@ -7858,8 +8110,7 @@ void VkEncoder::vkDestroyDescriptorUpdateTemplateKHR(
                    gfxstream_vk_descriptor_update_template_to_host_u64(descriptorUpdateTemplate));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkDescriptorUpdateTemplate(descriptorUpdateTemplate);
-    delete_gfxstream_vk_descriptor_update_template(descriptorUpdateTemplate);
+    delete_gfxstream_vk_descriptor_update_template(device, descriptorUpdateTemplate, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -7914,12 +8165,19 @@ VkResult VkEncoder::vkCreateRenderPass2KHR(VkDevice device,
                                             &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pRenderPass));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pRenderPass = create_gfxstream_vk_render_pass(cgen_var_0);
-    sResourceTracker->register_VkRenderPass(*pRenderPass);
+    *pRenderPass = cgen_var_0 ? create_gfxstream_vk_render_pass(device, pAllocator, cgen_var_0)
+                              : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pRenderPass)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateRenderPass2KHR_VkResult_return = (VkResult)0;
     stream->read(&vkCreateRenderPass2KHR_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateRenderPass2KHR_VkResult_return >= VK_SUCCESS) {
+        vkCreateRenderPass2KHR_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateRenderPass2KHR_VkResult_return;
@@ -8244,12 +8502,20 @@ VkResult VkEncoder::vkCreateSamplerYcbcrConversionKHR(
         (const VkSamplerYcbcrConversionCreateInfo*)(pCreateInfo), &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pYcbcrConversion));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pYcbcrConversion = create_gfxstream_vk_sampler_ycbcr_conversion(cgen_var_0);
-    sResourceTracker->register_VkSamplerYcbcrConversion(*pYcbcrConversion);
+    *pYcbcrConversion =
+        cgen_var_0 ? create_gfxstream_vk_sampler_ycbcr_conversion(device, pAllocator, cgen_var_0)
+                   : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pYcbcrConversion)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreateSamplerYcbcrConversionKHR_VkResult_return = (VkResult)0;
     stream->read(&vkCreateSamplerYcbcrConversionKHR_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreateSamplerYcbcrConversionKHR_VkResult_return >= VK_SUCCESS) {
+        vkCreateSamplerYcbcrConversionKHR_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateSamplerYcbcrConversionKHR_VkResult_return;
@@ -8271,8 +8537,7 @@ void VkEncoder::vkDestroySamplerYcbcrConversionKHR(VkDevice device,
     writeStreamVal(&streamPtr, gfxstream_vk_sampler_ycbcr_conversion_to_host_u64(ycbcrConversion));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkSamplerYcbcrConversion(ycbcrConversion);
-    delete_gfxstream_vk_sampler_ycbcr_conversion(ycbcrConversion);
+    delete_gfxstream_vk_sampler_ycbcr_conversion(device, ycbcrConversion, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -10655,12 +10920,20 @@ VkResult VkEncoder::vkCreatePrivateDataSlotEXT(VkDevice device,
                                                 &streamPtr);
     putBe64WithStreamPtr(&streamPtr, 0);
     writeStreamVal(&streamPtr, (uint64_t)(*pPrivateDataSlot));
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pPrivateDataSlot = create_gfxstream_vk_private_data_slot(cgen_var_0);
-    sResourceTracker->register_VkPrivateDataSlot(*pPrivateDataSlot);
+    *pPrivateDataSlot = cgen_var_0
+                            ? create_gfxstream_vk_private_data_slot(device, pAllocator, cgen_var_0)
+                            : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pPrivateDataSlot)) {
+        guestCreateAllocFailed = true;
+    }
     VkResult vkCreatePrivateDataSlotEXT_VkResult_return = (VkResult)0;
     stream->read(&vkCreatePrivateDataSlotEXT_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed && vkCreatePrivateDataSlotEXT_VkResult_return >= VK_SUCCESS) {
+        vkCreatePrivateDataSlotEXT_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreatePrivateDataSlotEXT_VkResult_return;
@@ -10681,8 +10954,7 @@ void VkEncoder::vkDestroyPrivateDataSlotEXT(VkDevice device, VkPrivateDataSlot p
     writeStreamVal(&streamPtr, gfxstream_vk_private_data_slot_to_host_u64(privateDataSlot));
     putBe64WithStreamPtr(&streamPtr, 0);
     stream->flush();
-    sResourceTracker->unregister_VkPrivateDataSlot(privateDataSlot);
-    delete_gfxstream_vk_private_data_slot(privateDataSlot);
+    delete_gfxstream_vk_private_data_slot(device, privateDataSlot, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
@@ -11127,10 +11399,14 @@ VkResult VkEncoder::vkCreateImageWithRequirementsGOOGLE(
     writeStreamVal(&streamPtr, (uint64_t)(*pImage));
     reservedmarshal_VkMemoryRequirements(stream, VK_STRUCTURE_TYPE_MAX_ENUM,
                                          (VkMemoryRequirements*)(pMemoryRequirements), &streamPtr);
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pImage = create_gfxstream_vk_image(cgen_var_0);
-    sResourceTracker->register_VkImage(*pImage);
+    *pImage =
+        cgen_var_0 ? create_gfxstream_vk_image(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pImage)) {
+        guestCreateAllocFailed = true;
+    }
     unmarshal_VkMemoryRequirements(stream, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryRequirements*)(pMemoryRequirements));
     if (pMemoryRequirements) {
@@ -11139,6 +11415,10 @@ VkResult VkEncoder::vkCreateImageWithRequirementsGOOGLE(
     }
     VkResult vkCreateImageWithRequirementsGOOGLE_VkResult_return = (VkResult)0;
     stream->read(&vkCreateImageWithRequirementsGOOGLE_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed &&
+        vkCreateImageWithRequirementsGOOGLE_VkResult_return >= VK_SUCCESS) {
+        vkCreateImageWithRequirementsGOOGLE_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateImageWithRequirementsGOOGLE_VkResult_return;
@@ -11178,10 +11458,14 @@ VkResult VkEncoder::vkCreateBufferWithRequirementsGOOGLE(
     writeStreamVal(&streamPtr, (uint64_t)(*pBuffer));
     reservedmarshal_VkMemoryRequirements(stream, VK_STRUCTURE_TYPE_MAX_ENUM,
                                          (VkMemoryRequirements*)(pMemoryRequirements), &streamPtr);
+    bool guestCreateAllocFailed = false;
     uint64_t cgen_var_0;
     stream->read(&cgen_var_0, 8);
-    *pBuffer = create_gfxstream_vk_buffer(cgen_var_0);
-    sResourceTracker->register_VkBuffer(*pBuffer);
+    *pBuffer =
+        cgen_var_0 ? create_gfxstream_vk_buffer(device, pAllocator, cgen_var_0) : VK_NULL_HANDLE;
+    if (cgen_var_0 && !(*pBuffer)) {
+        guestCreateAllocFailed = true;
+    }
     unmarshal_VkMemoryRequirements(stream, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryRequirements*)(pMemoryRequirements));
     if (pMemoryRequirements) {
@@ -11190,6 +11474,10 @@ VkResult VkEncoder::vkCreateBufferWithRequirementsGOOGLE(
     }
     VkResult vkCreateBufferWithRequirementsGOOGLE_VkResult_return = (VkResult)0;
     stream->read(&vkCreateBufferWithRequirementsGOOGLE_VkResult_return, sizeof(VkResult));
+    if (guestCreateAllocFailed &&
+        vkCreateBufferWithRequirementsGOOGLE_VkResult_return >= VK_SUCCESS) {
+        vkCreateBufferWithRequirementsGOOGLE_VkResult_return = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkCreateBufferWithRequirementsGOOGLE_VkResult_return;
@@ -11284,7 +11572,7 @@ VkResult VkEncoder::vkFreeMemorySyncGOOGLE(VkDevice device, VkDeviceMemory memor
     VkResult vkFreeMemorySyncGOOGLE_VkResult_return = (VkResult)0;
     stream->read(&vkFreeMemorySyncGOOGLE_VkResult_return, sizeof(VkResult));
     sResourceTracker->unregister_VkDeviceMemory(memory);
-    delete_gfxstream_vk_device_memory(memory);
+    delete_gfxstream_vk_device_memory(device, memory, pAllocator);
     clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
     return vkFreeMemorySyncGOOGLE_VkResult_return;

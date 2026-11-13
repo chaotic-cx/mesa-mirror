@@ -28,7 +28,6 @@ files_lib_vulkan_enc = files(
     'GfxStreamVulkanConnection.cpp',
     'HostVisibleMemoryVirtualization.cpp',
     'ResourceTracker.cpp',
-    'Resources.cpp',
     'Validation.cpp',
     'VulkanStreamGuest.cpp',
     'gfxstream_vk_private.cpp',

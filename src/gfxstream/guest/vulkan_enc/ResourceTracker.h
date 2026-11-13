@@ -137,11 +137,12 @@ class ResourceTracker {
     static uint32_t streamFeatureBits;
     static ThreadingCallbacks threadingCallbacks;
 
-#define HANDLE_REGISTER_DECL(type) \
-    void register_##type(type);    \
-    void unregister_##type(type);
-
-    GOLDFISH_VK_LIST_HANDLE_TYPES(HANDLE_REGISTER_DECL)
+    void unregister_VkCommandPool(VkCommandPool);
+    void unregister_VkCommandBuffer(VkCommandBuffer);
+    void unregister_VkQueue(VkQueue);
+    void unregister_VkDeviceMemory(VkDeviceMemory);
+    void unregister_VkSemaphore(VkSemaphore);
+    void unregister_VkFence(VkFence);
 
     VkResult on_vkEnumerateInstanceExtensionProperties(void* context, VkResult input_result,
                                                        const char* pLayerName,
@@ -198,6 +199,12 @@ class ResourceTracker {
                              const VkMemoryMapInfo* pMemoryMapInfo, void** ppData);
     VkResult on_vkUnmapMemory2(void* context, VkResult input_result, VkDevice device,
                                const VkMemoryUnmapInfo* pMemoryUnmapInfo);
+    VkResult on_vkFlushMappedMemoryRanges(void* context, VkResult input_result, VkDevice device,
+                                          uint32_t memoryRangeCount,
+                                          const VkMappedMemoryRange* pMemoryRanges);
+    VkResult on_vkInvalidateMappedMemoryRanges(void* context, VkResult input_result,
+                                               VkDevice device, uint32_t memoryRangeCount,
+                                               const VkMappedMemoryRange* pMemoryRanges);
 
     VkResult on_vkCreateImage(void* context, VkResult input_result, VkDevice device,
                               const VkImageCreateInfo* pCreateInfo,
@@ -312,10 +319,12 @@ class ResourceTracker {
     VkResult setBufferCollectionImageConstraintsFUCHSIA(
         VkEncoder* enc, VkDevice device,
         fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
+        VkBufferCollectionFUCHSIA collectionHandle,
         const VkImageConstraintsInfoFUCHSIA* pImageConstraintsInfo);
 
     VkResult setBufferCollectionBufferConstraintsFUCHSIA(
         fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
+        VkBufferCollectionFUCHSIA collectionHandle,
         const VkBufferConstraintsInfoFUCHSIA* pBufferConstraintsInfo);
 
 #endif
@@ -370,35 +379,6 @@ class ResourceTracker {
     VkResult on_vkWaitForFences(void* context, VkResult input_result, VkDevice device,
                                 uint32_t fenceCount, const VkFence* pFences, VkBool32 waitAll,
                                 uint64_t timeout);
-
-    VkResult on_vkSetPrivateData(void* context, VkResult input_result, VkDevice device,
-                                 VkObjectType objectType, uint64_t objectHandle,
-                                 VkPrivateDataSlot privateDataSlot, uint64_t data);
-    VkResult on_vkSetPrivateDataEXT(void* context, VkResult input_result, VkDevice device,
-                                    VkObjectType objectType, uint64_t objectHandle,
-                                    VkPrivateDataSlot privateDataSlot, uint64_t data);
-
-    void on_vkGetPrivateData(void* context, VkDevice device, VkObjectType objectType,
-                             uint64_t objectHandle, VkPrivateDataSlot privateDataSlot,
-                             uint64_t* pData);
-    void on_vkGetPrivateDataEXT(void* context, VkDevice device, VkObjectType objectType,
-                                uint64_t objectHandle, VkPrivateDataSlot privateDataSlot,
-                                uint64_t* pData);
-
-    VkResult on_vkCreatePrivateDataSlot(void* context, VkResult input_result, VkDevice device,
-                                        const VkPrivateDataSlotCreateInfo* pCreateInfo,
-                                        const VkAllocationCallbacks* pAllocator,
-                                        VkPrivateDataSlot* pPrivateDataSlot);
-    VkResult on_vkCreatePrivateDataSlotEXT(void* context, VkResult input_result, VkDevice device,
-                                           const VkPrivateDataSlotCreateInfo* pCreateInfo,
-                                           const VkAllocationCallbacks* pAllocator,
-                                           VkPrivateDataSlot* pPrivateDataSlot);
-    void on_vkDestroyPrivateDataSlot(void* context, VkDevice device,
-                                     VkPrivateDataSlot privateDataSlot,
-                                     const VkAllocationCallbacks* pAllocator);
-    void on_vkDestroyPrivateDataSlotEXT(void* context, VkDevice device,
-                                        VkPrivateDataSlot privateDataSlot,
-                                        const VkAllocationCallbacks* pAllocator);
 
     VkResult on_vkCreateDescriptorPool(void* context, VkResult input_result, VkDevice device,
                                        const VkDescriptorPoolCreateInfo* pCreateInfo,
@@ -521,10 +501,10 @@ class ResourceTracker {
                                      VkCommandBuffer commandBuffer,
                                      const VkCommandBufferBeginInfo* pBeginInfo);
     VkResult on_vkEndCommandBuffer(void* context, VkResult input_result,
-                                   VkCommandBuffer commandBuffer);
+                                    VkCommandBuffer commandBuffer);
     VkResult on_vkResetCommandBuffer(void* context, VkResult input_result,
-                                     VkCommandBuffer commandBuffer,
-                                     VkCommandBufferResetFlags flags);
+                                      VkCommandBuffer commandBuffer,
+                                      VkCommandBufferResetFlags flags);
 
     VkResult on_vkCreateImageView(void* context, VkResult input_result, VkDevice device,
                                   const VkImageViewCreateInfo* pCreateInfo,
@@ -573,6 +553,10 @@ class ResourceTracker {
                                           const VkGraphicsPipelineCreateInfo* pCreateInfos,
                                           const VkAllocationCallbacks* pAllocator,
                                           VkPipeline* pPipelines);
+    VkResult on_vkCreatePipelineLayout(void* context, VkResult input_result, VkDevice device,
+                                       const VkPipelineLayoutCreateInfo* pCreateInfo,
+                                       const VkAllocationCallbacks* pAllocator,
+                                       VkPipelineLayout* pPipelineLayout);
 
     VkResult on_vkCopyMemoryToImage(void* context, VkResult input_result, VkDevice device,
                                     const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo);
@@ -595,8 +579,6 @@ class ResourceTracker {
     bool supportsGuestCapabilities() const;
     uint32_t getStreamFeatures() const;
     VkDevice getDevice(VkCommandBuffer commandBuffer) const;
-    void addToCommandPool(VkCommandPool commandPool, uint32_t commandBufferCount,
-                          VkCommandBuffer* pCommandBuffers);
     void resetCommandPoolStagingInfo(VkCommandPool commandPool);
     bool supportsAsyncResets() const;
 
@@ -683,18 +665,6 @@ class ResourceTracker {
     void clearDescriptorPoolAndUnregisterDescriptorSets(void* context, VkDevice device,
                                                         VkDescriptorPool pool);
 
-    void setDeviceInfo(VkDevice device, VkPhysicalDevice physdev,
-                       const VkPhysicalDeviceProperties& props,
-                       const VkPhysicalDeviceMemoryProperties& memProps,
-                       uint32_t enabledExtensionCount, const char* const* ppEnabledExtensionNames,
-                       const void* pNext);
-
-    void setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory, VkDeviceSize allocationSize,
-                             uint8_t* ptr, uint32_t memoryTypeIndex, void* ahw, bool imported,
-                             zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr, int importedFd);
-
-    void setImageInfo(VkImage image, VkDevice device, const VkImageCreateInfo* pCreateInfo);
-
     bool supportsDeferredCommands() const;
     bool supportsAsyncQueueSubmit() const;
     bool supportsCreateResourcesWithRequirements() const;
@@ -707,9 +677,11 @@ class ResourceTracker {
                                            const VirtGpuResourcePtr& guestBlob, VkEncoder* enc,
                                            VkResult& res);
     VkResult allocateCoherentMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocateInfo,
-                                    VkEncoder* enc, VkDeviceMemory* pMemory);
+                                    const VkAllocationCallbacks* pAllocator, VkEncoder* enc,
+                                    VkDeviceMemory* pMemory);
 
-    VkResult getCoherentMemory(const VkMemoryAllocateInfo* pAllocateInfo, VkEncoder* enc,
+    VkResult getCoherentMemory(const VkMemoryAllocateInfo* pAllocateInfo,
+                               const VkAllocationCallbacks* pAllocator, VkEncoder* enc,
                                VkDevice device, VkDeviceMemory* pMemory);
 
     void transformImageMemoryRequirements2ForGuest(VkImage image, VkMemoryRequirements2* reqs2);
@@ -717,7 +689,8 @@ class ResourceTracker {
     void transformBufferMemoryRequirements2ForGuest(VkBuffer buffer, VkMemoryRequirements2* reqs2);
 
     void flushCommandBufferPendingCommandsBottomUp(void* context, VkQueue queue,
-                                                   const std::vector<VkCommandBuffer>& workingSet);
+                                                   const VkCommandBuffer* workingSet,
+                                                   size_t workingSetCount);
 
     template <class VkSubmitInfoType>
     void flushStagingStreams(void* context, VkQueue queue, uint32_t submitCount,
@@ -730,6 +703,7 @@ class ResourceTracker {
                               const VkSubmitInfo2* pSubmits, VkFence fence);
 
     VkResult initDescriptorUpdateTemplateBuffers(
+        VkDevice device, const VkAllocationCallbacks* pAllocator,
         const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo,
         VkDescriptorUpdateTemplate descriptorUpdateTemplate);
 
@@ -775,192 +749,6 @@ class ResourceTracker {
     uint64_t getAHardwareBufferId(AHardwareBuffer* ahw);
 #endif
 
-    void unregister_VkDescriptorSet_locked(VkDescriptorSet set);
-
-#define HANDLE_DEFINE_TRIVIAL_INFO_STRUCT(type) \
-    struct type##_Info {                        \
-        uint32_t unused;                        \
-    };
-    GOLDFISH_VK_LIST_TRIVIAL_HANDLE_TYPES(HANDLE_DEFINE_TRIVIAL_INFO_STRUCT)
-
-    struct VkInstance_Info {
-        // Fodder for vkEnumeratePhysicalDevices.
-        std::vector<VkPhysicalDevice> physicalDevices;
-    };
-
-    struct VkDevice_Info {
-        VkPhysicalDevice physdev;
-        VkPhysicalDeviceProperties props;
-        VkPhysicalDeviceMemoryProperties memProps;
-        std::vector<std::pair<PFN_vkDeviceMemoryReportCallbackEXT, void*>>
-            deviceMemoryReportCallbacks;
-    };
-
-    struct VkDeviceMemory_Info {
-        bool dedicated = false;
-        bool imported = false;
-
-#ifdef VK_USE_PLATFORM_ANDROID_KHR
-        AHardwareBuffer* ahw = nullptr;
-#endif
-        zx_handle_t vmoHandle = ZX_HANDLE_INVALID;
-        VkDevice device;
-
-        uint64_t blobId = 0;
-        uint32_t memoryTypeIndex = 0;
-        uint64_t coherentMemorySize = 0;
-        uint64_t coherentMemoryOffset = 0;
-
-#if DETECT_OS_ANDROID
-        GoldfishAddressSpaceBlockPtr goldfishBlock = nullptr;
-#endif  // DETECT_OS_ANDROID
-        CoherentMemoryPtr coherentMemory = nullptr;
-        VirtGpuResourcePtr blobPtr = nullptr;
-        int importedFd = -1;
-    };
-
-    struct VkCommandBuffer_Info {
-        uint32_t placeholder;
-    };
-
-    struct VkQueue_Info {
-        uint32_t placeholder;
-    };
-
-    // custom guest-side structs for images/buffers because of AHardwareBuffer :((
-    struct VkImage_Info {
-        VkDevice device;
-        VkImageCreateInfo createInfo;
-        bool external = false;
-        VkExternalMemoryImageCreateInfo externalCreateInfo;
-        VkDeviceMemory currentBacking = VK_NULL_HANDLE;
-        VkDeviceSize currentBackingOffset = 0;
-        VkDeviceSize currentBackingSize = 0;
-        bool baseRequirementsKnown = false;
-        VkMemoryRequirements baseRequirements;
-#ifdef VK_USE_PLATFORM_ANDROID_KHR
-        bool hasExternalFormat = false;
-        unsigned externalFourccFormat = 0;
-        std::vector<int> pendingQsriSyncFds;
-        bool hasAnb = false;
-#endif
-#ifdef VK_USE_PLATFORM_FUCHSIA
-        bool isSysmemBackedMemory = false;
-#endif
-#ifdef LINUX_GUEST_BUILD
-        bool emulatedDrmFormatModifier = false;
-        bool hasExplicitDrmModifier = false;
-        VkSubresourceLayout explicitPlaneLayout = {};
-#endif
-    };
-
-    struct VkBuffer_Info {
-        VkDevice device;
-        VkBufferCreateInfo createInfo;
-        bool external = false;
-        VkExternalMemoryBufferCreateInfo externalCreateInfo;
-        VkDeviceMemory currentBacking = VK_NULL_HANDLE;
-        VkDeviceSize currentBackingOffset = 0;
-        VkDeviceSize currentBackingSize = 0;
-        bool baseRequirementsKnown = false;
-        VkMemoryRequirements baseRequirements;
-#ifdef VK_USE_PLATFORM_FUCHSIA
-        bool isSysmemBackedMemory = false;
-#endif
-    };
-
-    struct VkSemaphore_Info {
-        VkDevice device;
-        zx_handle_t eventHandle = ZX_HANDLE_INVALID;
-        zx_koid_t eventKoid = ZX_KOID_INVALID;
-        std::optional<int> syncFd = {};
-        bool isTimeline = false;
-    };
-
-    struct VkDescriptorUpdateTemplate_Info {
-        VkPipelineBindPoint pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        uint32_t templateEntryCount = 0;
-        VkDescriptorUpdateTemplateEntry* templateEntries;
-
-        uint32_t imageInfoCount = 0;
-        uint32_t bufferInfoCount = 0;
-        uint32_t bufferViewCount = 0;
-        uint32_t inlineUniformBlockCount = 0;
-        uint32_t* imageInfoIndices;
-        uint32_t* bufferInfoIndices;
-        uint32_t* bufferViewIndices;
-        VkDescriptorImageInfo* imageInfos;
-        VkDescriptorBufferInfo* bufferInfos;
-        VkBufferView* bufferViews;
-        std::vector<uint8_t> inlineUniformBlockBuffer;
-        std::vector<uint32_t> inlineUniformBlockBytesPerBlocks;  // bytes per uniform block
-    };
-
-    struct VkFence_Info {
-        VkDevice device;
-        bool external = false;
-        VkExportFenceCreateInfo exportFenceCreateInfo;
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
-        // Note: -1 means already signaled.
-        std::optional<int> syncFd;
-#endif
-    };
-
-    struct VkDescriptorPool_Info {
-        uint32_t unused;
-    };
-
-    struct VkDescriptorSet_Info {
-        uint32_t unused;
-    };
-
-    struct VkDescriptorSetLayout_Info {
-        uint32_t unused;
-    };
-
-    struct VkCommandPool_Info {
-        uint32_t unused;
-    };
-
-    struct VkSampler_Info {
-        uint32_t unused;
-    };
-
-    struct VkPrivateDataSlot_Info {
-        // We need special handling for device memory and swapchain object types for private data
-        // management. For memory, we can use a single handle on the host side, so setting a
-        // private data slot for guest handle can also set any other data set previously.
-        // For swapchains, we don't actually get create/destroy calls to keep track of object
-        // handles to be able to pass the call to the underlying host driver. Rather than handling
-        // the 2 cases separately, we handle all the private data management directly here with a
-        // single table, so vkSetPrivateData and vkGetPrivateData calls don't need to be encoded for
-        // the host.
-        typedef std::pair<uint64_t, VkObjectType> PrivateDataKey;
-        struct PrivateDataKeyHash {
-            template <class T1, class T2>
-            std::size_t operator()(const std::pair<T1, T2>& p) const {
-                std::size_t h1 = std::hash<T1>{}(p.first);
-                std::size_t h2 = std::hash<T2>{}(p.second);
-                return h1 ^ h2;
-            }
-        };
-
-        std::unordered_map<PrivateDataKey, uint64_t, PrivateDataKeyHash> privateDataTable;
-    };
-
-    struct VkBufferCollectionFUCHSIA_Info {
-#ifdef VK_USE_PLATFORM_FUCHSIA
-        std::optional<fuchsia_sysmem::wire::BufferCollectionConstraints> constraints;
-        std::optional<VkBufferCollectionPropertiesFUCHSIA> properties;
-
-        // the index of corresponding createInfo for each image format
-        // constraints in |constraints|.
-        std::vector<uint32_t> createInfoIndex;
-#endif  // VK_USE_PLATFORM_FUCHSIA
-    };
-
-    VkDescriptorImageInfo filterNonexistentSampler(const VkDescriptorImageInfo& inputInfo);
-
     // The template writes are expanded on the guest; khr picks the KHR entry points for the
     // pushes, which is what a device below 1.4 with VK_KHR_push_descriptor has.
     void pushDescriptorSetWithTemplate(void* context, VkCommandBuffer commandBuffer,
@@ -970,17 +758,15 @@ class ResourceTracker {
     void pushDescriptorSetWithTemplate2(
         void* context, VkCommandBuffer commandBuffer,
         const VkPushDescriptorSetWithTemplateInfo* pPushDescriptorSetWithTemplateInfo, bool khr);
-    void sanitizePushDescriptorWrites(uint32_t descriptorWriteCount,
+    void sanitizePushDescriptorWrites(VkPipelineLayout layout, uint32_t set,
+                                      uint32_t descriptorWriteCount,
                                       const VkWriteDescriptorSet* pDescriptorWrites,
                                       std::vector<VkWriteDescriptorSet>& transformedWrites,
                                       std::vector<VkDescriptorImageInfo>& transformedImageInfos);
 
-    void emitDeviceMemoryReport(const VkDevice_Info& info, VkDeviceMemoryReportEventTypeEXT type,
-                                uint64_t memoryObjectId, VkDeviceSize size, VkObjectType objectType,
-                                uint64_t objectHandle, uint32_t heapIndex = 0);
-
-    void transformImageMemoryRequirementsForGuestLocked(VkImage image, VkMemoryRequirements* reqs);
-    CoherentMemoryPtr freeCoherentMemoryLocked(VkDeviceMemory memory, VkDeviceMemory_Info& info);
+    void transformImageMemoryRequirementsForGuest(VkImage image, VkMemoryRequirements* reqs);
+    CoherentMemoryPtr freeCoherentMemory(VkDevice device, VkDeviceMemory memory,
+                                         const VkAllocationCallbacks* pAllocator);
 
     void EmitGuestAndHostTraceMarker(VkEncoder* encoder);
 
@@ -1017,9 +803,7 @@ class ResourceTracker {
     fidl::WireSyncClient<fuchsia_sysmem::Allocator> mSysmemAllocator;
 #endif
 
-#define HANDLE_REGISTER_DECLARATION(type) std::unordered_map<type, type##_Info> info_##type;
-
-    GOLDFISH_VK_LIST_HANDLE_TYPES(HANDLE_REGISTER_DECLARATION)
+    std::vector<std::pair<uint32_t, std::weak_ptr<CoherentMemory>>> mAuxCoherentPools;
 
     std::unordered_map<const VkEncoder*, std::unordered_map<void*, CleanupCallback>>
         mEncoderCleanupCallbacks;

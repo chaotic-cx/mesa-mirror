@@ -71,8 +71,6 @@ VkResult gfxstream_vk_AllocateCommandBuffers(VkDevice device,
     VkResult result = resources->on_vkAllocateCommandBuffers(vkEnc, VK_SUCCESS, device,
                                                              pAllocateInfo, pCommandBuffers);
     if (result == VK_SUCCESS) {
-        resources->addToCommandPool(pAllocateInfo->commandPool, pAllocateInfo->commandBufferCount,
-                                    pCommandBuffers);
         for (uint32_t i = 0; i < pAllocateInfo->commandBufferCount; i++) {
             VK_FROM_HANDLE(gfxstream_vk_command_buffer, gfxstream_commandBuffer,
                            pCommandBuffers[i]);
@@ -91,16 +89,24 @@ void gfxstream_vk_FreeCommandBuffers(VkDevice device, VkCommandPool commandPool,
                                      uint32_t commandBufferCount,
                                      const VkCommandBuffer* pCommandBuffers) {
     MESA_TRACE_SCOPE("vkFreeCommandBuffers");
-    std::vector<VkCommandBuffer> validCommandBuffers;
-    validCommandBuffers.reserve(commandBufferCount);
+    if (!commandBufferCount || !pCommandBuffers) return;
+    VkCommandBuffer stackCommandBuffers[32];
+    std::vector<VkCommandBuffer> heapCommandBuffers;
+    VkCommandBuffer* validCommandBuffers = stackCommandBuffers;
+    if (commandBufferCount > 32) {
+        heapCommandBuffers.resize(commandBufferCount);
+        validCommandBuffers = heapCommandBuffers.data();
+    }
+    uint32_t validCount = 0;
     for (uint32_t i = 0; i < commandBufferCount; i++) {
         if (pCommandBuffers[i] != VK_NULL_HANDLE) {
-            validCommandBuffers.push_back(pCommandBuffers[i]);
+            validCommandBuffers[validCount++] = pCommandBuffers[i];
         }
     }
+    if (!validCount) return;
     auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-    vkEnc->vkFreeCommandBuffers(device, commandPool, validCommandBuffers.size(),
-                                validCommandBuffers.data(), true /* do lock */);
+    vkEnc->vkFreeCommandBuffers(device, commandPool, validCount, validCommandBuffers,
+                                true /* do lock */);
 }
 
 void gfxstream_vk_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer,

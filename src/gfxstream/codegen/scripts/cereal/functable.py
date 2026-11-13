@@ -102,18 +102,13 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkSetBufferCollectionImageConstraintsFUCHSIA",
     "vkSetBufferCollectionBufferConstraintsFUCHSIA",
     "vkGetBufferCollectionPropertiesFUCHSIA",
-    "vkSetPrivateData",
-    "vkSetPrivateDataEXT",
-    "vkGetPrivateData",
-    "vkGetPrivateDataEXT",
-    "vkCreatePrivateDataSlot",
-    "vkCreatePrivateDataSlotEXT",
-    "vkDestroyPrivateDataSlot",
-    "vkDestroyPrivateDataSlotEXT",
     "vkCopyMemoryToImage",
     "vkCopyMemoryToImageEXT",
     "vkCopyImageToMemory",
     "vkCopyImageToMemoryEXT",
+    "vkFlushMappedMemoryRanges",
+    "vkInvalidateMappedMemoryRanges",
+    "vkCreatePipelineLayout",
 ]
 
 SUCCESS_VAL = {
@@ -155,6 +150,14 @@ NON_AUTOGEN_ENTRYPOINTS = [
     "vkGetDeviceQueue",
     "vkGetDeviceQueue2",
     "vkGetPhysicalDeviceProperties",
+    "vkCreatePrivateDataSlot",
+    "vkCreatePrivateDataSlotEXT",
+    "vkDestroyPrivateDataSlot",
+    "vkDestroyPrivateDataSlotEXT",
+    "vkSetPrivateData",
+    "vkSetPrivateDataEXT",
+    "vkGetPrivateData",
+    "vkGetPrivateDataEXT",
     # Custom gfxstream functions
     "vkMapMemoryIntoAddressSpaceGOOGLE",
     "vkUpdateDescriptorSetWithTemplateSizedGOOGLE",
@@ -193,18 +196,18 @@ NON_AUTOGEN_ENTRYPOINTS = [
 # Handles that need to be translated to/from their corresponding gfxstream object types
 HANDLES_TRANSLATE = set()
 
-# Consolidated handle types that need vk.base.device initialized after creation
-HANDLES_POST_CREATE_INIT_DEVICE = {
-    "VkBuffer",
-    "VkFence",
-    "VkSemaphore",
-}
+HANDLES_POST_CREATE_INIT_DEVICE = set()
 
 # Types that have a corresponding method for transforming
 # an input list to its internal counterpart
 TYPES_TRANSFORM_LIST_METHOD = {
     "VkSemaphore": "FilterNoopSemaphores",
     "VkSemaphoreSubmitInfo": "FilterNoopSemaphoreSubmitInfos",
+}
+
+TYPES_HAS_NOOP_LIST_METHOD = {
+    "VkSemaphore": "HasNoopSemaphores",
+    "VkSemaphoreSubmitInfo": "HasNoopSemaphoreSubmitInfos",
 }
 
 def is_cmdbuf_dispatch(api):
@@ -249,6 +252,9 @@ def typeNameToObjectType(typeName):
 
 def transformListFuncName(typeName):
     return TYPES_TRANSFORM_LIST_METHOD[typeName]
+
+def hasNoopListFuncName(typeName):
+    return TYPES_HAS_NOOP_LIST_METHOD[typeName]
 
 def isAllocatorParam(param):
     ALLOCATOR_TYPE_NAME = "VkAllocationCallbacks"
@@ -413,7 +419,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
             internalArray = None
             if 0 == nestLevel:
                 internalArray = "internal_%s" % param.paramName
-                cgen.stmt("std::vector<%s> %s(%s)" % (param.typeName, internalArray, countParamName))
+                cgen.stmt("std::vector<%s> %s" % (param.typeName, internalArray))
             elif 1 == nestLevel or 2 == nestLevel:
                 internalArray = internalNestedParamName(param)
                 if isArrayParam(param):
@@ -431,6 +437,20 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                             continue
                         genInternalArrayDeclarations(member, countParamName, nestLevel + 1)
             return internalArray
+
+        def genCompoundHasNoopExpr(structTypeName, elemExpr):
+            checks = []
+            for member in typeInfo.structs[structTypeName].members:
+                if not paramTranslationRequired(member):
+                    continue
+                if isArrayParam(member) and member.typeName in TYPES_HAS_NOOP_LIST_METHOD:
+                    checks.append("%s(%s.%s, %s.%s)" % (
+                        hasNoopListFuncName(member.typeName),
+                        elemExpr, member.paramName,
+                        elemExpr, member.attribs["len"]))
+                else:
+                    return None
+            return " || ".join(checks) if checks else None
 
         def genInternalCompoundType(param, outName, inName, currLoopVar):
             nextLoopVar = None
@@ -478,13 +498,33 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                     if member.isOptional:
                         cgen.endIf()
 
-        def genInternalArray(param, countParamName, outArrayName, inArrayName, loopVar):
+        def genInternalArray(param, countParamName, outArrayName, inArrayName, loopVar, topLevel=False):
             if param.typeName in TYPES_TRANSFORM_LIST_METHOD:
-                # Use the corresponding transformList call
+                if topLevel and param.typeName in TYPES_HAS_NOOP_LIST_METHOD:
+                    cgen.beginIf("%s(%s, %s)" % (hasNoopListFuncName(param.typeName), inArrayName, countParamName))
+                    cgen.funcCall(outArrayName, transformListFuncName(param.typeName), [inArrayName, countParamName])
+                    cgen.stmt("%s = %s.data()" % (inArrayName, outArrayName))
+                    cgen.stmt("%s = %s.size()" % (countParamName, outArrayName))
+                    cgen.endIf()
+                    return inArrayName
                 cgen.funcCall(outArrayName, transformListFuncName(param.typeName), [inArrayName, countParamName])
                 cgen.stmt("%s = %s.data()" % (inArrayName, outArrayName))
                 cgen.stmt("%s = %s.size()" % (countParamName, outArrayName))
+                return "%s.data()" % outArrayName
             else:
+                hasNoopExpr = genCompoundHasNoopExpr(param.typeName, "%s[%s]" % (inArrayName, loopVar)) if (topLevel and isCompoundType(param.typeName)) else None
+                if hasNoopExpr:
+                    hasNoopVar = "hasNoop_%s" % param.paramName
+                    cgen.stmt("bool %s = false" % hasNoopVar)
+                    cgen.beginIf(inArrayName)
+                    cgen.beginFor("uint32_t %s = 0" % loopVar, "%s < %s && !%s" % (loopVar, countParamName, hasNoopVar), "++%s" % loopVar)
+                    cgen.beginIf(hasNoopExpr)
+                    cgen.stmt("%s = true" % hasNoopVar)
+                    cgen.endIf()
+                    cgen.endFor()
+                    cgen.endIf()
+                    cgen.beginIf(hasNoopVar)
+                cgen.stmt("%s.resize(%s)" % (outArrayName, countParamName))
                 cgen.beginFor("uint32_t %s = 0" % loopVar, "%s < %s" % (loopVar, countParamName), "++%s" % loopVar)
                 if param.isOptional:
                     cgen.beginIf(inArrayName)
@@ -496,6 +536,10 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                 if param.isOptional:
                     cgen.endIf()
                 cgen.endFor()
+                if hasNoopExpr:
+                    cgen.stmt("%s = %s.data()" % (inArrayName, outArrayName))
+                    cgen.endIf()
+                    return inArrayName
             return "%s.data()" % outArrayName
 
         # Translate params into params needed for gfxstream-internal
@@ -518,7 +562,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                     if "len" in param.attribs:
                         countParamName = param.attribs["len"]
                     internalArrayName = genInternalArrayDeclarations(param, countParamName)
-                    param.paramName = genInternalArray(param, countParamName, internalArrayName, param.paramName, nextLoopVar)
+                    param.paramName = genInternalArray(param, countParamName, internalArrayName, param.paramName, nextLoopVar, topLevel=True)
                 elif 0 == param.pointerIndirectionLevels:
                     if param.isOptional:
                         param.paramName = ("%s ? %s->%s : VK_NULL_HANDLE" % (paramNameToObjectName(param.paramName), paramNameToObjectName(param.paramName), INTERNAL_OBJECT_NAME))

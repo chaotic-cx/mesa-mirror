@@ -9,7 +9,7 @@
 #include <functional>
 #include <type_traits>
 
-#include "Resources.h"
+#include "gfxstream_vk_private.h"
 #include "util/log.h"
 #include "vk_util.h"
 
@@ -21,8 +21,9 @@ void clearReifiedDescriptorSet(ReifiedDescriptorSet* set) {
     set->pool = VK_NULL_HANDLE;
     set->setLayout = VK_NULL_HANDLE;
     set->poolId = -1;
-    set->allocationPending = false;
+    set->allocationPending.store(false, std::memory_order_release);
     set->allocatedFromPoolIds = false;
+    set->hasPendingWrites.store(false, std::memory_order_release);
     set->allWrites.bindings.clear();
     set->pendingWriteArrayRanges.clear();
 }
@@ -264,7 +265,8 @@ static void initializeReifiedDescriptorSet(VkDescriptorPool pool, VkDescriptorSe
 
     set->pool = pool;
     set->setLayout = setLayout;
-    set->allocationPending = allocationPending;
+    set->allocationPending.store(allocationPending, std::memory_order_release);
+    set->hasPendingWrites.store(false, std::memory_order_release);
     set->bindings = std::move(effectiveBindings);
 }
 
@@ -329,6 +331,9 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
         writeInlineUniformBlockBytes(toWrite->allWrites, dstBinding, dstArrayElement,
                                      descInlineUniformBlock->pData,
                                      descInlineUniformBlock->dataSize);
+        if (descInlineUniformBlock->dataSize > 0) {
+            toWrite->hasPendingWrites.store(true, std::memory_order_release);
+        }
     } else if (isDescriptorTypeAccelerationStructure(descType)) {
         // TODO
         // Look for pNext inline uniform block or acceleration structure.
@@ -372,6 +377,9 @@ void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDesc
         writeDescriptorBindingElements(dstTable, copy->dstBinding, copy->dstArrayElement,
                                     copy->descriptorCount, elementsToCopy.data());
     }
+    if (copy->descriptorCount > 0) {
+        dst->hasPendingWrites.store(true, std::memory_order_release);
+    }
 }
 
 void doEmulatedDescriptorImageInfoWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
@@ -387,10 +395,13 @@ void doEmulatedDescriptorImageInfoWriteFromTemplate(VkDescriptorType descType, u
             entry.type = DescriptorWriteType::ImageInfo;
             bindingWrite.descriptorType = descType;
             auto* imageView = gfxstream_vk_image_view_from_handle(entry.imageInfo.imageView);
-            entry.alive = imageView ? imageView->alive : std::weak_ptr<bool>();
+            entry.alive = imageView ? imageView->alive.weakRef() : AliveTokenRef();
             auto* sampler = gfxstream_vk_sampler_from_handle(entry.imageInfo.sampler);
-            entry.samplerAlive = sampler ? sampler->alive : std::weak_ptr<bool>();
+            entry.samplerAlive = sampler ? sampler->alive.weakRef() : AliveTokenRef();
         });
+    if (count > 0) {
+        set->hasPendingWrites.store(true, std::memory_order_release);
+    }
 }
 
 void doEmulatedDescriptorBufferInfoWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
@@ -406,8 +417,11 @@ void doEmulatedDescriptorBufferInfoWriteFromTemplate(VkDescriptorType descType, 
             entry.type = DescriptorWriteType::BufferInfo;
             bindingWrite.descriptorType = descType;
             auto* buffer = gfxstream_vk_buffer_from_handle(entry.bufferInfo.buffer);
-            entry.alive = buffer ? buffer->alive : std::weak_ptr<bool>();
+            entry.alive = buffer ? buffer->alive.weakRef() : AliveTokenRef();
         });
+    if (count > 0) {
+        set->hasPendingWrites.store(true, std::memory_order_release);
+    }
 }
 
 void doEmulatedDescriptorBufferViewWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
@@ -423,8 +437,11 @@ void doEmulatedDescriptorBufferViewWriteFromTemplate(VkDescriptorType descType, 
             entry.type = DescriptorWriteType::BufferView;
             bindingWrite.descriptorType = descType;
             auto* bufferView = gfxstream_vk_buffer_view_from_handle(entry.bufferView);
-            entry.alive = bufferView ? bufferView->alive : std::weak_ptr<bool>();
+            entry.alive = bufferView ? bufferView->alive.weakRef() : AliveTokenRef();
         });
+    if (count > 0) {
+        set->hasPendingWrites.store(true, std::memory_order_release);
+    }
 }
 
 void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descType, uint32_t binding,
@@ -434,6 +451,9 @@ void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descTyp
     std::lock_guard<std::recursive_mutex> lock(set->lock);
     (void)descType;
     writeInlineUniformBlockBytes(set->allWrites, binding, dstArrayElement, pData, count);
+    if (count > 0) {
+        set->hasPendingWrites.store(true, std::memory_order_release);
+    }
 }
 
 static bool isBindingFeasibleForAlloc(
@@ -589,18 +609,23 @@ static void removeDescriptorSetAllocation(
     }
 }
 
-void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+bool fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
                                   VkDescriptorSet set, bool allocatedFromPoolIds,
                                   const uint32_t* variableDescriptorCount) {
     DescriptorPoolAllocationInfo* allocInfo =
         gfxstream_vk_descriptor_pool_from_handle(pool)->allocInfo;
+    auto* ds = gfxstream_vk_descriptor_set_from_handle(set);
 
-    ReifiedDescriptorSet* newReified = new ReifiedDescriptorSet;
+    ReifiedDescriptorSet* newReified = allocDeviceSubobject<ReifiedDescriptorSet>(
+        ds->base.device, nullptr, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+    if (!newReified) {
+        return false;
+    }
     newReified->poolId = gfxstream_vk_descriptor_set_to_host_u64(set);
     newReified->allocatedFromPoolIds = allocatedFromPoolIds;
-    newReified->allocationPending = allocatedFromPoolIds;
+    newReified->allocationPending.store(allocatedFromPoolIds, std::memory_order_release);
 
-    gfxstream_vk_descriptor_set_from_handle(set)->reified = newReified;
+    ds->reified = newReified;
 
     if (allocatedFromPoolIds) {
         allocInfo->allocedPoolIds.insert(newReified->poolId);
@@ -609,26 +634,17 @@ void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout s
 
     initializeReifiedDescriptorSet(pool, setLayout, newReified, allocatedFromPoolIds,
                                    variableDescriptorCount);
+    return true;
 }
 
 VkResult validateAndApplyVirtualDescriptorSetAllocation(
-    const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets) {
+    VkDevice device, const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets) {
     VkResult validateRes = validateDescriptorSetAllocation(pAllocateInfo);
 
     if (validateRes != VK_SUCCESS) return validateRes;
 
     const auto* varDescCountAllocInfo = vk_find_struct_const(
         pAllocateInfo->pNext, DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO);
-
-    for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
-        const uint32_t* varCount =
-            (varDescCountAllocInfo && varDescCountAllocInfo->descriptorSetCount > i &&
-             varDescCountAllocInfo->pDescriptorCounts)
-                ? &varDescCountAllocInfo->pDescriptorCounts[i]
-                : nullptr;
-        applyDescriptorSetAllocation(pAllocateInfo->descriptorPool, pAllocateInfo->pSetLayouts[i],
-                                     varCount);
-    }
 
     VkDescriptorPool pool = pAllocateInfo->descriptorPool;
     DescriptorPoolAllocationInfo* allocInfo =
@@ -640,22 +656,37 @@ VkResult validateAndApplyVirtualDescriptorSetAllocation(
             "IDs remaining. The count for maxSets was %u and used was %u\n",
             __func__, pAllocateInfo->descriptorSetCount, (uint32_t)allocInfo->freePoolIds.size(),
             allocInfo->maxSets, allocInfo->usedSets);
+        return VK_ERROR_OUT_OF_POOL_MEMORY;
     }
 
     for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
         uint64_t id = allocInfo->freePoolIds.back();
-        allocInfo->freePoolIds.pop_back();
-
-        VkDescriptorSet newSet = create_gfxstream_vk_descriptor_set(id);
-        pSets[i] = newSet;
-
         const uint32_t* varCount =
             (varDescCountAllocInfo && varDescCountAllocInfo->descriptorSetCount > i &&
              varDescCountAllocInfo->pDescriptorCounts)
                 ? &varDescCountAllocInfo->pDescriptorCounts[i]
                 : nullptr;
-        fillDescriptorSetInfoForPool(pool, pAllocateInfo->pSetLayouts[i], newSet,
-                                     /*allocatedFromPoolIds=*/true, varCount);
+
+        VkDescriptorSet newSet = create_gfxstream_vk_descriptor_set(device, nullptr, id);
+        if (!newSet || !fillDescriptorSetInfoForPool(pool, pAllocateInfo->pSetLayouts[i], newSet,
+                                                     /*allocatedFromPoolIds=*/true, varCount)) {
+            if (newSet) {
+                delete_gfxstream_vk_descriptor_set(device, newSet, nullptr);
+            }
+            for (uint32_t j = 0; j < i; ++j) {
+                removeDescriptorSetFromPool(pSets[j], /*usePoolIds=*/true);
+                delete_gfxstream_vk_descriptor_set(device, pSets[j], nullptr);
+                pSets[j] = VK_NULL_HANDLE;
+            }
+            for (uint32_t j = i; j < pAllocateInfo->descriptorSetCount; ++j) {
+                pSets[j] = VK_NULL_HANDLE;
+            }
+            return VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        allocInfo->freePoolIds.pop_back();
+        applyDescriptorSetAllocation(pool, pAllocateInfo->pSetLayouts[i], varCount);
+        pSets[i] = newSet;
     }
 
     return VK_SUCCESS;
@@ -663,6 +694,9 @@ VkResult validateAndApplyVirtualDescriptorSetAllocation(
 
 bool removeDescriptorSetFromPool(VkDescriptorSet set, bool usePoolIds) {
     ReifiedDescriptorSet* reified = gfxstream_vk_descriptor_set_from_handle(set)->reified;
+    if (!reified) {
+        return false;
+    }
 
     VkDescriptorPool pool = reified->pool;
     DescriptorPoolAllocationInfo* allocInfo =

@@ -6,6 +6,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <optional>
 #include <unordered_map>
 
 #include "VirtGpu.h"
@@ -40,6 +41,8 @@ class CoherentMemory {
     ~CoherentMemory();
 
     VkDeviceMemory getDeviceMemory() const;
+    void setAllocator(const VkAllocationCallbacks* pAllocator);
+    void detachDeviceMemory();
 
     bool subAllocate(uint64_t size, uint8_t** ptr, uint64_t& offset);
     bool release(uint64_t offset);
@@ -53,6 +56,7 @@ class CoherentMemory {
     GoldfishAddressSpaceBlockPtr mBlock;
     VkDevice mDevice;
     VkDeviceMemory mMemory;
+    std::optional<VkAllocationCallbacks> mAllocator;
 
     uint8_t* mBaseAddr = nullptr;
     struct util_vma_heap mHeap;

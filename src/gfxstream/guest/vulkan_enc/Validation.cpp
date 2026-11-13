@@ -5,7 +5,6 @@
 #include "Validation.h"
 
 #include "ResourceTracker.h"
-#include "Resources.h"
 
 namespace gfxstream {
 namespace vk {

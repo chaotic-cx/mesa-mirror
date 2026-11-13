@@ -48,7 +48,7 @@
     } while (0)
 #endif
 
-#include "Resources.h"
+#include "gfxstream_vk_private.h"
 
 namespace gfxstream {
 namespace vk {
