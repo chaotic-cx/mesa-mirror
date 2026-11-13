@@ -199,6 +199,26 @@ get_max_vbs(const struct intel_device_info *devinfo) {
  */
 #define ANV_COLOR_OUTPUT_UNKNOWN  (0xfd)
 
+static inline uint32_t
+anv_get_fs_color_map(const struct vk_color_attachment_location_state *cal)
+{
+   /* The surface states are layed out this way :
+    *   - null surface
+    *   - color attachment 0
+    *   - color attachment 1
+    *   - ...
+    *
+    * Hence we leave 0 if MESA_VK_ATTACHMENT_UNUSED and otherwise add 1 to
+    * the index.
+    */
+   uint32_t map = 0;
+   for (uint32_t i = 0; i < MAX_RTS; i++) {
+      if (cal->color_map[i] != MESA_VK_ATTACHMENT_UNUSED)
+         map |= (1 + i) << (cal->color_map[i] * 4);
+   }
+   return map;
+}
+
 static inline uint64_t
 align_down_npot_u64(uint64_t v, uint64_t a)
 {

@@ -2389,22 +2389,7 @@ update_fs_color_map(struct anv_gfx_dynamic_state *hw_state,
    if (fs_prog_data == NULL || !fs_prog_data->uses_fs_color_map)
       return;
 
-    /* The surface states are layed out this way :
-     *   - null surface
-     *   - color attachment 0
-     *   - color attachment 1
-     *   - ...
-     *
-     * Hence we leave 0 if MESA_VK_ATTACHMENT_UNUSED and otherwise add 1 to
-     * the index.
-     */
-   uint32_t map = 0;
-   for (uint32_t i = 0; i < MAX_RTS; i++) {
-      if (dyn->cal.color_map[i] != MESA_VK_ATTACHMENT_UNUSED)
-         map |= (1 + i) << (dyn->cal.color_map[i] * 4);
-   }
-
-   SET(FS_COLOR_MAP, fs_color_map, map);
+   SET(FS_COLOR_MAP, fs_color_map, anv_get_fs_color_map(&dyn->cal));
 }
 #endif
 
