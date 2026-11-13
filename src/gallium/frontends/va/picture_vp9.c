@@ -239,8 +239,8 @@ void vlVaDecoderVP9BitstreamHeader(vlVaContext *context, vlVaBuffer *buf)
    bool mode_ref_delta_enabled, mode_ref_delta_update = false;
    int i;
 
-   vl_vlc_init(&vlc, 1, (const void * const*)&buf->data,
-      (const unsigned *)&context->desc.vp9.picture_parameter.frame_header_length_in_bytes);
+   unsigned size = MIN2(context->desc.vp9.picture_parameter.frame_header_length_in_bytes, buf->size);
+   vl_vlc_init(&vlc, 1, (const void * const*)&buf->data, &size);
 
    /* frame_marker */
    if (vp9_u(&vlc, 2) != 0x2)
