@@ -2594,7 +2594,7 @@
         "description": "util/u_printf: Print 64-bit integer scalars with the PRI macros",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "aa82808645fb9932ce6f9d2115dcdc9edce98cd8",
         "notes": null
