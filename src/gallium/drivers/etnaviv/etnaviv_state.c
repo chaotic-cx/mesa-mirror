@@ -455,7 +455,10 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
 
       assert(res->layout &ETNA_LAYOUT_BIT_TILE); /* Cannot render to linear surfaces */
 
-      uint32_t depth_format = translate_depth_format(surf->format);
+      const struct eil_format *entry = eil_get_format_entry(surf->format);
+      assert(entry->has_zs);
+      uint8_t depth_format = entry->zs;
+
       unsigned depth_bits =
          depth_format == VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_D16 ? 16 : 24;
       bool depth_supertiled = (res->layout & ETNA_LAYOUT_BIT_SUPER) != 0;

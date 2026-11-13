@@ -257,27 +257,6 @@ translate_texture_filter(unsigned filter)
    }
 }
 
-static inline uint32_t
-translate_depth_format(enum pipe_format fmt)
-{
-   /* Note: Pipe format convention is LSB to MSB, VIVS is MSB to LSB */
-   switch (fmt) {
-   case PIPE_FORMAT_Z16_UNORM:
-      return VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_D16;
-   case PIPE_FORMAT_X8Z24_UNORM:
-      return VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_D24S8;
-   case PIPE_FORMAT_S8_UINT_Z24_UNORM:
-      return VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_D24S8;
-   case PIPE_FORMAT_S8_UINT:
-      return VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_D24S8;
-   case PIPE_FORMAT_Z32_FLOAT:
-   case PIPE_FORMAT_Z32_FLOAT_S8X24_UINT:
-      return VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_D24S8;
-   default:
-      return ETNA_NO_MATCH;
-   }
-}
-
 /* render target format for MSAA */
 static inline uint32_t
 translate_ts_format(enum pipe_format fmt)
