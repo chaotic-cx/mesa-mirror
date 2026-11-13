@@ -282,6 +282,8 @@ static void si_log_cs(struct si_context *ctx, struct u_log_context *log, bool du
       return;
 
    struct si_log_chunk_cs *chunk = calloc(1, sizeof(*chunk));
+   if (!chunk)
+      return;
 
    chunk->ctx = ctx;
    si_saved_cs_reference(&chunk->cs, scs);

@@ -350,6 +350,9 @@ static void *si_buffer_get_transfer(struct pipe_context *ctx, struct pipe_resour
    else
       transfer = slab_zalloc(&sctx->pool_transfers);
 
+   if (!transfer)
+      return NULL;
+
    pipe_resource_reference(&transfer->b.b.resource, resource);
    transfer->b.b.usage = usage;
    transfer->b.b.box = *box;
