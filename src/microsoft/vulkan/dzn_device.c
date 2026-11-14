@@ -1746,10 +1746,11 @@ dzn_GetPhysicalDeviceExternalBufferProperties(VkPhysicalDevice physicalDevice,
 #if defined(_WIN32)
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT:
       if (pdev->dev13) {
-         pExternalBufferProperties->externalMemoryProperties.compatibleHandleTypes =
-            pExternalBufferProperties->externalMemoryProperties.exportFromImportedHandleTypes =
-            VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT | opaque_external_flag;
-         pExternalBufferProperties->externalMemoryProperties.externalMemoryFeatures = import_export_feature_flags;
+         pExternalBufferProperties->externalMemoryProperties = (VkExternalMemoryProperties) {
+            .externalMemoryFeatures = VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT,
+            .exportFromImportedHandleTypes = 0,
+            .compatibleHandleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+         };
          break;
       }
       FALLTHROUGH;
@@ -3172,7 +3173,10 @@ dzn_buffer_create(struct dzn_device *device,
 
    const VkExternalMemoryBufferCreateInfo *external_info =
       vk_find_struct_const(pCreateInfo->pNext, EXTERNAL_MEMORY_BUFFER_CREATE_INFO);
-   if (external_info && external_info->handleTypes != 0)
+   const VkExternalMemoryHandleTypeFlags shared_handle_types =
+      VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT |
+      VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT | opaque_external_flag;
+   if (external_info && (external_info->handleTypes & shared_handle_types))
       buf->shared = true;
 
    *out = dzn_buffer_to_handle(buf);
