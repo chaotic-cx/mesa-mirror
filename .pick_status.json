@@ -1244,7 +1244,7 @@
         "description": "dzn: Report 512 MiB for maxStorageBufferRange",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "32d0dfc4627d294ae249a525f6e043d63cbde787",
         "notes": null
