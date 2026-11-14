@@ -125,7 +125,6 @@ teflon/deeplabv3.0042,Crash
 teflon/deeplabv3.0046,Crash
 teflon/deeplabv3.0053,Crash
 teflon/deeplabv3.0057,Crash
-teflon/deeplabv3.0060,Crash
 teflon/deeplabv3.whole,Crash
 teflon/ssd_mobilenet_v3.0016,Crash
 teflon/ssd_mobilenet_v3.0039,Crash
