@@ -1612,8 +1612,8 @@ scalar_insert(void *table, uint32_t key, const void *_value)
 }
 
 static void
-get_phi_query(struct analysis_state *state, struct scalar_query q, uint32_t *result, const uint32_t *src,
-              uint32_t (*combine)(uint32_t, uint32_t), uint32_t safe_value)
+get_phi_query(struct analysis_state *state, struct scalar_query q, void *result, const void *src,
+              void (*combine)(const void *, const void *, void *), const void *safe_value)
 {
    nir_phi_instr *phi = nir_def_as_phi(q.scalar.def);
 
@@ -1621,16 +1621,16 @@ get_phi_query(struct analysis_state *state, struct scalar_query q, uint32_t *res
       return;
 
    if (q.head.pushed_queries) {
-      *result = src[0];
+      memcpy(result, src, state->result_size);
       for (unsigned i = 1; i < q.head.pushed_queries; i++)
-         *result = combine(*result, src[i]);
+         combine(result, (const char *)src + (i * state->result_size), result);
       return;
    }
 
    nir_cf_node *prev = nir_cf_node_prev(&phi->instr.block->cf_node);
    if (!prev || prev->type == nir_cf_node_block) {
       /* Resolve cycles by inserting safe_value into range_ht. */
-      scalar_insert(state->range_ht, get_scalar_key(&q.head), &safe_value);
+      state->insert(state->range_ht, get_scalar_key(&q.head), safe_value);
 
       struct set visited;
       _mesa_pointer_set_init(&visited, NULL);
@@ -2228,16 +2228,20 @@ get_tex_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
       *result = state->shader->options->max_samples;
 }
 
-static uint32_t
-max2(uint32_t a, uint32_t b)
+static void
+max2(const void *_a, const void *_b, void *_result)
 {
-   return MAX2(a, b);
+   uint32_t a = *(const uint32_t *)_a;
+   uint32_t b = *(const uint32_t *)_b;
+   uint32_t *result = _result;
+   *result = MAX2(a, b);
 }
 
 static void
 get_phi_uub(struct analysis_state *state, struct scalar_query q, uint32_t *result, const uint32_t *src)
 {
-   get_phi_query(state, q, result, src, max2, bitmask(q.scalar.def->bit_size));
+   uint32_t safe_value = bitmask(q.scalar.def->bit_size);
+   get_phi_query(state, q, result, src, max2, &safe_value);
 }
 
 static void
@@ -2666,16 +2670,20 @@ get_intrinsic_num_lsb(struct analysis_state *state, struct scalar_query q, uint3
    }
 }
 
-static uint32_t
-min2(uint32_t a, uint32_t b)
+static void
+min2(const void *_a, const void *_b, void *_result)
 {
-   return MIN2(a, b);
+   uint32_t a = *(const uint32_t *)_a;
+   uint32_t b = *(const uint32_t *)_b;
+   uint32_t *result = _result;
+   *result = MIN2(a, b);
 }
 
 static void
 get_phi_num_lsb(struct analysis_state *state, struct scalar_query q, uint32_t *result, const uint32_t *src)
 {
-   get_phi_query(state, q, result, src, min2, 0);
+   uint32_t safe_value = 0;
+   get_phi_query(state, q, result, src, min2, &safe_value);
 }
 
 static void
