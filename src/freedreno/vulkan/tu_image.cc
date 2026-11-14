@@ -796,7 +796,12 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    image->max_tile_h_constraint_fdm = ~0;
 
    const struct util_format_description *desc = util_format_description(image->layout[0].format);
-   if (util_format_has_depth(desc) && device->use_lrz) {
+
+   /* Disable LRZ for images with externally-provided plane layouts (AHB,
+    * explicit DMA-BUF imports). The external allocator doesn't reserve space
+    * for LRZ, so appending it would overflow past the allocation.
+    */
+   if (util_format_has_depth(desc) && device->use_lrz && !plane_layouts) {
       /* If FDM offset is enabled, then the LRZ image will be shifted over. We
        * have to overallocate it, but we have no idea how large the tiles it's
        * used with will be. Try to calculate a maximum size of tile that would
