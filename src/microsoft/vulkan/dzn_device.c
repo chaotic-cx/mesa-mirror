@@ -3334,7 +3334,7 @@ dzn_BindBufferMemory2(VkDevice _device,
          desc.Flags |= mem->res_flags;
          if (FAILED(ID3D12Device1_CreatePlacedResource(device->dev, mem->heap,
                                                        pBindInfos[i].memoryOffset,
-                                                       &buffer->desc,
+                                                       &desc,
                                                        D3D12_RESOURCE_STATE_COMMON,
                                                        NULL,
                                                        &IID_ID3D12Resource,
