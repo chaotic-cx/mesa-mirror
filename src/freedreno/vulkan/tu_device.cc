@@ -504,7 +504,7 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* Vulkan 1.1 */
    features->storageBuffer16BitAccess            = pdevice->info->props.storage_16bit;
-   features->uniformAndStorageBuffer16BitAccess  = false;
+   features->uniformAndStorageBuffer16BitAccess  = pdevice->info->props.storage_16bit;
    features->storagePushConstant16               = false;
    features->storageInputOutput16                = false;
    features->multiview                           = true;
@@ -525,7 +525,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->samplerMirrorClampToEdge            = true;
    features->drawIndirectCount                   = true;
    features->storageBuffer8BitAccess             = pdevice->info->props.storage_8bit;
-   features->uniformAndStorageBuffer8BitAccess   = false;
+   features->uniformAndStorageBuffer8BitAccess   = pdevice->info->props.storage_8bit;
    features->storagePushConstant8                = false;
    features->shaderBufferInt64Atomics =
       pdevice->info->props.has_64b_ssbo_atomics;
