@@ -418,10 +418,7 @@ static void r300_translate_fragment_shader(
 
     face = shader->inputs.face;
 
-    if (!r300->screen->caps.is_r500 ||
-        compiler.Base.Program.Constants.Count > 200) {
-        compiler.Base.remove_unused_constants = true;
-    }
+    compiler.Base.remove_unused_constants = true;
 
     /* R3xx/R4xx emulation already provides FACE in the API convention. */
     if (face != ATTR_UNUSED && r300->screen->caps.is_r500) {
