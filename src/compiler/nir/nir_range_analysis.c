@@ -27,7 +27,6 @@
 #include "util/hash_table.h"
 #include "util/u_dynarray.h"
 #include "util/u_math.h"
-#include "c99_alloca.h"
 
 /**
  * Analyzes a sequence of operations to determine some aspects of the range of
@@ -1627,7 +1626,7 @@ get_phi_query(struct analysis_state *state, struct scalar_query q, uint32_t *res
       scalar_insert(state->range_ht, get_scalar_key(&q.head), safe_value);
 
       struct set *visited = _mesa_pointer_set_create(NULL);
-      nir_scalar *defs = alloca(sizeof(nir_scalar) * 64);
+      nir_scalar defs[64];
       unsigned def_count = search_phi_bcsel(q.scalar, defs, 64, visited);
       _mesa_set_destroy(visited, NULL);
 
