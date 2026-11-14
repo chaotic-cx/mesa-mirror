@@ -96,6 +96,10 @@ struct sched_ctx {
     * pressure. Fixed-point, see AGGRESSION_SCALE.
     */
    unsigned aggression;
+   /* Register headroom for the pressure-versus-latency rule. */
+   unsigned headroom;
+   /* Select the headroom rule instead of fixed-point aggression. */
+   bool use_headroom;
 
    /* Pooled allocations used for DAG construction */
    struct util_dynarray helper_reads;
@@ -277,6 +281,16 @@ weighted_demand(struct sched_ctx *ctx, signed *demands)
           (demands[UGPR] + demands[FLAG]);
 }
 
+static bool
+near_register_limit(struct sched_ctx *s, unsigned headroom)
+{
+   jay_shader *shader = s->func->shader;
+
+   return s->demand[GPR] >= s->demand_limit[GPR] - (int32_t) headroom ||
+          s->demand[UGPR] >= s->demand_limit[UGPR] -
+                                (int32_t) (headroom * jay_ugpr_per_gpr(shader));
+}
+
 /*
  * Calculate the change in register pressure from scheduling a given
  * instuction. Based on jay_calculate_register_demands, but without the use of
@@ -345,8 +359,13 @@ choose_inst(struct sched_ctx *s, enum sched_mode mode)
    unsigned pressure_weight = (mode & PRESSURE) ? 1 : 0;
 
    if (s->phase > EARLY && (mode & PRESSURE)) {
-      latency_weight = s->aggression;
-      pressure_weight = AGGRESSION_SCALE;
+      if ((mode & LATENCY) && s->use_headroom) {
+         pressure_weight = near_register_limit(s, s->headroom);
+         latency_weight = !pressure_weight;
+      } else {
+         latency_weight = s->aggression;
+         pressure_weight = AGGRESSION_SCALE;
+      }
    }
 
    int32_t min_score = INT32_MAX;
@@ -355,7 +374,7 @@ choose_inst(struct sched_ctx *s, enum sched_mode mode)
    util_dynarray_foreach(&s->it.heads, uint32_t, head) {
       jay_inst *I = s->insts[*head];
       int32_t score = 0;
-      if (pressure_weight) {
+      if (mode & PRESSURE) {
          assert(s->phase < POSTRA);
 
          /* To minimize pressure, consider the effect on liveness. */
@@ -687,19 +706,28 @@ pass(jay_function *f)
          enum sched_result bw =
             schedule_block(block, &sctx, memctx, BACKWARD | LATENCY);
 
-         /* If we're falling over on pressure, try to schedule progressively
-          * less aggressively in the hopes of getting /something/ successful.
-          */
+         /* Compare pressure-aware aggression and headroom schedules. */
          if (fwd != SUCCESS && bw == FAIL_PRESSURE) {
             /* 20 down to 2 in steps of 2, then 1.5, 1, 1/2, 1/4, 1/8 */
             static const uint8_t ladder[] = { 160, 144, 128, 112, 96,
                                               80,  64,  48,  32,  16,
                                               12,  8,   4,   2,   1 };
+            static const unsigned headrooms[] = { 0, 1, 2, 4, 8 };
 
+            sctx.use_headroom = false;
             for (unsigned i = 0; i < ARRAY_SIZE(ladder) && bw != SUCCESS; i++) {
                sctx.aggression = ladder[i];
                bw = schedule_block(block, &sctx, memctx,
                                    BACKWARD | PRESSURE | LATENCY);
+            }
+
+            if (sctx.aggression <= AGGRESSION_SCALE) {
+               sctx.use_headroom = true;
+               for (unsigned i = 0; i < ARRAY_SIZE(headrooms); i++) {
+                  sctx.headroom = headrooms[i];
+                  schedule_block(block, &sctx, memctx,
+                                 BACKWARD | PRESSURE | LATENCY);
+               }
             }
          }
       } else {
