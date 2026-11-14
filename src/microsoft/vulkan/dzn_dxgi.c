@@ -31,6 +31,9 @@ VkResult
 dzn_enumerate_physical_devices_dxgi(struct vk_instance *instance)
 {
    IDXGIFactory4 *factory = dxgi_get_factory(false);
+   if (!factory)
+      return VK_ERROR_INCOMPATIBLE_DRIVER;
+
    IDXGIAdapter1 *adapter = NULL;
    VkResult result = VK_SUCCESS;
    for (UINT i = 0; SUCCEEDED(IDXGIFactory4_EnumAdapters1(factory, i, &adapter)); ++i) {
@@ -55,9 +58,11 @@ dzn_enumerate_physical_devices_dxgi(struct vk_instance *instance)
 
       IDXGIAdapter1_Release(adapter);
 
+      if (result == VK_ERROR_INCOMPATIBLE_DRIVER)
+         result = VK_SUCCESS;
       if (result != VK_SUCCESS)
          break;
-    }
+   }
 
    IDXGIFactory4_Release(factory);
 
@@ -73,16 +78,15 @@ dxgi_get_factory(bool debug)
    };
 
    HMODULE dxgi_mod = LoadLibraryA("DXGI.DLL");
-   if (!dxgi_mod) {
-      mesa_loge("failed to load DXGI.DLL\n");
+   if (!dxgi_mod)
       return NULL;
-   }
 
    typedef HRESULT(WINAPI *PFN_CREATE_DXGI_FACTORY2)(UINT flags, REFIID riid, void **ppFactory);
    PFN_CREATE_DXGI_FACTORY2 CreateDXGIFactory2;
 
    CreateDXGIFactory2 = (PFN_CREATE_DXGI_FACTORY2)GetProcAddress(dxgi_mod, "CreateDXGIFactory2");
    if (!CreateDXGIFactory2) {
+      FreeLibrary(dxgi_mod);
       mesa_loge("failed to load CreateDXGIFactory2 from DXGI.DLL\n");
       return NULL;
    }
@@ -94,6 +98,7 @@ dxgi_get_factory(bool debug)
    IDXGIFactory4 *factory;
    HRESULT hr = CreateDXGIFactory2(flags, &IID_IDXGIFactory4, (void **)&factory);
    if (FAILED(hr)) {
+      FreeLibrary(dxgi_mod);
       mesa_loge("CreateDXGIFactory2 failed: %08x\n", (int32_t)hr);
       return NULL;
    }
