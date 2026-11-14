@@ -656,6 +656,12 @@ tensor_quantization_supported(struct pipe_tensor *tensor)
 }
 
 static bool
+tensor_element_size_supported(const struct pipe_tensor *tensor)
+{
+   return tensor->is_constant || tensor->type_size == 1;
+}
+
+static bool
 convolution_activation_supported(const struct pipe_ml_operation *operation)
 {
    const struct pipe_tensor *output = operation->output_tensors[0];
@@ -669,6 +675,16 @@ etna_ml_operation_supported(struct pipe_ml_device *pdevice,
                             const struct pipe_ml_operation *operation)
 {
    bool supported = false;
+
+   for (unsigned i = 0; i < operation->input_count; i++) {
+      if (!tensor_element_size_supported(operation->input_tensors[i]))
+         return false;
+   }
+
+   for (unsigned i = 0; i < operation->output_count; i++) {
+      if (!tensor_element_size_supported(operation->output_tensors[i]))
+         return false;
+   }
 
    switch (operation->type) {
       case PIPE_ML_OPERATION_TYPE_CONVOLUTION: {
