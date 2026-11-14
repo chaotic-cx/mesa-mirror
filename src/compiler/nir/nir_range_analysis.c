@@ -2898,3 +2898,367 @@ nir_gather_type_uses_of_float_def(nir_def *def,
       }
    }
 }
+
+typedef struct nir_signed_range_state {
+   nir_function_impl *impl;
+   struct hash_table *uub_ht;
+   struct hash_table signed_ht;
+} nir_signed_range_state;
+
+static bool
+signed_range_lookup(void *_state, uint32_t key, void *value)
+{
+   nir_signed_range_state *state = _state;
+   struct hash_entry *he = _mesa_hash_table_search(&state->signed_ht, (void *)(uintptr_t)key);
+   if (he) {
+      if (sizeof(nir_signed_range) <= sizeof(void *)) {
+         memcpy(value, &he->data, sizeof(nir_signed_range));
+      } else {
+         memcpy(value, he->data, sizeof(nir_signed_range));
+      }
+   }
+   return he != NULL;
+}
+
+static void
+signed_range_insert(void *_state, uint32_t key, const void *value)
+{
+   nir_signed_range_state *state = _state;
+
+   if (sizeof(nir_signed_range) <= sizeof(void *)) {
+      void *raw_data = NULL;
+      memcpy(&raw_data, value, sizeof(nir_signed_range));
+      _mesa_hash_table_insert(&state->signed_ht, (void *)(uintptr_t)key, raw_data);
+   } else {
+      nir_signed_range *range = ralloc(state, nir_signed_range);
+      *range = *(const nir_signed_range *)value;
+      _mesa_hash_table_insert(&state->signed_ht, (void *)(uintptr_t)key, range);
+   }
+}
+
+static void
+get_alu_signed_range(struct analysis_state *state, struct scalar_query q,
+                     nir_signed_range *result, const nir_signed_range *src)
+{
+   nir_alu_instr *alu = nir_scalar_as_alu(q.scalar);
+
+   switch (alu->op) {
+   case nir_op_ufind_msb:
+   case nir_op_ifind_msb:
+   case nir_op_ufind_msb_rev:
+   case nir_op_ifind_msb_rev:
+   case nir_op_find_lsb:
+      result->upper_bound = alu->src[0].src.ssa->bit_size - 1;
+      result->lower_bound = -1;
+      return;
+   case nir_op_b2b32:
+      result->upper_bound = 0;
+      result->lower_bound = -1;
+      return;
+   case nir_op_extract_i8:
+   case nir_op_extract_i16:
+      /* src1 should always be constant, but in race cases
+       * phis might temporarily get in the way.
+       */
+      if (!nir_src_is_const(alu->src[1].src))
+         return;
+      break;
+   case nir_op_ibfe:
+   case nir_op_i2i16:
+   case nir_op_i2i32:
+   case nir_op_imin:
+   case nir_op_imax:
+   case nir_op_umin:
+   case nir_op_umax:
+   case nir_op_ishr:
+   case nir_op_ishl:
+   case nir_op_imul:
+   case nir_op_iadd:
+   case nir_op_isub:
+   case nir_op_ineg:
+   case nir_op_iabs:
+   case nir_op_isign:
+   case nir_op_bcsel:
+   case nir_op_b32csel:
+      break;
+   default:
+      return;
+   }
+
+   if (!q.head.pushed_queries) {
+      for (unsigned i = 0; i < nir_op_infos[alu->op].num_inputs; i++)
+         push_scalar_query(state, nir_scalar_chase_alu_src(q.scalar, i));
+      return;
+   }
+
+   switch (alu->op) {
+   case nir_op_ibfe: {
+      unsigned bits = src[2].lower_bound >= 0 ? MIN2(src[2].upper_bound, 31) : 31;
+      result->upper_bound = bits ? u_intN_max(bits) : 0;
+      result->lower_bound = bits ? u_intN_min(bits) : 0;
+      break;
+   }
+   case nir_op_extract_i16:
+   case nir_op_extract_i8: {
+      unsigned bits = alu->op == nir_op_extract_i8 ? 8 : 16;
+      if (src[0].upper_bound <= u_intN_max(bits) &&
+          src[0].lower_bound >= u_intN_min(bits)) {
+         if (src[1].upper_bound == 0) {
+            result->upper_bound = src[0].upper_bound;
+            result->lower_bound = src[0].lower_bound;
+         } else {
+            result->upper_bound = src[0].upper_bound < 0 ? -1 : 0;
+            result->lower_bound = src[0].lower_bound < 0 ? -1 : 0;
+         }
+      } else {
+         result->upper_bound = u_intN_max(bits);
+         result->lower_bound = u_intN_min(bits);
+      }
+      break;
+   }
+   case nir_op_i2i16:
+   case nir_op_i2i32:
+      *result = src[0];
+      break;
+   case nir_op_imin:
+      result->upper_bound = MIN2(src[0].upper_bound, src[1].upper_bound);
+      result->lower_bound = MIN2(src[0].lower_bound, src[1].lower_bound);
+      break;
+   case nir_op_imax:
+      result->upper_bound = MAX2(src[0].upper_bound, src[1].upper_bound);
+      result->lower_bound = MAX2(src[0].lower_bound, src[1].lower_bound);
+      break;
+   case nir_op_umin:
+   case nir_op_umax:
+      result->upper_bound = MAX2(src[0].upper_bound, src[1].upper_bound);
+      result->lower_bound = MIN2(src[0].lower_bound, src[1].lower_bound);
+      break;
+   case nir_op_ishr:
+      if ((src[1].lower_bound >= 0 && src[1].upper_bound < q.scalar.def->bit_size) ||
+          (src[1].lower_bound == src[1].upper_bound)) {
+         int shift_ub = src[1].upper_bound & (q.scalar.def->bit_size - 1);
+         int shift_lb = src[1].lower_bound & (q.scalar.def->bit_size - 1);
+
+         result->upper_bound = MAX2(src[0].upper_bound >> shift_ub, src[0].upper_bound >> shift_lb);
+         result->lower_bound = MIN2(src[0].lower_bound >> shift_ub, src[0].lower_bound >> shift_lb);
+      } else {
+         result->upper_bound = MAX2(src[0].upper_bound, -1);
+         result->lower_bound = MIN2(src[0].lower_bound, 0);
+      }
+      break;
+   case nir_op_ishl:
+      if ((src[1].lower_bound >= 0 && src[1].upper_bound < q.scalar.def->bit_size) ||
+          (src[1].lower_bound == src[1].upper_bound)) {
+         int shift_ub = src[1].upper_bound & (q.scalar.def->bit_size - 1);
+         int shift_lb = src[1].lower_bound & (q.scalar.def->bit_size - 1);
+
+         int64_t upper_bound = (uint64_t)(int64_t)src[0].upper_bound << shift_ub;
+         int64_t lower_bound = (uint64_t)(int64_t)src[0].lower_bound << shift_ub;
+
+         if (upper_bound <= result->upper_bound && lower_bound >= result->lower_bound) {
+            int32_t alternative_ub = (uint32_t)src[0].upper_bound << shift_lb;
+            int32_t alternative_lb = (uint32_t)src[0].lower_bound << shift_lb;
+
+            result->upper_bound = MAX2(upper_bound, alternative_ub);
+            result->lower_bound = MIN2(lower_bound, alternative_lb);
+         }
+      }
+      break;
+   case nir_op_imul: {
+      int64_t uu = (int64_t)src[0].upper_bound * (int64_t)src[1].upper_bound;
+      int64_t ul = (int64_t)src[0].upper_bound * (int64_t)src[1].lower_bound;
+      int64_t lu = (int64_t)src[0].lower_bound * (int64_t)src[1].upper_bound;
+      int64_t ll = (int64_t)src[0].lower_bound * (int64_t)src[1].lower_bound;
+
+      int64_t upper_bound = MAX4(uu, ul, lu, ll);
+      int64_t lower_bound = MIN4(uu, ul, lu, ll);
+      if (upper_bound <= result->upper_bound && lower_bound >= result->lower_bound) {
+         result->upper_bound = upper_bound;
+         result->lower_bound = lower_bound;
+      }
+      break;
+   }
+   case nir_op_iadd: {
+      int64_t upper_bound = (int64_t)src[0].upper_bound + (int64_t)src[1].upper_bound;
+      int64_t lower_bound = (int64_t)src[0].lower_bound + (int64_t)src[1].lower_bound;
+
+      if (upper_bound <= result->upper_bound && lower_bound >= result->lower_bound) {
+         result->upper_bound = upper_bound;
+         result->lower_bound = lower_bound;
+      }
+      break;
+   }
+   case nir_op_isub: {
+      int64_t upper_bound = (int64_t)src[0].upper_bound - (int64_t)src[1].lower_bound;
+      int64_t lower_bound = (int64_t)src[0].lower_bound - (int64_t)src[1].upper_bound;
+
+      if (upper_bound <= result->upper_bound && lower_bound >= result->lower_bound) {
+         result->upper_bound = upper_bound;
+         result->lower_bound = lower_bound;
+      }
+      break;
+   }
+   case nir_op_ineg:
+      if (src[0].lower_bound != result->lower_bound) {
+         result->upper_bound = -src[0].lower_bound;
+         result->lower_bound = -src[0].upper_bound;
+      }
+      break;
+   case nir_op_iabs:
+      if (src[0].lower_bound != result->lower_bound) {
+         result->upper_bound = MAX2(src[0].upper_bound, -src[0].lower_bound);
+
+         if (src[0].upper_bound >= 0)
+            result->lower_bound = MAX2(src[0].lower_bound, 0);
+         else
+            result->lower_bound = -src[0].upper_bound;
+      }
+      break;
+   case nir_op_isign:
+      result->upper_bound = src[0].upper_bound > 0 ? 1 : MAX2(src[0].upper_bound, -1);
+      result->lower_bound = src[0].lower_bound < 0 ? -1 : MIN2(src[0].lower_bound, 1);
+      break;
+   case nir_op_bcsel:
+   case nir_op_b32csel:
+      result->upper_bound = MAX2(src[1].upper_bound, src[2].upper_bound);
+      result->lower_bound = MIN2(src[1].lower_bound, src[2].lower_bound);
+      break;
+   default:
+      UNREACHABLE("unhandled opcode");
+   }
+}
+
+static void
+get_intrinsic_signed_range(struct analysis_state *state, struct scalar_query q,
+                           nir_signed_range *result, const nir_signed_range *src)
+{
+   nir_intrinsic_instr *intrin = nir_scalar_as_intrinsic(q.scalar);
+
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_load_typed_buffer_amd: {
+      const enum pipe_format format = nir_intrinsic_format(intrin);
+      if (format == PIPE_FORMAT_NONE)
+         break;
+
+      const struct util_format_description *desc = util_format_description(format);
+      if (desc->channel[q.scalar.comp].type != UTIL_FORMAT_TYPE_SIGNED)
+         break;
+
+      if (q.scalar.comp == 3 && desc->channel[3].size == 2) {
+         /* Some hw reads 2bit signed values as unsigned, see AC_ALPHA_ADJUST.
+          * These formats should be rare, so don't bother to handle it here.
+          */
+         break;
+      } else if (desc->channel[q.scalar.comp].normalized) {
+         result->upper_bound = q.scalar.def->bit_size == 32 ? 0x3f800000 : 0x3c00;
+         break;
+      } else if (desc->channel[q.scalar.comp].pure_integer) {
+         int32_t chan_max = u_intN_max(desc->channel[q.scalar.comp].size);
+         int32_t chan_min = u_intN_min(desc->channel[q.scalar.comp].size);
+         result->upper_bound = MIN2(result->upper_bound, chan_max);
+         result->lower_bound = MAX2(result->lower_bound, chan_min);
+      } else if (q.scalar.def->bit_size == 32) {
+         int32_t chan_max = u_intN_max(desc->channel[q.scalar.comp].size);
+         result->upper_bound = fui(chan_max);
+      }
+
+      break;
+   }
+   default:
+      break;
+   }
+}
+
+static void
+signed_range_union(const void *_a, const void *_b, void *_result)
+{
+   nir_signed_range a = *(const nir_signed_range *)_a;
+   nir_signed_range b = *(const nir_signed_range *)_b;
+   nir_signed_range *result = _result;
+   result->upper_bound = MAX2(a.upper_bound, b.upper_bound);
+   result->lower_bound = MIN2(a.lower_bound, b.lower_bound);
+}
+
+static void
+get_phi_signed_range(struct analysis_state *state, struct scalar_query q,
+                     nir_signed_range *result, const nir_signed_range *src)
+{
+   nir_signed_range safe_value = *result;
+   get_phi_query(state, q, result, src, signed_range_union, &safe_value);
+}
+
+static void
+process_signed_range_query(struct analysis_state *state, struct analysis_query *aq, void *_result,
+                           const void *_src)
+{
+   struct scalar_query q = *(struct scalar_query *)aq;
+   const nir_signed_range *src = _src;
+   nir_signed_range *result = _result;
+
+   result->upper_bound = u_intN_max(q.scalar.def->bit_size);
+   result->lower_bound = u_intN_min(q.scalar.def->bit_size);
+
+   uint32_t prev_num_queries = state->query_stack.size;
+
+   if (nir_scalar_is_const(q.scalar)) {
+      result->upper_bound = nir_scalar_as_int(q.scalar);
+      result->lower_bound = nir_scalar_as_int(q.scalar);
+   } else if (nir_scalar_is_alu(q.scalar)) {
+      get_alu_signed_range(state, q, result, src);
+   } else if (nir_scalar_is_intrinsic(q.scalar)) {
+      get_intrinsic_signed_range(state, q, result, src);
+   } else if (nir_scalar_is_phi(q.scalar)) {
+      get_phi_signed_range(state, q, result, src);
+   }
+
+   if (state->query_stack.size > prev_num_queries)
+      return;
+
+   /* Fall back to uub to restrict the signed range. */
+   nir_signed_range_state *range_state = state->range_ht;
+   uint32_t uub = nir_unsigned_upper_bound(state->shader, range_state->uub_ht, q.scalar);
+   if (uub <= u_intN_max(q.scalar.def->bit_size)) {
+      result->upper_bound = MIN2(result->upper_bound, (int32_t)uub);
+      result->lower_bound = MAX2(result->lower_bound, 0);
+   }
+}
+
+nir_signed_range_state *
+nir_create_signed_analysis_state(nir_function_impl *impl, struct hash_table *uub_ht, void *mem_ctx)
+{
+   nir_signed_range_state *state = ralloc(mem_ctx, nir_signed_range_state);
+   state->impl = impl;
+   state->uub_ht = uub_ht;
+   _mesa_pointer_hash_table_init(&state->signed_ht, state);
+
+   return state;
+}
+
+nir_signed_range
+nir_analyze_signed_range(nir_signed_range_state *range_state,
+                         nir_scalar scalar)
+{
+   struct scalar_query query_alloc[16];
+   nir_signed_range result_alloc[16];
+
+   assert(scalar.def->bit_size <= 32);
+
+   struct analysis_state state;
+   state.shader = range_state->impl->function->shader;
+   state.range_ht = range_state;
+   util_dynarray_init_from_stack(&state.query_stack, query_alloc, sizeof(query_alloc));
+   util_dynarray_init_from_stack(&state.result_stack, result_alloc, sizeof(result_alloc));
+   state.query_size = sizeof(struct scalar_query);
+   state.result_size = sizeof(nir_signed_range);
+   state.get_key = &get_scalar_key;
+   state.lookup = &signed_range_lookup,
+   state.insert = &signed_range_insert,
+   state.process_query = &process_signed_range_query;
+
+   push_scalar_query(&state, nir_scalar_chase_movs(scalar));
+
+   nir_signed_range result;
+   perform_analysis(&state, &result);
+
+   return result;
+}

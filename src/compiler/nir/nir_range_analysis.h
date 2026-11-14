@@ -79,6 +79,20 @@ uint64_t nir_def_bits_used(nir_scalar def);
 
 unsigned nir_def_num_lsb_zero(struct hash_table *numlsb_ht, nir_scalar def);
 
+typedef struct nir_signed_range_state nir_signed_range_state;
+
+nir_signed_range_state *
+nir_create_signed_analysis_state(nir_function_impl *impl, struct hash_table *uub_ht, void *mem_ctx);
+
+typedef struct {
+   int32_t upper_bound;
+   int32_t lower_bound;
+} nir_signed_range;
+
+nir_signed_range
+nir_analyze_signed_range(nir_signed_range_state *range_state,
+                         nir_scalar scalar);
+
 void
 nir_gather_type_uses_of_float_def(nir_def *def,
                                   nir_component_mask_t *float_uses,
