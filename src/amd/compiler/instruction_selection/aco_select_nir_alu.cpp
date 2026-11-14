@@ -1783,8 +1783,14 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
          uint32_t src1_ub =
             src1_range.lower_bound >= 0 ? src1_range.upper_bound : u_uintN_max(instr->def.bit_size);
 
+         const int32_t int24_min = 0xff80'0000;
+
          if (src0_ub <= 0xffffff && src1_ub <= 0xffffff) {
             emit_vop2_instruction(ctx, instr, aco_opcode::v_mul_u32_u24, dst,
+                                  true /* commutative */, false, false, 0x3);
+         } else if (src0_range.lower_bound >= int24_min && src1_range.lower_bound >= int24_min &&
+                    src0_range.upper_bound <= 0x7f'ffff && src1_range.upper_bound <= 0x7f'ffff) {
+            emit_vop2_instruction(ctx, instr, aco_opcode::v_mul_i32_i24, dst,
                                   true /* commutative */, false, false, 0x3);
          } else if (nir_src_is_const(instr->src[0].src)) {
             bld.v_mul_imm(Definition(dst), get_alu_src(ctx, instr->src[1]),
