@@ -1960,7 +1960,7 @@ dzn_descriptor_heap_pool_alloc_slots(struct dzn_descriptor_heap_pool *pool,
             dzn_descriptor_heap_init(&new_heap->heap, device, pool->type,
                                      heap_desc_count, pool->shader_visible);
          if (result != VK_SUCCESS) {
-            vk_free(&device->vk.alloc, new_heap);
+            vk_free(pool->alloc, new_heap);
             return result;
          }
       }
