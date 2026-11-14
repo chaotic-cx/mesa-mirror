@@ -3250,7 +3250,7 @@ dzn_cmd_buffer_update_pipeline(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint
       ID3D12GraphicsCommandList1_SetViewInstanceMask(cmdbuf->cmdlist, view_instance_mask);
 }
 
-static void
+static VkResult
 dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
 {
    struct dzn_device *device = container_of(cmdbuf->vk.base.device, struct dzn_device, vk);
@@ -3275,7 +3275,7 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
       (((DZN_CMD_BINDPOINT_DIRTY_DESC_SET0 << pipeline->set_count) - 1) & DZN_CMD_BINDPOINT_DIRTY_DESC_SETS);
    uint32_t dirty_bits = (device->bindless ? dirty_bits_bindless : DZN_CMD_BINDPOINT_DIRTY_DESC_SETS | DZN_CMD_BINDPOINT_DIRTY_DYNAMIC_BUFFERS);
    if (!(cmdbuf->state.bindpoint[bindpoint].dirty & dirty_bits))
-      return;
+      return VK_SUCCESS;
 
    dzn_foreach_pool_type (type) {
       if (device->bindless) {
@@ -3291,8 +3291,12 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
          struct dzn_descriptor_heap *dst_heap = NULL;
          uint32_t dst_heap_offset = 0;
 
-         dzn_descriptor_heap_pool_alloc_slots(pool, device, desc_count,
-                                              &dst_heap, &dst_heap_offset);
+         VkResult result =
+            dzn_descriptor_heap_pool_alloc_slots(pool, device, desc_count,
+                                                 &dst_heap, &dst_heap_offset);
+         if (result != VK_SUCCESS)
+            return vk_command_buffer_set_error(&cmdbuf->vk, result);
+
          new_heap_offsets[type] = dst_heap_offset;
          update_root_desc_table[type] = true;
 
@@ -3395,7 +3399,7 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
                                               &dynamic_buffer_buf,
                                               &dynamic_buffer_buf_offset);
          if (result != VK_SUCCESS)
-            return;
+            return result;
 
          uint64_t gpuva = ID3D12Resource_GetGPUVirtualAddress(dynamic_buffer_buf) + dynamic_buffer_buf_offset;
          struct dxil_spirv_bindless_entry *map;
@@ -3430,6 +3434,7 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
    }
 
    cmdbuf->state.bindpoint[bindpoint].dirty &= ~dirty_bits;
+   return VK_SUCCESS;
 }
 
 static void
@@ -3728,14 +3733,18 @@ dzn_cmd_buffer_triangle_fan_rewrite_index(struct dzn_cmd_buffer *cmdbuf,
    return VK_SUCCESS;
 }
 
-static void
+static VkResult
 dzn_cmd_buffer_prepare_draw(struct dzn_cmd_buffer *cmdbuf, bool indexed)
 {
    if (indexed)
       dzn_cmd_buffer_update_ibview(cmdbuf);
 
    dzn_cmd_buffer_update_pipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS);
-   dzn_cmd_buffer_update_heaps(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS);
+   VkResult result =
+      dzn_cmd_buffer_update_heaps(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS);
+   if (result != VK_SUCCESS)
+      return result;
+
    dzn_cmd_buffer_update_sysvals(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS);
    dzn_cmd_buffer_update_viewports(cmdbuf);
    dzn_cmd_buffer_update_scissors(cmdbuf);
@@ -3749,6 +3758,7 @@ dzn_cmd_buffer_prepare_draw(struct dzn_cmd_buffer *cmdbuf, bool indexed)
    /* Reset the dirty states */
    cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].dirty &= DZN_CMD_BINDPOINT_DIRTY_HEAPS;
    cmdbuf->state.dirty = 0;
+   return VK_SUCCESS;
 }
 
 static uint32_t
@@ -4085,7 +4095,8 @@ dzn_cmd_buffer_indirect_draw(struct dzn_cmd_buffer *cmdbuf,
       cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].dirty |=
          DZN_CMD_BINDPOINT_DIRTY_SYSVALS;
 
-      dzn_cmd_buffer_prepare_draw(cmdbuf, indexed);
+      if (dzn_cmd_buffer_prepare_draw(cmdbuf, indexed) != VK_SUCCESS)
+         break;
 
       ID3D12GraphicsCommandList1_ExecuteIndirect(cmdbuf->cmdlist, cmdsig,
                                                  max_draw_count,
@@ -4100,16 +4111,21 @@ dzn_cmd_buffer_indirect_draw(struct dzn_cmd_buffer *cmdbuf,
    }
 }
 
-static void
+static VkResult
 dzn_cmd_buffer_prepare_dispatch(struct dzn_cmd_buffer *cmdbuf)
 {
    dzn_cmd_buffer_update_pipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE);
-   dzn_cmd_buffer_update_heaps(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE);
+   VkResult result =
+      dzn_cmd_buffer_update_heaps(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE);
+   if (result != VK_SUCCESS)
+      return result;
+
    dzn_cmd_buffer_update_sysvals(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE);
    dzn_cmd_buffer_update_push_constants(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE);
 
    /* Reset the dirty states */
    cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_COMPUTE].dirty &= DZN_CMD_BINDPOINT_DIRTY_HEAPS;
+   return VK_SUCCESS;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -4493,7 +4509,9 @@ dzn_CmdDispatchBase(VkCommandBuffer commandBuffer,
    cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_COMPUTE].dirty |=
       DZN_CMD_BINDPOINT_DIRTY_SYSVALS;
 
-   dzn_cmd_buffer_prepare_dispatch(cmdbuf);
+   if (dzn_cmd_buffer_prepare_dispatch(cmdbuf) != VK_SUCCESS)
+      return;
+
    ID3D12GraphicsCommandList1_Dispatch(cmdbuf->cmdlist, groupCountX, groupCountY, groupCountZ);
 }
 
@@ -5300,7 +5318,8 @@ dzn_CmdDraw(VkCommandBuffer commandBuffer,
          cmdbuf->state.sysvals.gfx.view_index = view;
          cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].dirty |=
             DZN_CMD_BINDPOINT_DIRTY_SYSVALS;
-         dzn_cmd_buffer_prepare_draw(cmdbuf, true);
+         if (dzn_cmd_buffer_prepare_draw(cmdbuf, true) != VK_SUCCESS)
+            break;
          ID3D12GraphicsCommandList1_DrawIndexedInstanced(cmdbuf->cmdlist, vertexCount, instanceCount, 0,
                                                 firstVertex, firstInstance);
       }
@@ -5316,7 +5335,8 @@ dzn_CmdDraw(VkCommandBuffer commandBuffer,
          cmdbuf->state.sysvals.gfx.view_index = view;
          cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].dirty |=
             DZN_CMD_BINDPOINT_DIRTY_SYSVALS;
-         dzn_cmd_buffer_prepare_draw(cmdbuf, false);
+         if (dzn_cmd_buffer_prepare_draw(cmdbuf, false) != VK_SUCCESS)
+            break;
          ID3D12GraphicsCommandList1_DrawInstanced(cmdbuf->cmdlist, vertexCount, instanceCount,
                                           firstVertex, firstInstance);
       }
@@ -5394,7 +5414,8 @@ dzn_CmdDrawIndexed(VkCommandBuffer commandBuffer,
       cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].dirty |=
          DZN_CMD_BINDPOINT_DIRTY_SYSVALS;
 
-      dzn_cmd_buffer_prepare_draw(cmdbuf, true);
+      if (dzn_cmd_buffer_prepare_draw(cmdbuf, true) != VK_SUCCESS)
+         break;
       ID3D12GraphicsCommandList1_DrawIndexedInstanced(cmdbuf->cmdlist, indexCount, instanceCount, firstIndex,
                                             vertexOffset, firstInstance);
    }
@@ -5852,7 +5873,8 @@ dzn_CmdDispatchIndirect(VkCommandBuffer commandBuffer,
    cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_COMPUTE].dirty |=
       DZN_CMD_BINDPOINT_DIRTY_SYSVALS;
 
-   dzn_cmd_buffer_prepare_dispatch(cmdbuf);
+   if (dzn_cmd_buffer_prepare_dispatch(cmdbuf) != VK_SUCCESS)
+      return;
 
    struct dzn_compute_pipeline *pipeline = (struct dzn_compute_pipeline *)
       cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_COMPUTE].pipeline;
