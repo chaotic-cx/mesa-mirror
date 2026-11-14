@@ -46,6 +46,9 @@
 #include "jay_opcodes.h"
 #include "jay_private.h"
 
+/* Aggression is stored in units of 1/AGGRESSION_SCALE. */
+#define AGGRESSION_SCALE 8
+
 /* Bitfield describing a scheduler policy */
 enum sched_mode {
    BACKWARD = 0x1, /* Forward if unset */
@@ -90,7 +93,7 @@ struct sched_ctx {
 
    /* For pressure-informed latency scheduling, a parameter controlling how
     * aggressive we are. Higher reduces latency more while costing more
-    * pressure.
+    * pressure. Fixed-point, see AGGRESSION_SCALE.
     */
    unsigned aggression;
 
@@ -343,6 +346,7 @@ choose_inst(struct sched_ctx *s, enum sched_mode mode)
 
    if (s->phase > EARLY && (mode & PRESSURE)) {
       latency_weight = s->aggression;
+      pressure_weight = AGGRESSION_SCALE;
    }
 
    int32_t min_score = INT32_MAX;
@@ -687,12 +691,15 @@ pass(jay_function *f)
           * less aggressively in the hopes of getting /something/ successful.
           */
          if (fwd != SUCCESS && bw == FAIL_PRESSURE) {
-            sctx.aggression = 20;
+            /* 20 down to 2 in steps of 2, then 1.5, 1, 1/2, 1/4, 1/8 */
+            static const uint8_t ladder[] = { 160, 144, 128, 112, 96,
+                                              80,  64,  48,  32,  16,
+                                              12,  8,   4,   2,   1 };
 
-            while (sctx.aggression > 0 && bw == FAIL_PRESSURE) {
+            for (unsigned i = 0; i < ARRAY_SIZE(ladder) && bw != SUCCESS; i++) {
+               sctx.aggression = ladder[i];
                bw = schedule_block(block, &sctx, memctx,
                                    BACKWARD | PRESSURE | LATENCY);
-               sctx.aggression -= 2;
             }
          }
       } else {
