@@ -35,7 +35,7 @@
 
 struct analysis_query {
    uint32_t pushed_queries;
-   uint32_t result_index;
+   uint32_t result_offset;
 };
 
 struct analysis_state {
@@ -46,11 +46,12 @@ struct analysis_state {
    struct util_dynarray result_stack;
 
    size_t query_size;
+   size_t result_size;
    uint32_t (*get_key)(struct analysis_query *q);
-   bool (*lookup)(void *table, uint32_t key, uint32_t *value);
-   void (*insert)(void *table, uint32_t key, uint32_t value);
+   bool (*lookup)(void *table, uint32_t key, void *value);
+   void (*insert)(void *table, uint32_t key, const void *value);
    void (*process_query)(struct analysis_state *state, struct analysis_query *q,
-                         uint32_t *result, const uint32_t *src);
+                         void *result, const void *src);
 };
 
 static void *
@@ -58,21 +59,21 @@ push_analysis_query(struct analysis_state *state, size_t size)
 {
    struct analysis_query *q = util_dynarray_grow_bytes(&state->query_stack, 1, size);
    q->pushed_queries = 0;
-   q->result_index = util_dynarray_num_elements(&state->result_stack, uint32_t);
+   q->result_offset = state->result_stack.size;
 
-   util_dynarray_append_typed(&state->result_stack, uint32_t, 0);
+   util_dynarray_grow_bytes_zero(&state->result_stack, 1, state->result_size);
 
    return q;
 }
 
 /* Helper for performing range analysis without recursion. */
-static uint32_t
-perform_analysis(struct analysis_state *state)
+static void
+perform_analysis(struct analysis_state *state, void *final_result)
 {
    while (state->query_stack.size) {
       struct analysis_query *cur =
          (struct analysis_query *)((char *)util_dynarray_end(&state->query_stack) - state->query_size);
-      uint32_t *result = util_dynarray_element(&state->result_stack, uint32_t, cur->result_index);
+      void *result = util_dynarray_element(&state->result_stack, char, cur->result_offset);
 
       uint32_t key = state->get_key(cur);
       /* There might be a cycle-resolving entry for loop header phis. Ignore this when finishing
@@ -84,8 +85,9 @@ perform_analysis(struct analysis_state *state)
          continue;
       }
 
-      uint32_t *src = (uint32_t *)util_dynarray_end(&state->result_stack) - cur->pushed_queries;
-      state->result_stack.size -= sizeof(uint32_t) * cur->pushed_queries;
+      void *src = (char *)util_dynarray_end(&state->result_stack) -
+                  cur->pushed_queries * state->result_size;
+      state->result_stack.size -= state->result_size * cur->pushed_queries;
 
       uint32_t prev_num_queries = state->query_stack.size;
       state->process_query(state, cur, result, src);
@@ -99,18 +101,16 @@ perform_analysis(struct analysis_state *state)
       }
 
       if (key != UINT32_MAX)
-         state->insert(state->range_ht, key, *result);
+         state->insert(state->range_ht, key, result);
 
       state->query_stack.size -= state->query_size;
    }
 
-   assert(state->result_stack.size == sizeof(uint32_t));
+   assert(state->result_stack.size == state->result_size);
 
-   uint32_t res = util_dynarray_top(&state->result_stack, uint32_t);
+   memcpy(final_result, state->result_stack.data, state->result_size);
    util_dynarray_fini(&state->query_stack);
    util_dynarray_fini(&state->result_stack);
-
-   return res;
 }
 
 static fp_class_mask
@@ -191,11 +191,11 @@ get_fp_key(struct analysis_query *q)
 }
 
 static bool
-fp_lookup(void *table, uint32_t key, uint32_t *value)
+fp_lookup(void *table, uint32_t key, void *value)
 {
    nir_fp_analysis_state *state = table;
    if (BITSET_TEST(state->bitset, key)) {
-      *value = state->arr[key];
+      *(fp_class_mask *)value = state->arr[key];
       return true;
    } else {
       return false;
@@ -203,12 +203,12 @@ fp_lookup(void *table, uint32_t key, uint32_t *value)
 }
 
 static void
-fp_insert(void *table, uint32_t key, uint32_t value)
+fp_insert(void *table, uint32_t key, const void *value)
 {
    nir_fp_analysis_state *state = table;
    BITSET_SET(state->bitset, key);
    state->max = MAX2(state->max, (int)key);
-   state->arr[key] = value;
+   state->arr[key] = *(const fp_class_mask *)value;
 }
 
 static fp_class_mask
@@ -790,11 +790,13 @@ tex_fp_class(nir_tex_instr *tex)
  * Analyze an expression to determine the possible fp classes of its result
  */
 static void
-process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32_t *result,
-                 const uint32_t *src_res)
+process_fp_query(struct analysis_state *state, struct analysis_query *aq, void *_result,
+                 const void *_src_res)
 {
    struct fp_query q = *(struct fp_query *)aq;
    const nir_def *def = q.def;
+   const fp_class_mask *src_res = _src_res;
+   fp_class_mask *result = _result;
 
    if (nir_def_is_const(def)) {
       *result = analyze_fp_constant(nir_def_as_load_const(def));
@@ -1414,13 +1416,14 @@ fp_class_mask
 nir_analyze_fp_class(nir_fp_analysis_state *fp_state, const nir_def *def)
 {
    struct fp_query query_alloc[64];
-   uint32_t result_alloc[64];
+   fp_class_mask result_alloc[64];
 
    struct analysis_state state;
    state.range_ht = fp_state;
    util_dynarray_init_from_stack(&state.query_stack, query_alloc, sizeof(query_alloc));
    util_dynarray_init_from_stack(&state.result_stack, result_alloc, sizeof(result_alloc));
    state.query_size = sizeof(struct fp_query);
+   state.result_size = sizeof(fp_class_mask);
    state.get_key = &get_fp_key;
    state.lookup = &fp_lookup;
    state.insert = &fp_insert;
@@ -1428,7 +1431,10 @@ nir_analyze_fp_class(nir_fp_analysis_state *fp_state, const nir_def *def)
 
    push_fp_query(&state, def);
 
-   return perform_analysis(&state);
+   fp_class_mask result;
+   perform_analysis(&state, &result);
+
+   return result;
 }
 
 nir_fp_analysis_state
@@ -1588,19 +1594,20 @@ get_uub_scalar_key(struct analysis_query *q)
 }
 
 static bool
-scalar_lookup(void *table, uint32_t key, uint32_t *value)
+scalar_lookup(void *table, uint32_t key, void *value)
 {
    struct hash_table *ht = table;
    struct hash_entry *he = _mesa_hash_table_search(ht, (void *)(uintptr_t)key);
    if (he)
-      *value = (uintptr_t)he->data;
+      *(uint32_t *)value = (uintptr_t)he->data;
    return he != NULL;
 }
 
 static void
-scalar_insert(void *table, uint32_t key, uint32_t value)
+scalar_insert(void *table, uint32_t key, const void *_value)
 {
    struct hash_table *ht = table;
+   uint32_t value = *(const uint32_t *)_value;
    _mesa_hash_table_insert(ht, (void *)(uintptr_t)key, (void *)(uintptr_t)value);
 }
 
@@ -1623,7 +1630,7 @@ get_phi_query(struct analysis_state *state, struct scalar_query q, uint32_t *res
    nir_cf_node *prev = nir_cf_node_prev(&phi->instr.block->cf_node);
    if (!prev || prev->type == nir_cf_node_block) {
       /* Resolve cycles by inserting safe_value into range_ht. */
-      scalar_insert(state->range_ht, get_scalar_key(&q.head), safe_value);
+      scalar_insert(state->range_ht, get_scalar_key(&q.head), &safe_value);
 
       struct set visited;
       _mesa_pointer_set_init(&visited, NULL);
@@ -2234,10 +2241,12 @@ get_phi_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
 }
 
 static void
-process_uub_query(struct analysis_state *state, struct analysis_query *aq, uint32_t *result,
-                  const uint32_t *src)
+process_uub_query(struct analysis_state *state, struct analysis_query *aq, void *_result,
+                  const void *_src)
 {
    struct scalar_query q = *(struct scalar_query *)aq;
+   const uint32_t *src = _src;
+   uint32_t *result = _result;
 
    *result = bitmask(q.scalar.def->bit_size);
    if (nir_scalar_is_const(q.scalar))
@@ -2265,6 +2274,7 @@ nir_unsigned_upper_bound(nir_shader *shader, struct hash_table *range_ht,
    util_dynarray_init_from_stack(&state.query_stack, query_alloc, sizeof(query_alloc));
    util_dynarray_init_from_stack(&state.result_stack, result_alloc, sizeof(result_alloc));
    state.query_size = sizeof(struct scalar_query);
+   state.result_size = sizeof(uint32_t);
    state.get_key = &get_uub_scalar_key;
    state.lookup = &scalar_lookup,
    state.insert = &scalar_insert,
@@ -2272,7 +2282,10 @@ nir_unsigned_upper_bound(nir_shader *shader, struct hash_table *range_ht,
 
    push_scalar_query(&state, nir_scalar_chase_movs(scalar));
 
-   return perform_analysis(&state);
+   uint32_t result;
+   perform_analysis(&state, &result);
+
+   return result;
 }
 
 bool
@@ -2757,10 +2770,12 @@ get_alu_num_lsb(struct analysis_state *state, struct scalar_query q, uint32_t *r
 }
 
 static void
-process_num_lsb_query(struct analysis_state *state, struct analysis_query *aq, uint32_t *result,
-                      const uint32_t *src)
+process_num_lsb_query(struct analysis_state *state, struct analysis_query *aq, void *_result,
+                      const void *_src)
 {
    struct scalar_query q = *(struct scalar_query *)aq;
+   const uint32_t *src = _src;
+   uint32_t *result = _result;
 
    *result = 0;
    if (nir_scalar_is_const(q.scalar)) {
@@ -2787,6 +2802,7 @@ nir_def_num_lsb_zero(struct hash_table *numlsb_ht, nir_scalar def)
    util_dynarray_init_from_stack(&state.query_stack, query_alloc, sizeof(query_alloc));
    util_dynarray_init_from_stack(&state.result_stack, result_alloc, sizeof(result_alloc));
    state.query_size = sizeof(struct scalar_query);
+   state.result_size = sizeof(uint32_t);
    state.get_key = &get_scalar_key;
    state.lookup = &scalar_lookup,
    state.insert = &scalar_insert,
@@ -2794,7 +2810,10 @@ nir_def_num_lsb_zero(struct hash_table *numlsb_ht, nir_scalar def)
 
    push_scalar_query(&state, nir_scalar_chase_movs(def));
 
-   return perform_analysis(&state);
+   uint32_t result;
+   perform_analysis(&state, &result);
+
+   return result;
 }
 
 /* Return the following:
