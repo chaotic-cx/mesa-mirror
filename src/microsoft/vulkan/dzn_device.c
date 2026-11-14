@@ -476,7 +476,7 @@ dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
                        VK_QUEUE_TRANSFER_BIT,
          .queueCount = 4,
          .timestampValidBits = 64,
-         .minImageTransferGranularity = { 0, 0, 0 },
+         .minImageTransferGranularity = { 1, 1, 1 },
       },
       .desc = {
          .Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -489,7 +489,7 @@ dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
                        VK_QUEUE_TRANSFER_BIT,
          .queueCount = 8,
          .timestampValidBits = 64,
-         .minImageTransferGranularity = { 0, 0, 0 },
+         .minImageTransferGranularity = { 1, 1, 1 },
       },
       .desc = {
          .Type = D3D12_COMMAND_LIST_TYPE_COMPUTE,
