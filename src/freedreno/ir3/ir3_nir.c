@@ -1252,7 +1252,8 @@ ir3_mem_access_size_align(nir_intrinsic_op intrin, uint8_t bytes,
    else if (bit_size >= 32)
       bit_size = 32;
 
-   if (intrin == nir_intrinsic_load_ubo)
+   if (intrin == nir_intrinsic_load_ubo ||
+       intrin == nir_intrinsic_load_push_constant)
       bit_size = 32;
 
    return (nir_mem_access_size_align){

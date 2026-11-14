@@ -505,7 +505,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    /* Vulkan 1.1 */
    features->storageBuffer16BitAccess            = pdevice->info->props.storage_16bit;
    features->uniformAndStorageBuffer16BitAccess  = pdevice->info->props.storage_16bit;
-   features->storagePushConstant16               = false;
+   features->storagePushConstant16               = true;
    features->storageInputOutput16                = false;
    features->multiview                           = true;
    /* Multiview + GS seems to hang on a6xx. We also don't yet support the
@@ -526,7 +526,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->drawIndirectCount                   = true;
    features->storageBuffer8BitAccess             = pdevice->info->props.storage_8bit;
    features->uniformAndStorageBuffer8BitAccess   = pdevice->info->props.storage_8bit;
-   features->storagePushConstant8                = false;
+   features->storagePushConstant8                = true;
    features->shaderBufferInt64Atomics =
       pdevice->info->props.has_64b_ssbo_atomics;
    features->shaderSharedInt64Atomics            = false;
