@@ -1774,8 +1774,14 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
       } else if (dst.regClass() == v1 && instr->def.bit_size == 16) {
          emit_vop3p_instruction(ctx, instr, aco_opcode::v_pk_mul_lo_u16, dst);
       } else if (dst.type() == RegType::vgpr) {
-         uint32_t src0_ub = get_alu_src_ub(ctx, instr, 0);
-         uint32_t src1_ub = get_alu_src_ub(ctx, instr, 1);
+         nir_signed_range src0_range = nir_analyze_signed_range(
+            ctx->signed_ht, nir_get_scalar(instr->src[0].src.ssa, instr->src[0].swizzle[0]));
+         nir_signed_range src1_range = nir_analyze_signed_range(
+            ctx->signed_ht, nir_get_scalar(instr->src[1].src.ssa, instr->src[1].swizzle[0]));
+         uint32_t src0_ub =
+            src0_range.lower_bound >= 0 ? src0_range.upper_bound : u_uintN_max(instr->def.bit_size);
+         uint32_t src1_ub =
+            src1_range.lower_bound >= 0 ? src1_range.upper_bound : u_uintN_max(instr->def.bit_size);
 
          if (src0_ub <= 0xffffff && src1_ub <= 0xffffff) {
             emit_vop2_instruction(ctx, instr, aco_opcode::v_mul_u32_u24, dst,
