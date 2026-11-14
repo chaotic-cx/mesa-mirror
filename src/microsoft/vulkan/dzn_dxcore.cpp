@@ -32,32 +32,32 @@ VkResult
 dzn_enumerate_physical_devices_dxcore(struct vk_instance *instance)
 {
    util_dl_library *dxcore = util_dl_open(UTIL_DL_PREFIX "dxcore" UTIL_DL_EXT);
-   if (!dxcore) {
-      mesa_loge("Failed to load DXCore\n");
-      return VK_ERROR_INITIALIZATION_FAILED;
-   }
+   if (!dxcore)
+      return VK_ERROR_INCOMPATIBLE_DRIVER;
 
    using PFNDXCoreCreateAdapterFactory = HRESULT (APIENTRY*)(REFIID, void **);
    PFNDXCoreCreateAdapterFactory create_func = (PFNDXCoreCreateAdapterFactory)util_dl_get_proc_address(dxcore, "DXCoreCreateAdapterFactory");
    if (!create_func) {
+      util_dl_close(dxcore);
       mesa_loge("Failed to load DXCoreCreateAdapterFactory\n");
-      return VK_ERROR_INITIALIZATION_FAILED;
+      return VK_ERROR_INCOMPATIBLE_DRIVER;
    }
 
    IDXCoreAdapterFactory *factory;
    if (FAILED(create_func(IID_PPV_ARGS(&factory)))) {
-      mesa_loge("Failed to create DXCore adapter factory\n");
-      return VK_ERROR_INITIALIZATION_FAILED;
+      util_dl_close(dxcore);
+      return VK_ERROR_INCOMPATIBLE_DRIVER;
    }
 
    IDXCoreAdapterList *list;
    if (FAILED(factory->CreateAdapterList(1, &DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS, IID_PPV_ARGS(&list)))) {
       factory->Release();
-      mesa_loge("Failed to create DXCore adapter list\n");
-      return VK_ERROR_INITIALIZATION_FAILED;
+      util_dl_close(dxcore);
+      return VK_ERROR_INCOMPATIBLE_DRIVER;
    }
 
    VkResult result = VK_SUCCESS;
+   bool any_added = false;
    uint32_t adapter_count = list->GetAdapterCount();
    IDXCoreAdapter *adapter;
    for (uint32_t i = 0; i < adapter_count && result == VK_SUCCESS; ++i) {
@@ -82,6 +82,10 @@ dzn_enumerate_physical_devices_dxcore(struct vk_instance *instance)
             desc.revision = hardware_id.revision;
             desc.is_warp = !is_hardware;
             result = dzn_instance_add_physical_device(instance, adapter, &desc);
+            if (result == VK_SUCCESS)
+               any_added = true;
+            else if (result == VK_ERROR_INCOMPATIBLE_DRIVER)
+               result = VK_SUCCESS;
          }
 
          adapter->Release();
@@ -90,6 +94,12 @@ dzn_enumerate_physical_devices_dxcore(struct vk_instance *instance)
 
    list->Release();
    factory->Release();
+   if (result != VK_SUCCESS) {
+      dzn_instance_destroy_physical_devices(instance);
+      util_dl_close(dxcore);
+   } else if (!any_added) {
+      util_dl_close(dxcore);
+   }
    return result;
 }
 

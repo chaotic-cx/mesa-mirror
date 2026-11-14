@@ -4754,7 +4754,7 @@
         "description": "dzn: Enumerate zero devices when runtime requirements are not met",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c00b66fa71aba9dd980a3568239576f1ef9a8cd7",
         "notes": null
