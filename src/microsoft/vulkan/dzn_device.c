@@ -391,7 +391,7 @@ const struct vk_pipeline_cache_object_ops *const dzn_pipeline_cache_import_ops[]
    NULL,
 };
 
-static void
+static bool
 dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
 {
    D3D_FEATURE_LEVEL checklist[] = {
@@ -407,12 +407,14 @@ dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
       .pFeatureLevelsRequested = checklist,
    };
 
-   ID3D12Device1_CheckFeatureSupport(pdev->dev, D3D12_FEATURE_FEATURE_LEVELS, &levels, sizeof(levels));
+   if (FAILED(ID3D12Device1_CheckFeatureSupport(pdev->dev, D3D12_FEATURE_FEATURE_LEVELS, &levels, sizeof(levels))))
+      return false;
    pdev->feature_level = levels.MaxSupportedFeatureLevel;
 
    static const D3D_SHADER_MODEL valid_shader_models[] = {
       D3D_SHADER_MODEL_6_8 ,D3D_SHADER_MODEL_6_7, D3D_SHADER_MODEL_6_6, D3D_SHADER_MODEL_6_5,
       D3D_SHADER_MODEL_6_4, D3D_SHADER_MODEL_6_3, D3D_SHADER_MODEL_6_2, D3D_SHADER_MODEL_6_1,
+      D3D_SHADER_MODEL_6_0,
    };
    for (UINT i = 0; i < ARRAY_SIZE(valid_shader_models); ++i) {
       D3D12_FEATURE_DATA_SHADER_MODEL shader_model = { valid_shader_models[i] };
@@ -433,6 +435,11 @@ dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
          break;
       }
    }
+
+   if (pdev->feature_level < D3D_FEATURE_LEVEL_11_0 ||
+       pdev->shader_model < D3D_SHADER_MODEL_6_0 ||
+       pdev->root_sig_version < D3D_ROOT_SIGNATURE_VERSION_1_1)
+      return false;
 
    ID3D12Device1_CheckFeatureSupport(pdev->dev, D3D12_FEATURE_ARCHITECTURE1, &pdev->architecture, sizeof(pdev->architecture));
    ID3D12Device1_CheckFeatureSupport(pdev->dev, D3D12_FEATURE_D3D12_OPTIONS, &pdev->options, sizeof(pdev->options));
@@ -498,15 +505,20 @@ dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
       .NodeMask = 0,
    };
 
-   ID3D12CommandQueue *cmdqueue;
-   ID3D12Device1_CreateCommandQueue(pdev->dev, &queue_desc,
-                                    &IID_ID3D12CommandQueue,
-                                    (void **)&cmdqueue);
+   ID3D12CommandQueue *cmdqueue = NULL;
+   if (FAILED(ID3D12Device1_CreateCommandQueue(pdev->dev, &queue_desc,
+                                               &IID_ID3D12CommandQueue,
+                                               (void **)&cmdqueue)))
+      return false;
 
-   uint64_t ts_freq;
-   ID3D12CommandQueue_GetTimestampFrequency(cmdqueue, &ts_freq);
-   pdev->timestamp_period = 1000000000.0f / ts_freq;
+   uint64_t ts_freq = 0;
+   HRESULT hr = ID3D12CommandQueue_GetTimestampFrequency(cmdqueue, &ts_freq);
    ID3D12CommandQueue_Release(cmdqueue);
+   if (FAILED(hr) || !ts_freq)
+      return false;
+
+   pdev->timestamp_period = 1000000000.0f / ts_freq;
+   return true;
 }
 
 static void
@@ -1129,9 +1141,6 @@ dzn_physical_device_create(struct vk_instance *instance,
    pdev->desc = *desc;
    pdev->adapter = adapter;
    IUnknown_AddRef(adapter);
-   list_addtail(&pdev->vk.link, &instance->physical_devices.list);
-
-   vk_warn_non_conformant_implementation("dzn");
 
    struct dzn_instance *dzn_instance = container_of(instance, struct dzn_instance, vk);
 
@@ -1150,9 +1159,8 @@ dzn_physical_device_create(struct vk_instance *instance,
                                    dzn_instance->factory,
                                    !dzn_instance->dxil_validator);
    if (!pdev->dev) {
-      list_del(&pdev->vk.link);
-      dzn_physical_device_destroy(&pdev->vk);
-      return vk_error(instance, VK_ERROR_INITIALIZATION_FAILED);
+      result = VK_ERROR_INCOMPATIBLE_DRIVER;
+      goto fail_clean;
    }
 
    if (FAILED(ID3D12Device1_QueryInterface(pdev->dev, &IID_ID3D12Device10, (void **)&pdev->dev10)))
@@ -1163,7 +1171,11 @@ dzn_physical_device_create(struct vk_instance *instance,
       pdev->dev12 = NULL;
    if (FAILED(ID3D12Device1_QueryInterface(pdev->dev, &IID_ID3D12Device13, (void **)&pdev->dev13)))
       pdev->dev13 = NULL;
-   dzn_physical_device_cache_caps(pdev);
+   if (!dzn_physical_device_cache_caps(pdev)) {
+      result = VK_ERROR_INCOMPATIBLE_DRIVER;
+      goto fail_clean;
+   }
+
    dzn_physical_device_init_memory(pdev);
    dzn_physical_device_init_uuids(pdev);
 
@@ -1180,15 +1192,19 @@ dzn_physical_device_create(struct vk_instance *instance,
    dzn_physical_device_get_properties(pdev, &pdev->vk.properties);
 
    result = dzn_wsi_init(pdev);
-   if (result != VK_SUCCESS || !pdev->dev) {
-      list_del(&pdev->vk.link);
-      dzn_physical_device_release(pdev);
-      vk_physical_device_finish(&pdev->vk);
-      vk_free(&instance->alloc, pdev);
-      return result;
-   }
+   if (result != VK_SUCCESS || !pdev->dev)
+      goto fail_clean;
+
+   vk_warn_non_conformant_implementation("dzn");
+   list_addtail(&pdev->vk.link, &instance->physical_devices.list);
 
    return VK_SUCCESS;
+
+fail_clean:
+   dzn_physical_device_release(pdev);
+   vk_physical_device_finish(&pdev->vk);
+   vk_free(&instance->alloc, pdev);
+   return result;
 }
 
 static DXGI_FORMAT
@@ -1752,19 +1768,40 @@ dzn_instance_add_physical_device(struct vk_instance *instance,
    struct dzn_instance *dzn_instance = container_of(instance, struct dzn_instance, vk);
    if ((dzn_instance->debug_flags & DZN_DEBUG_WARP) &&
        !desc->is_warp)
-      return VK_SUCCESS;
+      return VK_ERROR_INCOMPATIBLE_DRIVER;
 
    return dzn_physical_device_create(instance, adapter, desc);
+}
+
+void
+dzn_instance_destroy_physical_devices(struct vk_instance *instance)
+{
+   list_for_each_entry_safe(struct vk_physical_device, pdevice,
+                            &instance->physical_devices.list, link) {
+      list_del(&pdevice->link);
+      dzn_physical_device_destroy(pdevice);
+   }
 }
 
 static VkResult
 dzn_enumerate_physical_devices(struct vk_instance *instance)
 {
+   struct dzn_instance *dzn_instance =
+      container_of(instance, struct dzn_instance, vk);
+   if (!dzn_instance->d3d12_mod)
+      return VK_SUCCESS;
+
    VkResult result = dzn_enumerate_physical_devices_dxcore(instance);
 #ifdef _WIN32
-   if (result != VK_SUCCESS)
+   if (result == VK_ERROR_INCOMPATIBLE_DRIVER ||
+       result == VK_ERROR_INITIALIZATION_FAILED)
       result = dzn_enumerate_physical_devices_dxgi(instance);
 #endif
+   if (result == VK_ERROR_INCOMPATIBLE_DRIVER)
+      return VK_SUCCESS;
+
+   if (result != VK_SUCCESS)
+      dzn_instance_destroy_physical_devices(instance);
 
    return result;
 }
@@ -1842,36 +1879,34 @@ dzn_instance_create(const VkInstanceCreateInfo *pCreateInfo,
    }
 #endif
 
-   if (missing_validator) {
-      dzn_instance_destroy(instance, pAllocator);
-      return vk_error(NULL, VK_ERROR_INITIALIZATION_FAILED);
+   if (!missing_validator) {
+      instance->d3d12_mod = util_dl_open(UTIL_DL_PREFIX "d3d12" UTIL_DL_EXT);
+      if (instance->d3d12_mod) {
+         instance->d3d12.serialize_root_sig =
+            d3d12_get_serialize_root_sig(instance->d3d12_mod);
+         if (!instance->d3d12.serialize_root_sig) {
+            util_dl_close(instance->d3d12_mod);
+            instance->d3d12_mod = NULL;
+         }
+      }
    }
 
-   instance->d3d12_mod = util_dl_open(UTIL_DL_PREFIX "d3d12" UTIL_DL_EXT);
-   if (!instance->d3d12_mod) {
-      dzn_instance_destroy(instance, pAllocator);
-      return vk_error(NULL, VK_ERROR_INCOMPATIBLE_DRIVER);
-   }
+   if (instance->d3d12_mod) {
+      dzn_init_dri_config(instance);
 
-   instance->d3d12.serialize_root_sig = d3d12_get_serialize_root_sig(instance->d3d12_mod);
-   if (!instance->d3d12.serialize_root_sig) {
-      dzn_instance_destroy(instance, pAllocator);
-      return vk_error(NULL, VK_ERROR_INCOMPATIBLE_DRIVER);
-   }
+      if (instance->drirc.debug.disable) {
+         dzn_instance_destroy(instance, pAllocator);
+         return vk_errorf(NULL, VK_ERROR_INITIALIZATION_FAILED, "dzn_disable set, failing instance creation");
+      }
 
-   instance->factory = try_create_device_factory(instance->d3d12_mod);
+      instance->factory = try_create_device_factory(instance->d3d12_mod);
 
-   if (instance->debug_flags & DZN_DEBUG_D3D12)
-      d3d12_enable_debug_layer(instance->d3d12_mod, instance->factory);
-   if (instance->debug_flags & DZN_DEBUG_GBV)
-      d3d12_enable_gpu_validation(instance->d3d12_mod, instance->factory);
+      if (instance->debug_flags & DZN_DEBUG_D3D12)
+         d3d12_enable_debug_layer(instance->d3d12_mod, instance->factory);
+      if (instance->debug_flags & DZN_DEBUG_GBV)
+         d3d12_enable_gpu_validation(instance->d3d12_mod, instance->factory);
 
-   instance->sync_binary_type = vk_sync_binary_get_type(&dzn_sync_type);
-   dzn_init_dri_config(instance);
-
-   if (instance->drirc.debug.disable) {
-      dzn_instance_destroy(instance, pAllocator);
-      return vk_errorf(NULL, VK_ERROR_INITIALIZATION_FAILED, "dzn_disable set, failing instance creation");
+      instance->sync_binary_type = vk_sync_binary_get_type(&dzn_sync_type);
    }
 
    *out = dzn_instance_to_handle(instance);

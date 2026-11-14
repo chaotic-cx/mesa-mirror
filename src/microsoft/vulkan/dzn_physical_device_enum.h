@@ -72,6 +72,9 @@ dzn_instance_add_physical_device(struct vk_instance *instance,
                                  IUnknown *adapter,
                                  const struct dzn_physical_device_desc *desc);
 
+void
+dzn_instance_destroy_physical_devices(struct vk_instance *instance);
+
 #ifdef __cplusplus
 }
 #endif
