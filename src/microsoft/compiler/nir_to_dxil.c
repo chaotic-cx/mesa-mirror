@@ -6564,72 +6564,86 @@ static const unsigned dxil_validator_max_capable_version = DXIL_VALIDATOR_1_8;
 static const unsigned dxil_min_shader_model = SHADER_MODEL_6_0;
 static const unsigned dxil_max_shader_model = SHADER_MODEL_6_8;
 
-bool
-nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
-            const struct dxil_logger *logger, struct blob *blob)
+static bool
+write_dxil_container(struct ntd_context *ctx,
+                     struct dxil_container *container,
+                     struct blob *blob)
 {
-   assert(opts);
-   bool retval = true;
-   debug_dxil = (int)debug_get_option_debug_dxil();
-   blob_init(blob);
-
-   if (opts->shader_model_max < dxil_min_shader_model) {
-      debug_printf("D3D12: cannot support emitting shader models lower than %d.%d\n",
-                   dxil_min_shader_model >> 16,
-                   dxil_min_shader_model & 0xffff);
+   /* Native low precision disables min-precision */
+   if (ctx->mod.feats.native_low_precision)
+      ctx->mod.feats.min_precision = false;
+   if (!dxil_container_add_features(container, &ctx->mod.feats)) {
+      debug_printf("D3D12: dxil_container_add_features failed\n");
       return false;
    }
 
-   if (opts->shader_model_max > dxil_max_shader_model) {
-      debug_printf("D3D12: cannot support emitting higher than shader model %d.%d\n",
-                   dxil_max_shader_model >> 16,
-                   dxil_max_shader_model & 0xffff);
+   if (!dxil_container_add_io_signature(container,
+                                        DXIL_ISG1,
+                                        ctx->mod.num_sig_inputs,
+                                        ctx->mod.inputs,
+                                        ctx->mod.minor_validator >= 7)) {
+      debug_printf("D3D12: failed to write input signature\n");
       return false;
    }
 
-   if (opts->validator_version_max != NO_DXIL_VALIDATION &&
-       opts->validator_version_max < dxil_validator_min_capable_version) {
-      debug_printf("D3D12: Invalid validator version %d.%d, must be 1.4 or greater\n",
-         opts->validator_version_max >> 16,
-         opts->validator_version_max & 0xffff);
+   if (!dxil_container_add_io_signature(container,
+                                        DXIL_OSG1,
+                                        ctx->mod.num_sig_outputs,
+                                        ctx->mod.outputs,
+                                        ctx->mod.minor_validator >= 7)) {
+      debug_printf("D3D12: failed to write output signature\n");
       return false;
    }
 
-   /* If no validation, write a blob as if it was going to be validated by the newest understood validator.
-    * Same if the validator is newer than we know how to write for.
-    */
-   uint32_t validator_version =
-      opts->validator_version_max == NO_DXIL_VALIDATION ||
-      opts->validator_version_max > dxil_validator_max_capable_version ?
-      dxil_validator_max_capable_version : opts->validator_version_max;
-
-   struct ntd_context *ctx = calloc(1, sizeof(*ctx));
-   if (!ctx)
+   if ((ctx->mod.shader_kind == DXIL_HULL_SHADER ||
+        ctx->mod.shader_kind == DXIL_DOMAIN_SHADER) &&
+       !dxil_container_add_io_signature(container,
+                                        DXIL_PSG1,
+                                        ctx->mod.num_sig_patch_consts,
+                                        ctx->mod.patch_consts,
+                                        ctx->mod.minor_validator >= 7)) {
+      debug_printf("D3D12: failed to write patch constant signature\n");
       return false;
-
-   ctx->opts = opts;
-   ctx->shader = s;
-   ctx->logger = logger ? logger : &default_logger;
-
-   ctx->ralloc_ctx = ralloc_context(NULL);
-   if (!ctx->ralloc_ctx) {
-      retval = false;
-      goto out;
    }
 
-   util_dynarray_init(&ctx->srv_metadata_nodes, ctx->ralloc_ctx);
-   util_dynarray_init(&ctx->uav_metadata_nodes, ctx->ralloc_ctx);
-   util_dynarray_init(&ctx->cbv_metadata_nodes, ctx->ralloc_ctx);
-   util_dynarray_init(&ctx->sampler_metadata_nodes, ctx->ralloc_ctx);
-   util_dynarray_init(&ctx->resources, ctx->ralloc_ctx);
-   dxil_module_init(&ctx->mod, ctx->ralloc_ctx);
-   ctx->mod.shader_kind = get_dxil_shader_kind(s);
-   ctx->mod.major_version = 6;
-   /* Use the highest shader model that's supported and can be validated */
-   ctx->mod.minor_version =
-      MIN2(opts->shader_model_max & 0xffff, validator_version & 0xffff);
-   ctx->mod.major_validator = validator_version >> 16;
-   ctx->mod.minor_validator = validator_version & 0xffff;
+   struct dxil_validation_state validation_state;
+   memset(&validation_state, 0, sizeof(validation_state));
+   dxil_fill_validation_state(ctx, &validation_state);
+
+   if (!dxil_container_add_state_validation(container, &ctx->mod,
+                                            &validation_state)) {
+      debug_printf("D3D12: failed to write state-validation\n");
+      return false;
+   }
+
+   if (!dxil_container_add_module(container, &ctx->mod)) {
+      debug_printf("D3D12: failed to write module\n");
+      return false;
+   }
+
+   if (!dxil_container_write(container, blob)) {
+      debug_printf("D3D12: dxil_container_write failed\n");
+      return false;
+   }
+
+   return true;
+}
+
+static bool
+emit_dxil_container(struct ntd_context *ctx, struct blob *blob)
+{
+   struct dxil_container container;
+   dxil_container_init(&container);
+   bool ret = write_dxil_container(ctx, &container, blob);
+   dxil_container_finish(&container);
+   return ret;
+}
+
+static bool
+nir_to_dxil_impl(struct ntd_context *ctx, struct blob *blob)
+{
+   struct nir_shader *s = ctx->shader;
+   const struct nir_to_dxil_options *opts = ctx->opts;
 
    if (s->info.stage <= MESA_SHADER_FRAGMENT) {
       uint64_t in_mask =
@@ -6723,8 +6737,7 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
 
    if (!emit_module(ctx, opts)) {
       debug_printf("D3D12: dxil_container_add_module failed\n");
-      retval = false;
-      goto out;
+      return false;
    }
 
    if (debug_dxil & DXIL_DEBUG_DUMP_MODULE) {
@@ -6736,72 +6749,8 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
       dxil_dump_free(dumper);
    }
 
-   struct dxil_container container;
-   dxil_container_init(&container);
-   /* Native low precision disables min-precision */
-   if (ctx->mod.feats.native_low_precision)
-      ctx->mod.feats.min_precision = false;
-   if (!dxil_container_add_features(&container, &ctx->mod.feats)) {
-      debug_printf("D3D12: dxil_container_add_features failed\n");
-      retval = false;
-      goto out;
-   }
-
-   if (!dxil_container_add_io_signature(&container,
-                                        DXIL_ISG1,
-                                        ctx->mod.num_sig_inputs,
-                                        ctx->mod.inputs,
-                                        ctx->mod.minor_validator >= 7)) {
-      debug_printf("D3D12: failed to write input signature\n");
-      retval = false;
-      goto out;
-   }
-
-   if (!dxil_container_add_io_signature(&container,
-                                        DXIL_OSG1,
-                                        ctx->mod.num_sig_outputs,
-                                        ctx->mod.outputs,
-                                        ctx->mod.minor_validator >= 7)) {
-      debug_printf("D3D12: failed to write output signature\n");
-      retval = false;
-      goto out;
-   }
-
-   if ((ctx->mod.shader_kind == DXIL_HULL_SHADER ||
-        ctx->mod.shader_kind == DXIL_DOMAIN_SHADER) &&
-       !dxil_container_add_io_signature(&container,
-                                        DXIL_PSG1,
-                                        ctx->mod.num_sig_patch_consts,
-                                        ctx->mod.patch_consts,
-                                        ctx->mod.minor_validator >= 7)) {
-      debug_printf("D3D12: failed to write patch constant signature\n");
-      retval = false;
-      goto out;
-   }
-
-   struct dxil_validation_state validation_state;
-   memset(&validation_state, 0, sizeof(validation_state));
-   dxil_fill_validation_state(ctx, &validation_state);
-
-   if (!dxil_container_add_state_validation(&container,&ctx->mod,
-                                            &validation_state)) {
-      debug_printf("D3D12: failed to write state-validation\n");
-      retval = false;
-      goto out;
-   }
-
-   if (!dxil_container_add_module(&container, &ctx->mod)) {
-      debug_printf("D3D12: failed to write module\n");
-      retval = false;
-      goto out;
-   }
-
-   if (!dxil_container_write(&container, blob)) {
-      debug_printf("D3D12: dxil_container_write failed\n");
-      retval = false;
-      goto out;
-   }
-   dxil_container_finish(&container);
+   if (!emit_dxil_container(ctx, blob))
+      return false;
 
    if (debug_dxil & DXIL_DEBUG_DUMP_BLOB) {
       static int shader_id = 0;
@@ -6816,9 +6765,79 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
       }
    }
 
-out:
+   return true;
+}
+
+bool
+nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
+            const struct dxil_logger *logger, struct blob *blob)
+{
+   assert(opts);
+   debug_dxil = (int)debug_get_option_debug_dxil();
+   blob_init(blob);
+
+   if (opts->shader_model_max < dxil_min_shader_model) {
+      debug_printf("D3D12: cannot support emitting shader models lower than %d.%d\n",
+                   dxil_min_shader_model >> 16,
+                   dxil_min_shader_model & 0xffff);
+      return false;
+   }
+
+   if (opts->shader_model_max > dxil_max_shader_model) {
+      debug_printf("D3D12: cannot support emitting higher than shader model %d.%d\n",
+                   dxil_max_shader_model >> 16,
+                   dxil_max_shader_model & 0xffff);
+      return false;
+   }
+
+   if (opts->validator_version_max != NO_DXIL_VALIDATION &&
+       opts->validator_version_max < dxil_validator_min_capable_version) {
+      debug_printf("D3D12: Invalid validator version %d.%d, must be 1.4 or greater\n",
+         opts->validator_version_max >> 16,
+         opts->validator_version_max & 0xffff);
+      return false;
+   }
+
+   /* If no validation, write a blob as if it was going to be validated by the newest understood validator.
+    * Same if the validator is newer than we know how to write for.
+    */
+   uint32_t validator_version =
+      opts->validator_version_max == NO_DXIL_VALIDATION ||
+      opts->validator_version_max > dxil_validator_max_capable_version ?
+      dxil_validator_max_capable_version : opts->validator_version_max;
+
+   struct ntd_context *ctx = calloc(1, sizeof(*ctx));
+   if (!ctx)
+      return false;
+
+   ctx->opts = opts;
+   ctx->shader = s;
+   ctx->logger = logger ? logger : &default_logger;
+
+   ctx->ralloc_ctx = ralloc_context(NULL);
+   if (!ctx->ralloc_ctx) {
+      free(ctx);
+      return false;
+   }
+
+   util_dynarray_init(&ctx->srv_metadata_nodes, ctx->ralloc_ctx);
+   util_dynarray_init(&ctx->uav_metadata_nodes, ctx->ralloc_ctx);
+   util_dynarray_init(&ctx->cbv_metadata_nodes, ctx->ralloc_ctx);
+   util_dynarray_init(&ctx->sampler_metadata_nodes, ctx->ralloc_ctx);
+   util_dynarray_init(&ctx->resources, ctx->ralloc_ctx);
+   dxil_module_init(&ctx->mod, ctx->ralloc_ctx);
+   ctx->mod.shader_kind = get_dxil_shader_kind(s);
+   ctx->mod.major_version = 6;
+   /* Use the highest shader model that's supported and can be validated */
+   ctx->mod.minor_version =
+      MIN2(opts->shader_model_max & 0xffff, validator_version & 0xffff);
+   ctx->mod.major_validator = validator_version >> 16;
+   ctx->mod.minor_validator = validator_version & 0xffff;
+
+   bool ret = nir_to_dxil_impl(ctx, blob);
+
    dxil_module_release(&ctx->mod);
    ralloc_free(ctx->ralloc_ctx);
    free(ctx);
-   return retval;
+   return ret;
 }
