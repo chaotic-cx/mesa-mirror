@@ -90,10 +90,11 @@ r300_nir_opt_algebraic_late = [
         (('fmad(nsz)', 0.0, ('sne', a, b), c), c),
         (('fmad(nsz)', 0.0, ('slt', a, b), c), c),
         (('fmad(nsz)', 0.0, ('sge', a, b), c), c),
-        (('fcsel_gt', ('fcsel_ge', ('fadd', '#a(is_finite)', ('fneg', b)), 0.0, 1.0), c, d),
-         ('fcsel_gt', ('fadd', b, ('fneg', a)), c, d)),
         (('fcsel_ge', ('fneg', ('fcsel_ge', a, 0.0, 1.0)), b, c), ('fcsel_ge', a, b, c)),
         (('fcsel_ge', ('fneg', ('fcsel_ge', a, 1.0, 0.0)), b, c), ('fcsel_ge', a, c, b)),
+        # Select directly on comparisons lowered to 0.0 or 1.0.
+        (('fcsel_gt', ('fcsel_ge', a, 1.0, 0.0), b, c), ('fcsel_ge', a, b, c)),
+        (('fcsel_gt', ('fcsel_ge', a, 0.0, 1.0), b, c), ('fcsel_ge', a, c, b)),
         # Fold multiplication by a boolean into the select.
         (('fmul(nsz)', ('fcsel_ge(is_used_once)', a, 0.0, 1.0), 'b(is_finite)'),
          ('fcsel_ge', a, 0.0, b)),
