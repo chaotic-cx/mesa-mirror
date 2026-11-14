@@ -1720,7 +1720,9 @@ nak_postprocess_nir(nir_shader *nir,
    nak_optimize_nir(nir, nak);
 
    OPT(nir, nak_nir_lower_tex, nak);
-   OPT(nir, nir_lower_idiv, NULL);
+
+   struct nir_lower_idiv_options idiv_options = {};
+   OPT(nir, nir_lower_idiv, &idiv_options);
 
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
