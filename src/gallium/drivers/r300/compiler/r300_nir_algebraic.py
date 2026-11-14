@@ -94,6 +94,11 @@ r300_nir_opt_algebraic_late = [
          ('fcsel_gt', ('fadd', b, ('fneg', a)), c, d)),
         (('fcsel_ge', ('fneg', ('fcsel_ge', a, 0.0, 1.0)), b, c), ('fcsel_ge', a, b, c)),
         (('fcsel_ge', ('fneg', ('fcsel_ge', a, 1.0, 0.0)), b, c), ('fcsel_ge', a, c, b)),
+        # Fold multiplication by a boolean into the select.
+        (('fmul(nsz)', ('fcsel_ge(is_used_once)', a, 0.0, 1.0), 'b(is_finite)'),
+         ('fcsel_ge', a, 0.0, b)),
+        (('fmul(nsz)', ('fcsel_ge(is_used_once)', a, 1.0, 0.0), 'b(is_finite)'),
+         ('fcsel_ge', a, b, 0.0)),
         # NIR terminate_if expects bools, but we can handle floats just fine
         # so get rid of the unneeded select.
         (('fcsel_ge(is_only_used_by_terminate_if)', a, 0.0, 1.0), ('fneg', a)),
