@@ -1625,10 +1625,11 @@ get_phi_query(struct analysis_state *state, struct scalar_query q, uint32_t *res
       /* Resolve cycles by inserting safe_value into range_ht. */
       scalar_insert(state->range_ht, get_scalar_key(&q.head), safe_value);
 
-      struct set *visited = _mesa_pointer_set_create(NULL);
+      struct set visited;
+      _mesa_pointer_set_init(&visited, NULL);
       nir_scalar defs[64];
-      unsigned def_count = search_phi_bcsel(q.scalar, defs, 64, visited);
-      _mesa_set_destroy(visited, NULL);
+      unsigned def_count = search_phi_bcsel(q.scalar, defs, 64, &visited);
+      _mesa_set_fini(&visited, NULL);
 
       for (unsigned i = 0; i < def_count; i++)
          push_scalar_query(state, defs[i]);
