@@ -846,7 +846,7 @@ dzn_physical_device_get_properties(const struct dzn_physical_device *pdev,
       /* from here on, we simply use the minimum values from the spec for now */
       .maxTexelBufferElements = 1 << D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP,
       .maxUniformBufferRange = D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * D3D12_STANDARD_VECTOR_SIZE * sizeof(float),
-      .maxStorageBufferRange = 1 << D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP,
+      .maxStorageBufferRange = (1u << D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP) * sizeof(uint32_t),
       .maxPushConstantsSize = 128,
       .maxMemoryAllocationCount = 4096,
       .maxSamplerAllocationCount = 4000,
