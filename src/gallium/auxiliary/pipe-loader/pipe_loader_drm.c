@@ -240,7 +240,6 @@ pipe_loader_drm_probe_internal(struct pipe_loader_device **devs, int ndev, bool 
       if (j < ndev) {
          devs[j] = dev;
       } else {
-         close(fd);
          dev->ops->release(&dev);
       }
       j++;
@@ -317,7 +316,6 @@ pipe_loader_accel_probe(struct pipe_loader_device **devs, int ndev)
       if (j < ndev) {
          devs[j] = dev;
       } else {
-         close(fd);
          dev->ops->release(&dev);
       }
       j++;
