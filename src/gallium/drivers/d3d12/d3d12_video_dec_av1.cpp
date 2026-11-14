@@ -403,7 +403,6 @@ d3d12_video_decoder_dxva_picparams_from_pipe_picparams_av1(
    for (uint32_t i = 0; i < dxvaStructure.tiles.rows; i++)
       dxvaStructure.tiles.heights[i] = pipe_av1->picture_parameter.height_in_sbs[i];
 
-   // Fix the last tile rounding when uniform_tile_spacing_flag
    if (pipe_av1->picture_parameter.pic_info_fields.uniform_tile_spacing_flag) {
       uint32_t sbPixSize = pipe_av1->picture_parameter.seq_info_fields.use_128x128_superblock ? 128 : 64;
       /* frame_width is the upscaled width. Tiles are laid out on the coded (downscaled)
