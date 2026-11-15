@@ -149,7 +149,8 @@ def emit_dispatch_unmarshal(typeInfo, param, cgen, globalWrapped):
 def emit_transform(typeInfo, param, cgen, variant="tohost"):
     res = \
         iterateVulkanType(typeInfo, param, TransformCodegen(
-            cgen, param.paramName, "globalstate", "transform_%s_" % variant, variant))
+            cgen, param.paramName, "VkDecoderGlobalState::get()", "transform_%s_" % variant,
+            variant))
     if not res:
         cgen.stmt("(void)%s" % param.paramName)
 
@@ -374,8 +375,6 @@ class VulkanSubDecoder(VulkanWrapperGenerator):
         self.cgen.stmt("unsigned char *ptr = (unsigned char *)pSubDecodeData")
         self.cgen.stmt(
             "const unsigned char* const end = (const unsigned char*)buf + subDecodeDataSize")
-        self.cgen.stmt(
-            "VkDecoderGlobalState* globalstate = VkDecoderGlobalState::get()")
 
         self.cgen.line("while (end - ptr >= 8)")
         self.cgen.beginBlock()  # while loop
