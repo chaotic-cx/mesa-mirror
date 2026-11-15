@@ -2604,7 +2604,7 @@
         "description": "hasvk: Fix vkCmdWaitEvents2 handling",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "50013ca9a57c42114044f593c981bbad8c405cc9",
         "notes": null
