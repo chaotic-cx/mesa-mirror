@@ -884,7 +884,7 @@
         "description": "dzn: Apply all dependencies in CmdWaitEvents2",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7cc59ad9736ddaaeeeeee7bc5c2f21c0b1df6be1",
         "notes": null
