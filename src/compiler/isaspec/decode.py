@@ -316,7 +316,7 @@ static const struct isa_bitset *${root.get_c_name()}[] = {
 };
 %endfor
 
-#include "isaspec_decode_impl.c"
+#include "isaspec_decode_impl.h"
 
 %for name, bitset in isa.all_bitsets():
 %   for df in s.decode_fields(bitset):

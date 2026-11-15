@@ -31,7 +31,7 @@ struct ir3 * ir3_parse(struct ir3_shader_variant *v,
 
 %{
 #define YYDEBUG 0
-#include "ir3/ir3_parser_support.c"
+#include "ir3/ir3_parser_support.h"
 %}
 
 %union {

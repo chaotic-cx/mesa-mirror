@@ -50,7 +50,7 @@ idep_libir3decode = declare_dependency(
   ],
   link_with : _libir3decode,
   dependencies: [idep_isaspec_decode],
-  sources : [ir3_isa],
+  sources : [ir3_isa[1]],
 )
 
 ir3disasm = executable(
