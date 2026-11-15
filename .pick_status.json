@@ -854,7 +854,7 @@
         "description": "dzn: Set bits 52-63 of buffer device addresses",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c75c485d7d19d1a6d815ea157ea8a819de62c4a7",
         "notes": null
