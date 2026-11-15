@@ -931,7 +931,8 @@ kgsl_syncobj_wait_any(struct tu_device* device, struct kgsl_syncobj **syncobjs, 
    struct u_vector poll_fds = { 0 };
    uint32_t lowest_timestamp = 0;
 
-   if (convert_ts_to_fd || num_fds > 0)
+   const bool use_poll = convert_ts_to_fd || num_fds > 0;
+   if (use_poll)
       u_vector_init(&poll_fds, 4, sizeof(struct pollfd));
 
    if (convert_ts_to_fd) {
@@ -965,7 +966,7 @@ kgsl_syncobj_wait_any(struct tu_device* device, struct kgsl_syncobj **syncobjs, 
       }
    }
 
-   if (u_vector_length(&poll_fds) == 0) {
+   if (!use_poll) {
       result = wait_timestamp_safe(device->fd, queue->msm_queue_id,
                                    lowest_timestamp, MIN2(abs_timeout_ns, INT64_MAX));
    } else {

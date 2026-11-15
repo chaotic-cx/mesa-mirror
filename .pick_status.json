@@ -2094,7 +2094,7 @@
         "description": "tu/kgsl: Fix single-queue timestamp waits in wait_any",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9c808043f35005bbf0d1810277f3d8a8f8090f19",
         "notes": null
