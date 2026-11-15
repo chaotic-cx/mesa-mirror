@@ -1279,8 +1279,11 @@ try_skip_const_branch(pr_opt_ctx& ctx, aco_ptr<Instruction>& branch)
 void
 set_dead_defs_to_null(pr_opt_ctx& ctx, aco_ptr<Instruction>& instr)
 {
-   /* NULL sgpr was a GFX10 addition. */
-   if (ctx.program->gfx_level < GFX10 || instr->definitions.empty())
+   /* NULL sgpr was a GFX10 addition, and it can't be used as destination
+    * before GFX10_3 according to LLVM:
+    * https://github.com/llvm/llvm-project/commit/77851cc1cfb9037801c5ab2aa6f0877f4d31fa40
+    */
+   if (ctx.program->gfx_level < GFX10_3 || instr->definitions.empty())
       return;
 
    Definition* def;
