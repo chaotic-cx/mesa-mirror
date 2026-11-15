@@ -1864,7 +1864,7 @@
         "description": "etnaviv/rs: Reset RS_CONFIG before YUV tiler kick",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "042138093f6e48134f073199b3d800161f258baf",
         "notes": null
