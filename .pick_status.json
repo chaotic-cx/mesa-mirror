@@ -3804,7 +3804,7 @@
         "description": "microsoft/compiler: Unify DXIL SSA definition storage",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ea68135ed127b4a085a1678a4dcab81289c13e37",
         "notes": null

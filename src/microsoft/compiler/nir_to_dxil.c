@@ -2119,6 +2119,9 @@ bitcast_to_int(struct ntd_context *ctx, unsigned bit_size,
    if (!type)
       return NULL;
 
+   if (bit_size == 16)
+      ctx->mod.feats.native_low_precision = true;
+
    return dxil_emit_cast(&ctx->mod, DXIL_CAST_BITCAST, type, value);
 }
 
@@ -2129,6 +2132,9 @@ bitcast_to_float(struct ntd_context *ctx, unsigned bit_size,
    const struct dxil_type *type = dxil_module_get_float_type(&ctx->mod, bit_size);
    if (!type)
       return NULL;
+
+   if (bit_size == 16)
+      ctx->mod.feats.native_low_precision = true;
 
    return dxil_emit_cast(&ctx->mod, DXIL_CAST_BITCAST, type, value);
 }
@@ -2143,47 +2149,45 @@ is_phi_src(nir_def *ssa)
 }
 
 static void
-store_ssa_def(struct ntd_context *ctx, nir_def *ssa, unsigned chan,
-              const struct dxil_value *value)
+require_value_features(struct dxil_module *mod, const struct dxil_value *value)
+{
+   if (!value)
+      return;
+
+   const struct dxil_type *type = dxil_value_get_type(value);
+   if (type == mod->float64_type)
+      mod->feats.doubles = true;
+   if (type == mod->float16_type || type == mod->int16_type)
+      mod->feats.min_precision = true;
+   if (type == mod->int64_type)
+      mod->feats.int64_ops = true;
+}
+
+static void
+store_def(struct ntd_context *ctx, nir_def *ssa, unsigned chan,
+          const struct dxil_value *value)
 {
    assert(ssa->index < ctx->num_defs);
    assert(chan < ssa->num_components);
+   require_value_features(&ctx->mod, value);
+
    /* Insert bitcasts for phi srcs in the parent block */
-   if (is_phi_src(ssa)) {
+   if (value && is_phi_src(ssa)) {
       /* Prefer ints over floats if it could be both or if we have no type info */
       nir_alu_type expect_type =
          BITSET_TEST(ctx->int_types, ssa->index) ? nir_type_int :
          (BITSET_TEST(ctx->float_types, ssa->index) ? nir_type_float :
           nir_type_int);
       assert(ssa->bit_size != 1 || expect_type == nir_type_int);
-      if (ssa->bit_size != 1 && expect_type != dxil_type_to_nir_type(dxil_value_get_type(value)))
-         value = dxil_emit_cast(&ctx->mod, DXIL_CAST_BITCAST,
-                                expect_type == nir_type_int ?
-                                 dxil_module_get_int_type(&ctx->mod, ssa->bit_size) :
-                                 dxil_module_get_float_type(&ctx->mod, ssa->bit_size), value);
-      if (ssa->bit_size == 64) {
-         if (expect_type == nir_type_int)
-            ctx->mod.feats.int64_ops = true;
-         if (expect_type == nir_type_float)
-            ctx->mod.feats.doubles = true;
+      if (ssa->bit_size != 1 &&
+          expect_type != dxil_type_to_nir_type(dxil_value_get_type(value))) {
+         value = expect_type == nir_type_int ?
+            bitcast_to_int(ctx, ssa->bit_size, value) :
+            bitcast_to_float(ctx, ssa->bit_size, value);
+         require_value_features(&ctx->mod, value);
       }
    }
    ctx->defs[ssa->index].chans[chan] = value;
-}
-
-static void
-store_def(struct ntd_context *ctx, nir_def *def, unsigned chan,
-           const struct dxil_value *value)
-{
-   const struct dxil_type *type = dxil_value_get_type(value);
-   if (type == ctx->mod.float64_type)
-      ctx->mod.feats.doubles = true;
-   if (type == ctx->mod.float16_type ||
-       type == ctx->mod.int16_type)
-      ctx->mod.feats.min_precision = true;
-   if (type == ctx->mod.int64_type)
-      ctx->mod.feats.int64_ops = true;
-   store_ssa_def(ctx, def, chan, value);
 }
 
 static void
@@ -2223,8 +2227,6 @@ get_src(struct ntd_context *ctx, nir_src *src, unsigned chan,
          assert(ctx->mod.feats.doubles);
          ctx->mod.feats.int64_ops = true;
       }
-      if (bit_size == 16)
-         ctx->mod.feats.native_low_precision = true;
       assert(dxil_value_type_bitsize_equal_to(value, bit_size));
       return bitcast_to_int(ctx,  bit_size, value);
       }
@@ -2239,8 +2241,6 @@ get_src(struct ntd_context *ctx, nir_src *src, unsigned chan,
          assert(ctx->mod.feats.int64_ops);
          ctx->mod.feats.doubles = true;
       }
-      if (bit_size == 16)
-         ctx->mod.feats.native_low_precision = true;
       assert(dxil_value_type_bitsize_equal_to(value, bit_size));
       return bitcast_to_float(ctx, bit_size, value);
 
@@ -2868,8 +2868,8 @@ emit_alu(struct ntd_context *ctx, nir_alu_instr *alu)
       return emit_vec(ctx, alu, nir_op_infos[alu->op].num_inputs);
    case nir_op_mov: {
          assert(alu->def.num_components == 1);
-         store_ssa_def(ctx, &alu->def, 0, get_src_ssa(ctx,
-                        alu->src->src.ssa, alu->src->swizzle[0]));
+         store_def(ctx, &alu->def, 0,
+                   get_src_ssa(ctx, alu->src->src.ssa, alu->src->swizzle[0]));
          return true;
       }
    case nir_op_pack_double_2x32_dxil:
@@ -4515,7 +4515,7 @@ emit_load_vulkan_descriptor(struct ntd_context *ctx, nir_intrinsic_instr *intr)
       handle = emit_annotate_handle(ctx, unannotated_handle, res_props);
    }
 
-   store_ssa_def(ctx, &intr->def, 0, handle);
+   store_def(ctx, &intr->def, 0, handle);
    store_def(ctx, &intr->def, 1, get_src(ctx, &intr->src[0], 1, nir_type_uint32));
 
    return true;
@@ -4978,7 +4978,8 @@ emit_load_const(struct ntd_context *ctx, nir_load_const_instr *load_const)
 {
    for (uint32_t i = 0; i < load_const->def.num_components; ++i) {
       const struct dxil_type *type = dxil_type_for_const(ctx, &load_const->def);
-      store_ssa_def(ctx, &load_const->def, i, get_value_for_const(&ctx->mod, &load_const->value[i], type));
+      store_def(ctx, &load_const->def, i,
+                get_value_for_const(&ctx->mod, &load_const->value[i], type));
    }
    return true;
 }
@@ -5070,7 +5071,7 @@ emit_deref(struct ntd_context* ctx, nir_deref_instr* instr)
    if (!handle)
       return false;
 
-   store_ssa_def(ctx, &instr->def, 0, handle);
+   store_def(ctx, &instr->def, 0, handle);
    return true;
 }
 
@@ -5134,7 +5135,7 @@ emit_phi(struct ntd_context *ctx, nir_phi_instr *instr)
       struct dxil_instr *phi = vphi->comp[i] = dxil_emit_phi(&ctx->mod, type);
       if (!phi)
          return false;
-      store_ssa_def(ctx, &instr->def, i, dxil_instr_get_return_value(phi));
+      store_def(ctx, &instr->def, i, dxil_instr_get_return_value(phi));
    }
    _mesa_hash_table_insert(ctx->phis, instr, vphi);
    return true;
@@ -5717,7 +5718,7 @@ static bool
 emit_undefined(struct ntd_context *ctx, nir_undef_instr *undef)
 {
    for (unsigned i = 0; i < undef->def.num_components; ++i)
-      store_ssa_def(ctx, &undef->def, i, dxil_module_get_int32_const(&ctx->mod, 0));
+      store_def(ctx, &undef->def, i, dxil_module_get_int32_const(&ctx->mod, 0));
    return true;
 }
 
