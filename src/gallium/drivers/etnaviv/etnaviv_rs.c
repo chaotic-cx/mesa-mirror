@@ -973,6 +973,7 @@ etna_emit_yuv_tiler_state_rs(struct etna_context *ctx, struct etna_yuv_config *c
    etna_yuv_emit_plane(ctx, config->dst, ETNA_PENDING_WRITE, VIVS_YUV_DEST_BASE, VIVS_YUV_DEST_STRIDE);
 
    /* configure RS */
+   etna_set_state(stream, VIVS_RS_CONFIG, 0);
    etna_set_state(stream, VIVS_RS_SOURCE_STRIDE, 0);
    etna_set_state(stream, VIVS_RS_CLEAR_CONTROL, 0);
 
