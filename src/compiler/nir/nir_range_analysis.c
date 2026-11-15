@@ -1979,9 +1979,13 @@ get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
       *result = src[0] < src[1] ? src[0] : src[1];
       break;
    case nir_op_imin:
-   case nir_op_imax:
    case nir_op_umax:
       *result = src[0] > src[1] ? src[0] : src[1];
+      break;
+   case nir_op_imax:
+      *result = src[0] > src[1] ? src[0] : src[1];
+      if (MIN2(src[0], src[1]) <= bitmask(q.scalar.def->bit_size - 1))
+         *result = MIN2(*result, bitmask(q.scalar.def->bit_size - 1));
       break;
    case nir_op_iand: {
       nir_scalar src0_scalar = nir_scalar_chase_alu_src(q.scalar, 0);
