@@ -38,6 +38,7 @@
 #include "compiler/nir/nir_builder.h"
 
 #include "util/hash_table.h"
+#include "util/log.h"
 #include "util/u_memory.h"
 #include "util/u_prim.h"
 #include "util/u_simple_shaders.h"
@@ -71,6 +72,18 @@ can_remove_dead_sampler(nir_variable *var, void *data)
 {
    const struct glsl_type *base_type = glsl_without_array(var->type);
    return glsl_type_is_sampler(base_type) && !glsl_type_is_bare_sampler(base_type);
+}
+
+static void
+dxil_log_message(void *priv, const char *msg)
+{
+   if (!msg)
+      return;
+
+   size_t len = strlen(msg);
+   while (len > 0 && (msg[len - 1] == '\n' || msg[len - 1] == '\r'))
+      len--;
+   mesa_loge("D3D12: %.*s", (int)len, msg);
 }
 
 static struct d3d12_shader *
@@ -136,9 +149,10 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
    opts.validator_version_max = dxil_get_validator_version(ctx->dxil_validator);
 #endif
 
+   struct dxil_logger logger = { nullptr, dxil_log_message };
    struct blob tmp;
-   if (!nir_to_dxil(nir, &opts, NULL, &tmp)) {
-      debug_printf("D3D12: nir_to_dxil failed\n");
+   if (!nir_to_dxil(nir, &opts, &logger, &tmp)) {
+      mesa_loge("D3D12: nir_to_dxil failed for %s", mesa_shader_stage_name(key->stage));
       blob_finish(&tmp);
       ralloc_free(shader);
       return NULL;

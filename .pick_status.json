@@ -4594,7 +4594,7 @@
         "description": "d3d12: Hook up DXIL logger in compile_nir()",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "55b3980e789e8391458b2a5cdf05d5849f2b6872",
         "notes": null
