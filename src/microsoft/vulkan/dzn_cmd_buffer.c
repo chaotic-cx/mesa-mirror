@@ -5574,7 +5574,7 @@ VKAPI_ATTR void VKAPI_CALL
 dzn_CmdWaitEvents2(VkCommandBuffer commandBuffer,
                    uint32_t eventCount,
                    const VkEvent *pEvents,
-                   const VkDependencyInfo *pDependencyInfo)
+                   const VkDependencyInfo *pDependencyInfos)
 {
    VK_FROM_HANDLE(dzn_cmd_buffer, cmdbuf, commandBuffer);
 
@@ -5626,9 +5626,11 @@ dzn_CmdWaitEvents2(VkCommandBuffer commandBuffer,
          ID3D12GraphicsCommandList1_ResourceBarrier(cmdbuf->cmdlist, 1, &barrier);
       }
    }
-   cmdbuf->vk.base.device->dispatch_table.CmdPipelineBarrier2(
-      vk_command_buffer_to_handle(&cmdbuf->vk),
-      pDependencyInfo);
+   for (uint32_t i = 0; i < eventCount; i++) {
+      cmdbuf->vk.base.device->dispatch_table.CmdPipelineBarrier2(
+         vk_command_buffer_to_handle(&cmdbuf->vk),
+         &pDependencyInfos[i]);
+   }
 }
 
 VKAPI_ATTR void VKAPI_CALL
