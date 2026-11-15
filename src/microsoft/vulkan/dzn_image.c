@@ -62,6 +62,23 @@ dzn_image_destroy(struct dzn_image *image,
    vk_free2(&device->vk.alloc, pAllocator, image);
 }
 
+static D3D12_RESOURCE_ALLOCATION_INFO
+dzn_image_get_allocation_info(struct dzn_device *device,
+                              const struct dzn_image *image)
+{
+   if (device->dev12 && image->castable_format_count > 0) {
+      D3D12_RESOURCE_DESC1 desc1;
+      memcpy(&desc1, &image->desc, sizeof(image->desc));
+      memset(&desc1.SamplerFeedbackMipRegion, 0, sizeof(desc1.SamplerFeedbackMipRegion));
+      return dzn_ID3D12Device12_GetResourceAllocationInfo3(device->dev12, 0, 1, &desc1,
+                                                           &image->castable_format_count,
+                                                           (const DXGI_FORMAT *const *) &image->castable_formats,
+                                                           NULL);
+   }
+
+   return dzn_ID3D12Device4_GetResourceAllocationInfo(device->dev, 0, 1, &image->desc);
+}
+
 static VkResult
 dzn_image_create(struct dzn_device *device,
                  const VkImageCreateInfo *pCreateInfo,
@@ -267,6 +284,13 @@ dzn_image_create(struct dzn_device *device,
        !(image->desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) &&
        image->desc.SampleDesc.Count == 1)
       image->desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+
+   image->allocation_info = dzn_image_get_allocation_info(device, image);
+   if (image->allocation_info.SizeInBytes == UINT64_MAX) {
+      dzn_image_destroy(image, pAllocator);
+      return vk_errorf(device, VK_ERROR_UNKNOWN,
+                       "D3D12 failed to determine image allocation requirements");
+   }
 
    *out = dzn_image_to_handle(image);
    return VK_SUCCESS;
@@ -894,22 +918,9 @@ dzn_GetImageMemoryRequirements2(VkDevice _device,
       }
    }
 
-   D3D12_RESOURCE_ALLOCATION_INFO info;
-   if (device->dev12 && image->castable_format_count > 0) {
-      D3D12_RESOURCE_DESC1 desc1;
-      memcpy(&desc1, &image->desc, sizeof(image->desc));
-      memset(&desc1.SamplerFeedbackMipRegion, 0, sizeof(desc1.SamplerFeedbackMipRegion));
-      info = dzn_ID3D12Device12_GetResourceAllocationInfo3(device->dev12, 0, 1, &desc1,
-                                                           &image->castable_format_count,
-                                                           (const DXGI_FORMAT *const *) &image->castable_formats,
-                                                           NULL);
-   } else {
-      info = dzn_ID3D12Device4_GetResourceAllocationInfo(device->dev, 0, 1, &image->desc);
-   }
-
    pMemoryRequirements->memoryRequirements = (VkMemoryRequirements) {
-      .size = info.SizeInBytes,
-      .alignment = info.Alignment,
+      .size = image->allocation_info.SizeInBytes,
+      .alignment = image->allocation_info.Alignment,
       .memoryTypeBits =
          dzn_physical_device_get_mem_type_mask_for_resource(pdev, &image->desc,
                                                             image->vk.external_handle_types != 0),
