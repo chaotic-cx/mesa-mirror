@@ -434,6 +434,13 @@
     <field name="Memory Compression Mode" dword="0" bits="10:10" type="uint" />
     <field name="Cache Select" dword="0" bits="12:12" type="uint" />
   </struct>
+  <struct name="VD_CONTROL_STATE_BODY" length="2">
+    <field name="Pipeline Initialization" dword="0" bits="0:0" type="bool" />
+    <field name="VDBOX Pipeline Architecture Clockgate Disable" dword="0" bits="1:1" type="bool" />
+    <field name="Scalable Mode Pipe Lock" dword="1" bits="0:0" type="bool" />
+    <field name="Scalable Mode Pipe Unlock" dword="1" bits="1:1" type="bool" />
+    <field name="Memory Implicit Flush" dword="1" bits="2:2" type="bool" />
+  </struct>
   <instruction name="3DMESH_1D" bias="2" length="3" engine="render">
     <field name="DWord Length" dword="0" bits="7:0" type="uint" default="1" />
     <field name="Predicate Enable" dword="0" bits="8:8" type="bool" />
@@ -2653,6 +2660,18 @@
     <field name="Cr Offset Forward Reference 2" dword="6" bits="15:8" type="int" />
     <field name="Cr Weights Backward Reference 0" dword="6" bits="23:16" type="int" />
     <field name="Cr Offset Backward Reference 0" dword="6" bits="31:24" type="int" />
+  </instruction>
+  <instruction name="VD_CONTROL_STATE" bias="2" length="3" engine="video">
+    <field name="DWord Length" dword="0" bits="11:0" type="uint" default="1" />
+    <field name="SubOpcode" dword="0" bits="22:16" type="uint" default="10" />
+    <field name="Media Command OpCode" dword="0" bits="26:23" type="uint" default="7" />
+    <field name="Pipeline" dword="0" bits="28:27" type="uint" default="2" />
+    <field name="Command Type" dword="0" bits="31:29" type="uint" default="3" />
+    <field name="Pipeline Initialization" dword="1" bits="0:0" type="bool" />
+    <field name="VDBOX Pipeline Architecture Clockgate Disable" dword="1" bits="1:1" type="bool" />
+    <field name="Scalable Mode Pipe Lock" dword="2" bits="0:0" type="bool" />
+    <field name="Scalable Mode Pipe Unlock" dword="2" bits="1:1" type="bool" />
+    <field name="Memory Implicit Flush" dword="2" bits="2:2" type="bool" />
   </instruction>
   <instruction name="XY_BLOCK_COPY_BLT" bias="2" length="22" engine="blitter">
     <field name="DWord Length" dword="0" bits="7:0" type="uint" default="20" />

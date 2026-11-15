@@ -365,6 +365,10 @@ anv_h265_decode_video(struct anv_cmd_buffer *cmd_buffer,
    }
 
    anv_batch_emit(&cmd_buffer->batch, GENX(VD_CONTROL_STATE), cs) {
+#if INTEL_WA_16021867713_GFX_VER
+      cs.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       cs.PipelineInitialization = true;
    }
 
@@ -766,6 +770,10 @@ anv_h265_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
 #if GFX_VER >= 12
    anv_batch_emit(&cmd_buffer->batch, GENX(VD_CONTROL_STATE), cs) {
+#if INTEL_WA_16021867713_GFX_VER
+      cs.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       cs.MemoryImplicitFlush = true;
    }
 #endif
@@ -1250,6 +1258,10 @@ anv_av1_decode_dummy(struct anv_cmd_buffer *cmd_buffer)
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_VD_CONTROL_STATE), vd) {
+#if INTEL_WA_16021867713_GFX_VER
+      vd.VDControlState.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       vd.VDControlState.PipelineInitialization = 1;
    }
 
@@ -1545,6 +1557,10 @@ anv_av1_decode_dummy(struct anv_cmd_buffer *cmd_buffer)
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_VD_CONTROL_STATE), vd) {
+#if INTEL_WA_16021867713_GFX_VER
+      vd.VDControlState.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       vd.VDControlState.MemoryImplicitFlush = 1;
    };
 
@@ -1595,6 +1611,10 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_VD_CONTROL_STATE), vd) {
+#if INTEL_WA_16021867713_GFX_VER
+      vd.VDControlState.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       vd.VDControlState.PipelineInitialization = 1;
    }
 
@@ -2576,6 +2596,10 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
 
    if (last_tile) {
       anv_batch_emit(&cmd_buffer->batch, GENX(AVP_VD_CONTROL_STATE), vd) {
+#if INTEL_WA_16021867713_GFX_VER
+         vd.VDControlState.VDBOXPipelineArchitectureClockgateDisable =
+            intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
          vd.VDControlState.MemoryImplicitFlush = 1;
       }
 
@@ -3135,6 +3159,10 @@ anv_vp9_decode_video(struct anv_cmd_buffer *cmd_buffer,
    }
 
    anv_batch_emit(&cmd_buffer->batch, GENX(VD_CONTROL_STATE), cs) {
+#if INTEL_WA_16021867713_GFX_VER
+      cs.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       cs.PipelineInitialization = true;
    }
 
@@ -3588,6 +3616,10 @@ anv_vp9_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
 #if GFX_VER >= 12
    anv_batch_emit(&cmd_buffer->batch, GENX(VD_CONTROL_STATE), cs) {
+#if INTEL_WA_16021867713_GFX_VER
+      cs.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd_buffer->device->info, 16021867713);
+#endif
       cs.MemoryImplicitFlush = true;
    }
 #endif

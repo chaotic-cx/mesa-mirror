@@ -255,6 +255,10 @@ static void
 anv_video_emit_vd_control_state(struct anv_cmd_buffer *cmd)
 {
    anv_batch_emit(&cmd->batch, GENX(VD_CONTROL_STATE), v) {
+#if INTEL_WA_16021867713_GFX_VER
+      v.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd->device->info, 16021867713);
+#endif
       v.PipelineInitialization = true;
    }
 }
@@ -4536,6 +4540,10 @@ static void
 anv_av1_emit_avp_vd_control_state(struct anv_cmd_buffer *cmd)
 {
    anv_batch_emit(&cmd->batch, GENX(AVP_VD_CONTROL_STATE), v) {
+#if INTEL_WA_16021867713_GFX_VER
+      v.VDControlState.VDBOXPipelineArchitectureClockgateDisable =
+         intel_needs_workaround(cmd->device->info, 16021867713);
+#endif
       v.VDControlState.PipelineInitialization = true;
    }
 }
