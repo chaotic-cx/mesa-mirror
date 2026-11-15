@@ -259,10 +259,10 @@ opt_uub_cmp(nir_builder *b, nir_alu_instr *alu, opt_uub_state *state)
 
 /* umin src, const: if uub(src) <= const -> src
  * umax src, const: if uub(src) <= const -> const
- * imin src, const: if uub(src) >= 0 && const <  0 -> const
- *                  if uub(src) >= 0 && const >= 0 -> umin src, const
- * imax src, const: if uub(src) >= 0 && const <  0 -> src
- *                  if uub(src) >= 0 && const >= 0 -> umax src, const
+ * imin src, const: if uub(src) >= 0 && const <= 0 -> const
+ *                  if uub(src) >= 0 && const >  0 -> umin src, const
+ * imax src, const: if uub(src) >= 0 && const <= 0 -> src
+ *                  if uub(src) >= 0 && const >  0 -> umax src, const
  */
 static bool
 opt_uub_minmax(nir_builder *b, nir_alu_instr *alu, opt_uub_state *state)
@@ -283,8 +283,8 @@ opt_uub_minmax(nir_builder *b, nir_alu_instr *alu, opt_uub_state *state)
       if (util_sign_extend(src_uub, src.def->bit_size) < 0)
          return false;
 
-      if (nir_scalar_as_int(const_src) < 0) {
-         /* src >= 0 && const < 0: imin -> const, imax -> src  */
+      if (nir_scalar_as_int(const_src) <= 0) {
+         /* src >= 0 && const <= 0: imin -> const, imax -> src */
          nir_scalar replacement = alu->op == nir_op_imin ? const_src : src;
          b->cursor = nir_after_instr(&alu->instr);
          nir_def_replace(&alu->def, nir_mov_scalar(b, replacement));
