@@ -121,10 +121,17 @@ nvk_CreateBuffer(VkDevice device,
    if (buffer->vk.size > 0 &&
        (buffer->vk.create_flags & (VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
                                    NVK_BUFFER_CREATE_CAPTURE_REPLAY_BITS))) {
-      const uint32_t alignment =
+      uint32_t alignment =
          nvk_get_buffer_alignment(nvk_device_physical(dev),
                                   buffer->vk.usage,
                                   buffer->vk.create_flags);
+
+      const VkBufferDeviceAddressAlignmentAllocateInfoVALVE *align_info =
+         vk_find_struct_const(pCreateInfo->pNext,
+                              BUFFER_DEVICE_ADDRESS_ALIGNMENT_ALLOCATE_INFO_VALVE);
+      if (align_info)
+         alignment = MAX2(alignment, align_info->alignment);
+
       assert(alignment >= 4096);
       const uint64_t va_size_B = align64(buffer->vk.size, alignment);
 

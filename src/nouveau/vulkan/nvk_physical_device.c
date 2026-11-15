@@ -338,6 +338,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .NVX_image_view_handle = info->cls_eng3d >= MAXWELL_A, /* needs true bindless descriptors */
       .NVX_binary_import = info->cls_eng3d >= MAXWELL_A &&
          instance->experimental_flags & NVK_EXPERIMENTAL_DLSS,
+      .VALVE_buffer_device_address_allocation_alignment = true,
       .VALVE_mutable_descriptor_type = true,
    };
 }
@@ -852,6 +853,9 @@ nvk_get_device_features(const struct nv_device_info *info,
       /* VK_KHR_performance_query */
       .performanceCounterQueryPools = true,
       .performanceCounterMultipleQueryPools = false,
+
+      /* VK_VALVE_buffer_device_address_allocation_alignment */
+      .bufferDeviceAddressAllocationAlignment = true,
    };
 }
 
@@ -1368,6 +1372,10 @@ nvk_get_device_properties(const struct nvk_instance *instance,
 
       /* VK_KHR_performance_query */
       .allowCommandBufferQueryCopies = false,
+
+      /* VK_VALVE_buffer_device_address_allocation_alignment */
+      /* 2 MiB is arbitrary */
+      .maxBufferDeviceAddressAllocationAlignment = 2 * 1024 * 1024,
    };
 
    /* Add the driver to the device name (like other Mesa drivers do) */

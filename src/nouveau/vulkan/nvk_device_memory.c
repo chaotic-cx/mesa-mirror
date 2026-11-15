@@ -203,6 +203,12 @@ nvk_AllocateMemory(VkDevice device,
       }
    }
 
+   const VkBufferDeviceAddressAlignmentAllocateInfoVALVE *align_info =
+      vk_find_struct_const(pAllocateInfo->pNext,
+                           BUFFER_DEVICE_ADDRESS_ALIGNMENT_ALLOCATE_INFO_VALVE);
+   if (align_info)
+      alignment = MAX2(alignment, align_info->alignment);
+
    const enum nvkmd_mem_flags flags =
       nvk_memory_type_flags(type, handle_types, pinned_to_vram);
 
