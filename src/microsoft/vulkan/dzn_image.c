@@ -239,11 +239,12 @@ dzn_image_create(struct dzn_device *device,
    }
 
    /* Images with TRANSFER_DST can be cleared or passed as a blit/resolve
-    * destination. Both operations require the RT or DS cap flags.
+    * destination. Both operations require the RT or DS cap flags. D3D12
+    * also requires RT or DS flags on all multisampled resources.
     */
-   if ((usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) &&
+   if (((usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ||
+        image->desc.SampleDesc.Count > 1) &&
        image->vk.tiling == VK_IMAGE_TILING_OPTIMAL) {
-
       D3D12_FEATURE_DATA_FORMAT_SUPPORT dfmt_info =
          dzn_physical_device_get_format_support(pdev, pCreateInfo->format, pCreateInfo->flags);
       if (dfmt_info.Support1 & D3D12_FORMAT_SUPPORT1_RENDER_TARGET) {
@@ -254,13 +255,15 @@ dzn_image_create(struct dzn_device *device,
                                        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)) == D3D12_RESOURCE_FLAG_NONE) {
          image->desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
          image->valid_access |= D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE;
-      } else if (dfmt_info.Support1 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW) {
+      } else if (image->desc.SampleDesc.Count == 1 &&
+                 (dfmt_info.Support1 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW)) {
          image->desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
          image->valid_access |= D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
       }
    }
 
    if (pCreateInfo->sharingMode == VK_SHARING_MODE_CONCURRENT &&
+       image->desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER &&
        !(image->desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) &&
        image->desc.SampleDesc.Count == 1)
       image->desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
