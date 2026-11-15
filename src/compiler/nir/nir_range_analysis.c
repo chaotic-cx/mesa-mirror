@@ -1990,7 +1990,7 @@ get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
    case nir_op_ishr: {
       nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
       uint32_t mask = q.scalar.def->bit_size - 1u;
-      if (src[0] <= 2147483647 && nir_scalar_is_const(src1_scalar))
+      if (src[0] <= bitmask(mask) && nir_scalar_is_const(src1_scalar))
          *result = src[0] >> (nir_scalar_as_uint(src1_scalar) & mask);
       else
          *result = src[0];
