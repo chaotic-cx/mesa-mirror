@@ -3894,7 +3894,7 @@
         "description": "dzn: Handle D3D12 image allocation info failures",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a012b219640e875aa552b37dfdaf69336d5863c7",
         "notes": null
