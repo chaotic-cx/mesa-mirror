@@ -284,7 +284,8 @@ lower_buffer_device_address(nir_builder *b, nir_intrinsic_instr *intr, void *dat
    b->cursor = nir_after_instr(&old_head->instr);
    nir_def *pointer = old_head->parent.ssa;
    nir_def *offset = nir_unpack_64_2x32_split_x(b, pointer);
-   nir_def *index = nir_iand_imm(b, nir_unpack_64_2x32_split_y(b, pointer), 0xffffff);
+   /* Mask off the tag in bits 52-63. */
+   nir_def *index = nir_iand_imm(b, nir_unpack_64_2x32_split_y(b, pointer), 0xfffff);
 
    nir_def *descriptor = nir_load_vulkan_descriptor(b, 2, 32, nir_vec2(b, index, offset),
                                                     .desc_type = nir_descriptor_type_storage_buffer);

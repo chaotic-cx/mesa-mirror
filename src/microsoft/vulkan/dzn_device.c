@@ -3765,8 +3765,8 @@ dzn_GetBufferDeviceAddress(VkDevice device,
 {
    struct dzn_buffer *buffer = dzn_buffer_from_handle(pInfo->buffer);
 
-   /* Insert a pointer tag so we never return null */
-   return ((uint64_t)buffer->uav_bindless_slot << 32ull) | (0xD3ull << 56);
+   /* Tag bits 52-63 so slot zero also has a non-null address. */
+   return ((uint64_t)buffer->uav_bindless_slot << 32ull) | (0xfffull << 52);
 }
 
 VKAPI_ATTR uint64_t VKAPI_CALL
