@@ -1057,6 +1057,7 @@ struct dzn_image {
       uint32_t size;
    } linear;
    D3D12_RESOURCE_DESC desc;
+   D3D12_RESOURCE_ALLOCATION_INFO allocation_info;
    ID3D12Resource *res;
    uint32_t castable_format_count;
    const DXGI_FORMAT *castable_formats;
