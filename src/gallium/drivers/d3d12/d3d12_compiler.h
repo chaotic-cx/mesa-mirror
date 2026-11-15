@@ -289,11 +289,11 @@ d3d12_create_compute_shader(struct d3d12_context *ctx,
 void
 d3d12_shader_free(struct d3d12_shader_selector *shader);
 
-void
+bool
 d3d12_select_shader_variants(struct d3d12_context *ctx,
                              const struct pipe_draw_info *dinfo);
 
-void
+bool
 d3d12_select_compute_shader_variants(struct d3d12_context *ctx,
                                      const struct pipe_grid_info *info);
 
