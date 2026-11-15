@@ -82,14 +82,14 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
    shader->key = *key;
 
    if (shader->key.n_texture_states > 0) {
-      shader->key.tex_wrap_states = (dxil_wrap_sampler_state*)ralloc_size(sel, sizeof(dxil_wrap_sampler_state) * shader->key.n_texture_states);
+      shader->key.tex_wrap_states = (dxil_wrap_sampler_state*)ralloc_size(shader, sizeof(dxil_wrap_sampler_state) * shader->key.n_texture_states);
       memcpy(shader->key.tex_wrap_states, key->tex_wrap_states, sizeof(dxil_wrap_sampler_state) * shader->key.n_texture_states);
    }
    else
       shader->key.tex_wrap_states = nullptr;
 
    shader->nir = nir;
-   sel->current = shader;
+   ralloc_steal(shader, nir);
 
    NIR_PASS(_, nir, nir_lower_samplers);
    NIR_PASS(_, nir, dxil_nir_split_typed_samplers);
@@ -139,6 +139,8 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
    struct blob tmp;
    if (!nir_to_dxil(nir, &opts, NULL, &tmp)) {
       debug_printf("D3D12: nir_to_dxil failed\n");
+      blob_finish(&tmp);
+      ralloc_free(shader);
       return NULL;
    }
 

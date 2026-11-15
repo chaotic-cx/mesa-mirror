@@ -874,7 +874,7 @@
         "description": "d3d12: Clean up failed shader variant allocations in compile_nir()",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "2ea15cd661c8355e8e35624eba0bf10cbcd57f61",
         "notes": null
