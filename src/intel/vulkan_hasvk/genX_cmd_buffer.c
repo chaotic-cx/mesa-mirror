@@ -1952,7 +1952,8 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
 
 static void
 cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
-                   const VkDependencyInfo *dep_info,
+                   uint32_t n_dep_infos,
+                   const VkDependencyInfo *dep_infos,
                    const char *reason)
 {
    /* XXX: Right now, we're really dumb and just flush whatever categories
@@ -1962,82 +1963,86 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
    VkAccessFlags2 src_flags = 0;
    VkAccessFlags2 dst_flags = 0;
 
-   for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
-      src_flags |= dep_info->pMemoryBarriers[i].srcAccessMask;
-      dst_flags |= dep_info->pMemoryBarriers[i].dstAccessMask;
-   }
+   for (uint32_t d = 0; d < n_dep_infos; d++) {
+      const VkDependencyInfo *dep_info = &dep_infos[d];
 
-   for (uint32_t i = 0; i < dep_info->bufferMemoryBarrierCount; i++) {
-      src_flags |= dep_info->pBufferMemoryBarriers[i].srcAccessMask;
-      dst_flags |= dep_info->pBufferMemoryBarriers[i].dstAccessMask;
-   }
-
-   for (uint32_t i = 0; i < dep_info->imageMemoryBarrierCount; i++) {
-      const VkImageMemoryBarrier2 *img_barrier =
-         &dep_info->pImageMemoryBarriers[i];
-
-      src_flags |= img_barrier->srcAccessMask;
-      dst_flags |= img_barrier->dstAccessMask;
-
-      ANV_FROM_HANDLE(anv_image, image, img_barrier->image);
-      const VkImageSubresourceRange *range = &img_barrier->subresourceRange;
-
-      uint32_t base_layer, layer_count;
-      if (image->vk.image_type == VK_IMAGE_TYPE_3D) {
-         base_layer = 0;
-         layer_count = u_minify(image->vk.extent.depth, range->baseMipLevel);
-      } else {
-         base_layer = range->baseArrayLayer;
-         layer_count = vk_image_subresource_layer_count(&image->vk, range);
-      }
-      const uint32_t level_count =
-         vk_image_subresource_level_count(&image->vk, range);
-
-      if (range->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) {
-         transition_depth_buffer(cmd_buffer, image,
-                                 base_layer, layer_count,
-                                 img_barrier->oldLayout,
-                                 img_barrier->newLayout,
-                                 false /* will_full_fast_clear */);
+      for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
+         src_flags |= dep_info->pMemoryBarriers[i].srcAccessMask;
+         dst_flags |= dep_info->pMemoryBarriers[i].dstAccessMask;
       }
 
-      if (range->aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT) {
-         transition_stencil_buffer(cmd_buffer, image,
-                                   range->baseMipLevel, level_count,
-                                   base_layer, layer_count,
-                                   img_barrier->oldLayout,
-                                   img_barrier->newLayout,
-                                   false /* will_full_fast_clear */);
+      for (uint32_t i = 0; i < dep_info->bufferMemoryBarrierCount; i++) {
+         src_flags |= dep_info->pBufferMemoryBarriers[i].srcAccessMask;
+         dst_flags |= dep_info->pBufferMemoryBarriers[i].dstAccessMask;
+      }
 
-         /* If we are in a renderpass, the gfx7 stencil shadow may need to be
-          * updated even if the layout doesn't change
-          */
-         if (cmd_buffer->state.gfx.samples &&
-              (img_barrier->dstAccessMask & (VK_ACCESS_2_SHADER_READ_BIT |
-                                             VK_ACCESS_2_SHADER_SAMPLED_READ_BIT |
-                                             VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT))) {
-            const uint32_t plane =
-               anv_image_aspect_to_plane(image, VK_IMAGE_ASPECT_STENCIL_BIT);
-            if (anv_surface_is_valid(&image->planes[plane].shadow_surface))
-               anv_image_copy_to_shadow(cmd_buffer, image,
-                                        VK_IMAGE_ASPECT_STENCIL_BIT,
-                                        range->baseMipLevel, level_count,
-                                        base_layer, layer_count);
+      for (uint32_t i = 0; i < dep_info->imageMemoryBarrierCount; i++) {
+         const VkImageMemoryBarrier2 *img_barrier =
+            &dep_info->pImageMemoryBarriers[i];
+
+         src_flags |= img_barrier->srcAccessMask;
+         dst_flags |= img_barrier->dstAccessMask;
+
+         ANV_FROM_HANDLE(anv_image, image, img_barrier->image);
+         const VkImageSubresourceRange *range = &img_barrier->subresourceRange;
+
+         uint32_t base_layer, layer_count;
+         if (image->vk.image_type == VK_IMAGE_TYPE_3D) {
+            base_layer = 0;
+            layer_count = u_minify(image->vk.extent.depth, range->baseMipLevel);
+         } else {
+            base_layer = range->baseArrayLayer;
+            layer_count = vk_image_subresource_layer_count(&image->vk, range);
          }
-      }
+         const uint32_t level_count =
+            vk_image_subresource_level_count(&image->vk, range);
 
-      if (range->aspectMask & VK_IMAGE_ASPECT_ANY_COLOR_BIT_ANV) {
-         VkImageAspectFlags color_aspects =
-            vk_image_expand_aspect_mask(&image->vk, range->aspectMask);
-         anv_foreach_image_aspect_bit(aspect_bit, image, color_aspects) {
-            transition_color_buffer(cmd_buffer, image, 1UL << aspect_bit,
-                                    range->baseMipLevel, level_count,
+         if (range->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) {
+            transition_depth_buffer(cmd_buffer, image,
                                     base_layer, layer_count,
                                     img_barrier->oldLayout,
                                     img_barrier->newLayout,
-                                    img_barrier->srcQueueFamilyIndex,
-                                    img_barrier->dstQueueFamilyIndex,
                                     false /* will_full_fast_clear */);
+         }
+
+         if (range->aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT) {
+            transition_stencil_buffer(cmd_buffer, image,
+                                      range->baseMipLevel, level_count,
+                                      base_layer, layer_count,
+                                      img_barrier->oldLayout,
+                                      img_barrier->newLayout,
+                                      false /* will_full_fast_clear */);
+
+            /* If we are in a renderpass, the gfx7 stencil shadow may need to be
+             * updated even if the layout doesn't change
+             */
+            if (cmd_buffer->state.gfx.samples &&
+                 (img_barrier->dstAccessMask & (VK_ACCESS_2_SHADER_READ_BIT |
+                                                VK_ACCESS_2_SHADER_SAMPLED_READ_BIT |
+                                                VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT))) {
+               const uint32_t plane =
+                  anv_image_aspect_to_plane(image, VK_IMAGE_ASPECT_STENCIL_BIT);
+               if (anv_surface_is_valid(&image->planes[plane].shadow_surface))
+                  anv_image_copy_to_shadow(cmd_buffer, image,
+                                           VK_IMAGE_ASPECT_STENCIL_BIT,
+                                           range->baseMipLevel, level_count,
+                                           base_layer, layer_count);
+            }
+         }
+
+         if (range->aspectMask & VK_IMAGE_ASPECT_ANY_COLOR_BIT_ANV) {
+            VkImageAspectFlags color_aspects =
+               vk_image_expand_aspect_mask(&image->vk, range->aspectMask);
+            anv_foreach_image_aspect_bit(aspect_bit, image, color_aspects) {
+               transition_color_buffer(cmd_buffer, image, 1UL << aspect_bit,
+                                       range->baseMipLevel, level_count,
+                                       base_layer, layer_count,
+                                       img_barrier->oldLayout,
+                                       img_barrier->newLayout,
+                                       img_barrier->srcQueueFamilyIndex,
+                                       img_barrier->dstQueueFamilyIndex,
+                                       false /* will_full_fast_clear */);
+            }
          }
       }
    }
@@ -2055,7 +2060,7 @@ void genX(CmdPipelineBarrier2)(
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
 
-   cmd_buffer_barrier(cmd_buffer, pDependencyInfo, "pipe barrier");
+   cmd_buffer_barrier(cmd_buffer, 1, pDependencyInfo, "pipe barrier");
 }
 
 static void
@@ -5887,7 +5892,7 @@ void genX(CmdWaitEvents2)(
    anv_finishme("Implement events on gfx7");
 #endif
 
-   cmd_buffer_barrier(cmd_buffer, pDependencyInfos, "wait event");
+   cmd_buffer_barrier(cmd_buffer, eventCount, pDependencyInfos, "wait event");
 }
 
 static uint32_t vk_to_intel_index_type(VkIndexType type)
