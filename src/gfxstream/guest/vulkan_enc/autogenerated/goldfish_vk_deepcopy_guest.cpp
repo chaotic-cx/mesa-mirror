@@ -316,17 +316,14 @@ void deepcopy_VkDeviceCreateInfo(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pQueueCreateInfos = nullptr;
-        if (from->pQueueCreateInfos) {
-            to->pQueueCreateInfos = (VkDeviceQueueCreateInfo*)alloc->alloc(
-                from->queueCreateInfoCount * sizeof(const VkDeviceQueueCreateInfo));
-            to->queueCreateInfoCount = from->queueCreateInfoCount;
-            for (uint32_t i = 0; i < (uint32_t)from->queueCreateInfoCount; ++i) {
-                deepcopy_VkDeviceQueueCreateInfo(
-                    alloc, rootType, from->pQueueCreateInfos + i,
-                    (VkDeviceQueueCreateInfo*)(to->pQueueCreateInfos + i));
-            }
+    to->pQueueCreateInfos = nullptr;
+    if (from->pQueueCreateInfos) {
+        to->pQueueCreateInfos = (VkDeviceQueueCreateInfo*)alloc->alloc(
+            from->queueCreateInfoCount * sizeof(const VkDeviceQueueCreateInfo));
+        to->queueCreateInfoCount = from->queueCreateInfoCount;
+        for (uint32_t i = 0; i < (uint32_t)from->queueCreateInfoCount; ++i) {
+            deepcopy_VkDeviceQueueCreateInfo(alloc, rootType, from->pQueueCreateInfos + i,
+                                             (VkDeviceQueueCreateInfo*)(to->pQueueCreateInfos + i));
         }
     }
     to->ppEnabledLayerNames = nullptr;
@@ -470,16 +467,14 @@ void deepcopy_VkSparseImageMemoryBindInfo(Allocator* alloc, VkStructureType root
                                           const VkSparseImageMemoryBindInfo* from,
                                           VkSparseImageMemoryBindInfo* to) {
     *to = *from;
-    if (from) {
-        to->pBinds = nullptr;
-        if (from->pBinds) {
-            to->pBinds = (VkSparseImageMemoryBind*)alloc->alloc(
-                from->bindCount * sizeof(const VkSparseImageMemoryBind));
-            to->bindCount = from->bindCount;
-            for (uint32_t i = 0; i < (uint32_t)from->bindCount; ++i) {
-                deepcopy_VkSparseImageMemoryBind(alloc, rootType, from->pBinds + i,
-                                                 (VkSparseImageMemoryBind*)(to->pBinds + i));
-            }
+    to->pBinds = nullptr;
+    if (from->pBinds) {
+        to->pBinds = (VkSparseImageMemoryBind*)alloc->alloc(from->bindCount *
+                                                            sizeof(const VkSparseImageMemoryBind));
+        to->bindCount = from->bindCount;
+        for (uint32_t i = 0; i < (uint32_t)from->bindCount; ++i) {
+            deepcopy_VkSparseImageMemoryBind(alloc, rootType, from->pBinds + i,
+                                             (VkSparseImageMemoryBind*)(to->pBinds + i));
         }
     }
 }
@@ -501,16 +496,14 @@ void deepcopy_VkSparseBufferMemoryBindInfo(Allocator* alloc, VkStructureType roo
                                            const VkSparseBufferMemoryBindInfo* from,
                                            VkSparseBufferMemoryBindInfo* to) {
     *to = *from;
-    if (from) {
-        to->pBinds = nullptr;
-        if (from->pBinds) {
-            to->pBinds = (VkSparseMemoryBind*)alloc->alloc(from->bindCount *
-                                                           sizeof(const VkSparseMemoryBind));
-            to->bindCount = from->bindCount;
-            for (uint32_t i = 0; i < (uint32_t)from->bindCount; ++i) {
-                deepcopy_VkSparseMemoryBind(alloc, rootType, from->pBinds + i,
-                                            (VkSparseMemoryBind*)(to->pBinds + i));
-            }
+    to->pBinds = nullptr;
+    if (from->pBinds) {
+        to->pBinds =
+            (VkSparseMemoryBind*)alloc->alloc(from->bindCount * sizeof(const VkSparseMemoryBind));
+        to->bindCount = from->bindCount;
+        for (uint32_t i = 0; i < (uint32_t)from->bindCount; ++i) {
+            deepcopy_VkSparseMemoryBind(alloc, rootType, from->pBinds + i,
+                                        (VkSparseMemoryBind*)(to->pBinds + i));
         }
     }
 }
@@ -519,16 +512,14 @@ void deepcopy_VkSparseImageOpaqueMemoryBindInfo(Allocator* alloc, VkStructureTyp
                                                 const VkSparseImageOpaqueMemoryBindInfo* from,
                                                 VkSparseImageOpaqueMemoryBindInfo* to) {
     *to = *from;
-    if (from) {
-        to->pBinds = nullptr;
-        if (from->pBinds) {
-            to->pBinds = (VkSparseMemoryBind*)alloc->alloc(from->bindCount *
-                                                           sizeof(const VkSparseMemoryBind));
-            to->bindCount = from->bindCount;
-            for (uint32_t i = 0; i < (uint32_t)from->bindCount; ++i) {
-                deepcopy_VkSparseMemoryBind(alloc, rootType, from->pBinds + i,
-                                            (VkSparseMemoryBind*)(to->pBinds + i));
-            }
+    to->pBinds = nullptr;
+    if (from->pBinds) {
+        to->pBinds =
+            (VkSparseMemoryBind*)alloc->alloc(from->bindCount * sizeof(const VkSparseMemoryBind));
+        to->bindCount = from->bindCount;
+        for (uint32_t i = 0; i < (uint32_t)from->bindCount; ++i) {
+            deepcopy_VkSparseMemoryBind(alloc, rootType, from->pBinds + i,
+                                        (VkSparseMemoryBind*)(to->pBinds + i));
         }
     }
 }
@@ -555,43 +546,37 @@ void deepcopy_VkBindSparseInfo(Allocator* alloc, VkStructureType rootType,
         to->pWaitSemaphores = (VkSemaphore*)alloc->dupArray(
             from->pWaitSemaphores, from->waitSemaphoreCount * sizeof(const VkSemaphore));
     }
-    if (from) {
-        to->pBufferBinds = nullptr;
-        if (from->pBufferBinds) {
-            to->pBufferBinds = (VkSparseBufferMemoryBindInfo*)alloc->alloc(
-                from->bufferBindCount * sizeof(const VkSparseBufferMemoryBindInfo));
-            to->bufferBindCount = from->bufferBindCount;
-            for (uint32_t i = 0; i < (uint32_t)from->bufferBindCount; ++i) {
-                deepcopy_VkSparseBufferMemoryBindInfo(
-                    alloc, rootType, from->pBufferBinds + i,
-                    (VkSparseBufferMemoryBindInfo*)(to->pBufferBinds + i));
-            }
+    to->pBufferBinds = nullptr;
+    if (from->pBufferBinds) {
+        to->pBufferBinds = (VkSparseBufferMemoryBindInfo*)alloc->alloc(
+            from->bufferBindCount * sizeof(const VkSparseBufferMemoryBindInfo));
+        to->bufferBindCount = from->bufferBindCount;
+        for (uint32_t i = 0; i < (uint32_t)from->bufferBindCount; ++i) {
+            deepcopy_VkSparseBufferMemoryBindInfo(
+                alloc, rootType, from->pBufferBinds + i,
+                (VkSparseBufferMemoryBindInfo*)(to->pBufferBinds + i));
         }
     }
-    if (from) {
-        to->pImageOpaqueBinds = nullptr;
-        if (from->pImageOpaqueBinds) {
-            to->pImageOpaqueBinds = (VkSparseImageOpaqueMemoryBindInfo*)alloc->alloc(
-                from->imageOpaqueBindCount * sizeof(const VkSparseImageOpaqueMemoryBindInfo));
-            to->imageOpaqueBindCount = from->imageOpaqueBindCount;
-            for (uint32_t i = 0; i < (uint32_t)from->imageOpaqueBindCount; ++i) {
-                deepcopy_VkSparseImageOpaqueMemoryBindInfo(
-                    alloc, rootType, from->pImageOpaqueBinds + i,
-                    (VkSparseImageOpaqueMemoryBindInfo*)(to->pImageOpaqueBinds + i));
-            }
+    to->pImageOpaqueBinds = nullptr;
+    if (from->pImageOpaqueBinds) {
+        to->pImageOpaqueBinds = (VkSparseImageOpaqueMemoryBindInfo*)alloc->alloc(
+            from->imageOpaqueBindCount * sizeof(const VkSparseImageOpaqueMemoryBindInfo));
+        to->imageOpaqueBindCount = from->imageOpaqueBindCount;
+        for (uint32_t i = 0; i < (uint32_t)from->imageOpaqueBindCount; ++i) {
+            deepcopy_VkSparseImageOpaqueMemoryBindInfo(
+                alloc, rootType, from->pImageOpaqueBinds + i,
+                (VkSparseImageOpaqueMemoryBindInfo*)(to->pImageOpaqueBinds + i));
         }
     }
-    if (from) {
-        to->pImageBinds = nullptr;
-        if (from->pImageBinds) {
-            to->pImageBinds = (VkSparseImageMemoryBindInfo*)alloc->alloc(
-                from->imageBindCount * sizeof(const VkSparseImageMemoryBindInfo));
-            to->imageBindCount = from->imageBindCount;
-            for (uint32_t i = 0; i < (uint32_t)from->imageBindCount; ++i) {
-                deepcopy_VkSparseImageMemoryBindInfo(
-                    alloc, rootType, from->pImageBinds + i,
-                    (VkSparseImageMemoryBindInfo*)(to->pImageBinds + i));
-            }
+    to->pImageBinds = nullptr;
+    if (from->pImageBinds) {
+        to->pImageBinds = (VkSparseImageMemoryBindInfo*)alloc->alloc(
+            from->imageBindCount * sizeof(const VkSparseImageMemoryBindInfo));
+        to->imageBindCount = from->imageBindCount;
+        for (uint32_t i = 0; i < (uint32_t)from->imageBindCount; ++i) {
+            deepcopy_VkSparseImageMemoryBindInfo(
+                alloc, rootType, from->pImageBinds + i,
+                (VkSparseImageMemoryBindInfo*)(to->pImageBinds + i));
         }
     }
     to->pSignalSemaphores = nullptr;
@@ -1038,16 +1023,14 @@ void deepcopy_VkSpecializationMapEntry(Allocator* alloc, VkStructureType rootTyp
 void deepcopy_VkSpecializationInfo(Allocator* alloc, VkStructureType rootType,
                                    const VkSpecializationInfo* from, VkSpecializationInfo* to) {
     *to = *from;
-    if (from) {
-        to->pMapEntries = nullptr;
-        if (from->pMapEntries) {
-            to->pMapEntries = (VkSpecializationMapEntry*)alloc->alloc(
-                from->mapEntryCount * sizeof(const VkSpecializationMapEntry));
-            to->mapEntryCount = from->mapEntryCount;
-            for (uint32_t i = 0; i < (uint32_t)from->mapEntryCount; ++i) {
-                deepcopy_VkSpecializationMapEntry(alloc, rootType, from->pMapEntries + i,
-                                                  (VkSpecializationMapEntry*)(to->pMapEntries + i));
-            }
+    to->pMapEntries = nullptr;
+    if (from->pMapEntries) {
+        to->pMapEntries = (VkSpecializationMapEntry*)alloc->alloc(
+            from->mapEntryCount * sizeof(const VkSpecializationMapEntry));
+        to->mapEntryCount = from->mapEntryCount;
+        for (uint32_t i = 0; i < (uint32_t)from->mapEntryCount; ++i) {
+            deepcopy_VkSpecializationMapEntry(alloc, rootType, from->pMapEntries + i,
+                                              (VkSpecializationMapEntry*)(to->pMapEntries + i));
         }
     }
     to->pData = nullptr;
@@ -1137,16 +1120,14 @@ void deepcopy_VkPipelineLayoutCreateInfo(Allocator* alloc, VkStructureType rootT
         to->pSetLayouts = (VkDescriptorSetLayout*)alloc->dupArray(
             from->pSetLayouts, from->setLayoutCount * sizeof(const VkDescriptorSetLayout));
     }
-    if (from) {
-        to->pPushConstantRanges = nullptr;
-        if (from->pPushConstantRanges) {
-            to->pPushConstantRanges = (VkPushConstantRange*)alloc->alloc(
-                from->pushConstantRangeCount * sizeof(const VkPushConstantRange));
-            to->pushConstantRangeCount = from->pushConstantRangeCount;
-            for (uint32_t i = 0; i < (uint32_t)from->pushConstantRangeCount; ++i) {
-                deepcopy_VkPushConstantRange(alloc, rootType, from->pPushConstantRanges + i,
-                                             (VkPushConstantRange*)(to->pPushConstantRanges + i));
-            }
+    to->pPushConstantRanges = nullptr;
+    if (from->pPushConstantRanges) {
+        to->pPushConstantRanges = (VkPushConstantRange*)alloc->alloc(
+            from->pushConstantRangeCount * sizeof(const VkPushConstantRange));
+        to->pushConstantRangeCount = from->pushConstantRangeCount;
+        for (uint32_t i = 0; i < (uint32_t)from->pushConstantRangeCount; ++i) {
+            deepcopy_VkPushConstantRange(alloc, rootType, from->pPushConstantRanges + i,
+                                         (VkPushConstantRange*)(to->pPushConstantRanges + i));
         }
     }
 }
@@ -1223,16 +1204,14 @@ void deepcopy_VkDescriptorPoolCreateInfo(Allocator* alloc, VkStructureType rootT
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pPoolSizes = nullptr;
-        if (from->pPoolSizes) {
-            to->pPoolSizes = (VkDescriptorPoolSize*)alloc->alloc(
-                from->poolSizeCount * sizeof(const VkDescriptorPoolSize));
-            to->poolSizeCount = from->poolSizeCount;
-            for (uint32_t i = 0; i < (uint32_t)from->poolSizeCount; ++i) {
-                deepcopy_VkDescriptorPoolSize(alloc, rootType, from->pPoolSizes + i,
-                                              (VkDescriptorPoolSize*)(to->pPoolSizes + i));
-            }
+    to->pPoolSizes = nullptr;
+    if (from->pPoolSizes) {
+        to->pPoolSizes = (VkDescriptorPoolSize*)alloc->alloc(from->poolSizeCount *
+                                                             sizeof(const VkDescriptorPoolSize));
+        to->poolSizeCount = from->poolSizeCount;
+        for (uint32_t i = 0; i < (uint32_t)from->poolSizeCount; ++i) {
+            deepcopy_VkDescriptorPoolSize(alloc, rootType, from->pPoolSizes + i,
+                                          (VkDescriptorPoolSize*)(to->pPoolSizes + i));
         }
     }
 }
@@ -1291,17 +1270,15 @@ void deepcopy_VkDescriptorSetLayoutCreateInfo(Allocator* alloc, VkStructureType 
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pBindings = nullptr;
-        if (from->pBindings) {
-            to->pBindings = (VkDescriptorSetLayoutBinding*)alloc->alloc(
-                from->bindingCount * sizeof(const VkDescriptorSetLayoutBinding));
-            to->bindingCount = from->bindingCount;
-            for (uint32_t i = 0; i < (uint32_t)from->bindingCount; ++i) {
-                deepcopy_VkDescriptorSetLayoutBinding(
-                    alloc, rootType, from->pBindings + i,
-                    (VkDescriptorSetLayoutBinding*)(to->pBindings + i));
-            }
+    to->pBindings = nullptr;
+    if (from->pBindings) {
+        to->pBindings = (VkDescriptorSetLayoutBinding*)alloc->alloc(
+            from->bindingCount * sizeof(const VkDescriptorSetLayoutBinding));
+        to->bindingCount = from->bindingCount;
+        for (uint32_t i = 0; i < (uint32_t)from->bindingCount; ++i) {
+            deepcopy_VkDescriptorSetLayoutBinding(
+                alloc, rootType, from->pBindings + i,
+                (VkDescriptorSetLayoutBinding*)(to->pBindings + i));
         }
     }
 }
@@ -1323,28 +1300,24 @@ void deepcopy_VkWriteDescriptorSet(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pImageInfo = nullptr;
-        if (from->pImageInfo) {
-            to->pImageInfo = (VkDescriptorImageInfo*)alloc->alloc(
-                from->descriptorCount * sizeof(const VkDescriptorImageInfo));
-            to->descriptorCount = from->descriptorCount;
-            for (uint32_t i = 0; i < (uint32_t)from->descriptorCount; ++i) {
-                deepcopy_VkDescriptorImageInfo(alloc, rootType, from->pImageInfo + i,
-                                               (VkDescriptorImageInfo*)(to->pImageInfo + i));
-            }
+    to->pImageInfo = nullptr;
+    if (from->pImageInfo) {
+        to->pImageInfo = (VkDescriptorImageInfo*)alloc->alloc(from->descriptorCount *
+                                                              sizeof(const VkDescriptorImageInfo));
+        to->descriptorCount = from->descriptorCount;
+        for (uint32_t i = 0; i < (uint32_t)from->descriptorCount; ++i) {
+            deepcopy_VkDescriptorImageInfo(alloc, rootType, from->pImageInfo + i,
+                                           (VkDescriptorImageInfo*)(to->pImageInfo + i));
         }
     }
-    if (from) {
-        to->pBufferInfo = nullptr;
-        if (from->pBufferInfo) {
-            to->pBufferInfo = (VkDescriptorBufferInfo*)alloc->alloc(
-                from->descriptorCount * sizeof(const VkDescriptorBufferInfo));
-            to->descriptorCount = from->descriptorCount;
-            for (uint32_t i = 0; i < (uint32_t)from->descriptorCount; ++i) {
-                deepcopy_VkDescriptorBufferInfo(alloc, rootType, from->pBufferInfo + i,
-                                                (VkDescriptorBufferInfo*)(to->pBufferInfo + i));
-            }
+    to->pBufferInfo = nullptr;
+    if (from->pBufferInfo) {
+        to->pBufferInfo = (VkDescriptorBufferInfo*)alloc->alloc(
+            from->descriptorCount * sizeof(const VkDescriptorBufferInfo));
+        to->descriptorCount = from->descriptorCount;
+        for (uint32_t i = 0; i < (uint32_t)from->descriptorCount; ++i) {
+            deepcopy_VkDescriptorBufferInfo(alloc, rootType, from->pBufferInfo + i,
+                                            (VkDescriptorBufferInfo*)(to->pBufferInfo + i));
         }
     }
     to->pTexelBufferView = nullptr;
@@ -1421,17 +1394,15 @@ void deepcopy_VkPipelineColorBlendStateCreateInfo(Allocator* alloc, VkStructureT
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pAttachments = nullptr;
-        if (from->pAttachments) {
-            to->pAttachments = (VkPipelineColorBlendAttachmentState*)alloc->alloc(
-                from->attachmentCount * sizeof(const VkPipelineColorBlendAttachmentState));
-            to->attachmentCount = from->attachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->attachmentCount; ++i) {
-                deepcopy_VkPipelineColorBlendAttachmentState(
-                    alloc, rootType, from->pAttachments + i,
-                    (VkPipelineColorBlendAttachmentState*)(to->pAttachments + i));
-            }
+    to->pAttachments = nullptr;
+    if (from->pAttachments) {
+        to->pAttachments = (VkPipelineColorBlendAttachmentState*)alloc->alloc(
+            from->attachmentCount * sizeof(const VkPipelineColorBlendAttachmentState));
+        to->attachmentCount = from->attachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->attachmentCount; ++i) {
+            deepcopy_VkPipelineColorBlendAttachmentState(
+                alloc, rootType, from->pAttachments + i,
+                (VkPipelineColorBlendAttachmentState*)(to->pAttachments + i));
         }
     }
     memcpy(to->blendConstants, from->blendConstants, 4 * sizeof(float));
@@ -1588,32 +1559,27 @@ void deepcopy_VkPipelineVertexInputStateCreateInfo(Allocator* alloc, VkStructure
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pVertexBindingDescriptions = nullptr;
-        if (from->pVertexBindingDescriptions) {
-            to->pVertexBindingDescriptions = (VkVertexInputBindingDescription*)alloc->alloc(
-                from->vertexBindingDescriptionCount *
-                sizeof(const VkVertexInputBindingDescription));
-            to->vertexBindingDescriptionCount = from->vertexBindingDescriptionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->vertexBindingDescriptionCount; ++i) {
-                deepcopy_VkVertexInputBindingDescription(
-                    alloc, rootType, from->pVertexBindingDescriptions + i,
-                    (VkVertexInputBindingDescription*)(to->pVertexBindingDescriptions + i));
-            }
+    to->pVertexBindingDescriptions = nullptr;
+    if (from->pVertexBindingDescriptions) {
+        to->pVertexBindingDescriptions = (VkVertexInputBindingDescription*)alloc->alloc(
+            from->vertexBindingDescriptionCount * sizeof(const VkVertexInputBindingDescription));
+        to->vertexBindingDescriptionCount = from->vertexBindingDescriptionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->vertexBindingDescriptionCount; ++i) {
+            deepcopy_VkVertexInputBindingDescription(
+                alloc, rootType, from->pVertexBindingDescriptions + i,
+                (VkVertexInputBindingDescription*)(to->pVertexBindingDescriptions + i));
         }
     }
-    if (from) {
-        to->pVertexAttributeDescriptions = nullptr;
-        if (from->pVertexAttributeDescriptions) {
-            to->pVertexAttributeDescriptions = (VkVertexInputAttributeDescription*)alloc->alloc(
-                from->vertexAttributeDescriptionCount *
-                sizeof(const VkVertexInputAttributeDescription));
-            to->vertexAttributeDescriptionCount = from->vertexAttributeDescriptionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->vertexAttributeDescriptionCount; ++i) {
-                deepcopy_VkVertexInputAttributeDescription(
-                    alloc, rootType, from->pVertexAttributeDescriptions + i,
-                    (VkVertexInputAttributeDescription*)(to->pVertexAttributeDescriptions + i));
-            }
+    to->pVertexAttributeDescriptions = nullptr;
+    if (from->pVertexAttributeDescriptions) {
+        to->pVertexAttributeDescriptions = (VkVertexInputAttributeDescription*)alloc->alloc(
+            from->vertexAttributeDescriptionCount *
+            sizeof(const VkVertexInputAttributeDescription));
+        to->vertexAttributeDescriptionCount = from->vertexAttributeDescriptionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->vertexAttributeDescriptionCount; ++i) {
+            deepcopy_VkVertexInputAttributeDescription(
+                alloc, rootType, from->pVertexAttributeDescriptions + i,
+                (VkVertexInputAttributeDescription*)(to->pVertexAttributeDescriptions + i));
         }
     }
 }
@@ -1636,27 +1602,21 @@ void deepcopy_VkPipelineViewportStateCreateInfo(Allocator* alloc, VkStructureTyp
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pViewports = nullptr;
-        if (from->pViewports) {
-            to->pViewports =
-                (VkViewport*)alloc->alloc(from->viewportCount * sizeof(const VkViewport));
-            to->viewportCount = from->viewportCount;
-            for (uint32_t i = 0; i < (uint32_t)from->viewportCount; ++i) {
-                deepcopy_VkViewport(alloc, rootType, from->pViewports + i,
-                                    (VkViewport*)(to->pViewports + i));
-            }
+    to->pViewports = nullptr;
+    if (from->pViewports) {
+        to->pViewports = (VkViewport*)alloc->alloc(from->viewportCount * sizeof(const VkViewport));
+        to->viewportCount = from->viewportCount;
+        for (uint32_t i = 0; i < (uint32_t)from->viewportCount; ++i) {
+            deepcopy_VkViewport(alloc, rootType, from->pViewports + i,
+                                (VkViewport*)(to->pViewports + i));
         }
     }
-    if (from) {
-        to->pScissors = nullptr;
-        if (from->pScissors) {
-            to->pScissors = (VkRect2D*)alloc->alloc(from->scissorCount * sizeof(const VkRect2D));
-            to->scissorCount = from->scissorCount;
-            for (uint32_t i = 0; i < (uint32_t)from->scissorCount; ++i) {
-                deepcopy_VkRect2D(alloc, rootType, from->pScissors + i,
-                                  (VkRect2D*)(to->pScissors + i));
-            }
+    to->pScissors = nullptr;
+    if (from->pScissors) {
+        to->pScissors = (VkRect2D*)alloc->alloc(from->scissorCount * sizeof(const VkRect2D));
+        to->scissorCount = from->scissorCount;
+        for (uint32_t i = 0; i < (uint32_t)from->scissorCount; ++i) {
+            deepcopy_VkRect2D(alloc, rootType, from->pScissors + i, (VkRect2D*)(to->pScissors + i));
         }
     }
 }
@@ -1679,17 +1639,15 @@ void deepcopy_VkGraphicsPipelineCreateInfo(Allocator* alloc, VkStructureType roo
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pStages = nullptr;
-        if (from->pStages) {
-            to->pStages = (VkPipelineShaderStageCreateInfo*)alloc->alloc(
-                from->stageCount * sizeof(const VkPipelineShaderStageCreateInfo));
-            to->stageCount = from->stageCount;
-            for (uint32_t i = 0; i < (uint32_t)from->stageCount; ++i) {
-                deepcopy_VkPipelineShaderStageCreateInfo(
-                    alloc, rootType, from->pStages + i,
-                    (VkPipelineShaderStageCreateInfo*)(to->pStages + i));
-            }
+    to->pStages = nullptr;
+    if (from->pStages) {
+        to->pStages = (VkPipelineShaderStageCreateInfo*)alloc->alloc(
+            from->stageCount * sizeof(const VkPipelineShaderStageCreateInfo));
+        to->stageCount = from->stageCount;
+        for (uint32_t i = 0; i < (uint32_t)from->stageCount; ++i) {
+            deepcopy_VkPipelineShaderStageCreateInfo(
+                alloc, rootType, from->pStages + i,
+                (VkPipelineShaderStageCreateInfo*)(to->pStages + i));
         }
     }
     to->pVertexInputState = nullptr;
@@ -1810,41 +1768,34 @@ void deepcopy_VkSubpassDependency(Allocator* alloc, VkStructureType rootType,
 void deepcopy_VkSubpassDescription(Allocator* alloc, VkStructureType rootType,
                                    const VkSubpassDescription* from, VkSubpassDescription* to) {
     *to = *from;
-    if (from) {
-        to->pInputAttachments = nullptr;
-        if (from->pInputAttachments) {
-            to->pInputAttachments = (VkAttachmentReference*)alloc->alloc(
-                from->inputAttachmentCount * sizeof(const VkAttachmentReference));
-            to->inputAttachmentCount = from->inputAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->inputAttachmentCount; ++i) {
-                deepcopy_VkAttachmentReference(alloc, rootType, from->pInputAttachments + i,
-                                               (VkAttachmentReference*)(to->pInputAttachments + i));
-            }
+    to->pInputAttachments = nullptr;
+    if (from->pInputAttachments) {
+        to->pInputAttachments = (VkAttachmentReference*)alloc->alloc(
+            from->inputAttachmentCount * sizeof(const VkAttachmentReference));
+        to->inputAttachmentCount = from->inputAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->inputAttachmentCount; ++i) {
+            deepcopy_VkAttachmentReference(alloc, rootType, from->pInputAttachments + i,
+                                           (VkAttachmentReference*)(to->pInputAttachments + i));
         }
     }
-    if (from) {
-        to->pColorAttachments = nullptr;
-        if (from->pColorAttachments) {
-            to->pColorAttachments = (VkAttachmentReference*)alloc->alloc(
-                from->colorAttachmentCount * sizeof(const VkAttachmentReference));
-            to->colorAttachmentCount = from->colorAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
-                deepcopy_VkAttachmentReference(alloc, rootType, from->pColorAttachments + i,
-                                               (VkAttachmentReference*)(to->pColorAttachments + i));
-            }
+    to->pColorAttachments = nullptr;
+    if (from->pColorAttachments) {
+        to->pColorAttachments = (VkAttachmentReference*)alloc->alloc(
+            from->colorAttachmentCount * sizeof(const VkAttachmentReference));
+        to->colorAttachmentCount = from->colorAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
+            deepcopy_VkAttachmentReference(alloc, rootType, from->pColorAttachments + i,
+                                           (VkAttachmentReference*)(to->pColorAttachments + i));
         }
     }
-    if (from) {
-        to->pResolveAttachments = nullptr;
-        if (from->pResolveAttachments) {
-            to->pResolveAttachments = (VkAttachmentReference*)alloc->alloc(
-                from->colorAttachmentCount * sizeof(const VkAttachmentReference));
-            to->colorAttachmentCount = from->colorAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
-                deepcopy_VkAttachmentReference(
-                    alloc, rootType, from->pResolveAttachments + i,
-                    (VkAttachmentReference*)(to->pResolveAttachments + i));
-            }
+    to->pResolveAttachments = nullptr;
+    if (from->pResolveAttachments) {
+        to->pResolveAttachments = (VkAttachmentReference*)alloc->alloc(
+            from->colorAttachmentCount * sizeof(const VkAttachmentReference));
+        to->colorAttachmentCount = from->colorAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
+            deepcopy_VkAttachmentReference(alloc, rootType, from->pResolveAttachments + i,
+                                           (VkAttachmentReference*)(to->pResolveAttachments + i));
         }
     }
     to->pDepthStencilAttachment = nullptr;
@@ -1879,40 +1830,34 @@ void deepcopy_VkRenderPassCreateInfo(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pAttachments = nullptr;
-        if (from->pAttachments) {
-            to->pAttachments = (VkAttachmentDescription*)alloc->alloc(
-                from->attachmentCount * sizeof(const VkAttachmentDescription));
-            to->attachmentCount = from->attachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->attachmentCount; ++i) {
-                deepcopy_VkAttachmentDescription(alloc, rootType, from->pAttachments + i,
-                                                 (VkAttachmentDescription*)(to->pAttachments + i));
-            }
+    to->pAttachments = nullptr;
+    if (from->pAttachments) {
+        to->pAttachments = (VkAttachmentDescription*)alloc->alloc(
+            from->attachmentCount * sizeof(const VkAttachmentDescription));
+        to->attachmentCount = from->attachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->attachmentCount; ++i) {
+            deepcopy_VkAttachmentDescription(alloc, rootType, from->pAttachments + i,
+                                             (VkAttachmentDescription*)(to->pAttachments + i));
         }
     }
-    if (from) {
-        to->pSubpasses = nullptr;
-        if (from->pSubpasses) {
-            to->pSubpasses = (VkSubpassDescription*)alloc->alloc(
-                from->subpassCount * sizeof(const VkSubpassDescription));
-            to->subpassCount = from->subpassCount;
-            for (uint32_t i = 0; i < (uint32_t)from->subpassCount; ++i) {
-                deepcopy_VkSubpassDescription(alloc, rootType, from->pSubpasses + i,
-                                              (VkSubpassDescription*)(to->pSubpasses + i));
-            }
+    to->pSubpasses = nullptr;
+    if (from->pSubpasses) {
+        to->pSubpasses = (VkSubpassDescription*)alloc->alloc(from->subpassCount *
+                                                             sizeof(const VkSubpassDescription));
+        to->subpassCount = from->subpassCount;
+        for (uint32_t i = 0; i < (uint32_t)from->subpassCount; ++i) {
+            deepcopy_VkSubpassDescription(alloc, rootType, from->pSubpasses + i,
+                                          (VkSubpassDescription*)(to->pSubpasses + i));
         }
     }
-    if (from) {
-        to->pDependencies = nullptr;
-        if (from->pDependencies) {
-            to->pDependencies = (VkSubpassDependency*)alloc->alloc(
-                from->dependencyCount * sizeof(const VkSubpassDependency));
-            to->dependencyCount = from->dependencyCount;
-            for (uint32_t i = 0; i < (uint32_t)from->dependencyCount; ++i) {
-                deepcopy_VkSubpassDependency(alloc, rootType, from->pDependencies + i,
-                                             (VkSubpassDependency*)(to->pDependencies + i));
-            }
+    to->pDependencies = nullptr;
+    if (from->pDependencies) {
+        to->pDependencies = (VkSubpassDependency*)alloc->alloc(from->dependencyCount *
+                                                               sizeof(const VkSubpassDependency));
+        to->dependencyCount = from->dependencyCount;
+        for (uint32_t i = 0; i < (uint32_t)from->dependencyCount; ++i) {
+            deepcopy_VkSubpassDependency(alloc, rootType, from->pDependencies + i,
+                                         (VkSubpassDependency*)(to->pDependencies + i));
         }
     }
 }
@@ -1990,16 +1935,14 @@ void deepcopy_VkRenderPassBeginInfo(Allocator* alloc, VkStructureType rootType,
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
     deepcopy_VkRect2D(alloc, rootType, &from->renderArea, (VkRect2D*)(&to->renderArea));
-    if (from) {
-        to->pClearValues = nullptr;
-        if (from->pClearValues) {
-            to->pClearValues =
-                (VkClearValue*)alloc->alloc(from->clearValueCount * sizeof(const VkClearValue));
-            to->clearValueCount = from->clearValueCount;
-            for (uint32_t i = 0; i < (uint32_t)from->clearValueCount; ++i) {
-                deepcopy_VkClearValue(alloc, rootType, from->pClearValues + i,
-                                      (VkClearValue*)(to->pClearValues + i));
-            }
+    to->pClearValues = nullptr;
+    if (from->pClearValues) {
+        to->pClearValues =
+            (VkClearValue*)alloc->alloc(from->clearValueCount * sizeof(const VkClearValue));
+        to->clearValueCount = from->clearValueCount;
+        for (uint32_t i = 0; i < (uint32_t)from->clearValueCount; ++i) {
+            deepcopy_VkClearValue(alloc, rootType, from->pClearValues + i,
+                                  (VkClearValue*)(to->pClearValues + i));
         }
     }
 }
@@ -2229,16 +2172,14 @@ void deepcopy_VkBindImageMemoryDeviceGroupInfo(Allocator* alloc, VkStructureType
         to->pDeviceIndices = (uint32_t*)alloc->dupArray(
             from->pDeviceIndices, from->deviceIndexCount * sizeof(const uint32_t));
     }
-    if (from) {
-        to->pSplitInstanceBindRegions = nullptr;
-        if (from->pSplitInstanceBindRegions) {
-            to->pSplitInstanceBindRegions = (VkRect2D*)alloc->alloc(
-                from->splitInstanceBindRegionCount * sizeof(const VkRect2D));
-            to->splitInstanceBindRegionCount = from->splitInstanceBindRegionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->splitInstanceBindRegionCount; ++i) {
-                deepcopy_VkRect2D(alloc, rootType, from->pSplitInstanceBindRegions + i,
-                                  (VkRect2D*)(to->pSplitInstanceBindRegions + i));
-            }
+    to->pSplitInstanceBindRegions = nullptr;
+    if (from->pSplitInstanceBindRegions) {
+        to->pSplitInstanceBindRegions =
+            (VkRect2D*)alloc->alloc(from->splitInstanceBindRegionCount * sizeof(const VkRect2D));
+        to->splitInstanceBindRegionCount = from->splitInstanceBindRegionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->splitInstanceBindRegionCount; ++i) {
+            deepcopy_VkRect2D(alloc, rootType, from->pSplitInstanceBindRegions + i,
+                              (VkRect2D*)(to->pSplitInstanceBindRegions + i));
         }
     }
 }
@@ -3109,17 +3050,15 @@ void deepcopy_VkDescriptorUpdateTemplateCreateInfo(Allocator* alloc, VkStructure
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pDescriptorUpdateEntries = nullptr;
-        if (from->pDescriptorUpdateEntries) {
-            to->pDescriptorUpdateEntries = (VkDescriptorUpdateTemplateEntry*)alloc->alloc(
-                from->descriptorUpdateEntryCount * sizeof(const VkDescriptorUpdateTemplateEntry));
-            to->descriptorUpdateEntryCount = from->descriptorUpdateEntryCount;
-            for (uint32_t i = 0; i < (uint32_t)from->descriptorUpdateEntryCount; ++i) {
-                deepcopy_VkDescriptorUpdateTemplateEntry(
-                    alloc, rootType, from->pDescriptorUpdateEntries + i,
-                    (VkDescriptorUpdateTemplateEntry*)(to->pDescriptorUpdateEntries + i));
-            }
+    to->pDescriptorUpdateEntries = nullptr;
+    if (from->pDescriptorUpdateEntries) {
+        to->pDescriptorUpdateEntries = (VkDescriptorUpdateTemplateEntry*)alloc->alloc(
+            from->descriptorUpdateEntryCount * sizeof(const VkDescriptorUpdateTemplateEntry));
+        to->descriptorUpdateEntryCount = from->descriptorUpdateEntryCount;
+        for (uint32_t i = 0; i < (uint32_t)from->descriptorUpdateEntryCount; ++i) {
+            deepcopy_VkDescriptorUpdateTemplateEntry(
+                alloc, rootType, from->pDescriptorUpdateEntries + i,
+                (VkDescriptorUpdateTemplateEntry*)(to->pDescriptorUpdateEntries + i));
         }
     }
 }
@@ -3268,16 +3207,14 @@ void deepcopy_VkDeviceGroupRenderPassBeginInfo(Allocator* alloc, VkStructureType
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pDeviceRenderAreas = nullptr;
-        if (from->pDeviceRenderAreas) {
-            to->pDeviceRenderAreas =
-                (VkRect2D*)alloc->alloc(from->deviceRenderAreaCount * sizeof(const VkRect2D));
-            to->deviceRenderAreaCount = from->deviceRenderAreaCount;
-            for (uint32_t i = 0; i < (uint32_t)from->deviceRenderAreaCount; ++i) {
-                deepcopy_VkRect2D(alloc, rootType, from->pDeviceRenderAreas + i,
-                                  (VkRect2D*)(to->pDeviceRenderAreas + i));
-            }
+    to->pDeviceRenderAreas = nullptr;
+    if (from->pDeviceRenderAreas) {
+        to->pDeviceRenderAreas =
+            (VkRect2D*)alloc->alloc(from->deviceRenderAreaCount * sizeof(const VkRect2D));
+        to->deviceRenderAreaCount = from->deviceRenderAreaCount;
+        for (uint32_t i = 0; i < (uint32_t)from->deviceRenderAreaCount; ++i) {
+            deepcopy_VkRect2D(alloc, rootType, from->pDeviceRenderAreas + i,
+                              (VkRect2D*)(to->pDeviceRenderAreas + i));
         }
     }
 }
@@ -3327,17 +3264,15 @@ void deepcopy_VkRenderPassInputAttachmentAspectCreateInfo(
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pAspectReferences = nullptr;
-        if (from->pAspectReferences) {
-            to->pAspectReferences = (VkInputAttachmentAspectReference*)alloc->alloc(
-                from->aspectReferenceCount * sizeof(const VkInputAttachmentAspectReference));
-            to->aspectReferenceCount = from->aspectReferenceCount;
-            for (uint32_t i = 0; i < (uint32_t)from->aspectReferenceCount; ++i) {
-                deepcopy_VkInputAttachmentAspectReference(
-                    alloc, rootType, from->pAspectReferences + i,
-                    (VkInputAttachmentAspectReference*)(to->pAspectReferences + i));
-            }
+    to->pAspectReferences = nullptr;
+    if (from->pAspectReferences) {
+        to->pAspectReferences = (VkInputAttachmentAspectReference*)alloc->alloc(
+            from->aspectReferenceCount * sizeof(const VkInputAttachmentAspectReference));
+        to->aspectReferenceCount = from->aspectReferenceCount;
+        for (uint32_t i = 0; i < (uint32_t)from->aspectReferenceCount; ++i) {
+            deepcopy_VkInputAttachmentAspectReference(
+                alloc, rootType, from->pAspectReferences + i,
+                (VkInputAttachmentAspectReference*)(to->pAspectReferences + i));
         }
     }
 }
@@ -4247,43 +4182,34 @@ void deepcopy_VkSubpassDescription2(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pInputAttachments = nullptr;
-        if (from->pInputAttachments) {
-            to->pInputAttachments = (VkAttachmentReference2*)alloc->alloc(
-                from->inputAttachmentCount * sizeof(const VkAttachmentReference2));
-            to->inputAttachmentCount = from->inputAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->inputAttachmentCount; ++i) {
-                deepcopy_VkAttachmentReference2(
-                    alloc, rootType, from->pInputAttachments + i,
-                    (VkAttachmentReference2*)(to->pInputAttachments + i));
-            }
+    to->pInputAttachments = nullptr;
+    if (from->pInputAttachments) {
+        to->pInputAttachments = (VkAttachmentReference2*)alloc->alloc(
+            from->inputAttachmentCount * sizeof(const VkAttachmentReference2));
+        to->inputAttachmentCount = from->inputAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->inputAttachmentCount; ++i) {
+            deepcopy_VkAttachmentReference2(alloc, rootType, from->pInputAttachments + i,
+                                            (VkAttachmentReference2*)(to->pInputAttachments + i));
         }
     }
-    if (from) {
-        to->pColorAttachments = nullptr;
-        if (from->pColorAttachments) {
-            to->pColorAttachments = (VkAttachmentReference2*)alloc->alloc(
-                from->colorAttachmentCount * sizeof(const VkAttachmentReference2));
-            to->colorAttachmentCount = from->colorAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
-                deepcopy_VkAttachmentReference2(
-                    alloc, rootType, from->pColorAttachments + i,
-                    (VkAttachmentReference2*)(to->pColorAttachments + i));
-            }
+    to->pColorAttachments = nullptr;
+    if (from->pColorAttachments) {
+        to->pColorAttachments = (VkAttachmentReference2*)alloc->alloc(
+            from->colorAttachmentCount * sizeof(const VkAttachmentReference2));
+        to->colorAttachmentCount = from->colorAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
+            deepcopy_VkAttachmentReference2(alloc, rootType, from->pColorAttachments + i,
+                                            (VkAttachmentReference2*)(to->pColorAttachments + i));
         }
     }
-    if (from) {
-        to->pResolveAttachments = nullptr;
-        if (from->pResolveAttachments) {
-            to->pResolveAttachments = (VkAttachmentReference2*)alloc->alloc(
-                from->colorAttachmentCount * sizeof(const VkAttachmentReference2));
-            to->colorAttachmentCount = from->colorAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
-                deepcopy_VkAttachmentReference2(
-                    alloc, rootType, from->pResolveAttachments + i,
-                    (VkAttachmentReference2*)(to->pResolveAttachments + i));
-            }
+    to->pResolveAttachments = nullptr;
+    if (from->pResolveAttachments) {
+        to->pResolveAttachments = (VkAttachmentReference2*)alloc->alloc(
+            from->colorAttachmentCount * sizeof(const VkAttachmentReference2));
+        to->colorAttachmentCount = from->colorAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
+            deepcopy_VkAttachmentReference2(alloc, rootType, from->pResolveAttachments + i,
+                                            (VkAttachmentReference2*)(to->pResolveAttachments + i));
         }
     }
     to->pDepthStencilAttachment = nullptr;
@@ -4375,41 +4301,34 @@ void deepcopy_VkRenderPassCreateInfo2(Allocator* alloc, VkStructureType rootType
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pAttachments = nullptr;
-        if (from->pAttachments) {
-            to->pAttachments = (VkAttachmentDescription2*)alloc->alloc(
-                from->attachmentCount * sizeof(const VkAttachmentDescription2));
-            to->attachmentCount = from->attachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->attachmentCount; ++i) {
-                deepcopy_VkAttachmentDescription2(
-                    alloc, rootType, from->pAttachments + i,
-                    (VkAttachmentDescription2*)(to->pAttachments + i));
-            }
+    to->pAttachments = nullptr;
+    if (from->pAttachments) {
+        to->pAttachments = (VkAttachmentDescription2*)alloc->alloc(
+            from->attachmentCount * sizeof(const VkAttachmentDescription2));
+        to->attachmentCount = from->attachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->attachmentCount; ++i) {
+            deepcopy_VkAttachmentDescription2(alloc, rootType, from->pAttachments + i,
+                                              (VkAttachmentDescription2*)(to->pAttachments + i));
         }
     }
-    if (from) {
-        to->pSubpasses = nullptr;
-        if (from->pSubpasses) {
-            to->pSubpasses = (VkSubpassDescription2*)alloc->alloc(
-                from->subpassCount * sizeof(const VkSubpassDescription2));
-            to->subpassCount = from->subpassCount;
-            for (uint32_t i = 0; i < (uint32_t)from->subpassCount; ++i) {
-                deepcopy_VkSubpassDescription2(alloc, rootType, from->pSubpasses + i,
-                                               (VkSubpassDescription2*)(to->pSubpasses + i));
-            }
+    to->pSubpasses = nullptr;
+    if (from->pSubpasses) {
+        to->pSubpasses = (VkSubpassDescription2*)alloc->alloc(from->subpassCount *
+                                                              sizeof(const VkSubpassDescription2));
+        to->subpassCount = from->subpassCount;
+        for (uint32_t i = 0; i < (uint32_t)from->subpassCount; ++i) {
+            deepcopy_VkSubpassDescription2(alloc, rootType, from->pSubpasses + i,
+                                           (VkSubpassDescription2*)(to->pSubpasses + i));
         }
     }
-    if (from) {
-        to->pDependencies = nullptr;
-        if (from->pDependencies) {
-            to->pDependencies = (VkSubpassDependency2*)alloc->alloc(
-                from->dependencyCount * sizeof(const VkSubpassDependency2));
-            to->dependencyCount = from->dependencyCount;
-            for (uint32_t i = 0; i < (uint32_t)from->dependencyCount; ++i) {
-                deepcopy_VkSubpassDependency2(alloc, rootType, from->pDependencies + i,
-                                              (VkSubpassDependency2*)(to->pDependencies + i));
-            }
+    to->pDependencies = nullptr;
+    if (from->pDependencies) {
+        to->pDependencies = (VkSubpassDependency2*)alloc->alloc(from->dependencyCount *
+                                                                sizeof(const VkSubpassDependency2));
+        to->dependencyCount = from->dependencyCount;
+        for (uint32_t i = 0; i < (uint32_t)from->dependencyCount; ++i) {
+            deepcopy_VkSubpassDependency2(alloc, rootType, from->pDependencies + i,
+                                          (VkSubpassDependency2*)(to->pDependencies + i));
         }
     }
     to->pCorrelatedViewMasks = nullptr;
@@ -4577,17 +4496,15 @@ void deepcopy_VkFramebufferAttachmentsCreateInfo(Allocator* alloc, VkStructureTy
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pAttachmentImageInfos = nullptr;
-        if (from->pAttachmentImageInfos) {
-            to->pAttachmentImageInfos = (VkFramebufferAttachmentImageInfo*)alloc->alloc(
-                from->attachmentImageInfoCount * sizeof(const VkFramebufferAttachmentImageInfo));
-            to->attachmentImageInfoCount = from->attachmentImageInfoCount;
-            for (uint32_t i = 0; i < (uint32_t)from->attachmentImageInfoCount; ++i) {
-                deepcopy_VkFramebufferAttachmentImageInfo(
-                    alloc, rootType, from->pAttachmentImageInfos + i,
-                    (VkFramebufferAttachmentImageInfo*)(to->pAttachmentImageInfos + i));
-            }
+    to->pAttachmentImageInfos = nullptr;
+    if (from->pAttachmentImageInfos) {
+        to->pAttachmentImageInfos = (VkFramebufferAttachmentImageInfo*)alloc->alloc(
+            from->attachmentImageInfoCount * sizeof(const VkFramebufferAttachmentImageInfo));
+        to->attachmentImageInfoCount = from->attachmentImageInfoCount;
+        for (uint32_t i = 0; i < (uint32_t)from->attachmentImageInfoCount; ++i) {
+            deepcopy_VkFramebufferAttachmentImageInfo(
+                alloc, rootType, from->pAttachmentImageInfos + i,
+                (VkFramebufferAttachmentImageInfo*)(to->pAttachmentImageInfos + i));
         }
     }
 }
@@ -4856,42 +4773,35 @@ void deepcopy_VkDependencyInfo(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pMemoryBarriers = nullptr;
-        if (from->pMemoryBarriers) {
-            to->pMemoryBarriers = (VkMemoryBarrier2*)alloc->alloc(from->memoryBarrierCount *
-                                                                  sizeof(const VkMemoryBarrier2));
-            to->memoryBarrierCount = from->memoryBarrierCount;
-            for (uint32_t i = 0; i < (uint32_t)from->memoryBarrierCount; ++i) {
-                deepcopy_VkMemoryBarrier2(alloc, rootType, from->pMemoryBarriers + i,
-                                          (VkMemoryBarrier2*)(to->pMemoryBarriers + i));
-            }
+    to->pMemoryBarriers = nullptr;
+    if (from->pMemoryBarriers) {
+        to->pMemoryBarriers = (VkMemoryBarrier2*)alloc->alloc(from->memoryBarrierCount *
+                                                              sizeof(const VkMemoryBarrier2));
+        to->memoryBarrierCount = from->memoryBarrierCount;
+        for (uint32_t i = 0; i < (uint32_t)from->memoryBarrierCount; ++i) {
+            deepcopy_VkMemoryBarrier2(alloc, rootType, from->pMemoryBarriers + i,
+                                      (VkMemoryBarrier2*)(to->pMemoryBarriers + i));
         }
     }
-    if (from) {
-        to->pBufferMemoryBarriers = nullptr;
-        if (from->pBufferMemoryBarriers) {
-            to->pBufferMemoryBarriers = (VkBufferMemoryBarrier2*)alloc->alloc(
-                from->bufferMemoryBarrierCount * sizeof(const VkBufferMemoryBarrier2));
-            to->bufferMemoryBarrierCount = from->bufferMemoryBarrierCount;
-            for (uint32_t i = 0; i < (uint32_t)from->bufferMemoryBarrierCount; ++i) {
-                deepcopy_VkBufferMemoryBarrier2(
-                    alloc, rootType, from->pBufferMemoryBarriers + i,
-                    (VkBufferMemoryBarrier2*)(to->pBufferMemoryBarriers + i));
-            }
+    to->pBufferMemoryBarriers = nullptr;
+    if (from->pBufferMemoryBarriers) {
+        to->pBufferMemoryBarriers = (VkBufferMemoryBarrier2*)alloc->alloc(
+            from->bufferMemoryBarrierCount * sizeof(const VkBufferMemoryBarrier2));
+        to->bufferMemoryBarrierCount = from->bufferMemoryBarrierCount;
+        for (uint32_t i = 0; i < (uint32_t)from->bufferMemoryBarrierCount; ++i) {
+            deepcopy_VkBufferMemoryBarrier2(
+                alloc, rootType, from->pBufferMemoryBarriers + i,
+                (VkBufferMemoryBarrier2*)(to->pBufferMemoryBarriers + i));
         }
     }
-    if (from) {
-        to->pImageMemoryBarriers = nullptr;
-        if (from->pImageMemoryBarriers) {
-            to->pImageMemoryBarriers = (VkImageMemoryBarrier2*)alloc->alloc(
-                from->imageMemoryBarrierCount * sizeof(const VkImageMemoryBarrier2));
-            to->imageMemoryBarrierCount = from->imageMemoryBarrierCount;
-            for (uint32_t i = 0; i < (uint32_t)from->imageMemoryBarrierCount; ++i) {
-                deepcopy_VkImageMemoryBarrier2(
-                    alloc, rootType, from->pImageMemoryBarriers + i,
-                    (VkImageMemoryBarrier2*)(to->pImageMemoryBarriers + i));
-            }
+    to->pImageMemoryBarriers = nullptr;
+    if (from->pImageMemoryBarriers) {
+        to->pImageMemoryBarriers = (VkImageMemoryBarrier2*)alloc->alloc(
+            from->imageMemoryBarrierCount * sizeof(const VkImageMemoryBarrier2));
+        to->imageMemoryBarrierCount = from->imageMemoryBarrierCount;
+        for (uint32_t i = 0; i < (uint32_t)from->imageMemoryBarrierCount; ++i) {
+            deepcopy_VkImageMemoryBarrier2(alloc, rootType, from->pImageMemoryBarriers + i,
+                                           (VkImageMemoryBarrier2*)(to->pImageMemoryBarriers + i));
         }
     }
 }
@@ -4952,43 +4862,35 @@ void deepcopy_VkSubmitInfo2(Allocator* alloc, VkStructureType rootType, const Vk
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pWaitSemaphoreInfos = nullptr;
-        if (from->pWaitSemaphoreInfos) {
-            to->pWaitSemaphoreInfos = (VkSemaphoreSubmitInfo*)alloc->alloc(
-                from->waitSemaphoreInfoCount * sizeof(const VkSemaphoreSubmitInfo));
-            to->waitSemaphoreInfoCount = from->waitSemaphoreInfoCount;
-            for (uint32_t i = 0; i < (uint32_t)from->waitSemaphoreInfoCount; ++i) {
-                deepcopy_VkSemaphoreSubmitInfo(
-                    alloc, rootType, from->pWaitSemaphoreInfos + i,
-                    (VkSemaphoreSubmitInfo*)(to->pWaitSemaphoreInfos + i));
-            }
+    to->pWaitSemaphoreInfos = nullptr;
+    if (from->pWaitSemaphoreInfos) {
+        to->pWaitSemaphoreInfos = (VkSemaphoreSubmitInfo*)alloc->alloc(
+            from->waitSemaphoreInfoCount * sizeof(const VkSemaphoreSubmitInfo));
+        to->waitSemaphoreInfoCount = from->waitSemaphoreInfoCount;
+        for (uint32_t i = 0; i < (uint32_t)from->waitSemaphoreInfoCount; ++i) {
+            deepcopy_VkSemaphoreSubmitInfo(alloc, rootType, from->pWaitSemaphoreInfos + i,
+                                           (VkSemaphoreSubmitInfo*)(to->pWaitSemaphoreInfos + i));
         }
     }
-    if (from) {
-        to->pCommandBufferInfos = nullptr;
-        if (from->pCommandBufferInfos) {
-            to->pCommandBufferInfos = (VkCommandBufferSubmitInfo*)alloc->alloc(
-                from->commandBufferInfoCount * sizeof(const VkCommandBufferSubmitInfo));
-            to->commandBufferInfoCount = from->commandBufferInfoCount;
-            for (uint32_t i = 0; i < (uint32_t)from->commandBufferInfoCount; ++i) {
-                deepcopy_VkCommandBufferSubmitInfo(
-                    alloc, rootType, from->pCommandBufferInfos + i,
-                    (VkCommandBufferSubmitInfo*)(to->pCommandBufferInfos + i));
-            }
+    to->pCommandBufferInfos = nullptr;
+    if (from->pCommandBufferInfos) {
+        to->pCommandBufferInfos = (VkCommandBufferSubmitInfo*)alloc->alloc(
+            from->commandBufferInfoCount * sizeof(const VkCommandBufferSubmitInfo));
+        to->commandBufferInfoCount = from->commandBufferInfoCount;
+        for (uint32_t i = 0; i < (uint32_t)from->commandBufferInfoCount; ++i) {
+            deepcopy_VkCommandBufferSubmitInfo(
+                alloc, rootType, from->pCommandBufferInfos + i,
+                (VkCommandBufferSubmitInfo*)(to->pCommandBufferInfos + i));
         }
     }
-    if (from) {
-        to->pSignalSemaphoreInfos = nullptr;
-        if (from->pSignalSemaphoreInfos) {
-            to->pSignalSemaphoreInfos = (VkSemaphoreSubmitInfo*)alloc->alloc(
-                from->signalSemaphoreInfoCount * sizeof(const VkSemaphoreSubmitInfo));
-            to->signalSemaphoreInfoCount = from->signalSemaphoreInfoCount;
-            for (uint32_t i = 0; i < (uint32_t)from->signalSemaphoreInfoCount; ++i) {
-                deepcopy_VkSemaphoreSubmitInfo(
-                    alloc, rootType, from->pSignalSemaphoreInfos + i,
-                    (VkSemaphoreSubmitInfo*)(to->pSignalSemaphoreInfos + i));
-            }
+    to->pSignalSemaphoreInfos = nullptr;
+    if (from->pSignalSemaphoreInfos) {
+        to->pSignalSemaphoreInfos = (VkSemaphoreSubmitInfo*)alloc->alloc(
+            from->signalSemaphoreInfoCount * sizeof(const VkSemaphoreSubmitInfo));
+        to->signalSemaphoreInfoCount = from->signalSemaphoreInfoCount;
+        for (uint32_t i = 0; i < (uint32_t)from->signalSemaphoreInfoCount; ++i) {
+            deepcopy_VkSemaphoreSubmitInfo(alloc, rootType, from->pSignalSemaphoreInfos + i,
+                                           (VkSemaphoreSubmitInfo*)(to->pSignalSemaphoreInfos + i));
         }
     }
 }
@@ -5050,16 +4952,14 @@ void deepcopy_VkCopyBufferInfo2(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions =
-                (VkBufferCopy2*)alloc->alloc(from->regionCount * sizeof(const VkBufferCopy2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkBufferCopy2(alloc, rootType, from->pRegions + i,
-                                       (VkBufferCopy2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions =
+            (VkBufferCopy2*)alloc->alloc(from->regionCount * sizeof(const VkBufferCopy2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkBufferCopy2(alloc, rootType, from->pRegions + i,
+                                   (VkBufferCopy2*)(to->pRegions + i));
         }
     }
 }
@@ -5107,16 +5007,13 @@ void deepcopy_VkCopyImageInfo2(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions =
-                (VkImageCopy2*)alloc->alloc(from->regionCount * sizeof(const VkImageCopy2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkImageCopy2(alloc, rootType, from->pRegions + i,
-                                      (VkImageCopy2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions = (VkImageCopy2*)alloc->alloc(from->regionCount * sizeof(const VkImageCopy2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkImageCopy2(alloc, rootType, from->pRegions + i,
+                                  (VkImageCopy2*)(to->pRegions + i));
         }
     }
 }
@@ -5162,16 +5059,14 @@ void deepcopy_VkCopyBufferToImageInfo2(Allocator* alloc, VkStructureType rootTyp
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions = (VkBufferImageCopy2*)alloc->alloc(from->regionCount *
-                                                             sizeof(const VkBufferImageCopy2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkBufferImageCopy2(alloc, rootType, from->pRegions + i,
-                                            (VkBufferImageCopy2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions =
+            (VkBufferImageCopy2*)alloc->alloc(from->regionCount * sizeof(const VkBufferImageCopy2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkBufferImageCopy2(alloc, rootType, from->pRegions + i,
+                                        (VkBufferImageCopy2*)(to->pRegions + i));
         }
     }
 }
@@ -5194,16 +5089,14 @@ void deepcopy_VkCopyImageToBufferInfo2(Allocator* alloc, VkStructureType rootTyp
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions = (VkBufferImageCopy2*)alloc->alloc(from->regionCount *
-                                                             sizeof(const VkBufferImageCopy2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkBufferImageCopy2(alloc, rootType, from->pRegions + i,
-                                            (VkBufferImageCopy2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions =
+            (VkBufferImageCopy2*)alloc->alloc(from->regionCount * sizeof(const VkBufferImageCopy2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkBufferImageCopy2(alloc, rootType, from->pRegions + i,
+                                        (VkBufferImageCopy2*)(to->pRegions + i));
         }
     }
 }
@@ -5374,17 +5267,15 @@ void deepcopy_VkPipelineCreationFeedbackCreateInfo(Allocator* alloc, VkStructure
             alloc, rootType, from->pPipelineCreationFeedback,
             (VkPipelineCreationFeedback*)(to->pPipelineCreationFeedback));
     }
-    if (from) {
-        to->pPipelineStageCreationFeedbacks = nullptr;
-        if (from->pPipelineStageCreationFeedbacks) {
-            to->pPipelineStageCreationFeedbacks = (VkPipelineCreationFeedback*)alloc->alloc(
-                from->pipelineStageCreationFeedbackCount * sizeof(VkPipelineCreationFeedback));
-            to->pipelineStageCreationFeedbackCount = from->pipelineStageCreationFeedbackCount;
-            for (uint32_t i = 0; i < (uint32_t)from->pipelineStageCreationFeedbackCount; ++i) {
-                deepcopy_VkPipelineCreationFeedback(
-                    alloc, rootType, from->pPipelineStageCreationFeedbacks + i,
-                    (VkPipelineCreationFeedback*)(to->pPipelineStageCreationFeedbacks + i));
-            }
+    to->pPipelineStageCreationFeedbacks = nullptr;
+    if (from->pPipelineStageCreationFeedbacks) {
+        to->pPipelineStageCreationFeedbacks = (VkPipelineCreationFeedback*)alloc->alloc(
+            from->pipelineStageCreationFeedbackCount * sizeof(VkPipelineCreationFeedback));
+        to->pipelineStageCreationFeedbackCount = from->pipelineStageCreationFeedbackCount;
+        for (uint32_t i = 0; i < (uint32_t)from->pipelineStageCreationFeedbackCount; ++i) {
+            deepcopy_VkPipelineCreationFeedback(
+                alloc, rootType, from->pPipelineStageCreationFeedbacks + i,
+                (VkPipelineCreationFeedback*)(to->pPipelineStageCreationFeedbacks + i));
         }
     }
 }
@@ -5756,16 +5647,13 @@ void deepcopy_VkBlitImageInfo2(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions =
-                (VkImageBlit2*)alloc->alloc(from->regionCount * sizeof(const VkImageBlit2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkImageBlit2(alloc, rootType, from->pRegions + i,
-                                      (VkImageBlit2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions = (VkImageBlit2*)alloc->alloc(from->regionCount * sizeof(const VkImageBlit2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkImageBlit2(alloc, rootType, from->pRegions + i,
+                                  (VkImageBlit2*)(to->pRegions + i));
         }
     }
 }
@@ -5813,16 +5701,14 @@ void deepcopy_VkResolveImageInfo2(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions =
-                (VkImageResolve2*)alloc->alloc(from->regionCount * sizeof(const VkImageResolve2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkImageResolve2(alloc, rootType, from->pRegions + i,
-                                         (VkImageResolve2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions =
+            (VkImageResolve2*)alloc->alloc(from->regionCount * sizeof(const VkImageResolve2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkImageResolve2(alloc, rootType, from->pRegions + i,
+                                     (VkImageResolve2*)(to->pRegions + i));
         }
     }
 }
@@ -5866,17 +5752,15 @@ void deepcopy_VkRenderingInfo(Allocator* alloc, VkStructureType rootType,
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
     deepcopy_VkRect2D(alloc, rootType, &from->renderArea, (VkRect2D*)(&to->renderArea));
-    if (from) {
-        to->pColorAttachments = nullptr;
-        if (from->pColorAttachments) {
-            to->pColorAttachments = (VkRenderingAttachmentInfo*)alloc->alloc(
-                from->colorAttachmentCount * sizeof(const VkRenderingAttachmentInfo));
-            to->colorAttachmentCount = from->colorAttachmentCount;
-            for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
-                deepcopy_VkRenderingAttachmentInfo(
-                    alloc, rootType, from->pColorAttachments + i,
-                    (VkRenderingAttachmentInfo*)(to->pColorAttachments + i));
-            }
+    to->pColorAttachments = nullptr;
+    if (from->pColorAttachments) {
+        to->pColorAttachments = (VkRenderingAttachmentInfo*)alloc->alloc(
+            from->colorAttachmentCount * sizeof(const VkRenderingAttachmentInfo));
+        to->colorAttachmentCount = from->colorAttachmentCount;
+        for (uint32_t i = 0; i < (uint32_t)from->colorAttachmentCount; ++i) {
+            deepcopy_VkRenderingAttachmentInfo(
+                alloc, rootType, from->pColorAttachments + i,
+                (VkRenderingAttachmentInfo*)(to->pColorAttachments + i));
         }
     }
     to->pDepthAttachment = nullptr;
@@ -6462,16 +6346,14 @@ void deepcopy_VkCopyMemoryToImageInfo(Allocator* alloc, VkStructureType rootType
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions = (VkMemoryToImageCopy*)alloc->alloc(from->regionCount *
-                                                              sizeof(const VkMemoryToImageCopy));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkMemoryToImageCopy(alloc, rootType, from->pRegions + i,
-                                             (VkMemoryToImageCopy*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions = (VkMemoryToImageCopy*)alloc->alloc(from->regionCount *
+                                                          sizeof(const VkMemoryToImageCopy));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkMemoryToImageCopy(alloc, rootType, from->pRegions + i,
+                                         (VkMemoryToImageCopy*)(to->pRegions + i));
         }
     }
 }
@@ -6494,16 +6376,14 @@ void deepcopy_VkCopyImageToMemoryInfo(Allocator* alloc, VkStructureType rootType
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions = (VkImageToMemoryCopy*)alloc->alloc(from->regionCount *
-                                                              sizeof(const VkImageToMemoryCopy));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkImageToMemoryCopy(alloc, rootType, from->pRegions + i,
-                                             (VkImageToMemoryCopy*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions = (VkImageToMemoryCopy*)alloc->alloc(from->regionCount *
+                                                          sizeof(const VkImageToMemoryCopy));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkImageToMemoryCopy(alloc, rootType, from->pRegions + i,
+                                         (VkImageToMemoryCopy*)(to->pRegions + i));
         }
     }
 }
@@ -6526,16 +6406,13 @@ void deepcopy_VkCopyImageToImageInfo(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions =
-                (VkImageCopy2*)alloc->alloc(from->regionCount * sizeof(const VkImageCopy2));
-            to->regionCount = from->regionCount;
-            for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
-                deepcopy_VkImageCopy2(alloc, rootType, from->pRegions + i,
-                                      (VkImageCopy2*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions = (VkImageCopy2*)alloc->alloc(from->regionCount * sizeof(const VkImageCopy2));
+        to->regionCount = from->regionCount;
+        for (uint32_t i = 0; i < (uint32_t)from->regionCount; ++i) {
+            deepcopy_VkImageCopy2(alloc, rootType, from->pRegions + i,
+                                  (VkImageCopy2*)(to->pRegions + i));
         }
     }
 }
@@ -6779,16 +6656,14 @@ void deepcopy_VkPushDescriptorSetInfo(Allocator* alloc, VkStructureType rootType
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pDescriptorWrites = nullptr;
-        if (from->pDescriptorWrites) {
-            to->pDescriptorWrites = (VkWriteDescriptorSet*)alloc->alloc(
-                from->descriptorWriteCount * sizeof(const VkWriteDescriptorSet));
-            to->descriptorWriteCount = from->descriptorWriteCount;
-            for (uint32_t i = 0; i < (uint32_t)from->descriptorWriteCount; ++i) {
-                deepcopy_VkWriteDescriptorSet(alloc, rootType, from->pDescriptorWrites + i,
-                                              (VkWriteDescriptorSet*)(to->pDescriptorWrites + i));
-            }
+    to->pDescriptorWrites = nullptr;
+    if (from->pDescriptorWrites) {
+        to->pDescriptorWrites = (VkWriteDescriptorSet*)alloc->alloc(
+            from->descriptorWriteCount * sizeof(const VkWriteDescriptorSet));
+        to->descriptorWriteCount = from->descriptorWriteCount;
+        for (uint32_t i = 0; i < (uint32_t)from->descriptorWriteCount; ++i) {
+            deepcopy_VkWriteDescriptorSet(alloc, rootType, from->pDescriptorWrites + i,
+                                          (VkWriteDescriptorSet*)(to->pDescriptorWrites + i));
         }
     }
 }
@@ -7011,18 +6886,15 @@ void deepcopy_VkPipelineVertexInputDivisorStateCreateInfo(
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pVertexBindingDivisors = nullptr;
-        if (from->pVertexBindingDivisors) {
-            to->pVertexBindingDivisors = (VkVertexInputBindingDivisorDescription*)alloc->alloc(
-                from->vertexBindingDivisorCount *
-                sizeof(const VkVertexInputBindingDivisorDescription));
-            to->vertexBindingDivisorCount = from->vertexBindingDivisorCount;
-            for (uint32_t i = 0; i < (uint32_t)from->vertexBindingDivisorCount; ++i) {
-                deepcopy_VkVertexInputBindingDivisorDescription(
-                    alloc, rootType, from->pVertexBindingDivisors + i,
-                    (VkVertexInputBindingDivisorDescription*)(to->pVertexBindingDivisors + i));
-            }
+    to->pVertexBindingDivisors = nullptr;
+    if (from->pVertexBindingDivisors) {
+        to->pVertexBindingDivisors = (VkVertexInputBindingDivisorDescription*)alloc->alloc(
+            from->vertexBindingDivisorCount * sizeof(const VkVertexInputBindingDivisorDescription));
+        to->vertexBindingDivisorCount = from->vertexBindingDivisorCount;
+        for (uint32_t i = 0; i < (uint32_t)from->vertexBindingDivisorCount; ++i) {
+            deepcopy_VkVertexInputBindingDivisorDescription(
+                alloc, rootType, from->pVertexBindingDivisors + i,
+                (VkVertexInputBindingDivisorDescription*)(to->pVertexBindingDivisors + i));
         }
     }
 }
@@ -7208,16 +7080,14 @@ void deepcopy_VkRectLayerKHR(Allocator* alloc, VkStructureType rootType, const V
 void deepcopy_VkPresentRegionKHR(Allocator* alloc, VkStructureType rootType,
                                  const VkPresentRegionKHR* from, VkPresentRegionKHR* to) {
     *to = *from;
-    if (from) {
-        to->pRectangles = nullptr;
-        if (from->pRectangles) {
-            to->pRectangles =
-                (VkRectLayerKHR*)alloc->alloc(from->rectangleCount * sizeof(const VkRectLayerKHR));
-            to->rectangleCount = from->rectangleCount;
-            for (uint32_t i = 0; i < (uint32_t)from->rectangleCount; ++i) {
-                deepcopy_VkRectLayerKHR(alloc, rootType, from->pRectangles + i,
-                                        (VkRectLayerKHR*)(to->pRectangles + i));
-            }
+    to->pRectangles = nullptr;
+    if (from->pRectangles) {
+        to->pRectangles =
+            (VkRectLayerKHR*)alloc->alloc(from->rectangleCount * sizeof(const VkRectLayerKHR));
+        to->rectangleCount = from->rectangleCount;
+        for (uint32_t i = 0; i < (uint32_t)from->rectangleCount; ++i) {
+            deepcopy_VkRectLayerKHR(alloc, rootType, from->pRectangles + i,
+                                    (VkRectLayerKHR*)(to->pRectangles + i));
         }
     }
 }
@@ -7239,16 +7109,14 @@ void deepcopy_VkPresentRegionsKHR(Allocator* alloc, VkStructureType rootType,
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pRegions = nullptr;
-        if (from->pRegions) {
-            to->pRegions = (VkPresentRegionKHR*)alloc->alloc(from->swapchainCount *
-                                                             sizeof(const VkPresentRegionKHR));
-            to->swapchainCount = from->swapchainCount;
-            for (uint32_t i = 0; i < (uint32_t)from->swapchainCount; ++i) {
-                deepcopy_VkPresentRegionKHR(alloc, rootType, from->pRegions + i,
-                                            (VkPresentRegionKHR*)(to->pRegions + i));
-            }
+    to->pRegions = nullptr;
+    if (from->pRegions) {
+        to->pRegions = (VkPresentRegionKHR*)alloc->alloc(from->swapchainCount *
+                                                         sizeof(const VkPresentRegionKHR));
+        to->swapchainCount = from->swapchainCount;
+        for (uint32_t i = 0; i < (uint32_t)from->swapchainCount; ++i) {
+            deepcopy_VkPresentRegionKHR(alloc, rootType, from->pRegions + i,
+                                        (VkPresentRegionKHR*)(to->pRegions + i));
         }
     }
 }
@@ -7598,17 +7466,15 @@ void deepcopy_VkPhysicalDeviceLayeredApiPropertiesListKHR(
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pLayeredApis = nullptr;
-        if (from->pLayeredApis) {
-            to->pLayeredApis = (VkPhysicalDeviceLayeredApiPropertiesKHR*)alloc->alloc(
-                from->layeredApiCount * sizeof(VkPhysicalDeviceLayeredApiPropertiesKHR));
-            to->layeredApiCount = from->layeredApiCount;
-            for (uint32_t i = 0; i < (uint32_t)from->layeredApiCount; ++i) {
-                deepcopy_VkPhysicalDeviceLayeredApiPropertiesKHR(
-                    alloc, rootType, from->pLayeredApis + i,
-                    (VkPhysicalDeviceLayeredApiPropertiesKHR*)(to->pLayeredApis + i));
-            }
+    to->pLayeredApis = nullptr;
+    if (from->pLayeredApis) {
+        to->pLayeredApis = (VkPhysicalDeviceLayeredApiPropertiesKHR*)alloc->alloc(
+            from->layeredApiCount * sizeof(VkPhysicalDeviceLayeredApiPropertiesKHR));
+        to->layeredApiCount = from->layeredApiCount;
+        for (uint32_t i = 0; i < (uint32_t)from->layeredApiCount; ++i) {
+            deepcopy_VkPhysicalDeviceLayeredApiPropertiesKHR(
+                alloc, rootType, from->pLayeredApis + i,
+                (VkPhysicalDeviceLayeredApiPropertiesKHR*)(to->pLayeredApis + i));
         }
     }
 }
@@ -8016,17 +7882,15 @@ void deepcopy_VkDrmFormatModifierPropertiesListEXT(Allocator* alloc, VkStructure
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pDrmFormatModifierProperties = nullptr;
-        if (from->pDrmFormatModifierProperties) {
-            to->pDrmFormatModifierProperties = (VkDrmFormatModifierPropertiesEXT*)alloc->alloc(
-                from->drmFormatModifierCount * sizeof(VkDrmFormatModifierPropertiesEXT));
-            to->drmFormatModifierCount = from->drmFormatModifierCount;
-            for (uint32_t i = 0; i < (uint32_t)from->drmFormatModifierCount; ++i) {
-                deepcopy_VkDrmFormatModifierPropertiesEXT(
-                    alloc, rootType, from->pDrmFormatModifierProperties + i,
-                    (VkDrmFormatModifierPropertiesEXT*)(to->pDrmFormatModifierProperties + i));
-            }
+    to->pDrmFormatModifierProperties = nullptr;
+    if (from->pDrmFormatModifierProperties) {
+        to->pDrmFormatModifierProperties = (VkDrmFormatModifierPropertiesEXT*)alloc->alloc(
+            from->drmFormatModifierCount * sizeof(VkDrmFormatModifierPropertiesEXT));
+        to->drmFormatModifierCount = from->drmFormatModifierCount;
+        for (uint32_t i = 0; i < (uint32_t)from->drmFormatModifierCount; ++i) {
+            deepcopy_VkDrmFormatModifierPropertiesEXT(
+                alloc, rootType, from->pDrmFormatModifierProperties + i,
+                (VkDrmFormatModifierPropertiesEXT*)(to->pDrmFormatModifierProperties + i));
         }
     }
 }
@@ -8102,16 +7966,14 @@ void deepcopy_VkImageDrmFormatModifierExplicitCreateInfoEXT(
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pPlaneLayouts = nullptr;
-        if (from->pPlaneLayouts) {
-            to->pPlaneLayouts = (VkSubresourceLayout*)alloc->alloc(
-                from->drmFormatModifierPlaneCount * sizeof(const VkSubresourceLayout));
-            to->drmFormatModifierPlaneCount = from->drmFormatModifierPlaneCount;
-            for (uint32_t i = 0; i < (uint32_t)from->drmFormatModifierPlaneCount; ++i) {
-                deepcopy_VkSubresourceLayout(alloc, rootType, from->pPlaneLayouts + i,
-                                             (VkSubresourceLayout*)(to->pPlaneLayouts + i));
-            }
+    to->pPlaneLayouts = nullptr;
+    if (from->pPlaneLayouts) {
+        to->pPlaneLayouts = (VkSubresourceLayout*)alloc->alloc(from->drmFormatModifierPlaneCount *
+                                                               sizeof(const VkSubresourceLayout));
+        to->drmFormatModifierPlaneCount = from->drmFormatModifierPlaneCount;
+        for (uint32_t i = 0; i < (uint32_t)from->drmFormatModifierPlaneCount; ++i) {
+            deepcopy_VkSubresourceLayout(alloc, rootType, from->pPlaneLayouts + i,
+                                         (VkSubresourceLayout*)(to->pPlaneLayouts + i));
         }
     }
 }
@@ -8160,17 +8022,15 @@ void deepcopy_VkDrmFormatModifierPropertiesList2EXT(
         to->pNext = (void*)alloc->alloc(pNext_size);
         deepcopy_extension_struct(alloc, rootType, from_pNext, (void*)(to->pNext));
     }
-    if (from) {
-        to->pDrmFormatModifierProperties = nullptr;
-        if (from->pDrmFormatModifierProperties) {
-            to->pDrmFormatModifierProperties = (VkDrmFormatModifierProperties2EXT*)alloc->alloc(
-                from->drmFormatModifierCount * sizeof(VkDrmFormatModifierProperties2EXT));
-            to->drmFormatModifierCount = from->drmFormatModifierCount;
-            for (uint32_t i = 0; i < (uint32_t)from->drmFormatModifierCount; ++i) {
-                deepcopy_VkDrmFormatModifierProperties2EXT(
-                    alloc, rootType, from->pDrmFormatModifierProperties + i,
-                    (VkDrmFormatModifierProperties2EXT*)(to->pDrmFormatModifierProperties + i));
-            }
+    to->pDrmFormatModifierProperties = nullptr;
+    if (from->pDrmFormatModifierProperties) {
+        to->pDrmFormatModifierProperties = (VkDrmFormatModifierProperties2EXT*)alloc->alloc(
+            from->drmFormatModifierCount * sizeof(VkDrmFormatModifierProperties2EXT));
+        to->drmFormatModifierCount = from->drmFormatModifierCount;
+        for (uint32_t i = 0; i < (uint32_t)from->drmFormatModifierCount; ++i) {
+            deepcopy_VkDrmFormatModifierProperties2EXT(
+                alloc, rootType, from->pDrmFormatModifierProperties + i,
+                (VkDrmFormatModifierProperties2EXT*)(to->pDrmFormatModifierProperties + i));
         }
     }
 }

@@ -194,10 +194,10 @@ void reservedmarshal_VkInstanceCreateInfo(VulkanStreamGuest* vkStream, VkStructu
     }
     writeStreamBytes(ptr, &forMarshaling->enabledLayerCount, sizeof(uint32_t));
     putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledLayerNames,
-                                forMarshaling ? forMarshaling->enabledLayerCount : 0);
+                                forMarshaling->enabledLayerCount);
     writeStreamBytes(ptr, &forMarshaling->enabledExtensionCount, sizeof(uint32_t));
     putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledExtensionNames,
-                                forMarshaling ? forMarshaling->enabledExtensionCount : 0);
+                                forMarshaling->enabledExtensionCount);
 }
 
 void reservedmarshal_VkMemoryHeap(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -495,10 +495,10 @@ void reservedmarshal_VkDeviceCreateInfo(VulkanStreamGuest* vkStream, VkStructure
     }
     writeStreamBytes(ptr, &forMarshaling->enabledLayerCount, sizeof(uint32_t));
     putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledLayerNames,
-                                forMarshaling ? forMarshaling->enabledLayerCount : 0);
+                                forMarshaling->enabledLayerCount);
     writeStreamBytes(ptr, &forMarshaling->enabledExtensionCount, sizeof(uint32_t));
     putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledExtensionNames,
-                                forMarshaling ? forMarshaling->enabledExtensionCount : 0);
+                                forMarshaling->enabledExtensionCount);
     putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pEnabledFeatures);
     if (forMarshaling->pEnabledFeatures) {
         reservedmarshal_VkPhysicalDeviceFeatures(

@@ -671,9 +671,11 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
 
                 self.cgen.stmt("uint32_t c = 0")
                 if lenAccess is not None:
-                    self.cgen.beginIf(lenAccessGuard)
+                    if lenAccessGuard is not None:
+                        self.cgen.beginIf(lenAccessGuard)
                     self.cgen.stmt("c = %s" % (lenAccess))
-                    self.cgen.endIf()
+                    if lenAccessGuard is not None:
+                        self.cgen.endIf()
 
                 self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&c", "sizeof(uint32_t)", toBe = True, actualSize = 4)
                 self.cgen.beginFor("uint32_t i = 0", "i < c", "++i")

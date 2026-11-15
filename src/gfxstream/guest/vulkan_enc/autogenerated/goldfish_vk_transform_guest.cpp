@@ -224,13 +224,10 @@ void transform_tohost_VkDeviceCreateInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pQueueCreateInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->queueCreateInfoCount; ++i) {
-                transform_tohost_VkDeviceQueueCreateInfo(
-                    resourceTracker,
-                    (VkDeviceQueueCreateInfo*)(toTransform->pQueueCreateInfos + i));
-            }
+    if (toTransform->pQueueCreateInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->queueCreateInfoCount; ++i) {
+            transform_tohost_VkDeviceQueueCreateInfo(
+                resourceTracker, (VkDeviceQueueCreateInfo*)(toTransform->pQueueCreateInfos + i));
         }
     }
 }
@@ -240,13 +237,10 @@ void transform_fromhost_VkDeviceCreateInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pQueueCreateInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->queueCreateInfoCount; ++i) {
-                transform_fromhost_VkDeviceQueueCreateInfo(
-                    resourceTracker,
-                    (VkDeviceQueueCreateInfo*)(toTransform->pQueueCreateInfos + i));
-            }
+    if (toTransform->pQueueCreateInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->queueCreateInfoCount; ++i) {
+            transform_fromhost_VkDeviceQueueCreateInfo(
+                resourceTracker, (VkDeviceQueueCreateInfo*)(toTransform->pQueueCreateInfos + i));
         }
     }
 }
@@ -357,24 +351,20 @@ void transform_fromhost_VkSparseImageMemoryBind(ResourceTracker* resourceTracker
 
 void transform_tohost_VkSparseImageMemoryBindInfo(ResourceTracker* resourceTracker,
                                                   VkSparseImageMemoryBindInfo* toTransform) {
-    if (toTransform) {
-        if (toTransform->pBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
-                transform_tohost_VkSparseImageMemoryBind(
-                    resourceTracker, (VkSparseImageMemoryBind*)(toTransform->pBinds + i));
-            }
+    if (toTransform->pBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
+            transform_tohost_VkSparseImageMemoryBind(
+                resourceTracker, (VkSparseImageMemoryBind*)(toTransform->pBinds + i));
         }
     }
 }
 
 void transform_fromhost_VkSparseImageMemoryBindInfo(ResourceTracker* resourceTracker,
                                                     VkSparseImageMemoryBindInfo* toTransform) {
-    if (toTransform) {
-        if (toTransform->pBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
-                transform_fromhost_VkSparseImageMemoryBind(
-                    resourceTracker, (VkSparseImageMemoryBind*)(toTransform->pBinds + i));
-            }
+    if (toTransform->pBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
+            transform_fromhost_VkSparseImageMemoryBind(
+                resourceTracker, (VkSparseImageMemoryBind*)(toTransform->pBinds + i));
         }
     }
 }
@@ -401,48 +391,40 @@ void transform_fromhost_VkSparseMemoryBind(ResourceTracker* resourceTracker,
 
 void transform_tohost_VkSparseBufferMemoryBindInfo(ResourceTracker* resourceTracker,
                                                    VkSparseBufferMemoryBindInfo* toTransform) {
-    if (toTransform) {
-        if (toTransform->pBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
-                transform_tohost_VkSparseMemoryBind(resourceTracker,
-                                                    (VkSparseMemoryBind*)(toTransform->pBinds + i));
-            }
+    if (toTransform->pBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
+            transform_tohost_VkSparseMemoryBind(resourceTracker,
+                                                (VkSparseMemoryBind*)(toTransform->pBinds + i));
         }
     }
 }
 
 void transform_fromhost_VkSparseBufferMemoryBindInfo(ResourceTracker* resourceTracker,
                                                      VkSparseBufferMemoryBindInfo* toTransform) {
-    if (toTransform) {
-        if (toTransform->pBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
-                transform_fromhost_VkSparseMemoryBind(
-                    resourceTracker, (VkSparseMemoryBind*)(toTransform->pBinds + i));
-            }
+    if (toTransform->pBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
+            transform_fromhost_VkSparseMemoryBind(resourceTracker,
+                                                  (VkSparseMemoryBind*)(toTransform->pBinds + i));
         }
     }
 }
 
 void transform_tohost_VkSparseImageOpaqueMemoryBindInfo(
     ResourceTracker* resourceTracker, VkSparseImageOpaqueMemoryBindInfo* toTransform) {
-    if (toTransform) {
-        if (toTransform->pBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
-                transform_tohost_VkSparseMemoryBind(resourceTracker,
-                                                    (VkSparseMemoryBind*)(toTransform->pBinds + i));
-            }
+    if (toTransform->pBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
+            transform_tohost_VkSparseMemoryBind(resourceTracker,
+                                                (VkSparseMemoryBind*)(toTransform->pBinds + i));
         }
     }
 }
 
 void transform_fromhost_VkSparseImageOpaqueMemoryBindInfo(
     ResourceTracker* resourceTracker, VkSparseImageOpaqueMemoryBindInfo* toTransform) {
-    if (toTransform) {
-        if (toTransform->pBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
-                transform_fromhost_VkSparseMemoryBind(
-                    resourceTracker, (VkSparseMemoryBind*)(toTransform->pBinds + i));
-            }
+    if (toTransform->pBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bindCount; ++i) {
+            transform_fromhost_VkSparseMemoryBind(resourceTracker,
+                                                  (VkSparseMemoryBind*)(toTransform->pBinds + i));
         }
     }
 }
@@ -452,30 +434,23 @@ void transform_tohost_VkBindSparseInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pBufferBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bufferBindCount; ++i) {
-                transform_tohost_VkSparseBufferMemoryBindInfo(
-                    resourceTracker,
-                    (VkSparseBufferMemoryBindInfo*)(toTransform->pBufferBinds + i));
-            }
+    if (toTransform->pBufferBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bufferBindCount; ++i) {
+            transform_tohost_VkSparseBufferMemoryBindInfo(
+                resourceTracker, (VkSparseBufferMemoryBindInfo*)(toTransform->pBufferBinds + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pImageOpaqueBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->imageOpaqueBindCount; ++i) {
-                transform_tohost_VkSparseImageOpaqueMemoryBindInfo(
-                    resourceTracker,
-                    (VkSparseImageOpaqueMemoryBindInfo*)(toTransform->pImageOpaqueBinds + i));
-            }
+    if (toTransform->pImageOpaqueBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->imageOpaqueBindCount; ++i) {
+            transform_tohost_VkSparseImageOpaqueMemoryBindInfo(
+                resourceTracker,
+                (VkSparseImageOpaqueMemoryBindInfo*)(toTransform->pImageOpaqueBinds + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pImageBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->imageBindCount; ++i) {
-                transform_tohost_VkSparseImageMemoryBindInfo(
-                    resourceTracker, (VkSparseImageMemoryBindInfo*)(toTransform->pImageBinds + i));
-            }
+    if (toTransform->pImageBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->imageBindCount; ++i) {
+            transform_tohost_VkSparseImageMemoryBindInfo(
+                resourceTracker, (VkSparseImageMemoryBindInfo*)(toTransform->pImageBinds + i));
         }
     }
 }
@@ -485,30 +460,23 @@ void transform_fromhost_VkBindSparseInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pBufferBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bufferBindCount; ++i) {
-                transform_fromhost_VkSparseBufferMemoryBindInfo(
-                    resourceTracker,
-                    (VkSparseBufferMemoryBindInfo*)(toTransform->pBufferBinds + i));
-            }
+    if (toTransform->pBufferBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bufferBindCount; ++i) {
+            transform_fromhost_VkSparseBufferMemoryBindInfo(
+                resourceTracker, (VkSparseBufferMemoryBindInfo*)(toTransform->pBufferBinds + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pImageOpaqueBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->imageOpaqueBindCount; ++i) {
-                transform_fromhost_VkSparseImageOpaqueMemoryBindInfo(
-                    resourceTracker,
-                    (VkSparseImageOpaqueMemoryBindInfo*)(toTransform->pImageOpaqueBinds + i));
-            }
+    if (toTransform->pImageOpaqueBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->imageOpaqueBindCount; ++i) {
+            transform_fromhost_VkSparseImageOpaqueMemoryBindInfo(
+                resourceTracker,
+                (VkSparseImageOpaqueMemoryBindInfo*)(toTransform->pImageOpaqueBinds + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pImageBinds) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->imageBindCount; ++i) {
-                transform_fromhost_VkSparseImageMemoryBindInfo(
-                    resourceTracker, (VkSparseImageMemoryBindInfo*)(toTransform->pImageBinds + i));
-            }
+    if (toTransform->pImageBinds) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->imageBindCount; ++i) {
+            transform_fromhost_VkSparseImageMemoryBindInfo(
+                resourceTracker, (VkSparseImageMemoryBindInfo*)(toTransform->pImageBinds + i));
         }
     }
 }
@@ -1162,12 +1130,10 @@ void transform_tohost_VkGraphicsPipelineCreateInfo(ResourceTracker* resourceTrac
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pStages) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->stageCount; ++i) {
-                transform_tohost_VkPipelineShaderStageCreateInfo(
-                    resourceTracker, (VkPipelineShaderStageCreateInfo*)(toTransform->pStages + i));
-            }
+    if (toTransform->pStages) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->stageCount; ++i) {
+            transform_tohost_VkPipelineShaderStageCreateInfo(
+                resourceTracker, (VkPipelineShaderStageCreateInfo*)(toTransform->pStages + i));
         }
     }
     if (toTransform->pVertexInputState) {
@@ -1219,12 +1185,10 @@ void transform_fromhost_VkGraphicsPipelineCreateInfo(ResourceTracker* resourceTr
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pStages) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->stageCount; ++i) {
-                transform_fromhost_VkPipelineShaderStageCreateInfo(
-                    resourceTracker, (VkPipelineShaderStageCreateInfo*)(toTransform->pStages + i));
-            }
+    if (toTransform->pStages) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->stageCount; ++i) {
+            transform_fromhost_VkPipelineShaderStageCreateInfo(
+                resourceTracker, (VkPipelineShaderStageCreateInfo*)(toTransform->pStages + i));
         }
     }
     if (toTransform->pVertexInputState) {
@@ -2856,29 +2820,22 @@ void transform_tohost_VkSubpassDescription2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pInputAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->inputAttachmentCount; ++i) {
-                transform_tohost_VkAttachmentReference2(
-                    resourceTracker, (VkAttachmentReference2*)(toTransform->pInputAttachments + i));
-            }
+    if (toTransform->pInputAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->inputAttachmentCount; ++i) {
+            transform_tohost_VkAttachmentReference2(
+                resourceTracker, (VkAttachmentReference2*)(toTransform->pInputAttachments + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pColorAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
-                transform_tohost_VkAttachmentReference2(
-                    resourceTracker, (VkAttachmentReference2*)(toTransform->pColorAttachments + i));
-            }
+    if (toTransform->pColorAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
+            transform_tohost_VkAttachmentReference2(
+                resourceTracker, (VkAttachmentReference2*)(toTransform->pColorAttachments + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pResolveAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
-                transform_tohost_VkAttachmentReference2(
-                    resourceTracker,
-                    (VkAttachmentReference2*)(toTransform->pResolveAttachments + i));
-            }
+    if (toTransform->pResolveAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
+            transform_tohost_VkAttachmentReference2(
+                resourceTracker, (VkAttachmentReference2*)(toTransform->pResolveAttachments + i));
         }
     }
     if (toTransform->pDepthStencilAttachment) {
@@ -2892,29 +2849,22 @@ void transform_fromhost_VkSubpassDescription2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pInputAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->inputAttachmentCount; ++i) {
-                transform_fromhost_VkAttachmentReference2(
-                    resourceTracker, (VkAttachmentReference2*)(toTransform->pInputAttachments + i));
-            }
+    if (toTransform->pInputAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->inputAttachmentCount; ++i) {
+            transform_fromhost_VkAttachmentReference2(
+                resourceTracker, (VkAttachmentReference2*)(toTransform->pInputAttachments + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pColorAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
-                transform_fromhost_VkAttachmentReference2(
-                    resourceTracker, (VkAttachmentReference2*)(toTransform->pColorAttachments + i));
-            }
+    if (toTransform->pColorAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
+            transform_fromhost_VkAttachmentReference2(
+                resourceTracker, (VkAttachmentReference2*)(toTransform->pColorAttachments + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pResolveAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
-                transform_fromhost_VkAttachmentReference2(
-                    resourceTracker,
-                    (VkAttachmentReference2*)(toTransform->pResolveAttachments + i));
-            }
+    if (toTransform->pResolveAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
+            transform_fromhost_VkAttachmentReference2(
+                resourceTracker, (VkAttachmentReference2*)(toTransform->pResolveAttachments + i));
         }
     }
     if (toTransform->pDepthStencilAttachment) {
@@ -2970,28 +2920,22 @@ void transform_tohost_VkRenderPassCreateInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentCount; ++i) {
-                transform_tohost_VkAttachmentDescription2(
-                    resourceTracker, (VkAttachmentDescription2*)(toTransform->pAttachments + i));
-            }
+    if (toTransform->pAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentCount; ++i) {
+            transform_tohost_VkAttachmentDescription2(
+                resourceTracker, (VkAttachmentDescription2*)(toTransform->pAttachments + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pSubpasses) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->subpassCount; ++i) {
-                transform_tohost_VkSubpassDescription2(
-                    resourceTracker, (VkSubpassDescription2*)(toTransform->pSubpasses + i));
-            }
+    if (toTransform->pSubpasses) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->subpassCount; ++i) {
+            transform_tohost_VkSubpassDescription2(
+                resourceTracker, (VkSubpassDescription2*)(toTransform->pSubpasses + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pDependencies) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->dependencyCount; ++i) {
-                transform_tohost_VkSubpassDependency2(
-                    resourceTracker, (VkSubpassDependency2*)(toTransform->pDependencies + i));
-            }
+    if (toTransform->pDependencies) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->dependencyCount; ++i) {
+            transform_tohost_VkSubpassDependency2(
+                resourceTracker, (VkSubpassDependency2*)(toTransform->pDependencies + i));
         }
     }
 }
@@ -3001,28 +2945,22 @@ void transform_fromhost_VkRenderPassCreateInfo2(ResourceTracker* resourceTracker
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentCount; ++i) {
-                transform_fromhost_VkAttachmentDescription2(
-                    resourceTracker, (VkAttachmentDescription2*)(toTransform->pAttachments + i));
-            }
+    if (toTransform->pAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentCount; ++i) {
+            transform_fromhost_VkAttachmentDescription2(
+                resourceTracker, (VkAttachmentDescription2*)(toTransform->pAttachments + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pSubpasses) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->subpassCount; ++i) {
-                transform_fromhost_VkSubpassDescription2(
-                    resourceTracker, (VkSubpassDescription2*)(toTransform->pSubpasses + i));
-            }
+    if (toTransform->pSubpasses) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->subpassCount; ++i) {
+            transform_fromhost_VkSubpassDescription2(
+                resourceTracker, (VkSubpassDescription2*)(toTransform->pSubpasses + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pDependencies) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->dependencyCount; ++i) {
-                transform_fromhost_VkSubpassDependency2(
-                    resourceTracker, (VkSubpassDependency2*)(toTransform->pDependencies + i));
-            }
+    if (toTransform->pDependencies) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->dependencyCount; ++i) {
+            transform_fromhost_VkSubpassDependency2(
+                resourceTracker, (VkSubpassDependency2*)(toTransform->pDependencies + i));
         }
     }
 }
@@ -3126,13 +3064,11 @@ void transform_tohost_VkFramebufferAttachmentsCreateInfo(
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pAttachmentImageInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentImageInfoCount; ++i) {
-                transform_tohost_VkFramebufferAttachmentImageInfo(
-                    resourceTracker,
-                    (VkFramebufferAttachmentImageInfo*)(toTransform->pAttachmentImageInfos + i));
-            }
+    if (toTransform->pAttachmentImageInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentImageInfoCount; ++i) {
+            transform_tohost_VkFramebufferAttachmentImageInfo(
+                resourceTracker,
+                (VkFramebufferAttachmentImageInfo*)(toTransform->pAttachmentImageInfos + i));
         }
     }
 }
@@ -3142,13 +3078,11 @@ void transform_fromhost_VkFramebufferAttachmentsCreateInfo(
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pAttachmentImageInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentImageInfoCount; ++i) {
-                transform_fromhost_VkFramebufferAttachmentImageInfo(
-                    resourceTracker,
-                    (VkFramebufferAttachmentImageInfo*)(toTransform->pAttachmentImageInfos + i));
-            }
+    if (toTransform->pAttachmentImageInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->attachmentImageInfoCount; ++i) {
+            transform_fromhost_VkFramebufferAttachmentImageInfo(
+                resourceTracker,
+                (VkFramebufferAttachmentImageInfo*)(toTransform->pAttachmentImageInfos + i));
         }
     }
 }
@@ -3330,30 +3264,22 @@ void transform_tohost_VkDependencyInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pMemoryBarriers) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->memoryBarrierCount; ++i) {
-                transform_tohost_VkMemoryBarrier2(
-                    resourceTracker, (VkMemoryBarrier2*)(toTransform->pMemoryBarriers + i));
-            }
+    if (toTransform->pMemoryBarriers) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->memoryBarrierCount; ++i) {
+            transform_tohost_VkMemoryBarrier2(
+                resourceTracker, (VkMemoryBarrier2*)(toTransform->pMemoryBarriers + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pBufferMemoryBarriers) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bufferMemoryBarrierCount; ++i) {
-                transform_tohost_VkBufferMemoryBarrier2(
-                    resourceTracker,
-                    (VkBufferMemoryBarrier2*)(toTransform->pBufferMemoryBarriers + i));
-            }
+    if (toTransform->pBufferMemoryBarriers) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bufferMemoryBarrierCount; ++i) {
+            transform_tohost_VkBufferMemoryBarrier2(
+                resourceTracker, (VkBufferMemoryBarrier2*)(toTransform->pBufferMemoryBarriers + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pImageMemoryBarriers) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->imageMemoryBarrierCount; ++i) {
-                transform_tohost_VkImageMemoryBarrier2(
-                    resourceTracker,
-                    (VkImageMemoryBarrier2*)(toTransform->pImageMemoryBarriers + i));
-            }
+    if (toTransform->pImageMemoryBarriers) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->imageMemoryBarrierCount; ++i) {
+            transform_tohost_VkImageMemoryBarrier2(
+                resourceTracker, (VkImageMemoryBarrier2*)(toTransform->pImageMemoryBarriers + i));
         }
     }
 }
@@ -3363,30 +3289,22 @@ void transform_fromhost_VkDependencyInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pMemoryBarriers) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->memoryBarrierCount; ++i) {
-                transform_fromhost_VkMemoryBarrier2(
-                    resourceTracker, (VkMemoryBarrier2*)(toTransform->pMemoryBarriers + i));
-            }
+    if (toTransform->pMemoryBarriers) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->memoryBarrierCount; ++i) {
+            transform_fromhost_VkMemoryBarrier2(
+                resourceTracker, (VkMemoryBarrier2*)(toTransform->pMemoryBarriers + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pBufferMemoryBarriers) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->bufferMemoryBarrierCount; ++i) {
-                transform_fromhost_VkBufferMemoryBarrier2(
-                    resourceTracker,
-                    (VkBufferMemoryBarrier2*)(toTransform->pBufferMemoryBarriers + i));
-            }
+    if (toTransform->pBufferMemoryBarriers) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->bufferMemoryBarrierCount; ++i) {
+            transform_fromhost_VkBufferMemoryBarrier2(
+                resourceTracker, (VkBufferMemoryBarrier2*)(toTransform->pBufferMemoryBarriers + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pImageMemoryBarriers) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->imageMemoryBarrierCount; ++i) {
-                transform_fromhost_VkImageMemoryBarrier2(
-                    resourceTracker,
-                    (VkImageMemoryBarrier2*)(toTransform->pImageMemoryBarriers + i));
-            }
+    if (toTransform->pImageMemoryBarriers) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->imageMemoryBarrierCount; ++i) {
+            transform_fromhost_VkImageMemoryBarrier2(
+                resourceTracker, (VkImageMemoryBarrier2*)(toTransform->pImageMemoryBarriers + i));
         }
     }
 }
@@ -3423,31 +3341,23 @@ void transform_tohost_VkSubmitInfo2(ResourceTracker* resourceTracker, VkSubmitIn
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pWaitSemaphoreInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->waitSemaphoreInfoCount; ++i) {
-                transform_tohost_VkSemaphoreSubmitInfo(
-                    resourceTracker,
-                    (VkSemaphoreSubmitInfo*)(toTransform->pWaitSemaphoreInfos + i));
-            }
+    if (toTransform->pWaitSemaphoreInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->waitSemaphoreInfoCount; ++i) {
+            transform_tohost_VkSemaphoreSubmitInfo(
+                resourceTracker, (VkSemaphoreSubmitInfo*)(toTransform->pWaitSemaphoreInfos + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pCommandBufferInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->commandBufferInfoCount; ++i) {
-                transform_tohost_VkCommandBufferSubmitInfo(
-                    resourceTracker,
-                    (VkCommandBufferSubmitInfo*)(toTransform->pCommandBufferInfos + i));
-            }
+    if (toTransform->pCommandBufferInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->commandBufferInfoCount; ++i) {
+            transform_tohost_VkCommandBufferSubmitInfo(
+                resourceTracker,
+                (VkCommandBufferSubmitInfo*)(toTransform->pCommandBufferInfos + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pSignalSemaphoreInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->signalSemaphoreInfoCount; ++i) {
-                transform_tohost_VkSemaphoreSubmitInfo(
-                    resourceTracker,
-                    (VkSemaphoreSubmitInfo*)(toTransform->pSignalSemaphoreInfos + i));
-            }
+    if (toTransform->pSignalSemaphoreInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->signalSemaphoreInfoCount; ++i) {
+            transform_tohost_VkSemaphoreSubmitInfo(
+                resourceTracker, (VkSemaphoreSubmitInfo*)(toTransform->pSignalSemaphoreInfos + i));
         }
     }
 }
@@ -3457,31 +3367,23 @@ void transform_fromhost_VkSubmitInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pWaitSemaphoreInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->waitSemaphoreInfoCount; ++i) {
-                transform_fromhost_VkSemaphoreSubmitInfo(
-                    resourceTracker,
-                    (VkSemaphoreSubmitInfo*)(toTransform->pWaitSemaphoreInfos + i));
-            }
+    if (toTransform->pWaitSemaphoreInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->waitSemaphoreInfoCount; ++i) {
+            transform_fromhost_VkSemaphoreSubmitInfo(
+                resourceTracker, (VkSemaphoreSubmitInfo*)(toTransform->pWaitSemaphoreInfos + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pCommandBufferInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->commandBufferInfoCount; ++i) {
-                transform_fromhost_VkCommandBufferSubmitInfo(
-                    resourceTracker,
-                    (VkCommandBufferSubmitInfo*)(toTransform->pCommandBufferInfos + i));
-            }
+    if (toTransform->pCommandBufferInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->commandBufferInfoCount; ++i) {
+            transform_fromhost_VkCommandBufferSubmitInfo(
+                resourceTracker,
+                (VkCommandBufferSubmitInfo*)(toTransform->pCommandBufferInfos + i));
         }
     }
-    if (toTransform) {
-        if (toTransform->pSignalSemaphoreInfos) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->signalSemaphoreInfoCount; ++i) {
-                transform_fromhost_VkSemaphoreSubmitInfo(
-                    resourceTracker,
-                    (VkSemaphoreSubmitInfo*)(toTransform->pSignalSemaphoreInfos + i));
-            }
+    if (toTransform->pSignalSemaphoreInfos) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->signalSemaphoreInfoCount; ++i) {
+            transform_fromhost_VkSemaphoreSubmitInfo(
+                resourceTracker, (VkSemaphoreSubmitInfo*)(toTransform->pSignalSemaphoreInfos + i));
         }
     }
 }
@@ -3518,12 +3420,10 @@ void transform_tohost_VkCopyBufferInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkBufferCopy2(resourceTracker,
-                                               (VkBufferCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkBufferCopy2(resourceTracker,
+                                           (VkBufferCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3533,12 +3433,10 @@ void transform_fromhost_VkCopyBufferInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkBufferCopy2(resourceTracker,
-                                                 (VkBufferCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkBufferCopy2(resourceTracker,
+                                             (VkBufferCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3560,12 +3458,10 @@ void transform_tohost_VkCopyImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkImageCopy2(resourceTracker,
-                                              (VkImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkImageCopy2(resourceTracker,
+                                          (VkImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3575,12 +3471,10 @@ void transform_fromhost_VkCopyImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkImageCopy2(resourceTracker,
-                                                (VkImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkImageCopy2(resourceTracker,
+                                            (VkImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3604,12 +3498,10 @@ void transform_tohost_VkCopyBufferToImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkBufferImageCopy2(
-                    resourceTracker, (VkBufferImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkBufferImageCopy2(resourceTracker,
+                                                (VkBufferImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3619,12 +3511,10 @@ void transform_fromhost_VkCopyBufferToImageInfo2(ResourceTracker* resourceTracke
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkBufferImageCopy2(
-                    resourceTracker, (VkBufferImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkBufferImageCopy2(resourceTracker,
+                                                  (VkBufferImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3634,12 +3524,10 @@ void transform_tohost_VkCopyImageToBufferInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkBufferImageCopy2(
-                    resourceTracker, (VkBufferImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkBufferImageCopy2(resourceTracker,
+                                                (VkBufferImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -3649,12 +3537,10 @@ void transform_fromhost_VkCopyImageToBufferInfo2(ResourceTracker* resourceTracke
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkBufferImageCopy2(
-                    resourceTracker, (VkBufferImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkBufferImageCopy2(resourceTracker,
+                                                  (VkBufferImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4028,12 +3914,10 @@ void transform_tohost_VkBlitImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkImageBlit2(resourceTracker,
-                                              (VkImageBlit2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkImageBlit2(resourceTracker,
+                                          (VkImageBlit2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4043,12 +3927,10 @@ void transform_fromhost_VkBlitImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkImageBlit2(resourceTracker,
-                                                (VkImageBlit2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkImageBlit2(resourceTracker,
+                                            (VkImageBlit2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4072,12 +3954,10 @@ void transform_tohost_VkResolveImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkImageResolve2(resourceTracker,
-                                                 (VkImageResolve2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkImageResolve2(resourceTracker,
+                                             (VkImageResolve2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4087,12 +3967,10 @@ void transform_fromhost_VkResolveImageInfo2(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkImageResolve2(resourceTracker,
-                                                   (VkImageResolve2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkImageResolve2(resourceTracker,
+                                               (VkImageResolve2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4116,13 +3994,10 @@ void transform_tohost_VkRenderingInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pColorAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
-                transform_tohost_VkRenderingAttachmentInfo(
-                    resourceTracker,
-                    (VkRenderingAttachmentInfo*)(toTransform->pColorAttachments + i));
-            }
+    if (toTransform->pColorAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
+            transform_tohost_VkRenderingAttachmentInfo(
+                resourceTracker, (VkRenderingAttachmentInfo*)(toTransform->pColorAttachments + i));
         }
     }
     if (toTransform->pDepthAttachment) {
@@ -4140,13 +4015,10 @@ void transform_fromhost_VkRenderingInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pColorAttachments) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
-                transform_fromhost_VkRenderingAttachmentInfo(
-                    resourceTracker,
-                    (VkRenderingAttachmentInfo*)(toTransform->pColorAttachments + i));
-            }
+    if (toTransform->pColorAttachments) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->colorAttachmentCount; ++i) {
+            transform_fromhost_VkRenderingAttachmentInfo(
+                resourceTracker, (VkRenderingAttachmentInfo*)(toTransform->pColorAttachments + i));
         }
     }
     if (toTransform->pDepthAttachment) {
@@ -4520,14 +4392,12 @@ void transform_tohost_VkCopyMemoryToImageInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            resourceTracker->transformImpl_VkMemoryToImageCopy_tohost(toTransform->pRegions,
-                                                                      toTransform->regionCount);
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkMemoryToImageCopy(
-                    resourceTracker, (VkMemoryToImageCopy*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        resourceTracker->transformImpl_VkMemoryToImageCopy_tohost(toTransform->pRegions,
+                                                                  toTransform->regionCount);
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkMemoryToImageCopy(resourceTracker,
+                                                 (VkMemoryToImageCopy*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4537,14 +4407,12 @@ void transform_fromhost_VkCopyMemoryToImageInfo(ResourceTracker* resourceTracker
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            resourceTracker->transformImpl_VkMemoryToImageCopy_fromhost(toTransform->pRegions,
-                                                                        toTransform->regionCount);
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkMemoryToImageCopy(
-                    resourceTracker, (VkMemoryToImageCopy*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        resourceTracker->transformImpl_VkMemoryToImageCopy_fromhost(toTransform->pRegions,
+                                                                    toTransform->regionCount);
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkMemoryToImageCopy(
+                resourceTracker, (VkMemoryToImageCopy*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4554,14 +4422,12 @@ void transform_tohost_VkCopyImageToMemoryInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            resourceTracker->transformImpl_VkImageToMemoryCopy_tohost(toTransform->pRegions,
-                                                                      toTransform->regionCount);
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkImageToMemoryCopy(
-                    resourceTracker, (VkImageToMemoryCopy*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        resourceTracker->transformImpl_VkImageToMemoryCopy_tohost(toTransform->pRegions,
+                                                                  toTransform->regionCount);
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkImageToMemoryCopy(resourceTracker,
+                                                 (VkImageToMemoryCopy*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4571,14 +4437,12 @@ void transform_fromhost_VkCopyImageToMemoryInfo(ResourceTracker* resourceTracker
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            resourceTracker->transformImpl_VkImageToMemoryCopy_fromhost(toTransform->pRegions,
-                                                                        toTransform->regionCount);
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkImageToMemoryCopy(
-                    resourceTracker, (VkImageToMemoryCopy*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        resourceTracker->transformImpl_VkImageToMemoryCopy_fromhost(toTransform->pRegions,
+                                                                    toTransform->regionCount);
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkImageToMemoryCopy(
+                resourceTracker, (VkImageToMemoryCopy*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4588,12 +4452,10 @@ void transform_tohost_VkCopyImageToImageInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_tohost_VkImageCopy2(resourceTracker,
-                                              (VkImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_tohost_VkImageCopy2(resourceTracker,
+                                          (VkImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4603,12 +4465,10 @@ void transform_fromhost_VkCopyImageToImageInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pRegions) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
-                transform_fromhost_VkImageCopy2(resourceTracker,
-                                                (VkImageCopy2*)(toTransform->pRegions + i));
-            }
+    if (toTransform->pRegions) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->regionCount; ++i) {
+            transform_fromhost_VkImageCopy2(resourceTracker,
+                                            (VkImageCopy2*)(toTransform->pRegions + i));
         }
     }
 }
@@ -4760,12 +4620,10 @@ void transform_tohost_VkPushDescriptorSetInfo(ResourceTracker* resourceTracker,
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pDescriptorWrites) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->descriptorWriteCount; ++i) {
-                transform_tohost_VkWriteDescriptorSet(
-                    resourceTracker, (VkWriteDescriptorSet*)(toTransform->pDescriptorWrites + i));
-            }
+    if (toTransform->pDescriptorWrites) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->descriptorWriteCount; ++i) {
+            transform_tohost_VkWriteDescriptorSet(
+                resourceTracker, (VkWriteDescriptorSet*)(toTransform->pDescriptorWrites + i));
         }
     }
 }
@@ -4775,12 +4633,10 @@ void transform_fromhost_VkPushDescriptorSetInfo(ResourceTracker* resourceTracker
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pDescriptorWrites) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->descriptorWriteCount; ++i) {
-                transform_fromhost_VkWriteDescriptorSet(
-                    resourceTracker, (VkWriteDescriptorSet*)(toTransform->pDescriptorWrites + i));
-            }
+    if (toTransform->pDescriptorWrites) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->descriptorWriteCount; ++i) {
+            transform_fromhost_VkWriteDescriptorSet(
+                resourceTracker, (VkWriteDescriptorSet*)(toTransform->pDescriptorWrites + i));
         }
     }
 }
@@ -5286,13 +5142,11 @@ void transform_tohost_VkPhysicalDeviceLayeredApiPropertiesListKHR(
     if (toTransform->pNext) {
         transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pLayeredApis) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->layeredApiCount; ++i) {
-                transform_tohost_VkPhysicalDeviceLayeredApiPropertiesKHR(
-                    resourceTracker,
-                    (VkPhysicalDeviceLayeredApiPropertiesKHR*)(toTransform->pLayeredApis + i));
-            }
+    if (toTransform->pLayeredApis) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->layeredApiCount; ++i) {
+            transform_tohost_VkPhysicalDeviceLayeredApiPropertiesKHR(
+                resourceTracker,
+                (VkPhysicalDeviceLayeredApiPropertiesKHR*)(toTransform->pLayeredApis + i));
         }
     }
 }
@@ -5302,13 +5156,11 @@ void transform_fromhost_VkPhysicalDeviceLayeredApiPropertiesListKHR(
     if (toTransform->pNext) {
         transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
     }
-    if (toTransform) {
-        if (toTransform->pLayeredApis) {
-            for (uint32_t i = 0; i < (uint32_t)toTransform->layeredApiCount; ++i) {
-                transform_fromhost_VkPhysicalDeviceLayeredApiPropertiesKHR(
-                    resourceTracker,
-                    (VkPhysicalDeviceLayeredApiPropertiesKHR*)(toTransform->pLayeredApis + i));
-            }
+    if (toTransform->pLayeredApis) {
+        for (uint32_t i = 0; i < (uint32_t)toTransform->layeredApiCount; ++i) {
+            transform_fromhost_VkPhysicalDeviceLayeredApiPropertiesKHR(
+                resourceTracker,
+                (VkPhysicalDeviceLayeredApiPropertiesKHR*)(toTransform->pLayeredApis + i));
         }
     }
 }

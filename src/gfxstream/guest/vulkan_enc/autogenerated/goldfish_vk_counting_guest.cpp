@@ -183,20 +183,15 @@ void count_VkInstanceCreateInfo(uint32_t featureBits, VkStructureType rootType,
                                 (const VkApplicationInfo*)(toCount->pApplicationInfo), count);
     }
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < toCount->enabledLayerCount; ++i) {
-            *count +=
-                sizeof(uint32_t) +
-                (toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0);
-        }
+    for (uint32_t i = 0; i < toCount->enabledLayerCount; ++i) {
+        *count += sizeof(uint32_t) +
+                  (toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0);
     }
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < toCount->enabledExtensionCount; ++i) {
-            *count += sizeof(uint32_t) + (toCount->ppEnabledExtensionNames[i]
-                                              ? strlen(toCount->ppEnabledExtensionNames[i])
-                                              : 0);
-        }
+    for (uint32_t i = 0; i < toCount->enabledExtensionCount; ++i) {
+        *count +=
+            sizeof(uint32_t) +
+            (toCount->ppEnabledExtensionNames[i] ? strlen(toCount->ppEnabledExtensionNames[i]) : 0);
     }
 }
 
@@ -317,9 +312,7 @@ void count_VkDeviceQueueCreateInfo(uint32_t featureBits, VkStructureType rootTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkDeviceQueueCreateFlags);
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->queueCount * sizeof(const float);
-    }
+    *count += toCount->queueCount * sizeof(const float);
 }
 
 void count_VkDeviceCreateInfo(uint32_t featureBits, VkStructureType rootType,
@@ -331,28 +324,21 @@ void count_VkDeviceCreateInfo(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkDeviceCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->queueCreateInfoCount; ++i) {
-            count_VkDeviceQueueCreateInfo(
-                featureBits, rootType,
-                (const VkDeviceQueueCreateInfo*)(toCount->pQueueCreateInfos + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->queueCreateInfoCount; ++i) {
+        count_VkDeviceQueueCreateInfo(
+            featureBits, rootType, (const VkDeviceQueueCreateInfo*)(toCount->pQueueCreateInfos + i),
+            count);
     }
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < toCount->enabledLayerCount; ++i) {
-            *count +=
-                sizeof(uint32_t) +
-                (toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0);
-        }
+    for (uint32_t i = 0; i < toCount->enabledLayerCount; ++i) {
+        *count += sizeof(uint32_t) +
+                  (toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0);
     }
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < toCount->enabledExtensionCount; ++i) {
-            *count += sizeof(uint32_t) + (toCount->ppEnabledExtensionNames[i]
-                                              ? strlen(toCount->ppEnabledExtensionNames[i])
-                                              : 0);
-        }
+    for (uint32_t i = 0; i < toCount->enabledExtensionCount; ++i) {
+        *count +=
+            sizeof(uint32_t) +
+            (toCount->ppEnabledExtensionNames[i] ? strlen(toCount->ppEnabledExtensionNames[i]) : 0);
     }
     *count += 8;
     if (toCount->pEnabledFeatures) {
@@ -392,9 +378,7 @@ void count_VkSubmitInfo(uint32_t featureBits, VkStructureType rootType, const Vk
     if (toCount->waitSemaphoreCount) {
         *count += toCount->waitSemaphoreCount * 8;
     }
-    if (toCount) {
-        *count += toCount->waitSemaphoreCount * sizeof(const VkPipelineStageFlags);
-    }
+    *count += toCount->waitSemaphoreCount * sizeof(const VkPipelineStageFlags);
     *count += sizeof(uint32_t);
     if (toCount->commandBufferCount) {
         *count += toCount->commandBufferCount * 8;
@@ -468,12 +452,9 @@ void count_VkSparseImageMemoryBindInfo(uint32_t featureBits, VkStructureType roo
                                        const VkSparseImageMemoryBindInfo* toCount, size_t* count) {
     *count += 8;
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->bindCount; ++i) {
-            count_VkSparseImageMemoryBind(featureBits, rootType,
-                                          (const VkSparseImageMemoryBind*)(toCount->pBinds + i),
-                                          count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->bindCount; ++i) {
+        count_VkSparseImageMemoryBind(featureBits, rootType,
+                                      (const VkSparseImageMemoryBind*)(toCount->pBinds + i), count);
     }
 }
 
@@ -502,11 +483,9 @@ void count_VkSparseBufferMemoryBindInfo(uint32_t featureBits, VkStructureType ro
                                         size_t* count) {
     *count += 8;
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->bindCount; ++i) {
-            count_VkSparseMemoryBind(featureBits, rootType,
-                                     (const VkSparseMemoryBind*)(toCount->pBinds + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->bindCount; ++i) {
+        count_VkSparseMemoryBind(featureBits, rootType,
+                                 (const VkSparseMemoryBind*)(toCount->pBinds + i), count);
     }
 }
 
@@ -515,11 +494,9 @@ void count_VkSparseImageOpaqueMemoryBindInfo(uint32_t featureBits, VkStructureTy
                                              size_t* count) {
     *count += 8;
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->bindCount; ++i) {
-            count_VkSparseMemoryBind(featureBits, rootType,
-                                     (const VkSparseMemoryBind*)(toCount->pBinds + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->bindCount; ++i) {
+        count_VkSparseMemoryBind(featureBits, rootType,
+                                 (const VkSparseMemoryBind*)(toCount->pBinds + i), count);
     }
 }
 
@@ -535,28 +512,22 @@ void count_VkBindSparseInfo(uint32_t featureBits, VkStructureType rootType,
         *count += toCount->waitSemaphoreCount * 8;
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->bufferBindCount; ++i) {
-            count_VkSparseBufferMemoryBindInfo(
-                featureBits, rootType,
-                (const VkSparseBufferMemoryBindInfo*)(toCount->pBufferBinds + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->bufferBindCount; ++i) {
+        count_VkSparseBufferMemoryBindInfo(
+            featureBits, rootType, (const VkSparseBufferMemoryBindInfo*)(toCount->pBufferBinds + i),
+            count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->imageOpaqueBindCount; ++i) {
-            count_VkSparseImageOpaqueMemoryBindInfo(
-                featureBits, rootType,
-                (const VkSparseImageOpaqueMemoryBindInfo*)(toCount->pImageOpaqueBinds + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->imageOpaqueBindCount; ++i) {
+        count_VkSparseImageOpaqueMemoryBindInfo(
+            featureBits, rootType,
+            (const VkSparseImageOpaqueMemoryBindInfo*)(toCount->pImageOpaqueBinds + i), count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->imageBindCount; ++i) {
-            count_VkSparseImageMemoryBindInfo(
-                featureBits, rootType,
-                (const VkSparseImageMemoryBindInfo*)(toCount->pImageBinds + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->imageBindCount; ++i) {
+        count_VkSparseImageMemoryBindInfo(
+            featureBits, rootType, (const VkSparseImageMemoryBindInfo*)(toCount->pImageBinds + i),
+            count);
     }
     *count += sizeof(uint32_t);
     if (toCount->signalSemaphoreCount) {
@@ -611,9 +582,7 @@ void count_VkBufferCreateInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pQueueFamilyIndices) {
-        if (toCount) {
-            *count += toCount->queueFamilyIndexCount * sizeof(const uint32_t);
-        }
+        *count += toCount->queueFamilyIndexCount * sizeof(const uint32_t);
     }
 }
 
@@ -636,9 +605,7 @@ void count_VkImageCreateInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pQueueFamilyIndices) {
-        if (toCount) {
-            *count += toCount->queueFamilyIndexCount * sizeof(const uint32_t);
-        }
+        *count += toCount->queueFamilyIndexCount * sizeof(const uint32_t);
     }
     *count += sizeof(VkImageLayout);
 }
@@ -870,9 +837,7 @@ void count_VkShaderModuleCreateInfo(uint32_t featureBits, VkStructureType rootTy
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkShaderModuleCreateFlags);
     *count += 8;
-    if (toCount) {
-        *count += (toCount->codeSize / 4) * sizeof(const uint32_t);
-    }
+    *count += (toCount->codeSize / 4) * sizeof(const uint32_t);
 }
 
 void count_VkPipelineCacheCreateInfo(uint32_t featureBits, VkStructureType rootType,
@@ -884,9 +849,7 @@ void count_VkPipelineCacheCreateInfo(uint32_t featureBits, VkStructureType rootT
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkPipelineCacheCreateFlags);
     *count += 8;
-    if (toCount) {
-        *count += toCount->initialDataSize * sizeof(const uint8_t);
-    }
+    *count += toCount->initialDataSize * sizeof(const uint8_t);
 }
 
 void count_VkSpecializationMapEntry(uint32_t featureBits, VkStructureType rootType,
@@ -901,17 +864,13 @@ void count_VkSpecializationMapEntry(uint32_t featureBits, VkStructureType rootTy
 void count_VkSpecializationInfo(uint32_t featureBits, VkStructureType rootType,
                                 const VkSpecializationInfo* toCount, size_t* count) {
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->mapEntryCount; ++i) {
-            count_VkSpecializationMapEntry(
-                featureBits, rootType, (const VkSpecializationMapEntry*)(toCount->pMapEntries + i),
-                count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->mapEntryCount; ++i) {
+        count_VkSpecializationMapEntry(featureBits, rootType,
+                                       (const VkSpecializationMapEntry*)(toCount->pMapEntries + i),
+                                       count);
     }
     *count += 8;
-    if (toCount) {
-        *count += toCount->dataSize * sizeof(const uint8_t);
-    }
+    *count += toCount->dataSize * sizeof(const uint8_t);
 }
 
 void count_VkPipelineShaderStageCreateInfo(uint32_t featureBits, VkStructureType rootType,
@@ -970,12 +929,10 @@ void count_VkPipelineLayoutCreateInfo(uint32_t featureBits, VkStructureType root
         *count += toCount->setLayoutCount * 8;
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->pushConstantRangeCount; ++i) {
-            count_VkPushConstantRange(
-                featureBits, rootType,
-                (const VkPushConstantRange*)(toCount->pPushConstantRanges + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->pushConstantRangeCount; ++i) {
+        count_VkPushConstantRange(featureBits, rootType,
+                                  (const VkPushConstantRange*)(toCount->pPushConstantRanges + i),
+                                  count);
     }
 }
 
@@ -1049,12 +1006,9 @@ void count_VkDescriptorPoolCreateInfo(uint32_t featureBits, VkStructureType root
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkDescriptorPoolCreateFlags);
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->poolSizeCount; ++i) {
-            count_VkDescriptorPoolSize(featureBits, rootType,
-                                       (const VkDescriptorPoolSize*)(toCount->pPoolSizes + i),
-                                       count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->poolSizeCount; ++i) {
+        count_VkDescriptorPoolSize(featureBits, rootType,
+                                   (const VkDescriptorPoolSize*)(toCount->pPoolSizes + i), count);
     }
 }
 
@@ -1099,12 +1053,10 @@ void count_VkDescriptorSetLayoutCreateInfo(uint32_t featureBits, VkStructureType
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkDescriptorSetLayoutCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->bindingCount; ++i) {
-            count_VkDescriptorSetLayoutBinding(
-                featureBits, rootType,
-                (const VkDescriptorSetLayoutBinding*)(toCount->pBindings + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->bindingCount; ++i) {
+        count_VkDescriptorSetLayoutBinding(
+            featureBits, rootType, (const VkDescriptorSetLayoutBinding*)(toCount->pBindings + i),
+            count);
     }
 }
 
@@ -1126,12 +1078,10 @@ void count_VkWriteDescriptorSet(uint32_t featureBits, VkStructureType rootType,
               (VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE == toCount->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_IMAGE == toCount->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT == toCount->descriptorType)))) {
-            if (toCount) {
-                for (uint32_t i = 0; i < (uint32_t)toCount->descriptorCount; ++i) {
-                    count_VkDescriptorImageInfo(
-                        featureBits, rootType,
-                        (const VkDescriptorImageInfo*)(toCount->pImageInfo + i), count);
-                }
+            for (uint32_t i = 0; i < (uint32_t)toCount->descriptorCount; ++i) {
+                count_VkDescriptorImageInfo(featureBits, rootType,
+                                            (const VkDescriptorImageInfo*)(toCount->pImageInfo + i),
+                                            count);
             }
         }
     }
@@ -1142,12 +1092,10 @@ void count_VkWriteDescriptorSet(uint32_t featureBits, VkStructureType rootType,
               (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC == toCount->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER == toCount->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC == toCount->descriptorType)))) {
-            if (toCount) {
-                for (uint32_t i = 0; i < (uint32_t)toCount->descriptorCount; ++i) {
-                    count_VkDescriptorBufferInfo(
-                        featureBits, rootType,
-                        (const VkDescriptorBufferInfo*)(toCount->pBufferInfo + i), count);
-                }
+            for (uint32_t i = 0; i < (uint32_t)toCount->descriptorCount; ++i) {
+                count_VkDescriptorBufferInfo(
+                    featureBits, rootType,
+                    (const VkDescriptorBufferInfo*)(toCount->pBufferInfo + i), count);
             }
         }
     }
@@ -1257,12 +1205,10 @@ void count_VkPipelineColorBlendStateCreateInfo(uint32_t featureBits, VkStructure
     *count += sizeof(VkBool32);
     *count += sizeof(VkLogicOp);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->attachmentCount; ++i) {
-            count_VkPipelineColorBlendAttachmentState(
-                featureBits, rootType,
-                (const VkPipelineColorBlendAttachmentState*)(toCount->pAttachments + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->attachmentCount; ++i) {
+        count_VkPipelineColorBlendAttachmentState(
+            featureBits, rootType,
+            (const VkPipelineColorBlendAttachmentState*)(toCount->pAttachments + i), count);
     }
     *count += 4 * sizeof(float);
 }
@@ -1294,9 +1240,7 @@ void count_VkPipelineDynamicStateCreateInfo(uint32_t featureBits, VkStructureTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkPipelineDynamicStateCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->dynamicStateCount * sizeof(const VkDynamicState);
-    }
+    *count += toCount->dynamicStateCount * sizeof(const VkDynamicState);
 }
 
 void count_VkPipelineInputAssemblyStateCreateInfo(
@@ -1326,9 +1270,7 @@ void count_VkPipelineMultisampleStateCreateInfo(uint32_t featureBits, VkStructur
     *count += sizeof(float);
     *count += 8;
     if (toCount->pSampleMask) {
-        if (toCount) {
-            *count += (((toCount->rasterizationSamples) + 31) / 32) * sizeof(const VkSampleMask);
-        }
+        *count += (((toCount->rasterizationSamples) + 31) / 32) * sizeof(const VkSampleMask);
     }
     *count += 2 * sizeof(VkBool32);
 }
@@ -1372,23 +1314,18 @@ void count_VkPipelineVertexInputStateCreateInfo(uint32_t featureBits, VkStructur
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkPipelineVertexInputStateCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->vertexBindingDescriptionCount; ++i) {
-            count_VkVertexInputBindingDescription(
-                featureBits, rootType,
-                (const VkVertexInputBindingDescription*)(toCount->pVertexBindingDescriptions + i),
-                count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->vertexBindingDescriptionCount; ++i) {
+        count_VkVertexInputBindingDescription(
+            featureBits, rootType,
+            (const VkVertexInputBindingDescription*)(toCount->pVertexBindingDescriptions + i),
+            count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->vertexAttributeDescriptionCount; ++i) {
-            count_VkVertexInputAttributeDescription(
-                featureBits, rootType,
-                (const VkVertexInputAttributeDescription*)(toCount->pVertexAttributeDescriptions +
-                                                           i),
-                count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->vertexAttributeDescriptionCount; ++i) {
+        count_VkVertexInputAttributeDescription(
+            featureBits, rootType,
+            (const VkVertexInputAttributeDescription*)(toCount->pVertexAttributeDescriptions + i),
+            count);
     }
 }
 
@@ -1404,21 +1341,16 @@ void count_VkPipelineViewportStateCreateInfo(uint32_t featureBits, VkStructureTy
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pViewports) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->viewportCount; ++i) {
-                count_VkViewport(featureBits, rootType,
-                                 (const VkViewport*)(toCount->pViewports + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->viewportCount; ++i) {
+            count_VkViewport(featureBits, rootType, (const VkViewport*)(toCount->pViewports + i),
+                             count);
         }
     }
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pScissors) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->scissorCount; ++i) {
-                count_VkRect2D(featureBits, rootType, (const VkRect2D*)(toCount->pScissors + i),
-                               count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->scissorCount; ++i) {
+            count_VkRect2D(featureBits, rootType, (const VkRect2D*)(toCount->pScissors + i), count);
         }
     }
 }
@@ -1456,12 +1388,10 @@ void count_VkGraphicsPipelineCreateInfo(uint32_t featureBits, VkStructureType ro
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkPipelineCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->stageCount; ++i) {
-            count_VkPipelineShaderStageCreateInfo(
-                featureBits, rootType,
-                (const VkPipelineShaderStageCreateInfo*)(toCount->pStages + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->stageCount; ++i) {
+        count_VkPipelineShaderStageCreateInfo(
+            featureBits, rootType, (const VkPipelineShaderStageCreateInfo*)(toCount->pStages + i),
+            count);
     }
     if (featureBits & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
         *count += 8;
@@ -1601,29 +1531,23 @@ void count_VkSubpassDescription(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(VkSubpassDescriptionFlags);
     *count += sizeof(VkPipelineBindPoint);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->inputAttachmentCount; ++i) {
-            count_VkAttachmentReference(
-                featureBits, rootType,
-                (const VkAttachmentReference*)(toCount->pInputAttachments + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->inputAttachmentCount; ++i) {
+        count_VkAttachmentReference(featureBits, rootType,
+                                    (const VkAttachmentReference*)(toCount->pInputAttachments + i),
+                                    count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
-            count_VkAttachmentReference(
-                featureBits, rootType,
-                (const VkAttachmentReference*)(toCount->pColorAttachments + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
+        count_VkAttachmentReference(featureBits, rootType,
+                                    (const VkAttachmentReference*)(toCount->pColorAttachments + i),
+                                    count);
     }
     *count += 8;
     if (toCount->pResolveAttachments) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
-                count_VkAttachmentReference(
-                    featureBits, rootType,
-                    (const VkAttachmentReference*)(toCount->pResolveAttachments + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
+            count_VkAttachmentReference(
+                featureBits, rootType,
+                (const VkAttachmentReference*)(toCount->pResolveAttachments + i), count);
         }
     }
     *count += 8;
@@ -1633,9 +1557,7 @@ void count_VkSubpassDescription(uint32_t featureBits, VkStructureType rootType,
             count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->preserveAttachmentCount * sizeof(const uint32_t);
-    }
+    *count += toCount->preserveAttachmentCount * sizeof(const uint32_t);
 }
 
 void count_VkRenderPassCreateInfo(uint32_t featureBits, VkStructureType rootType,
@@ -1647,28 +1569,20 @@ void count_VkRenderPassCreateInfo(uint32_t featureBits, VkStructureType rootType
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkRenderPassCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->attachmentCount; ++i) {
-            count_VkAttachmentDescription(
-                featureBits, rootType, (const VkAttachmentDescription*)(toCount->pAttachments + i),
-                count);
-        }
-    }
-    *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->subpassCount; ++i) {
-            count_VkSubpassDescription(featureBits, rootType,
-                                       (const VkSubpassDescription*)(toCount->pSubpasses + i),
-                                       count);
-        }
-    }
-    *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->dependencyCount; ++i) {
-            count_VkSubpassDependency(featureBits, rootType,
-                                      (const VkSubpassDependency*)(toCount->pDependencies + i),
+    for (uint32_t i = 0; i < (uint32_t)toCount->attachmentCount; ++i) {
+        count_VkAttachmentDescription(featureBits, rootType,
+                                      (const VkAttachmentDescription*)(toCount->pAttachments + i),
                                       count);
-        }
+    }
+    *count += sizeof(uint32_t);
+    for (uint32_t i = 0; i < (uint32_t)toCount->subpassCount; ++i) {
+        count_VkSubpassDescription(featureBits, rootType,
+                                   (const VkSubpassDescription*)(toCount->pSubpasses + i), count);
+    }
+    *count += sizeof(uint32_t);
+    for (uint32_t i = 0; i < (uint32_t)toCount->dependencyCount; ++i) {
+        count_VkSubpassDependency(featureBits, rootType,
+                                  (const VkSubpassDependency*)(toCount->pDependencies + i), count);
     }
 }
 
@@ -1736,11 +1650,9 @@ void count_VkRenderPassBeginInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pClearValues) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->clearValueCount; ++i) {
-                count_VkClearValue(featureBits, rootType,
-                                   (const VkClearValue*)(toCount->pClearValues + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->clearValueCount; ++i) {
+            count_VkClearValue(featureBits, rootType,
+                               (const VkClearValue*)(toCount->pClearValues + i), count);
         }
     }
 }
@@ -1821,17 +1733,11 @@ void count_VkDeviceGroupSubmitInfo(uint32_t featureBits, VkStructureType rootTyp
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->waitSemaphoreCount * sizeof(const uint32_t);
-    }
+    *count += toCount->waitSemaphoreCount * sizeof(const uint32_t);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->commandBufferCount * sizeof(const uint32_t);
-    }
+    *count += toCount->commandBufferCount * sizeof(const uint32_t);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->signalSemaphoreCount * sizeof(const uint32_t);
-    }
+    *count += toCount->signalSemaphoreCount * sizeof(const uint32_t);
 }
 
 void count_VkDeviceGroupBindSparseInfo(uint32_t featureBits, VkStructureType rootType,
@@ -1853,9 +1759,7 @@ void count_VkBindBufferMemoryDeviceGroupInfo(uint32_t featureBits, VkStructureTy
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->deviceIndexCount * sizeof(const uint32_t);
-    }
+    *count += toCount->deviceIndexCount * sizeof(const uint32_t);
 }
 
 void count_VkBindImageMemoryDeviceGroupInfo(uint32_t featureBits, VkStructureType rootType,
@@ -1867,15 +1771,11 @@ void count_VkBindImageMemoryDeviceGroupInfo(uint32_t featureBits, VkStructureTyp
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->deviceIndexCount * sizeof(const uint32_t);
-    }
+    *count += toCount->deviceIndexCount * sizeof(const uint32_t);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->splitInstanceBindRegionCount; ++i) {
-            count_VkRect2D(featureBits, rootType,
-                           (const VkRect2D*)(toCount->pSplitInstanceBindRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->splitInstanceBindRegionCount; ++i) {
+        count_VkRect2D(featureBits, rootType,
+                       (const VkRect2D*)(toCount->pSplitInstanceBindRegions + i), count);
     }
 }
 
@@ -2376,13 +2276,10 @@ void count_VkDescriptorUpdateTemplateCreateInfo(uint32_t featureBits, VkStructur
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkDescriptorUpdateTemplateCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->descriptorUpdateEntryCount; ++i) {
-            count_VkDescriptorUpdateTemplateEntry(
-                featureBits, rootType,
-                (const VkDescriptorUpdateTemplateEntry*)(toCount->pDescriptorUpdateEntries + i),
-                count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->descriptorUpdateEntryCount; ++i) {
+        count_VkDescriptorUpdateTemplateEntry(
+            featureBits, rootType,
+            (const VkDescriptorUpdateTemplateEntry*)(toCount->pDescriptorUpdateEntries + i), count);
     }
     *count += sizeof(VkDescriptorUpdateTemplateType);
     *count += 8;
@@ -2476,11 +2373,9 @@ void count_VkDeviceGroupRenderPassBeginInfo(uint32_t featureBits, VkStructureTyp
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->deviceRenderAreaCount; ++i) {
-            count_VkRect2D(featureBits, rootType,
-                           (const VkRect2D*)(toCount->pDeviceRenderAreas + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->deviceRenderAreaCount; ++i) {
+        count_VkRect2D(featureBits, rootType, (const VkRect2D*)(toCount->pDeviceRenderAreas + i),
+                       count);
     }
 }
 
@@ -2514,12 +2409,10 @@ void count_VkRenderPassInputAttachmentAspectCreateInfo(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->aspectReferenceCount; ++i) {
-            count_VkInputAttachmentAspectReference(
-                featureBits, rootType,
-                (const VkInputAttachmentAspectReference*)(toCount->pAspectReferences + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->aspectReferenceCount; ++i) {
+        count_VkInputAttachmentAspectReference(
+            featureBits, rootType,
+            (const VkInputAttachmentAspectReference*)(toCount->pAspectReferences + i), count);
     }
 }
 
@@ -2543,17 +2436,11 @@ void count_VkRenderPassMultiviewCreateInfo(uint32_t featureBits, VkStructureType
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->subpassCount * sizeof(const uint32_t);
-    }
+    *count += toCount->subpassCount * sizeof(const uint32_t);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->dependencyCount * sizeof(const int32_t);
-    }
+    *count += toCount->dependencyCount * sizeof(const int32_t);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->correlationMaskCount * sizeof(const uint32_t);
-    }
+    *count += toCount->correlationMaskCount * sizeof(const uint32_t);
 }
 
 void count_VkPhysicalDeviceMultiviewFeatures(uint32_t featureBits, VkStructureType rootType,
@@ -2692,9 +2579,7 @@ void count_VkImageFormatListCreateInfo(uint32_t featureBits, VkStructureType roo
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->viewFormatCount * sizeof(const VkFormat);
-    }
+    *count += toCount->viewFormatCount * sizeof(const VkFormat);
 }
 
 void count_VkPhysicalDeviceVulkanMemoryModelFeatures(
@@ -2763,16 +2648,12 @@ void count_VkTimelineSemaphoreSubmitInfo(uint32_t featureBits, VkStructureType r
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pWaitSemaphoreValues) {
-        if (toCount) {
-            *count += toCount->waitSemaphoreValueCount * sizeof(const uint64_t);
-        }
+        *count += toCount->waitSemaphoreValueCount * sizeof(const uint64_t);
     }
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pSignalSemaphoreValues) {
-        if (toCount) {
-            *count += toCount->signalSemaphoreValueCount * sizeof(const uint64_t);
-        }
+        *count += toCount->signalSemaphoreValueCount * sizeof(const uint64_t);
     }
 }
 
@@ -2788,9 +2669,7 @@ void count_VkSemaphoreWaitInfo(uint32_t featureBits, VkStructureType rootType,
     if (toCount->semaphoreCount) {
         *count += toCount->semaphoreCount * 8;
     }
-    if (toCount) {
-        *count += toCount->semaphoreCount * sizeof(const uint64_t);
-    }
+    *count += toCount->semaphoreCount * sizeof(const uint64_t);
 }
 
 void count_VkSemaphoreSignalInfo(uint32_t featureBits, VkStructureType rootType,
@@ -2916,9 +2795,7 @@ void count_VkDescriptorSetLayoutBindingFlagsCreateInfo(
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pBindingFlags) {
-        if (toCount) {
-            *count += toCount->bindingCount * sizeof(const VkDescriptorBindingFlags);
-        }
+        *count += toCount->bindingCount * sizeof(const VkDescriptorBindingFlags);
     }
 }
 
@@ -2955,9 +2832,7 @@ void count_VkDescriptorSetVariableDescriptorCountAllocateInfo(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->descriptorSetCount * sizeof(const uint32_t);
-    }
+    *count += toCount->descriptorSetCount * sizeof(const uint32_t);
 }
 
 void count_VkDescriptorSetVariableDescriptorCountLayoutSupport(
@@ -3067,29 +2942,23 @@ void count_VkSubpassDescription2(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(VkSubpassDescriptionFlags);
     *count += sizeof(VkPipelineBindPoint);
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->inputAttachmentCount; ++i) {
-            count_VkAttachmentReference2(
-                featureBits, rootType,
-                (const VkAttachmentReference2*)(toCount->pInputAttachments + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->inputAttachmentCount; ++i) {
+        count_VkAttachmentReference2(
+            featureBits, rootType, (const VkAttachmentReference2*)(toCount->pInputAttachments + i),
+            count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
-            count_VkAttachmentReference2(
-                featureBits, rootType,
-                (const VkAttachmentReference2*)(toCount->pColorAttachments + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
+        count_VkAttachmentReference2(
+            featureBits, rootType, (const VkAttachmentReference2*)(toCount->pColorAttachments + i),
+            count);
     }
     *count += 8;
     if (toCount->pResolveAttachments) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
-                count_VkAttachmentReference2(
-                    featureBits, rootType,
-                    (const VkAttachmentReference2*)(toCount->pResolveAttachments + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
+            count_VkAttachmentReference2(
+                featureBits, rootType,
+                (const VkAttachmentReference2*)(toCount->pResolveAttachments + i), count);
         }
     }
     *count += 8;
@@ -3099,9 +2968,7 @@ void count_VkSubpassDescription2(uint32_t featureBits, VkStructureType rootType,
             (const VkAttachmentReference2*)(toCount->pDepthStencilAttachment), count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->preserveAttachmentCount * sizeof(const uint32_t);
-    }
+    *count += toCount->preserveAttachmentCount * sizeof(const uint32_t);
 }
 
 void count_VkSubpassDependency2(uint32_t featureBits, VkStructureType rootType,
@@ -3146,33 +3013,24 @@ void count_VkRenderPassCreateInfo2(uint32_t featureBits, VkStructureType rootTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkRenderPassCreateFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->attachmentCount; ++i) {
-            count_VkAttachmentDescription2(
-                featureBits, rootType, (const VkAttachmentDescription2*)(toCount->pAttachments + i),
-                count);
-        }
-    }
-    *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->subpassCount; ++i) {
-            count_VkSubpassDescription2(featureBits, rootType,
-                                        (const VkSubpassDescription2*)(toCount->pSubpasses + i),
-                                        count);
-        }
-    }
-    *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->dependencyCount; ++i) {
-            count_VkSubpassDependency2(featureBits, rootType,
-                                       (const VkSubpassDependency2*)(toCount->pDependencies + i),
+    for (uint32_t i = 0; i < (uint32_t)toCount->attachmentCount; ++i) {
+        count_VkAttachmentDescription2(featureBits, rootType,
+                                       (const VkAttachmentDescription2*)(toCount->pAttachments + i),
                                        count);
-        }
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->correlatedViewMaskCount * sizeof(const uint32_t);
+    for (uint32_t i = 0; i < (uint32_t)toCount->subpassCount; ++i) {
+        count_VkSubpassDescription2(featureBits, rootType,
+                                    (const VkSubpassDescription2*)(toCount->pSubpasses + i), count);
     }
+    *count += sizeof(uint32_t);
+    for (uint32_t i = 0; i < (uint32_t)toCount->dependencyCount; ++i) {
+        count_VkSubpassDependency2(featureBits, rootType,
+                                   (const VkSubpassDependency2*)(toCount->pDependencies + i),
+                                   count);
+    }
+    *count += sizeof(uint32_t);
+    *count += toCount->correlatedViewMaskCount * sizeof(const uint32_t);
 }
 
 void count_VkSubpassDescriptionDepthStencilResolve(
@@ -3237,9 +3095,7 @@ void count_VkFramebufferAttachmentImageInfo(uint32_t featureBits, VkStructureTyp
     *count += sizeof(VkImageCreateFlags);
     *count += sizeof(VkImageUsageFlags);
     *count += 4 * sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->viewFormatCount * sizeof(const VkFormat);
-    }
+    *count += toCount->viewFormatCount * sizeof(const VkFormat);
 }
 
 void count_VkRenderPassAttachmentBeginInfo(uint32_t featureBits, VkStructureType rootType,
@@ -3265,13 +3121,10 @@ void count_VkFramebufferAttachmentsCreateInfo(uint32_t featureBits, VkStructureT
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->attachmentImageInfoCount; ++i) {
-            count_VkFramebufferAttachmentImageInfo(
-                featureBits, rootType,
-                (const VkFramebufferAttachmentImageInfo*)(toCount->pAttachmentImageInfos + i),
-                count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->attachmentImageInfoCount; ++i) {
+        count_VkFramebufferAttachmentImageInfo(
+            featureBits, rootType,
+            (const VkFramebufferAttachmentImageInfo*)(toCount->pAttachmentImageInfos + i), count);
     }
 }
 
@@ -3443,27 +3296,21 @@ void count_VkDependencyInfo(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkDependencyFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->memoryBarrierCount; ++i) {
-            count_VkMemoryBarrier2(featureBits, rootType,
-                                   (const VkMemoryBarrier2*)(toCount->pMemoryBarriers + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->memoryBarrierCount; ++i) {
+        count_VkMemoryBarrier2(featureBits, rootType,
+                               (const VkMemoryBarrier2*)(toCount->pMemoryBarriers + i), count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->bufferMemoryBarrierCount; ++i) {
-            count_VkBufferMemoryBarrier2(
-                featureBits, rootType,
-                (const VkBufferMemoryBarrier2*)(toCount->pBufferMemoryBarriers + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->bufferMemoryBarrierCount; ++i) {
+        count_VkBufferMemoryBarrier2(
+            featureBits, rootType,
+            (const VkBufferMemoryBarrier2*)(toCount->pBufferMemoryBarriers + i), count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->imageMemoryBarrierCount; ++i) {
-            count_VkImageMemoryBarrier2(
-                featureBits, rootType,
-                (const VkImageMemoryBarrier2*)(toCount->pImageMemoryBarriers + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->imageMemoryBarrierCount; ++i) {
+        count_VkImageMemoryBarrier2(
+            featureBits, rootType,
+            (const VkImageMemoryBarrier2*)(toCount->pImageMemoryBarriers + i), count);
     }
 }
 
@@ -3500,28 +3347,22 @@ void count_VkSubmitInfo2(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkSubmitFlags);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->waitSemaphoreInfoCount; ++i) {
-            count_VkSemaphoreSubmitInfo(
-                featureBits, rootType,
-                (const VkSemaphoreSubmitInfo*)(toCount->pWaitSemaphoreInfos + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->waitSemaphoreInfoCount; ++i) {
+        count_VkSemaphoreSubmitInfo(
+            featureBits, rootType, (const VkSemaphoreSubmitInfo*)(toCount->pWaitSemaphoreInfos + i),
+            count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->commandBufferInfoCount; ++i) {
-            count_VkCommandBufferSubmitInfo(
-                featureBits, rootType,
-                (const VkCommandBufferSubmitInfo*)(toCount->pCommandBufferInfos + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->commandBufferInfoCount; ++i) {
+        count_VkCommandBufferSubmitInfo(
+            featureBits, rootType,
+            (const VkCommandBufferSubmitInfo*)(toCount->pCommandBufferInfos + i), count);
     }
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->signalSemaphoreInfoCount; ++i) {
-            count_VkSemaphoreSubmitInfo(
-                featureBits, rootType,
-                (const VkSemaphoreSubmitInfo*)(toCount->pSignalSemaphoreInfos + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->signalSemaphoreInfoCount; ++i) {
+        count_VkSemaphoreSubmitInfo(
+            featureBits, rootType,
+            (const VkSemaphoreSubmitInfo*)(toCount->pSignalSemaphoreInfos + i), count);
     }
 }
 
@@ -3555,11 +3396,9 @@ void count_VkCopyBufferInfo2(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += 2 * 8;
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkBufferCopy2(featureBits, rootType,
-                                (const VkBufferCopy2*)(toCount->pRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkBufferCopy2(featureBits, rootType, (const VkBufferCopy2*)(toCount->pRegions + i),
+                            count);
     }
 }
 
@@ -3591,11 +3430,9 @@ void count_VkCopyImageInfo2(uint32_t featureBits, VkStructureType rootType,
     *count += 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkImageCopy2(featureBits, rootType, (const VkImageCopy2*)(toCount->pRegions + i),
-                               count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkImageCopy2(featureBits, rootType, (const VkImageCopy2*)(toCount->pRegions + i),
+                           count);
     }
 }
 
@@ -3624,11 +3461,9 @@ void count_VkCopyBufferToImageInfo2(uint32_t featureBits, VkStructureType rootTy
     *count += 2 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkBufferImageCopy2(featureBits, rootType,
-                                     (const VkBufferImageCopy2*)(toCount->pRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkBufferImageCopy2(featureBits, rootType,
+                                 (const VkBufferImageCopy2*)(toCount->pRegions + i), count);
     }
 }
 
@@ -3643,11 +3478,9 @@ void count_VkCopyImageToBufferInfo2(uint32_t featureBits, VkStructureType rootTy
     *count += sizeof(VkImageLayout);
     *count += 8;
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkBufferImageCopy2(featureBits, rootType,
-                                     (const VkBufferImageCopy2*)(toCount->pRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkBufferImageCopy2(featureBits, rootType,
+                                 (const VkBufferImageCopy2*)(toCount->pRegions + i), count);
     }
 }
 
@@ -3742,12 +3575,10 @@ void count_VkPipelineCreationFeedbackCreateInfo(uint32_t featureBits, VkStructur
         featureBits, rootType, (VkPipelineCreationFeedback*)(toCount->pPipelineCreationFeedback),
         count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->pipelineStageCreationFeedbackCount; ++i) {
-            count_VkPipelineCreationFeedback(
-                featureBits, rootType,
-                (VkPipelineCreationFeedback*)(toCount->pPipelineStageCreationFeedbacks + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->pipelineStageCreationFeedbackCount; ++i) {
+        count_VkPipelineCreationFeedback(
+            featureBits, rootType,
+            (VkPipelineCreationFeedback*)(toCount->pPipelineStageCreationFeedbacks + i), count);
     }
 }
 
@@ -3871,9 +3702,7 @@ void count_VkWriteDescriptorSetInlineUniformBlock(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->dataSize * sizeof(const uint8_t);
-    }
+    *count += toCount->dataSize * sizeof(const uint8_t);
 }
 
 void count_VkDescriptorPoolInlineUniformBlockCreateInfo(
@@ -3956,11 +3785,9 @@ void count_VkBlitImageInfo2(uint32_t featureBits, VkStructureType rootType,
     *count += 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkImageBlit2(featureBits, rootType, (const VkImageBlit2*)(toCount->pRegions + i),
-                               count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkImageBlit2(featureBits, rootType, (const VkImageBlit2*)(toCount->pRegions + i),
+                           count);
     }
     *count += sizeof(VkFilter);
 }
@@ -3993,11 +3820,9 @@ void count_VkResolveImageInfo2(uint32_t featureBits, VkStructureType rootType,
     *count += 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkImageResolve2(featureBits, rootType,
-                                  (const VkImageResolve2*)(toCount->pRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkImageResolve2(featureBits, rootType,
+                              (const VkImageResolve2*)(toCount->pRegions + i), count);
     }
 }
 
@@ -4028,12 +3853,10 @@ void count_VkRenderingInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(VkRenderingFlags);
     count_VkRect2D(featureBits, rootType, (VkRect2D*)(&toCount->renderArea), count);
     *count += 3 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
-            count_VkRenderingAttachmentInfo(
-                featureBits, rootType,
-                (const VkRenderingAttachmentInfo*)(toCount->pColorAttachments + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->colorAttachmentCount; ++i) {
+        count_VkRenderingAttachmentInfo(
+            featureBits, rootType,
+            (const VkRenderingAttachmentInfo*)(toCount->pColorAttachments + i), count);
     }
     *count += 8;
     if (toCount->pDepthAttachment) {
@@ -4060,9 +3883,7 @@ void count_VkPipelineRenderingCreateInfo(uint32_t featureBits, VkStructureType r
     *count += 2 * sizeof(uint32_t);
     *count += 8;
     if (toCount->pColorAttachmentFormats) {
-        if (toCount) {
-            *count += toCount->colorAttachmentCount * sizeof(const VkFormat);
-        }
+        *count += toCount->colorAttachmentCount * sizeof(const VkFormat);
     }
     *count += 2 * sizeof(VkFormat);
 }
@@ -4088,9 +3909,7 @@ void count_VkCommandBufferInheritanceRenderingInfo(
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkRenderingFlags);
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->colorAttachmentCount * sizeof(const VkFormat);
-    }
+    *count += toCount->colorAttachmentCount * sizeof(const VkFormat);
     *count += 2 * sizeof(VkFormat);
     *count += sizeof(VkSampleCountFlagBits);
 }
@@ -4127,16 +3946,12 @@ void count_VkPhysicalDeviceVulkan14Properties(uint32_t featureBits, VkStructureT
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pCopySrcLayouts) {
-        if (toCount) {
-            *count += toCount->copySrcLayoutCount * sizeof(VkImageLayout);
-        }
+        *count += toCount->copySrcLayoutCount * sizeof(VkImageLayout);
     }
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pCopyDstLayouts) {
-        if (toCount) {
-            *count += toCount->copyDstLayoutCount * sizeof(VkImageLayout);
-        }
+        *count += toCount->copyDstLayoutCount * sizeof(VkImageLayout);
     }
     *count += VK_UUID_SIZE * sizeof(uint8_t);
     *count += sizeof(VkBool32);
@@ -4335,16 +4150,12 @@ void count_VkPhysicalDeviceHostImageCopyProperties(
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pCopySrcLayouts) {
-        if (toCount) {
-            *count += toCount->copySrcLayoutCount * sizeof(VkImageLayout);
-        }
+        *count += toCount->copySrcLayoutCount * sizeof(VkImageLayout);
     }
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pCopyDstLayouts) {
-        if (toCount) {
-            *count += toCount->copyDstLayoutCount * sizeof(VkImageLayout);
-        }
+        *count += toCount->copyDstLayoutCount * sizeof(VkImageLayout);
     }
     *count += VK_UUID_SIZE * sizeof(uint8_t);
     *count += sizeof(VkBool32);
@@ -4391,11 +4202,9 @@ void count_VkCopyMemoryToImageInfo(uint32_t featureBits, VkStructureType rootTyp
     *count += 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkMemoryToImageCopy(featureBits, rootType,
-                                      (const VkMemoryToImageCopy*)(toCount->pRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkMemoryToImageCopy(featureBits, rootType,
+                                  (const VkMemoryToImageCopy*)(toCount->pRegions + i), count);
     }
 }
 
@@ -4410,11 +4219,9 @@ void count_VkCopyImageToMemoryInfo(uint32_t featureBits, VkStructureType rootTyp
     *count += 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkImageToMemoryCopy(featureBits, rootType,
-                                      (const VkImageToMemoryCopy*)(toCount->pRegions + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkImageToMemoryCopy(featureBits, rootType,
+                                  (const VkImageToMemoryCopy*)(toCount->pRegions + i), count);
     }
 }
 
@@ -4431,11 +4238,9 @@ void count_VkCopyImageToImageInfo(uint32_t featureBits, VkStructureType rootType
     *count += 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
-            count_VkImageCopy2(featureBits, rootType, (const VkImageCopy2*)(toCount->pRegions + i),
-                               count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->regionCount; ++i) {
+        count_VkImageCopy2(featureBits, rootType, (const VkImageCopy2*)(toCount->pRegions + i),
+                           count);
     }
 }
 
@@ -4547,9 +4352,7 @@ void count_VkBindDescriptorSetsInfo(uint32_t featureBits, VkStructureType rootTy
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pDynamicOffsets) {
-        if (toCount) {
-            *count += toCount->dynamicOffsetCount * sizeof(const uint32_t);
-        }
+        *count += toCount->dynamicOffsetCount * sizeof(const uint32_t);
     }
 }
 
@@ -4563,9 +4366,7 @@ void count_VkPushConstantsInfo(uint32_t featureBits, VkStructureType rootType,
     *count += 8;
     *count += sizeof(VkShaderStageFlags);
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->size * sizeof(const uint8_t);
-    }
+    *count += toCount->size * sizeof(const uint8_t);
 }
 
 void count_VkPushDescriptorSetInfo(uint32_t featureBits, VkStructureType rootType,
@@ -4578,12 +4379,10 @@ void count_VkPushDescriptorSetInfo(uint32_t featureBits, VkStructureType rootTyp
     *count += sizeof(VkShaderStageFlags);
     *count += 8;
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->descriptorWriteCount; ++i) {
-            count_VkWriteDescriptorSet(
-                featureBits, rootType,
-                (const VkWriteDescriptorSet*)(toCount->pDescriptorWrites + i), count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->descriptorWriteCount; ++i) {
+        count_VkWriteDescriptorSet(featureBits, rootType,
+                                   (const VkWriteDescriptorSet*)(toCount->pDescriptorWrites + i),
+                                   count);
     }
 }
 
@@ -4714,14 +4513,11 @@ void count_VkPipelineVertexInputDivisorStateCreateInfo(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->vertexBindingDivisorCount; ++i) {
-            count_VkVertexInputBindingDivisorDescription(
-                featureBits, rootType,
-                (const VkVertexInputBindingDivisorDescription*)(toCount->pVertexBindingDivisors +
-                                                                i),
-                count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->vertexBindingDivisorCount; ++i) {
+        count_VkVertexInputBindingDivisorDescription(
+            featureBits, rootType,
+            (const VkVertexInputBindingDivisorDescription*)(toCount->pVertexBindingDivisors + i),
+            count);
     }
 }
 
@@ -4746,9 +4542,7 @@ void count_VkRenderingAreaInfo(uint32_t featureBits, VkStructureType rootType,
     *count += 2 * sizeof(uint32_t);
     *count += 8;
     if (toCount->pColorAttachmentFormats) {
-        if (toCount) {
-            *count += toCount->colorAttachmentCount * sizeof(const VkFormat);
-        }
+        *count += toCount->colorAttachmentCount * sizeof(const VkFormat);
     }
     *count += 2 * sizeof(VkFormat);
 }
@@ -4775,9 +4569,7 @@ void count_VkRenderingAttachmentLocationInfo(uint32_t featureBits, VkStructureTy
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pColorAttachmentLocations) {
-        if (toCount) {
-            *count += toCount->colorAttachmentCount * sizeof(const uint32_t);
-        }
+        *count += toCount->colorAttachmentCount * sizeof(const uint32_t);
     }
 }
 
@@ -4792,9 +4584,7 @@ void count_VkRenderingInputAttachmentIndexInfo(uint32_t featureBits, VkStructure
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pColorAttachmentInputIndices) {
-        if (toCount) {
-            *count += toCount->colorAttachmentCount * sizeof(const uint32_t);
-        }
+        *count += toCount->colorAttachmentCount * sizeof(const uint32_t);
     }
     *count += 8;
     if (toCount->pDepthInputAttachmentIndex) {
@@ -4846,11 +4636,9 @@ void count_VkPresentRegionKHR(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pRectangles) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->rectangleCount; ++i) {
-                count_VkRectLayerKHR(featureBits, rootType,
-                                     (const VkRectLayerKHR*)(toCount->pRectangles + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->rectangleCount; ++i) {
+            count_VkRectLayerKHR(featureBits, rootType,
+                                 (const VkRectLayerKHR*)(toCount->pRectangles + i), count);
         }
     }
 }
@@ -4865,11 +4653,9 @@ void count_VkPresentRegionsKHR(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pRegions) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->swapchainCount; ++i) {
-                count_VkPresentRegionKHR(featureBits, rootType,
-                                         (const VkPresentRegionKHR*)(toCount->pRegions + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->swapchainCount; ++i) {
+            count_VkPresentRegionKHR(featureBits, rootType,
+                                     (const VkPresentRegionKHR*)(toCount->pRegions + i), count);
         }
     }
 }
@@ -4985,9 +4771,7 @@ void count_VkPipelineExecutableInternalRepresentationKHR(
     *count += sizeof(VkBool32);
     *count += 2 * 8;
     if (toCount->pData) {
-        if (toCount) {
-            *count += toCount->dataSize * sizeof(uint8_t);
-        }
+        *count += toCount->dataSize * sizeof(uint8_t);
     }
 }
 
@@ -5020,12 +4804,8 @@ void count_VkSetDescriptorBufferOffsetsInfoEXT(uint32_t featureBits, VkStructure
     *count += sizeof(VkShaderStageFlags);
     *count += 8;
     *count += 2 * sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->setCount * sizeof(const uint32_t);
-    }
-    if (toCount) {
-        *count += toCount->setCount * sizeof(const VkDeviceSize);
-    }
+    *count += toCount->setCount * sizeof(const uint32_t);
+    *count += toCount->setCount * sizeof(const VkDeviceSize);
 }
 
 void count_VkBindDescriptorBufferEmbeddedSamplersInfoEXT(
@@ -5090,12 +4870,10 @@ void count_VkPhysicalDeviceLayeredApiPropertiesListKHR(
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pLayeredApis) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->layeredApiCount; ++i) {
-                count_VkPhysicalDeviceLayeredApiPropertiesKHR(
-                    featureBits, rootType,
-                    (VkPhysicalDeviceLayeredApiPropertiesKHR*)(toCount->pLayeredApis + i), count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->layeredApiCount; ++i) {
+            count_VkPhysicalDeviceLayeredApiPropertiesKHR(
+                featureBits, rootType,
+                (VkPhysicalDeviceLayeredApiPropertiesKHR*)(toCount->pLayeredApis + i), count);
         }
     }
 }
@@ -5345,13 +5123,11 @@ void count_VkDrmFormatModifierPropertiesListEXT(uint32_t featureBits, VkStructur
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pDrmFormatModifierProperties) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->drmFormatModifierCount; ++i) {
-                count_VkDrmFormatModifierPropertiesEXT(
-                    featureBits, rootType,
-                    (VkDrmFormatModifierPropertiesEXT*)(toCount->pDrmFormatModifierProperties + i),
-                    count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->drmFormatModifierCount; ++i) {
+            count_VkDrmFormatModifierPropertiesEXT(
+                featureBits, rootType,
+                (VkDrmFormatModifierPropertiesEXT*)(toCount->pDrmFormatModifierProperties + i),
+                count);
         }
     }
 }
@@ -5369,9 +5145,7 @@ void count_VkPhysicalDeviceImageDrmFormatModifierInfoEXT(
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pQueueFamilyIndices) {
-        if (toCount) {
-            *count += toCount->queueFamilyIndexCount * sizeof(const uint32_t);
-        }
+        *count += toCount->queueFamilyIndexCount * sizeof(const uint32_t);
     }
 }
 
@@ -5384,9 +5158,7 @@ void count_VkImageDrmFormatModifierListCreateInfoEXT(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->drmFormatModifierCount * sizeof(const uint64_t);
-    }
+    *count += toCount->drmFormatModifierCount * sizeof(const uint64_t);
 }
 
 void count_VkImageDrmFormatModifierExplicitCreateInfoEXT(
@@ -5399,12 +5171,9 @@ void count_VkImageDrmFormatModifierExplicitCreateInfoEXT(
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint64_t);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        for (uint32_t i = 0; i < (uint32_t)toCount->drmFormatModifierPlaneCount; ++i) {
-            count_VkSubresourceLayout(featureBits, rootType,
-                                      (const VkSubresourceLayout*)(toCount->pPlaneLayouts + i),
-                                      count);
-        }
+    for (uint32_t i = 0; i < (uint32_t)toCount->drmFormatModifierPlaneCount; ++i) {
+        count_VkSubresourceLayout(featureBits, rootType,
+                                  (const VkSubresourceLayout*)(toCount->pPlaneLayouts + i), count);
     }
 }
 
@@ -5441,13 +5210,11 @@ void count_VkDrmFormatModifierPropertiesList2EXT(
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pDrmFormatModifierProperties) {
-        if (toCount) {
-            for (uint32_t i = 0; i < (uint32_t)toCount->drmFormatModifierCount; ++i) {
-                count_VkDrmFormatModifierProperties2EXT(
-                    featureBits, rootType,
-                    (VkDrmFormatModifierProperties2EXT*)(toCount->pDrmFormatModifierProperties + i),
-                    count);
-            }
+        for (uint32_t i = 0; i < (uint32_t)toCount->drmFormatModifierCount; ++i) {
+            count_VkDrmFormatModifierProperties2EXT(
+                featureBits, rootType,
+                (VkDrmFormatModifierProperties2EXT*)(toCount->pDrmFormatModifierProperties + i),
+                count);
         }
     }
 }
@@ -5770,10 +5537,8 @@ void count_VkImageCompressionControlEXT(uint32_t featureBits, VkStructureType ro
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pFixedRateFlags) {
-        if (toCount) {
-            *count +=
-                toCount->compressionControlPlaneCount * sizeof(VkImageCompressionFixedRateFlagsEXT);
-        }
+        *count +=
+            toCount->compressionControlPlaneCount * sizeof(VkImageCompressionFixedRateFlagsEXT);
     }
 }
 
@@ -5854,9 +5619,7 @@ void count_VkFrameBoundaryEXT(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint64_t);
     *count += 2 * 8;
     if (toCount->pTag) {
-        if (toCount) {
-            *count += toCount->tagSize * sizeof(const uint8_t);
-        }
+        *count += toCount->tagSize * sizeof(const uint8_t);
     }
 }
 
@@ -5895,9 +5658,7 @@ void count_VkPipelineColorWriteCreateInfoEXT(uint32_t featureBits, VkStructureTy
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(uint32_t);
-    if (toCount) {
-        *count += toCount->attachmentCount * sizeof(const VkBool32);
-    }
+    *count += toCount->attachmentCount * sizeof(const VkBool32);
 }
 
 #endif
@@ -6024,9 +5785,7 @@ void count_VkHostPointerResolveGOOGLE(uint32_t featureBits, VkStructureType root
     *count += sizeof(uint32_t);
     *count += 8;
     if (toCount->pHostPointer) {
-        if (toCount) {
-            *count += toCount->pointerSize * sizeof(uint8_t);
-        }
+        *count += toCount->pointerSize * sizeof(uint8_t);
     }
 }
 

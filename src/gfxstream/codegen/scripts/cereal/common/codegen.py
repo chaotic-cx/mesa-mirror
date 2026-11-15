@@ -505,8 +505,7 @@ class CodeGen(object):
                     deref = "->" if asPtr else "."
                     expr = "%s%s%s" % (structVarName, deref,
                                        c["lenExprMember"])
-                    lenAccessGuardExpr = "%s" % structVarName
-                    return c["postprocess"](expr), lenAccessGuardExpr
+                    return c["postprocess"](expr), None
 
             return None, None
 
@@ -522,18 +521,19 @@ class CodeGen(object):
         if not lenExpr:
             return None, None
 
+        # Struct member lengths need no null guard: per-struct functions are
+        # only called with valid struct pointers (generated callers check
+        # optional pointers first), and most of them dereference the pointer
+        # through sType/pNext or earlier members before the array.
         deref = "->" if asPtr else "."
-        lenAccessGuardExpr = "%s" % (
-
-            structVarName) if deref else None
         if lenExpr == "null-terminated":
             return "strlen(%s%s%s)" % (structVarName, deref,
-                                       vulkanType.paramName), lenAccessGuardExpr
+                                       vulkanType.paramName), None
 
         if not structInfo.getMember(lenExpr):
             return self.makeRawLengthAccess(vulkanType)
 
-        return "%s%s%s" % (structVarName, deref, lenExpr), lenAccessGuardExpr
+        return "%s%s%s" % (structVarName, deref, lenExpr), None
 
     def makeLengthAccessFromApi(self, api, vulkanType):
         # Handle special cases first

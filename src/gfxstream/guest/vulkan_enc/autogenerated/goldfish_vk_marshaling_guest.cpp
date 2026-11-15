@@ -467,12 +467,9 @@ void unmarshal_VkDeviceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType r
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkDeviceCreateFlags));
     vkStream->read(&forUnmarshaling->queueCreateInfoCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->queueCreateInfoCount; ++i) {
-            unmarshal_VkDeviceQueueCreateInfo(
-                vkStream, rootType,
-                (VkDeviceQueueCreateInfo*)(forUnmarshaling->pQueueCreateInfos + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->queueCreateInfoCount; ++i) {
+        unmarshal_VkDeviceQueueCreateInfo(
+            vkStream, rootType, (VkDeviceQueueCreateInfo*)(forUnmarshaling->pQueueCreateInfos + i));
     }
     vkStream->read(&forUnmarshaling->enabledLayerCount, sizeof(uint32_t));
     vkStream->loadStringArrayInPlace((char***)&forUnmarshaling->ppEnabledLayerNames);
@@ -613,11 +610,9 @@ void unmarshal_VkSparseImageMemoryBindInfo(VulkanStreamGuest* vkStream, VkStruct
     vkStream->read(&cgen_var_0, 8);
     *((VkImage*)&forUnmarshaling->image) = (VkImage)(uintptr_t)cgen_var_0;
     vkStream->read(&forUnmarshaling->bindCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindCount; ++i) {
-            unmarshal_VkSparseImageMemoryBind(
-                vkStream, rootType, (VkSparseImageMemoryBind*)(forUnmarshaling->pBinds + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindCount; ++i) {
+        unmarshal_VkSparseImageMemoryBind(vkStream, rootType,
+                                          (VkSparseImageMemoryBind*)(forUnmarshaling->pBinds + i));
     }
 }
 
@@ -650,11 +645,9 @@ void unmarshal_VkSparseBufferMemoryBindInfo(VulkanStreamGuest* vkStream, VkStruc
     vkStream->read(&cgen_var_0, 8);
     *((VkBuffer*)&forUnmarshaling->buffer) = (VkBuffer)(uintptr_t)cgen_var_0;
     vkStream->read(&forUnmarshaling->bindCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindCount; ++i) {
-            unmarshal_VkSparseMemoryBind(vkStream, rootType,
-                                         (VkSparseMemoryBind*)(forUnmarshaling->pBinds + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindCount; ++i) {
+        unmarshal_VkSparseMemoryBind(vkStream, rootType,
+                                     (VkSparseMemoryBind*)(forUnmarshaling->pBinds + i));
     }
 }
 
@@ -665,11 +658,9 @@ void unmarshal_VkSparseImageOpaqueMemoryBindInfo(
     vkStream->read(&cgen_var_0, 8);
     *((VkImage*)&forUnmarshaling->image) = (VkImage)(uintptr_t)cgen_var_0;
     vkStream->read(&forUnmarshaling->bindCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindCount; ++i) {
-            unmarshal_VkSparseMemoryBind(vkStream, rootType,
-                                         (VkSparseMemoryBind*)(forUnmarshaling->pBinds + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindCount; ++i) {
+        unmarshal_VkSparseMemoryBind(vkStream, rootType,
+                                     (VkSparseMemoryBind*)(forUnmarshaling->pBinds + i));
     }
 }
 
@@ -691,28 +682,20 @@ void unmarshal_VkBindSparseInfo(VulkanStreamGuest* vkStream, VkStructureType roo
         }
     }
     vkStream->read(&forUnmarshaling->bufferBindCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bufferBindCount; ++i) {
-            unmarshal_VkSparseBufferMemoryBindInfo(
-                vkStream, rootType,
-                (VkSparseBufferMemoryBindInfo*)(forUnmarshaling->pBufferBinds + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bufferBindCount; ++i) {
+        unmarshal_VkSparseBufferMemoryBindInfo(
+            vkStream, rootType, (VkSparseBufferMemoryBindInfo*)(forUnmarshaling->pBufferBinds + i));
     }
     vkStream->read(&forUnmarshaling->imageOpaqueBindCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->imageOpaqueBindCount; ++i) {
-            unmarshal_VkSparseImageOpaqueMemoryBindInfo(
-                vkStream, rootType,
-                (VkSparseImageOpaqueMemoryBindInfo*)(forUnmarshaling->pImageOpaqueBinds + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->imageOpaqueBindCount; ++i) {
+        unmarshal_VkSparseImageOpaqueMemoryBindInfo(
+            vkStream, rootType,
+            (VkSparseImageOpaqueMemoryBindInfo*)(forUnmarshaling->pImageOpaqueBinds + i));
     }
     vkStream->read(&forUnmarshaling->imageBindCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->imageBindCount; ++i) {
-            unmarshal_VkSparseImageMemoryBindInfo(
-                vkStream, rootType,
-                (VkSparseImageMemoryBindInfo*)(forUnmarshaling->pImageBinds + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->imageBindCount; ++i) {
+        unmarshal_VkSparseImageMemoryBindInfo(
+            vkStream, rootType, (VkSparseImageMemoryBindInfo*)(forUnmarshaling->pImageBinds + i));
     }
     vkStream->read(&forUnmarshaling->signalSemaphoreCount, sizeof(uint32_t));
     if (forUnmarshaling->signalSemaphoreCount) {
@@ -1096,11 +1079,9 @@ void unmarshal_VkSpecializationMapEntry(VulkanStreamGuest* vkStream, VkStructure
 void unmarshal_VkSpecializationInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                     VkSpecializationInfo* forUnmarshaling) {
     vkStream->read(&forUnmarshaling->mapEntryCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->mapEntryCount; ++i) {
-            unmarshal_VkSpecializationMapEntry(
-                vkStream, rootType, (VkSpecializationMapEntry*)(forUnmarshaling->pMapEntries + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->mapEntryCount; ++i) {
+        unmarshal_VkSpecializationMapEntry(
+            vkStream, rootType, (VkSpecializationMapEntry*)(forUnmarshaling->pMapEntries + i));
     }
     forUnmarshaling->dataSize = (size_t)vkStream->getBe64();
     vkStream->read((void*)forUnmarshaling->pData,
@@ -1178,12 +1159,9 @@ void unmarshal_VkPipelineLayoutCreateInfo(VulkanStreamGuest* vkStream, VkStructu
         }
     }
     vkStream->read(&forUnmarshaling->pushConstantRangeCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->pushConstantRangeCount; ++i) {
-            unmarshal_VkPushConstantRange(
-                vkStream, rootType,
-                (VkPushConstantRange*)(forUnmarshaling->pPushConstantRanges + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->pushConstantRangeCount; ++i) {
+        unmarshal_VkPushConstantRange(
+            vkStream, rootType, (VkPushConstantRange*)(forUnmarshaling->pPushConstantRanges + i));
     }
 }
 
@@ -1271,11 +1249,9 @@ void unmarshal_VkDescriptorPoolCreateInfo(VulkanStreamGuest* vkStream, VkStructu
     vkStream->read(&forUnmarshaling->flags, sizeof(VkDescriptorPoolCreateFlags));
     vkStream->read(&forUnmarshaling->maxSets, sizeof(uint32_t));
     vkStream->read(&forUnmarshaling->poolSizeCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->poolSizeCount; ++i) {
-            unmarshal_VkDescriptorPoolSize(
-                vkStream, rootType, (VkDescriptorPoolSize*)(forUnmarshaling->pPoolSizes + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->poolSizeCount; ++i) {
+        unmarshal_VkDescriptorPoolSize(vkStream, rootType,
+                                       (VkDescriptorPoolSize*)(forUnmarshaling->pPoolSizes + i));
     }
 }
 
@@ -1337,12 +1313,9 @@ void unmarshal_VkDescriptorSetLayoutCreateInfo(VulkanStreamGuest* vkStream,
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkDescriptorSetLayoutCreateFlags));
     vkStream->read(&forUnmarshaling->bindingCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindingCount; ++i) {
-            unmarshal_VkDescriptorSetLayoutBinding(
-                vkStream, rootType,
-                (VkDescriptorSetLayoutBinding*)(forUnmarshaling->pBindings + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bindingCount; ++i) {
+        unmarshal_VkDescriptorSetLayoutBinding(
+            vkStream, rootType, (VkDescriptorSetLayoutBinding*)(forUnmarshaling->pBindings + i));
     }
 }
 
@@ -1372,12 +1345,9 @@ void unmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType
               (VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE == forUnmarshaling->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_IMAGE == forUnmarshaling->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT == forUnmarshaling->descriptorType)))) {
-            if (forUnmarshaling) {
-                for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorCount; ++i) {
-                    unmarshal_VkDescriptorImageInfo(
-                        vkStream, rootType,
-                        (VkDescriptorImageInfo*)(forUnmarshaling->pImageInfo + i));
-                }
+            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorCount; ++i) {
+                unmarshal_VkDescriptorImageInfo(
+                    vkStream, rootType, (VkDescriptorImageInfo*)(forUnmarshaling->pImageInfo + i));
             }
         } else {
             forUnmarshaling->pImageInfo = 0;
@@ -1394,12 +1364,10 @@ void unmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType
               (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC == forUnmarshaling->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER == forUnmarshaling->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC == forUnmarshaling->descriptorType)))) {
-            if (forUnmarshaling) {
-                for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorCount; ++i) {
-                    unmarshal_VkDescriptorBufferInfo(
-                        vkStream, rootType,
-                        (VkDescriptorBufferInfo*)(forUnmarshaling->pBufferInfo + i));
-                }
+            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorCount; ++i) {
+                unmarshal_VkDescriptorBufferInfo(
+                    vkStream, rootType,
+                    (VkDescriptorBufferInfo*)(forUnmarshaling->pBufferInfo + i));
             }
         } else {
             forUnmarshaling->pBufferInfo = 0;
@@ -1524,12 +1492,10 @@ void unmarshal_VkPipelineColorBlendStateCreateInfo(
     vkStream->read(&forUnmarshaling->logicOpEnable, sizeof(VkBool32));
     vkStream->read(&forUnmarshaling->logicOp, sizeof(VkLogicOp));
     vkStream->read(&forUnmarshaling->attachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentCount; ++i) {
-            unmarshal_VkPipelineColorBlendAttachmentState(
-                vkStream, rootType,
-                (VkPipelineColorBlendAttachmentState*)(forUnmarshaling->pAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentCount; ++i) {
+        unmarshal_VkPipelineColorBlendAttachmentState(
+            vkStream, rootType,
+            (VkPipelineColorBlendAttachmentState*)(forUnmarshaling->pAttachments + i));
     }
     vkStream->read(forUnmarshaling->blendConstants, 4 * sizeof(float));
 }
@@ -1650,22 +1616,17 @@ void unmarshal_VkPipelineVertexInputStateCreateInfo(
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkPipelineVertexInputStateCreateFlags));
     vkStream->read(&forUnmarshaling->vertexBindingDescriptionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->vertexBindingDescriptionCount; ++i) {
-            unmarshal_VkVertexInputBindingDescription(
-                vkStream, rootType,
-                (VkVertexInputBindingDescription*)(forUnmarshaling->pVertexBindingDescriptions +
-                                                   i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->vertexBindingDescriptionCount; ++i) {
+        unmarshal_VkVertexInputBindingDescription(
+            vkStream, rootType,
+            (VkVertexInputBindingDescription*)(forUnmarshaling->pVertexBindingDescriptions + i));
     }
     vkStream->read(&forUnmarshaling->vertexAttributeDescriptionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->vertexAttributeDescriptionCount; ++i) {
-            unmarshal_VkVertexInputAttributeDescription(
-                vkStream, rootType,
-                (VkVertexInputAttributeDescription*)(forUnmarshaling->pVertexAttributeDescriptions +
-                                                     i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->vertexAttributeDescriptionCount; ++i) {
+        unmarshal_VkVertexInputAttributeDescription(
+            vkStream, rootType,
+            (VkVertexInputAttributeDescription*)(forUnmarshaling->pVertexAttributeDescriptions +
+                                                 i));
     }
 }
 
@@ -1685,11 +1646,9 @@ void unmarshal_VkPipelineViewportStateCreateInfo(
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pViewports inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->viewportCount; ++i) {
-                unmarshal_VkViewport(vkStream, rootType,
-                                     (VkViewport*)(forUnmarshaling->pViewports + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->viewportCount; ++i) {
+            unmarshal_VkViewport(vkStream, rootType,
+                                 (VkViewport*)(forUnmarshaling->pViewports + i));
         }
     }
     vkStream->read(&forUnmarshaling->scissorCount, sizeof(uint32_t));
@@ -1699,10 +1658,8 @@ void unmarshal_VkPipelineViewportStateCreateInfo(
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pScissors inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->scissorCount; ++i) {
-                unmarshal_VkRect2D(vkStream, rootType, (VkRect2D*)(forUnmarshaling->pScissors + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->scissorCount; ++i) {
+            unmarshal_VkRect2D(vkStream, rootType, (VkRect2D*)(forUnmarshaling->pScissors + i));
         }
     }
 }
@@ -1724,12 +1681,9 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkPipelineCreateFlags));
     vkStream->read(&forUnmarshaling->stageCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->stageCount; ++i) {
-            unmarshal_VkPipelineShaderStageCreateInfo(
-                vkStream, rootType,
-                (VkPipelineShaderStageCreateInfo*)(forUnmarshaling->pStages + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->stageCount; ++i) {
+        unmarshal_VkPipelineShaderStageCreateInfo(
+            vkStream, rootType, (VkPipelineShaderStageCreateInfo*)(forUnmarshaling->pStages + i));
     }
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
         (void)vkStream->getBe64();
@@ -1920,20 +1874,14 @@ void unmarshal_VkSubpassDescription(VulkanStreamGuest* vkStream, VkStructureType
     vkStream->read(&forUnmarshaling->flags, sizeof(VkSubpassDescriptionFlags));
     vkStream->read(&forUnmarshaling->pipelineBindPoint, sizeof(VkPipelineBindPoint));
     vkStream->read(&forUnmarshaling->inputAttachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->inputAttachmentCount; ++i) {
-            unmarshal_VkAttachmentReference(
-                vkStream, rootType,
-                (VkAttachmentReference*)(forUnmarshaling->pInputAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->inputAttachmentCount; ++i) {
+        unmarshal_VkAttachmentReference(
+            vkStream, rootType, (VkAttachmentReference*)(forUnmarshaling->pInputAttachments + i));
     }
     vkStream->read(&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
-            unmarshal_VkAttachmentReference(
-                vkStream, rootType,
-                (VkAttachmentReference*)(forUnmarshaling->pColorAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
+        unmarshal_VkAttachmentReference(
+            vkStream, rootType, (VkAttachmentReference*)(forUnmarshaling->pColorAttachments + i));
     }
     uint64_t check_pResolveAttachments = vkStream->getBe64();
     if (forUnmarshaling->pResolveAttachments) {
@@ -1941,12 +1889,10 @@ void unmarshal_VkSubpassDescription(VulkanStreamGuest* vkStream, VkStructureType
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pResolveAttachments inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
-                unmarshal_VkAttachmentReference(
-                    vkStream, rootType,
-                    (VkAttachmentReference*)(forUnmarshaling->pResolveAttachments + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
+            unmarshal_VkAttachmentReference(
+                vkStream, rootType,
+                (VkAttachmentReference*)(forUnmarshaling->pResolveAttachments + i));
         }
     }
     uint64_t check_pDepthStencilAttachment = vkStream->getBe64();
@@ -1973,25 +1919,19 @@ void unmarshal_VkRenderPassCreateInfo(VulkanStreamGuest* vkStream, VkStructureTy
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkRenderPassCreateFlags));
     vkStream->read(&forUnmarshaling->attachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentCount; ++i) {
-            unmarshal_VkAttachmentDescription(
-                vkStream, rootType, (VkAttachmentDescription*)(forUnmarshaling->pAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentCount; ++i) {
+        unmarshal_VkAttachmentDescription(
+            vkStream, rootType, (VkAttachmentDescription*)(forUnmarshaling->pAttachments + i));
     }
     vkStream->read(&forUnmarshaling->subpassCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->subpassCount; ++i) {
-            unmarshal_VkSubpassDescription(
-                vkStream, rootType, (VkSubpassDescription*)(forUnmarshaling->pSubpasses + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->subpassCount; ++i) {
+        unmarshal_VkSubpassDescription(vkStream, rootType,
+                                       (VkSubpassDescription*)(forUnmarshaling->pSubpasses + i));
     }
     vkStream->read(&forUnmarshaling->dependencyCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->dependencyCount; ++i) {
-            unmarshal_VkSubpassDependency(
-                vkStream, rootType, (VkSubpassDependency*)(forUnmarshaling->pDependencies + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->dependencyCount; ++i) {
+        unmarshal_VkSubpassDependency(vkStream, rootType,
+                                      (VkSubpassDependency*)(forUnmarshaling->pDependencies + i));
     }
 }
 
@@ -2067,11 +2007,9 @@ void unmarshal_VkRenderPassBeginInfo(VulkanStreamGuest* vkStream, VkStructureTyp
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pClearValues inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->clearValueCount; ++i) {
-                unmarshal_VkClearValue(vkStream, rootType,
-                                       (VkClearValue*)(forUnmarshaling->pClearValues + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->clearValueCount; ++i) {
+            unmarshal_VkClearValue(vkStream, rootType,
+                                   (VkClearValue*)(forUnmarshaling->pClearValues + i));
         }
     }
 }
@@ -2212,11 +2150,9 @@ void unmarshal_VkBindImageMemoryDeviceGroupInfo(VulkanStreamGuest* vkStream,
     vkStream->read((uint32_t*)forUnmarshaling->pDeviceIndices,
                    forUnmarshaling->deviceIndexCount * sizeof(const uint32_t));
     vkStream->read(&forUnmarshaling->splitInstanceBindRegionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->splitInstanceBindRegionCount; ++i) {
-            unmarshal_VkRect2D(vkStream, rootType,
-                               (VkRect2D*)(forUnmarshaling->pSplitInstanceBindRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->splitInstanceBindRegionCount; ++i) {
+        unmarshal_VkRect2D(vkStream, rootType,
+                           (VkRect2D*)(forUnmarshaling->pSplitInstanceBindRegions + i));
     }
 }
 
@@ -2738,12 +2674,10 @@ void unmarshal_VkDescriptorUpdateTemplateCreateInfo(
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkDescriptorUpdateTemplateCreateFlags));
     vkStream->read(&forUnmarshaling->descriptorUpdateEntryCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorUpdateEntryCount; ++i) {
-            unmarshal_VkDescriptorUpdateTemplateEntry(
-                vkStream, rootType,
-                (VkDescriptorUpdateTemplateEntry*)(forUnmarshaling->pDescriptorUpdateEntries + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorUpdateEntryCount; ++i) {
+        unmarshal_VkDescriptorUpdateTemplateEntry(
+            vkStream, rootType,
+            (VkDescriptorUpdateTemplateEntry*)(forUnmarshaling->pDescriptorUpdateEntries + i));
     }
     vkStream->read(&forUnmarshaling->templateType, sizeof(VkDescriptorUpdateTemplateType));
     uint64_t cgen_var_0;
@@ -2846,11 +2780,9 @@ void unmarshal_VkDeviceGroupRenderPassBeginInfo(VulkanStreamGuest* vkStream,
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->deviceMask, sizeof(uint32_t));
     vkStream->read(&forUnmarshaling->deviceRenderAreaCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->deviceRenderAreaCount; ++i) {
-            unmarshal_VkRect2D(vkStream, rootType,
-                               (VkRect2D*)(forUnmarshaling->pDeviceRenderAreas + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->deviceRenderAreaCount; ++i) {
+        unmarshal_VkRect2D(vkStream, rootType,
+                           (VkRect2D*)(forUnmarshaling->pDeviceRenderAreas + i));
     }
 }
 
@@ -2883,12 +2815,10 @@ void unmarshal_VkRenderPassInputAttachmentAspectCreateInfo(
     }
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->aspectReferenceCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->aspectReferenceCount; ++i) {
-            unmarshal_VkInputAttachmentAspectReference(
-                vkStream, rootType,
-                (VkInputAttachmentAspectReference*)(forUnmarshaling->pAspectReferences + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->aspectReferenceCount; ++i) {
+        unmarshal_VkInputAttachmentAspectReference(
+            vkStream, rootType,
+            (VkInputAttachmentAspectReference*)(forUnmarshaling->pAspectReferences + i));
     }
 }
 
@@ -3682,20 +3612,14 @@ void unmarshal_VkSubpassDescription2(VulkanStreamGuest* vkStream, VkStructureTyp
     vkStream->read(&forUnmarshaling->pipelineBindPoint, sizeof(VkPipelineBindPoint));
     vkStream->read(&forUnmarshaling->viewMask, sizeof(uint32_t));
     vkStream->read(&forUnmarshaling->inputAttachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->inputAttachmentCount; ++i) {
-            unmarshal_VkAttachmentReference2(
-                vkStream, rootType,
-                (VkAttachmentReference2*)(forUnmarshaling->pInputAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->inputAttachmentCount; ++i) {
+        unmarshal_VkAttachmentReference2(
+            vkStream, rootType, (VkAttachmentReference2*)(forUnmarshaling->pInputAttachments + i));
     }
     vkStream->read(&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
-            unmarshal_VkAttachmentReference2(
-                vkStream, rootType,
-                (VkAttachmentReference2*)(forUnmarshaling->pColorAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
+        unmarshal_VkAttachmentReference2(
+            vkStream, rootType, (VkAttachmentReference2*)(forUnmarshaling->pColorAttachments + i));
     }
     uint64_t check_pResolveAttachments = vkStream->getBe64();
     if (forUnmarshaling->pResolveAttachments) {
@@ -3703,12 +3627,10 @@ void unmarshal_VkSubpassDescription2(VulkanStreamGuest* vkStream, VkStructureTyp
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pResolveAttachments inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
-                unmarshal_VkAttachmentReference2(
-                    vkStream, rootType,
-                    (VkAttachmentReference2*)(forUnmarshaling->pResolveAttachments + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
+            unmarshal_VkAttachmentReference2(
+                vkStream, rootType,
+                (VkAttachmentReference2*)(forUnmarshaling->pResolveAttachments + i));
         }
     }
     uint64_t check_pDepthStencilAttachment = vkStream->getBe64();
@@ -3772,25 +3694,19 @@ void unmarshal_VkRenderPassCreateInfo2(VulkanStreamGuest* vkStream, VkStructureT
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkRenderPassCreateFlags));
     vkStream->read(&forUnmarshaling->attachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentCount; ++i) {
-            unmarshal_VkAttachmentDescription2(
-                vkStream, rootType, (VkAttachmentDescription2*)(forUnmarshaling->pAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentCount; ++i) {
+        unmarshal_VkAttachmentDescription2(
+            vkStream, rootType, (VkAttachmentDescription2*)(forUnmarshaling->pAttachments + i));
     }
     vkStream->read(&forUnmarshaling->subpassCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->subpassCount; ++i) {
-            unmarshal_VkSubpassDescription2(
-                vkStream, rootType, (VkSubpassDescription2*)(forUnmarshaling->pSubpasses + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->subpassCount; ++i) {
+        unmarshal_VkSubpassDescription2(vkStream, rootType,
+                                        (VkSubpassDescription2*)(forUnmarshaling->pSubpasses + i));
     }
     vkStream->read(&forUnmarshaling->dependencyCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->dependencyCount; ++i) {
-            unmarshal_VkSubpassDependency2(
-                vkStream, rootType, (VkSubpassDependency2*)(forUnmarshaling->pDependencies + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->dependencyCount; ++i) {
+        unmarshal_VkSubpassDependency2(vkStream, rootType,
+                                       (VkSubpassDependency2*)(forUnmarshaling->pDependencies + i));
     }
     vkStream->read(&forUnmarshaling->correlatedViewMaskCount, sizeof(uint32_t));
     vkStream->read((uint32_t*)forUnmarshaling->pCorrelatedViewMasks,
@@ -3902,12 +3818,10 @@ void unmarshal_VkFramebufferAttachmentsCreateInfo(
     }
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->attachmentImageInfoCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentImageInfoCount; ++i) {
-            unmarshal_VkFramebufferAttachmentImageInfo(
-                vkStream, rootType,
-                (VkFramebufferAttachmentImageInfo*)(forUnmarshaling->pAttachmentImageInfos + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->attachmentImageInfoCount; ++i) {
+        unmarshal_VkFramebufferAttachmentImageInfo(
+            vkStream, rootType,
+            (VkFramebufferAttachmentImageInfo*)(forUnmarshaling->pAttachmentImageInfos + i));
     }
 }
 
@@ -4174,27 +4088,21 @@ void unmarshal_VkDependencyInfo(VulkanStreamGuest* vkStream, VkStructureType roo
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->dependencyFlags, sizeof(VkDependencyFlags));
     vkStream->read(&forUnmarshaling->memoryBarrierCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->memoryBarrierCount; ++i) {
-            unmarshal_VkMemoryBarrier2(vkStream, rootType,
-                                       (VkMemoryBarrier2*)(forUnmarshaling->pMemoryBarriers + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->memoryBarrierCount; ++i) {
+        unmarshal_VkMemoryBarrier2(vkStream, rootType,
+                                   (VkMemoryBarrier2*)(forUnmarshaling->pMemoryBarriers + i));
     }
     vkStream->read(&forUnmarshaling->bufferMemoryBarrierCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bufferMemoryBarrierCount; ++i) {
-            unmarshal_VkBufferMemoryBarrier2(
-                vkStream, rootType,
-                (VkBufferMemoryBarrier2*)(forUnmarshaling->pBufferMemoryBarriers + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->bufferMemoryBarrierCount; ++i) {
+        unmarshal_VkBufferMemoryBarrier2(
+            vkStream, rootType,
+            (VkBufferMemoryBarrier2*)(forUnmarshaling->pBufferMemoryBarriers + i));
     }
     vkStream->read(&forUnmarshaling->imageMemoryBarrierCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->imageMemoryBarrierCount; ++i) {
-            unmarshal_VkImageMemoryBarrier2(
-                vkStream, rootType,
-                (VkImageMemoryBarrier2*)(forUnmarshaling->pImageMemoryBarriers + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->imageMemoryBarrierCount; ++i) {
+        unmarshal_VkImageMemoryBarrier2(
+            vkStream, rootType,
+            (VkImageMemoryBarrier2*)(forUnmarshaling->pImageMemoryBarriers + i));
     }
 }
 
@@ -4235,28 +4143,21 @@ void unmarshal_VkSubmitInfo2(VulkanStreamGuest* vkStream, VkStructureType rootTy
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->flags, sizeof(VkSubmitFlags));
     vkStream->read(&forUnmarshaling->waitSemaphoreInfoCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->waitSemaphoreInfoCount; ++i) {
-            unmarshal_VkSemaphoreSubmitInfo(
-                vkStream, rootType,
-                (VkSemaphoreSubmitInfo*)(forUnmarshaling->pWaitSemaphoreInfos + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->waitSemaphoreInfoCount; ++i) {
+        unmarshal_VkSemaphoreSubmitInfo(
+            vkStream, rootType, (VkSemaphoreSubmitInfo*)(forUnmarshaling->pWaitSemaphoreInfos + i));
     }
     vkStream->read(&forUnmarshaling->commandBufferInfoCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->commandBufferInfoCount; ++i) {
-            unmarshal_VkCommandBufferSubmitInfo(
-                vkStream, rootType,
-                (VkCommandBufferSubmitInfo*)(forUnmarshaling->pCommandBufferInfos + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->commandBufferInfoCount; ++i) {
+        unmarshal_VkCommandBufferSubmitInfo(
+            vkStream, rootType,
+            (VkCommandBufferSubmitInfo*)(forUnmarshaling->pCommandBufferInfos + i));
     }
     vkStream->read(&forUnmarshaling->signalSemaphoreInfoCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->signalSemaphoreInfoCount; ++i) {
-            unmarshal_VkSemaphoreSubmitInfo(
-                vkStream, rootType,
-                (VkSemaphoreSubmitInfo*)(forUnmarshaling->pSignalSemaphoreInfos + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->signalSemaphoreInfoCount; ++i) {
+        unmarshal_VkSemaphoreSubmitInfo(
+            vkStream, rootType,
+            (VkSemaphoreSubmitInfo*)(forUnmarshaling->pSignalSemaphoreInfos + i));
     }
 }
 
@@ -4297,11 +4198,9 @@ void unmarshal_VkCopyBufferInfo2(VulkanStreamGuest* vkStream, VkStructureType ro
     vkStream->read(&cgen_var_1, 8);
     *((VkBuffer*)&forUnmarshaling->dstBuffer) = (VkBuffer)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkBufferCopy2(vkStream, rootType,
-                                    (VkBufferCopy2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkBufferCopy2(vkStream, rootType,
+                                (VkBufferCopy2*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -4337,11 +4236,8 @@ void unmarshal_VkCopyImageInfo2(VulkanStreamGuest* vkStream, VkStructureType roo
     *((VkImage*)&forUnmarshaling->dstImage) = (VkImage)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->dstImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkImageCopy2(vkStream, rootType,
-                                   (VkImageCopy2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkImageCopy2(vkStream, rootType, (VkImageCopy2*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -4376,11 +4272,9 @@ void unmarshal_VkCopyBufferToImageInfo2(VulkanStreamGuest* vkStream, VkStructure
     *((VkImage*)&forUnmarshaling->dstImage) = (VkImage)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->dstImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkBufferImageCopy2(vkStream, rootType,
-                                         (VkBufferImageCopy2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkBufferImageCopy2(vkStream, rootType,
+                                     (VkBufferImageCopy2*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -4399,11 +4293,9 @@ void unmarshal_VkCopyImageToBufferInfo2(VulkanStreamGuest* vkStream, VkStructure
     vkStream->read(&cgen_var_1, 8);
     *((VkBuffer*)&forUnmarshaling->dstBuffer) = (VkBuffer)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkBufferImageCopy2(vkStream, rootType,
-                                         (VkBufferImageCopy2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkBufferImageCopy2(vkStream, rootType,
+                                     (VkBufferImageCopy2*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -4498,14 +4390,10 @@ void unmarshal_VkPipelineCreationFeedbackCreateInfo(
         vkStream, rootType,
         (VkPipelineCreationFeedback*)(forUnmarshaling->pPipelineCreationFeedback));
     vkStream->read(&forUnmarshaling->pipelineStageCreationFeedbackCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->pipelineStageCreationFeedbackCount;
-             ++i) {
-            unmarshal_VkPipelineCreationFeedback(
-                vkStream, rootType,
-                (VkPipelineCreationFeedback*)(forUnmarshaling->pPipelineStageCreationFeedbacks +
-                                              i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->pipelineStageCreationFeedbackCount; ++i) {
+        unmarshal_VkPipelineCreationFeedback(
+            vkStream, rootType,
+            (VkPipelineCreationFeedback*)(forUnmarshaling->pPipelineStageCreationFeedbacks + i));
     }
 }
 
@@ -4792,11 +4680,8 @@ void unmarshal_VkBlitImageInfo2(VulkanStreamGuest* vkStream, VkStructureType roo
     *((VkImage*)&forUnmarshaling->dstImage) = (VkImage)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->dstImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkImageBlit2(vkStream, rootType,
-                                   (VkImageBlit2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkImageBlit2(vkStream, rootType, (VkImageBlit2*)(forUnmarshaling->pRegions + i));
     }
     vkStream->read(&forUnmarshaling->filter, sizeof(VkFilter));
 }
@@ -4833,11 +4718,9 @@ void unmarshal_VkResolveImageInfo2(VulkanStreamGuest* vkStream, VkStructureType 
     *((VkImage*)&forUnmarshaling->dstImage) = (VkImage)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->dstImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkImageResolve2(vkStream, rootType,
-                                      (VkImageResolve2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkImageResolve2(vkStream, rootType,
+                                  (VkImageResolve2*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -4874,12 +4757,10 @@ void unmarshal_VkRenderingInfo(VulkanStreamGuest* vkStream, VkStructureType root
     vkStream->read(&forUnmarshaling->layerCount, sizeof(uint32_t));
     vkStream->read(&forUnmarshaling->viewMask, sizeof(uint32_t));
     vkStream->read(&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
-            unmarshal_VkRenderingAttachmentInfo(
-                vkStream, rootType,
-                (VkRenderingAttachmentInfo*)(forUnmarshaling->pColorAttachments + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->colorAttachmentCount; ++i) {
+        unmarshal_VkRenderingAttachmentInfo(
+            vkStream, rootType,
+            (VkRenderingAttachmentInfo*)(forUnmarshaling->pColorAttachments + i));
     }
     uint64_t check_pDepthAttachment = vkStream->getBe64();
     if (forUnmarshaling->pDepthAttachment) {
@@ -5317,11 +5198,9 @@ void unmarshal_VkCopyMemoryToImageInfo(VulkanStreamGuest* vkStream, VkStructureT
     *((VkImage*)&forUnmarshaling->dstImage) = (VkImage)(uintptr_t)cgen_var_0;
     vkStream->read(&forUnmarshaling->dstImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkMemoryToImageCopy(vkStream, rootType,
-                                          (VkMemoryToImageCopy*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkMemoryToImageCopy(vkStream, rootType,
+                                      (VkMemoryToImageCopy*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -5338,11 +5217,9 @@ void unmarshal_VkCopyImageToMemoryInfo(VulkanStreamGuest* vkStream, VkStructureT
     *((VkImage*)&forUnmarshaling->srcImage) = (VkImage)(uintptr_t)cgen_var_0;
     vkStream->read(&forUnmarshaling->srcImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkImageToMemoryCopy(vkStream, rootType,
-                                          (VkImageToMemoryCopy*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkImageToMemoryCopy(vkStream, rootType,
+                                      (VkImageToMemoryCopy*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -5363,11 +5240,8 @@ void unmarshal_VkCopyImageToImageInfo(VulkanStreamGuest* vkStream, VkStructureTy
     *((VkImage*)&forUnmarshaling->dstImage) = (VkImage)(uintptr_t)cgen_var_1;
     vkStream->read(&forUnmarshaling->dstImageLayout, sizeof(VkImageLayout));
     vkStream->read(&forUnmarshaling->regionCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
-            unmarshal_VkImageCopy2(vkStream, rootType,
-                                   (VkImageCopy2*)(forUnmarshaling->pRegions + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->regionCount; ++i) {
+        unmarshal_VkImageCopy2(vkStream, rootType, (VkImageCopy2*)(forUnmarshaling->pRegions + i));
     }
 }
 
@@ -5531,12 +5405,9 @@ void unmarshal_VkPushDescriptorSetInfo(VulkanStreamGuest* vkStream, VkStructureT
     *((VkPipelineLayout*)&forUnmarshaling->layout) = (VkPipelineLayout)(uintptr_t)cgen_var_0;
     vkStream->read(&forUnmarshaling->set, sizeof(uint32_t));
     vkStream->read(&forUnmarshaling->descriptorWriteCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorWriteCount; ++i) {
-            unmarshal_VkWriteDescriptorSet(
-                vkStream, rootType,
-                (VkWriteDescriptorSet*)(forUnmarshaling->pDescriptorWrites + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->descriptorWriteCount; ++i) {
+        unmarshal_VkWriteDescriptorSet(
+            vkStream, rootType, (VkWriteDescriptorSet*)(forUnmarshaling->pDescriptorWrites + i));
     }
 }
 
@@ -5684,13 +5555,10 @@ void unmarshal_VkPipelineVertexInputDivisorStateCreateInfo(
     }
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->vertexBindingDivisorCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->vertexBindingDivisorCount; ++i) {
-            unmarshal_VkVertexInputBindingDivisorDescription(
-                vkStream, rootType,
-                (VkVertexInputBindingDivisorDescription*)(forUnmarshaling->pVertexBindingDivisors +
-                                                          i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->vertexBindingDivisorCount; ++i) {
+        unmarshal_VkVertexInputBindingDivisorDescription(
+            vkStream, rootType,
+            (VkVertexInputBindingDivisorDescription*)(forUnmarshaling->pVertexBindingDivisors + i));
     }
 }
 
@@ -5850,11 +5718,9 @@ void unmarshal_VkPresentRegionKHR(VulkanStreamGuest* vkStream, VkStructureType r
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pRectangles inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->rectangleCount; ++i) {
-                unmarshal_VkRectLayerKHR(vkStream, rootType,
-                                         (VkRectLayerKHR*)(forUnmarshaling->pRectangles + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->rectangleCount; ++i) {
+            unmarshal_VkRectLayerKHR(vkStream, rootType,
+                                     (VkRectLayerKHR*)(forUnmarshaling->pRectangles + i));
         }
     }
 }
@@ -5872,11 +5738,9 @@ void unmarshal_VkPresentRegionsKHR(VulkanStreamGuest* vkStream, VkStructureType 
         if (!(check_pRegions)) {
             GFXSTREAM_ERROR("fatal: forUnmarshaling->pRegions inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->swapchainCount; ++i) {
-                unmarshal_VkPresentRegionKHR(vkStream, rootType,
-                                             (VkPresentRegionKHR*)(forUnmarshaling->pRegions + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->swapchainCount; ++i) {
+            unmarshal_VkPresentRegionKHR(vkStream, rootType,
+                                         (VkPresentRegionKHR*)(forUnmarshaling->pRegions + i));
         }
     }
 }
@@ -6126,12 +5990,10 @@ void unmarshal_VkPhysicalDeviceLayeredApiPropertiesListKHR(
             GFXSTREAM_ERROR(
                 "fatal: forUnmarshaling->pLayeredApis inconsistent between guest and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->layeredApiCount; ++i) {
-                unmarshal_VkPhysicalDeviceLayeredApiPropertiesKHR(
-                    vkStream, rootType,
-                    (VkPhysicalDeviceLayeredApiPropertiesKHR*)(forUnmarshaling->pLayeredApis + i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->layeredApiCount; ++i) {
+            unmarshal_VkPhysicalDeviceLayeredApiPropertiesKHR(
+                vkStream, rootType,
+                (VkPhysicalDeviceLayeredApiPropertiesKHR*)(forUnmarshaling->pLayeredApis + i));
         }
     }
 }
@@ -6403,14 +6265,11 @@ void unmarshal_VkDrmFormatModifierPropertiesListEXT(
                 "fatal: forUnmarshaling->pDrmFormatModifierProperties inconsistent between guest "
                 "and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->drmFormatModifierCount; ++i) {
-                unmarshal_VkDrmFormatModifierPropertiesEXT(
-                    vkStream, rootType,
-                    (VkDrmFormatModifierPropertiesEXT*)(forUnmarshaling
-                                                            ->pDrmFormatModifierProperties +
-                                                        i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->drmFormatModifierCount; ++i) {
+            unmarshal_VkDrmFormatModifierPropertiesEXT(
+                vkStream, rootType,
+                (VkDrmFormatModifierPropertiesEXT*)(forUnmarshaling->pDrmFormatModifierProperties +
+                                                    i));
         }
     }
 }
@@ -6460,11 +6319,9 @@ void unmarshal_VkImageDrmFormatModifierExplicitCreateInfoEXT(
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     vkStream->read(&forUnmarshaling->drmFormatModifier, sizeof(uint64_t));
     vkStream->read(&forUnmarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
-    if (forUnmarshaling) {
-        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->drmFormatModifierPlaneCount; ++i) {
-            unmarshal_VkSubresourceLayout(
-                vkStream, rootType, (VkSubresourceLayout*)(forUnmarshaling->pPlaneLayouts + i));
-        }
+    for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->drmFormatModifierPlaneCount; ++i) {
+        unmarshal_VkSubresourceLayout(vkStream, rootType,
+                                      (VkSubresourceLayout*)(forUnmarshaling->pPlaneLayouts + i));
     }
 }
 
@@ -6505,14 +6362,11 @@ void unmarshal_VkDrmFormatModifierPropertiesList2EXT(
                 "fatal: forUnmarshaling->pDrmFormatModifierProperties inconsistent between guest "
                 "and host");
         }
-        if (forUnmarshaling) {
-            for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->drmFormatModifierCount; ++i) {
-                unmarshal_VkDrmFormatModifierProperties2EXT(
-                    vkStream, rootType,
-                    (VkDrmFormatModifierProperties2EXT*)(forUnmarshaling
-                                                             ->pDrmFormatModifierProperties +
-                                                         i));
-            }
+        for (uint32_t i = 0; i < (uint32_t)forUnmarshaling->drmFormatModifierCount; ++i) {
+            unmarshal_VkDrmFormatModifierProperties2EXT(
+                vkStream, rootType,
+                (VkDrmFormatModifierProperties2EXT*)(forUnmarshaling->pDrmFormatModifierProperties +
+                                                     i));
         }
     }
 }
