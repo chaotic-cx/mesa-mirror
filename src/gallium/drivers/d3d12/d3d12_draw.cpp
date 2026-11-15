@@ -969,7 +969,11 @@ d3d12_draw_vbo(struct pipe_context *pctx,
       ctx->state_dirty |= D3D12_DIRTY_PRIM_MODE;
    }
 
-   d3d12_select_shader_variants(ctx, dinfo);
+   if (!d3d12_select_shader_variants(ctx, dinfo)) {
+      ctx->initial_api_prim = MESA_PRIM_COUNT;
+      pipe_resource_reference(&patched_indirect.buffer, NULL);
+      return;
+   }
    d3d12_validate_queries(ctx);
    for (unsigned i = 0; i < D3D12_GFX_SHADER_STAGES; ++i) {
       struct d3d12_shader *shader = ctx->gfx_stages[i] ? ctx->gfx_stages[i]->current : NULL;
@@ -1327,6 +1331,10 @@ void
 d3d12_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
 {
    struct d3d12_context *ctx = d3d12_context(pctx);
+
+   if (!d3d12_select_compute_shader_variants(ctx, info))
+      return;
+
    struct d3d12_batch *batch;
    struct pipe_resource *patched_indirect = nullptr;
 
@@ -1340,7 +1348,6 @@ d3d12_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
    if (indirect && update_dispatch_indirect_with_sysvals(ctx, &indirect, &indirect_offset, &patched_indirect))
       cmd_sig_key.multi_draw_stride = sizeof(D3D12_DISPATCH_ARGUMENTS) * 2;
 
-   d3d12_select_compute_shader_variants(ctx, info);
    d3d12_validate_queries(ctx);
    struct d3d12_shader *shader = ctx->compute_state ? ctx->compute_state->current : NULL;
    if (ctx->compute_pipeline_state.stage != shader) {
