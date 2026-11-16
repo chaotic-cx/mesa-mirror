@@ -5095,10 +5095,11 @@ radv_update_zrange_precision(struct radv_cmd_buffer *cmd_buffer, const struct ra
    if (requires_cond_exec) {
       uint64_t va = radv_get_tc_compat_zrange_va(image, iview->vk.base_mip_level);
 
-      ac_emit_cp_cond_exec(cmd_buffer->cs->b, pdev->info.gfx_level, va, 3 /* SET_CONTEXT_REG size */, false);
+      ac_emit_cp_cond_exec(cmd_buffer->cs->b, pdev->info.gfx_level, va, 3 /* SET_CONTEXT_REG size */,
+                           cmd_buffer->state.cond_render.enabled);
    }
 
-   radeon_begin(cmd_buffer->cs);
+   radeon_begin_predicate(cmd_buffer->cs, cmd_buffer->state.cond_render.enabled);
    radeon_set_context_reg(db_z_info_reg, db_z_info);
    radeon_end();
 }
@@ -5399,7 +5400,7 @@ radv_update_bound_fast_clear_ds(struct radv_cmd_buffer *cmd_buffer, const struct
    if (cmd_buffer->state.render.ds_att.iview == NULL || cmd_buffer->state.render.ds_att.iview->image != image)
       return;
 
-   radeon_begin(cs);
+   radeon_begin_predicate(cs, cmd_buffer->state.cond_render.enabled);
 
    if (aspects == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) {
       radeon_set_context_reg_seq(R_028028_DB_STENCIL_CLEAR, 2);
@@ -5593,10 +5594,10 @@ radv_load_ds_clear_metadata(struct radv_cmd_buffer *cmd_buffer, const struct rad
    uint32_t reg = R_028028_DB_STENCIL_CLEAR + 4 * reg_offset;
 
    if (pdev->info.has_load_ctx_reg_pkt) {
-      ac_emit_cp_load_context_reg_index(cs->b, reg, reg_count, va, false);
+      ac_emit_cp_load_context_reg_index(cs->b, reg, reg_count, va, cmd_buffer->state.cond_render.enabled);
    } else {
       ac_emit_cp_copy_data(cs->b, COPY_DATA_SRC_MEM, COPY_DATA_REG, va, reg >> 2,
-                           (reg_count == 2 ? AC_CP_COPY_DATA_COUNT_SEL : 0), false);
+                           (reg_count == 2 ? AC_CP_COPY_DATA_COUNT_SEL : 0), cmd_buffer->state.cond_render.enabled);
    }
 }
 
@@ -5680,7 +5681,7 @@ radv_update_bound_fast_clear_color(struct radv_cmd_buffer *cmd_buffer, struct ra
 
    ASSERTED unsigned cdw_max = radeon_check_space(device->ws, cs->b, 4);
 
-   radeon_begin(cs);
+   radeon_begin_predicate(cs, cmd_buffer->state.cond_render.enabled);
    radeon_set_context_reg_seq(R_028C8C_CB_COLOR0_CLEAR_WORD0 + cb_idx * 0x3c, 2);
    radeon_emit(color_values[0]);
    radeon_emit(color_values[1]);
