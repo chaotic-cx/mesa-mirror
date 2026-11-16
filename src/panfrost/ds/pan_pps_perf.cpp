@@ -138,10 +138,7 @@ convert_classes(uint64_t classes)
    static_assert((int)MALI_PERF_PRIMITIVES == (int)Perfettogrp::PRIMITIVES);
    static_assert((int)MALI_PERF_MEMORY == (int)Perfettogrp::MEMORY);
    static_assert((int)MALI_PERF_COMPUTE == (int)Perfettogrp::COMPUTE);
-
-   /* RAY_TRACING not yet exposed by pps_counter. */
-   if (classes & MALI_PERF_RAY_TRACING)
-      classes &= ~MALI_PERF_RAY_TRACING;
+   static_assert((int)MALI_PERF_RAY_TRACING == (int)Perfettogrp::RAYTRACING);
 
    assert(!(classes &
             ~(BITFIELD64_BIT(MALI_PERF_UNCLASSIFIED) |
