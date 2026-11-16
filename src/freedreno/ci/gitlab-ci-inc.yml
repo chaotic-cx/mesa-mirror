@@ -446,6 +446,7 @@
     GPU_VERSION: freedreno-a750
     DRIVER_NAME: freedreno-a6xx
     VK_DRIVER: freedreno
+    FLAKES_CHANNEL: "#freedreno-ci"
 
 
 # 6 devices (2025-09-28)
