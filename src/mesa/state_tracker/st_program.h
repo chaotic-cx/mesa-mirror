@@ -62,6 +62,7 @@ struct st_external_sampler_key
    GLuint lower_y41x;
    GLuint lower_sx10;
    GLuint lower_sx12;
+   GLuint yuv_msb_aligned;
    GLuint bt709;
    GLuint bt2020;
    GLuint yuv_full_range;
@@ -115,11 +116,18 @@ st_add_external_sampler_key(struct st_external_sampler_key *key,
       }
       FALLTHROUGH;
    case PIPE_FORMAT_NV24:
-   case PIPE_FORMAT_P010:
-   case PIPE_FORMAT_P012:
    case PIPE_FORMAT_P016:
    case PIPE_FORMAT_P030:
       key->lower_nv12 |= (1 << unit);
+      break;
+   case PIPE_FORMAT_P010:
+   case PIPE_FORMAT_P012:
+      key->lower_nv12 |= (1 << unit);
+      key->yuv_msb_aligned |= (1 << unit);
+      if (format == PIPE_FORMAT_P010)
+         key->lower_sx10 |= (1 << unit);
+      else
+         key->lower_sx12 |= (1 << unit);
       break;
    case PIPE_FORMAT_NV21:
       if (stObj->pt->format == PIPE_FORMAT_R8_B8G8_420_UNORM) {

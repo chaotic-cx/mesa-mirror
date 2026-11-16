@@ -1139,6 +1139,7 @@ st_nir_lower_external_samplers(nir_shader *nir,
    options.lower_y41x_external = key->lower_y41x;
    options.lower_sx10_external = key->lower_sx10;
    options.lower_sx12_external = key->lower_sx12;
+   options.yuv_msb_aligned_external = key->yuv_msb_aligned;
    options.bt709_external = key->bt709;
    options.bt2020_external = key->bt2020;
    options.yuv_full_range_external = key->yuv_full_range;
