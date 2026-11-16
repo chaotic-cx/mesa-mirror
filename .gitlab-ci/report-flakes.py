@@ -60,14 +60,17 @@ class Connection:
         self.s.close()
 
 
-def read_flakes(results: str) -> list[str]:
-    flakes = []
+def read_flakes(results: str) -> tuple[list[str], list[str]]:
+    new_flakes = []
+    known_flakes = []
     csv = re.compile("(.*),(.*),(.*)")
     for line in open(results, 'r').readlines():
         match = csv.match(line)
         if match.group(2) == "Flake":
-            flakes.append(match.group(1))
-    return flakes
+            new_flakes.append(match.group(1))
+        if match.group(2) == "KnownFlake":
+            known_flakes.append(match.group(1))
+    return new_flakes, known_flakes
 
 
 def main() -> None:
@@ -78,8 +81,6 @@ def main() -> None:
                         help='IRC server port', required=True)
     parser.add_argument('--results', type=str,
                         help='results.csv file from deqp-runner or piglit-runner', required=True)
-    parser.add_argument('--known-flakes', type=str,
-                        help='*-flakes.txt file passed to deqp-runner or piglit-runner', required=True)
     parser.add_argument('--channel', type=str,
                         help='Known flakes report channel', required=True)
     parser.add_argument('--url', type=str,
@@ -96,18 +97,11 @@ def main() -> None:
                         help='log IRC interactions')
     args = parser.parse_args()
 
-    flakes = read_flakes(args.results)
-    if not flakes:
+    new_flakes, known_flakes = read_flakes(args.results)
+    if not new_flakes and not known_flakes:
         if args.verbose:
             print("No flakes to report, exiting")
         exit(0)
-
-    known_flakes = []
-    for line in open(args.known_flakes).readlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        known_flakes.append(re.compile(line))
 
     irc = Connection(args.host, args.port, args.verbose)
 
@@ -134,14 +128,10 @@ def main() -> None:
     irc.send_line(
         f"PRIVMSG {args.channel} :Flakes detected in job {args.url} on {args.runner}{branchinfo}:")
 
-    for flake in flakes:
-        status = "NEW "
-        for known in known_flakes:
-            if known.match(flake):
-                status = ""
-                break
-
-        irc.send_line(f"PRIVMSG {args.channel} :{status}{flake}")
+    for flake in new_flakes:
+        irc.send_line(f"PRIVMSG {args.channel} :NEW {flake}")
+    for flake in known_flakes:
+        irc.send_line(f"PRIVMSG {args.channel} :{flake}")
 
     irc.send_line(
         f"PRIVMSG {args.channel} :See {args.url}/artifacts/browse/results/")

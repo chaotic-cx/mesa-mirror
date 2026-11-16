@@ -227,7 +227,6 @@ if [ -n "$FLAKES_CHANNEL" ]; then
          --host irc.oftc.net \
          --port 6667 \
          --results $RESULTS_DIR/results.csv \
-         --known-flakes $INSTALL/$GPU_VERSION-flakes.txt \
          --channel "$FLAKES_CHANNEL" \
          --runner "$CI_RUNNER_DESCRIPTION" \
          --job "$CI_JOB_ID" \
