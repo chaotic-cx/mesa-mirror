@@ -915,6 +915,7 @@ dzn_cmd_buffer_collect_queries(struct dzn_cmd_buffer *cmdbuf,
                                     D3D12_BARRIER_ACCESS_COPY_SOURCE, D3D12_BARRIER_ACCESS_COPY_DEST);
    } else {
       dzn_cmd_buffer_flush_transition_barriers(cmdbuf, qpool->resolve_buffer, 0, 1);
+      dzn_cmd_buffer_flush_transition_barriers(cmdbuf, qpool->collect_buffer, 0, 1);
    }
 
    /* Resolve the valid query regions into the resolve buffer */
@@ -1056,6 +1057,9 @@ dzn_cmd_buffer_gather_queries(struct dzn_cmd_buffer *cmdbuf)
          dzn_cmd_buffer_collect_queries(cmdbuf, qpool, state, 0, qpool->query_count);
       if (result != VK_SUCCESS)
          return result;
+
+      if (!cmdbuf->enhanced_barriers)
+         dzn_cmd_buffer_flush_transition_barriers(cmdbuf, qpool->collect_buffer, 0, 1);
 
       result = dzn_cmd_buffer_collect_query_ops(cmdbuf, qpool, &state->reset, &cmdbuf->queries.reset);
       if (result != VK_SUCCESS)
@@ -5726,6 +5730,9 @@ dzn_CmdResetQueryPool(VkCommandBuffer commandBuffer,
    if (!state)
       return;
 
+   if (!cmdbuf->enhanced_barriers)
+      dzn_cmd_buffer_flush_transition_barriers(cmdbuf, qpool->collect_buffer, 0, 1);
+
    uint32_t q_step = DZN_QUERY_REFS_SECTION_SIZE / sizeof(uint64_t);
 
    for (uint32_t q = 0; q < queryCount; q += q_step) {
@@ -5800,11 +5807,9 @@ dzn_CmdCopyQueryPoolResults(VkCommandBuffer commandBuffer,
 #undef ALL_STATS
 
    if (cmdbuf->enhanced_barriers) {
-      if (flags & VK_QUERY_RESULT_WAIT_BIT) {
-         dzn_cmd_buffer_buffer_barrier(cmdbuf, qpool->collect_buffer,
-                                       D3D12_BARRIER_SYNC_COPY, D3D12_BARRIER_SYNC_COPY,
-                                       D3D12_BARRIER_ACCESS_COPY_DEST, D3D12_BARRIER_ACCESS_COPY_SOURCE);
-      }
+      dzn_cmd_buffer_buffer_barrier(cmdbuf, qpool->collect_buffer,
+                                    D3D12_BARRIER_SYNC_COPY, D3D12_BARRIER_SYNC_COPY,
+                                    D3D12_BARRIER_ACCESS_COPY_DEST, D3D12_BARRIER_ACCESS_COPY_SOURCE);
    } else {
       dzn_cmd_buffer_queue_transition_barriers(cmdbuf, qpool->collect_buffer, 0, 1,
                                                D3D12_RESOURCE_STATE_COPY_DEST,
@@ -5853,7 +5858,11 @@ dzn_CmdCopyQueryPoolResults(VkCommandBuffer commandBuffer,
       }
    }
 
-   if (!cmdbuf->enhanced_barriers) {
+   if (cmdbuf->enhanced_barriers) {
+      dzn_cmd_buffer_buffer_barrier(cmdbuf, qpool->collect_buffer,
+                                    D3D12_BARRIER_SYNC_COPY, D3D12_BARRIER_SYNC_COPY,
+                                    D3D12_BARRIER_ACCESS_COPY_SOURCE, D3D12_BARRIER_ACCESS_COPY_DEST);
+   } else {
       dzn_cmd_buffer_queue_transition_barriers(cmdbuf, qpool->collect_buffer, 0, 1,
                                                D3D12_RESOURCE_STATE_COPY_SOURCE,
                                                D3D12_RESOURCE_STATE_COPY_DEST,
