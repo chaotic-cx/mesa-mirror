@@ -198,13 +198,16 @@ done
 # always goes through ssh or https.
 python3 external/fetch_sources.py --insecure
 
-case "${DEQP_API}" in
-  VK-main)
-    # Video tests rely on external files
-    python3 external/fetch_video_decode_samples.py
-    python3 external/fetch_video_encode_samples.py
-    ;;
-esac
+EXTRA_CMAKE_ARGS="${EXTRA_CMAKE_ARGS:-}"
+
+# Only build Vulkan Video tests for x86_64
+if [ "${DEBIAN_ARCH}" = "amd64" ]; then
+  # Video tests rely on external files
+  python3 external/fetch_video_decode_samples.py
+  python3 external/fetch_video_encode_samples.py
+else
+  EXTRA_CMAKE_ARGS+=" -DDEQP_DISABLE_VK_VIDEO_TESTS=ON"
+fi
 
 if [[ "$DEQP_API" = tools ]]; then
   # Save the testlog stylesheets:
