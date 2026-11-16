@@ -26,6 +26,13 @@
  */
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#if defined(_WIN32)
+#include <io.h>
+#include <windows.h>
+#endif
+
 #include "c11/threads.h"
 #include "util/hash_table.h"
 #include "util/simple_mtx.h"
@@ -93,13 +100,64 @@ typedef struct {
 
 static bool interactive;
 
-#if !DETECT_OS_WINDOWS
+#if DETECT_OS_WINDOWS
+#define STDERR_VT_MODE (ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+
+static HANDLE
+get_stderr_console(DWORD *mode)
+{
+   int fd = _fileno(stderr);
+   if (fd < 0 || !_isatty(fd))
+      return NULL;
+
+   HANDLE console = (HANDLE)_get_osfhandle(fd);
+   if (console == INVALID_HANDLE_VALUE || !GetConsoleMode(console, mode))
+      return NULL;
+
+   return console;
+}
+
+/* The console mode is shared with the whole process, so only enable VT
+ * processing while dumping and restore immediately afterwards.
+ */
+static HANDLE
+enable_stderr_vt_mode(DWORD *old_mode)
+{
+   HANDLE console = get_stderr_console(old_mode);
+   if (!console)
+      return NULL;
+
+   if ((*old_mode & STDERR_VT_MODE) == STDERR_VT_MODE)
+      return console;
+
+   if (!SetConsoleMode(console, *old_mode | STDERR_VT_MODE))
+      return NULL;
+
+   return console;
+}
+
+static void
+restore_stderr_console_mode(HANDLE console, DWORD old_mode)
+{
+   if (console && (old_mode & STDERR_VT_MODE) != STDERR_VT_MODE)
+      SetConsoleMode(console, old_mode);
+}
+#endif
+
 static void
 init_interactive(void)
 {
+#if DETECT_OS_WINDOWS
+   DWORD mode;
+   HANDLE console = enable_stderr_vt_mode(&mode);
+   if (!console)
+      return;
+   restore_stderr_console_mode(console, mode);
+   interactive = true;
+#else
    interactive = isatty(STDERR_FILENO);
-}
 #endif
+}
 
 static void
 log_error(validate_state *state, const char *cond, const char *file, int line)
@@ -2403,10 +2461,7 @@ static void
 init_validate_state(validate_state *state)
 {
    static struct util_once_flag once = UTIL_ONCE_FLAG_INIT;
-
-#if !DETECT_OS_WINDOWS
    util_call_once(&once, init_interactive);
-#endif
 
    state->mem_ctx = ralloc_context(NULL);
    state->ssa_defs_found = NULL;
@@ -2439,6 +2494,11 @@ dump_errors(validate_state *state, const char *when)
     */
    simple_mtx_lock(&fail_dump_mutex);
 
+#if DETECT_OS_WINDOWS
+   DWORD old_console_mode = 0;
+   HANDLE console = interactive ? enable_stderr_vt_mode(&old_console_mode) : NULL;
+#endif
+
    if (when) {
       fprintf(stderr, "NIR validation failed %s\n", when);
       fprintf(stderr, "%d errors:\n", _mesa_hash_table_num_entries(errors));
@@ -2457,6 +2517,10 @@ dump_errors(validate_state *state, const char *when)
       }
    }
    fflush(stderr);
+
+#if DETECT_OS_WINDOWS
+   restore_stderr_console_mode(console, old_console_mode);
+#endif
 
    simple_mtx_unlock(&fail_dump_mutex);
 
