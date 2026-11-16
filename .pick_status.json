@@ -264,7 +264,7 @@
         "description": "aco/tests: fix GFX11.7 unused source encoding expectations",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "933394630d1c211cedef877bbfb51b8f6d257ef8",
         "notes": null
