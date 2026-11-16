@@ -541,3 +541,119 @@ impl ParallelCopy<'_> {
         b.into_mapped().into_iter().chain(self.const_copies)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{model::model_for_gpu_id, ssa_value::SSAValueAllocator};
+
+    fn run_copy(
+        copies: &[(Range<u16>, Range<u16>)],
+    ) -> impl Iterator<Item = Instr> + use<> {
+        let model = model_for_gpu_id(0xd8000000, 4).unwrap();
+        let mut pcopy = ParallelCopy::new(&*model, false);
+
+        for (dst_range, src_range) in copies {
+            let dst = RegRef::from_byte_range(dst_range.clone()).unwrap();
+            let src = RegRef::from_byte_range(src_range.clone()).unwrap();
+            pcopy.add_copy(dst.into(), src.into());
+        }
+        pcopy.into_instrs::<SSAValueAllocator>(None)
+    }
+
+    #[derive(Default, PartialEq, Eq, Debug)]
+    struct CopyLenHistogram {
+        c64: usize,
+        c32: usize,
+        c16: usize,
+        c8: usize,
+    }
+
+    fn count_copy_len(copies: &[(Range<u16>, Range<u16>)]) -> CopyLenHistogram {
+        let mut histo = CopyLenHistogram::default();
+
+        for instr in run_copy(copies) {
+            match instr.dst_types().next().unwrap().total_bits() {
+                64 => histo.c64 += 1,
+                32 => histo.c32 += 1,
+                16 => histo.c16 += 1,
+                8 => histo.c8 += 1,
+                _ => unreachable!("Invalid copy size"),
+            }
+        }
+
+        histo
+    }
+
+    #[test]
+    fn test_sanity() {
+        let r = |i: u16| i * 4..i * 4 + 4;
+
+        let copies = [(r(1), r(0))];
+        let histogram = count_copy_len(&copies);
+        let expected = CopyLenHistogram {
+            c64: 0,
+            c32: 1,
+            c16: 0,
+            c8: 0,
+        };
+        assert_eq!(histogram, expected);
+    }
+
+    #[test]
+    fn test_large_copy() {
+        let copies = [(0..64, 64..128)];
+        let histogram = count_copy_len(&copies);
+        // We cannot copy 64 bytes at once, we need to split it up into 8 64-bit
+        // copies
+        let expected = CopyLenHistogram {
+            c64: 8,
+            c32: 0,
+            c16: 0,
+            c8: 0,
+        };
+        assert_eq!(histogram, expected);
+    }
+
+    #[test]
+    fn test_partial_copies() {
+        let r = |i: u16| i * 4..i * 4 + 4;
+        let h = |i: u16, h: u16| i * 4 + h * 2..i * 4 + h * 2 + 2;
+
+        let copies = [
+            (h(4, 0), h(3, 0)), // r4.h0 <- r3.h0 (16-bit)
+            (r(3), r(2)),       // r3    <- r2    (32-bit)
+            (r(2), r(1)),       // r2    <- r1    (32-bit)
+            (r(1), r(0)),       // r1    <- r0    (32-bit)
+        ];
+        let histogram = count_copy_len(&copies);
+        // TODO: this could be done with 1 single 16-bit copy and 3 32-bit
+        //       copies instead (issue 16907)
+        let expected = CopyLenHistogram {
+            c64: 0,
+            c32: 0,
+            c16: 7,
+            c8: 0,
+        };
+        assert_eq!(histogram, expected);
+    }
+
+    #[test]
+    fn test_mkvec_missed() {
+        let h = |i: u16, h: u16| i * 4 + h * 2..i * 4 + h * 2 + 2;
+
+        let copies = [
+            (h(0, 0), h(1, 0)), // r0.h0 <- r1.h0
+            (h(0, 1), h(2, 0)), // r0.h1 <- r2.h0
+        ];
+        let histogram = count_copy_len(&copies);
+        // TODO: this could be done with a single MKVEC.v2u16 (Issue 16908)
+        let expected = CopyLenHistogram {
+            c64: 0,
+            c32: 0,
+            c16: 2,
+            c8: 0,
+        };
+        assert_eq!(histogram, expected);
+    }
+}
