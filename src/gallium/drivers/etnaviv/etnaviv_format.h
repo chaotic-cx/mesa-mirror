@@ -53,7 +53,7 @@ get_texture_swiz(enum pipe_format fmt, unsigned swizzle_r,
 uint32_t
 translate_pe_format(enum pipe_format fmt, const struct etna_screen *screen);
 
-int
+bool
 translate_pe_format_rb_swap(enum pipe_format fmt, const struct etna_screen *screen);
 
 uint32_t

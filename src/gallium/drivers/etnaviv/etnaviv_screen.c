@@ -479,11 +479,6 @@ gpu_supports_render_format(struct etna_screen *screen, enum pipe_format format,
    if (util_format_is_srgb(format) && !VIV_FEATURE(screen, ETNA_FEATURE_HALTI3))
       return false;
 
-   const uint32_t fmt = translate_pe_format(format, screen);
-
-   if (fmt == ETNA_NO_MATCH)
-      return false;
-
    if (sample_count > 1) {
       if (VIV_FEATURE(screen, ETNA_FEATURE_BLT_ENGINE)) {
          if (translate_blt_format(format) == ETNA_NO_MATCH &&

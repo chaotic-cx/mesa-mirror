@@ -34,153 +34,6 @@
 #include "pipe/p_defines.h"
 #include "util/compiler.h"
 
-/* Specifies the table of all the formats and their features. Also supplies
- * the helpers that look up various data in those tables.
- */
-
-struct etna_format {
-   unsigned pe;
-   bool present;
-};
-
-#define PE_FORMAT_NONE ~0
-
-#define PE_FORMAT_MASK        0x7f
-#define PE_FORMAT(x)          ((x) & PE_FORMAT_MASK)
-#define PE_FORMAT_RB_SWAP     0x80
-
-#define PE_FORMAT_X8B8G8R8_RB_SWAP (PE_FORMAT_X8R8G8B8 | PE_FORMAT_RB_SWAP)
-#define PE_FORMAT_A8B8G8R8_RB_SWAP (PE_FORMAT_A8R8G8B8 | PE_FORMAT_RB_SWAP)
-
-/* PE-only */
-#define P(pipe, rsfmt) \
-   [PIPE_FORMAT_##pipe] = {    \
-      .pe = PE_FORMAT_##rsfmt, \
-      .present = 1,            \
-   }
-
-static struct etna_format formats[PIPE_FORMAT_COUNT] = {
-   /* 8-bit */
-   P(R8_UNORM, R8),
-   P(R8_SNORM, NONE),
-   P(R8_UINT,  R8I),
-   P(R8_SINT,  R8I),
-
-   P(A8_UNORM, NONE),
-   P(L8_UNORM, NONE),
-   P(I8_UNORM, NONE),
-
-   /* 16-bit */
-   P(R16_UINT,  R16I),
-   P(R16_SINT,  R16I),
-   P(R16_FLOAT, R16F),
-
-   P(B4G4R4A4_UNORM, A4R4G4B4),
-   P(B4G4R4X4_UNORM, X4R4G4B4),
-
-   P(L8A8_UNORM, NONE),
-
-   P(Z16_UNORM,      NONE),
-   P(B5G6R5_UNORM,   R5G6B5),
-   P(B5G5R5A1_UNORM, A1R5G5B5),
-   P(B5G5R5X1_UNORM, X1R5G5B5),
-
-   P(R8G8_UNORM, G8R8),
-   P(R8G8_SNORM, NONE),
-   P(R8G8_UINT,  G8R8I),
-   P(R8G8_SINT,  G8R8I),
-
-   /* 32-bit */
-   P(R32_SINT,             R32F),
-   P(R32_UINT,             R32F),
-   P(R32_FLOAT,            R32F),
-   P(Z32_FLOAT,            NONE),
-   P(Z32_FLOAT_S8X24_UINT, NONE),
-
-   P(R16G16_UINT,  G16R16I),
-   P(R16G16_SINT,  G16R16I),
-   P(R16G16_FLOAT, G16R16F),
-
-   P(R8G8B8A8_UNORM, A8B8G8R8_RB_SWAP),
-   P(R8G8B8A8_SNORM, NONE),
-   P(R8G8B8X8_UNORM, X8B8G8R8_RB_SWAP),
-   P(R8G8B8X8_SNORM, NONE),
-   P(R8G8B8A8_UINT,  A8B8G8R8I),
-   P(R8G8B8A8_SINT,  A8B8G8R8I),
-
-   P(R8G8B8A8_USCALED, A8B8G8R8_RB_SWAP),
-   P(R8G8B8A8_SSCALED, A8B8G8R8_RB_SWAP),
-
-   P(B8G8R8A8_UNORM, A8R8G8B8),
-   P(B8G8R8X8_UNORM, X8R8G8B8),
-
-   P(R10G10B10A2_UNORM, A2B10G10R10),
-   P(R10G10B10X2_UNORM, A2B10G10R10),
-   P(R10G10B10A2_UINT,  A2B10G10R10UI),
-
-   P(X8Z24_UNORM,       NONE),
-   P(S8_UINT_Z24_UNORM, NONE),
-
-   P(S8_UINT,        NONE),
-   P(S8X24_UINT,     NONE),
-   P(X32_S8X24_UINT, NONE),
-
-   P(R9G9B9E5_FLOAT,  NONE),
-   P(R11G11B10_FLOAT, B10G11R11F),
-
-   /* 64-bit */
-   P(R16G16B16A16_UINT,  A16B16G16R16I),
-   P(R16G16B16A16_SINT,  A16B16G16R16I),
-   P(R16G16B16A16_FLOAT, A16B16G16R16F),
-
-   P(R32G32_UINT,  G32R32F),
-   P(R32G32_SINT,  G32R32F),
-   P(R32G32_FLOAT, G32R32F),
-
-   /* 128-bit */
-   P(R32G32B32A32_UINT,  G32R32F), /* emulated format */
-   P(R32G32B32A32_SINT,  G32R32F), /* emulated format */
-   P(R32G32B32A32_FLOAT, G32R32F), /* emulated format */
-
-   /* compressed */
-   P(ETC1_RGB8, NONE),
-
-   P(DXT1_RGB,  NONE),
-   P(DXT1_RGBA, NONE),
-   P(DXT3_RGBA, NONE),
-   P(DXT5_RGBA, NONE),
-
-   P(ETC2_RGB8,       NONE),
-   P(ETC2_RGB8A1,     NONE),
-   P(ETC2_RGBA8,      NONE),
-   P(ETC2_R11_UNORM,  NONE),
-   P(ETC2_R11_SNORM,  NONE),
-   P(ETC2_RG11_UNORM, NONE),
-   P(ETC2_RG11_SNORM, NONE),
-
-   P(ASTC_4x4,   NONE),
-   P(ASTC_5x4,   NONE),
-   P(ASTC_5x5,   NONE),
-   P(ASTC_6x5,   NONE),
-   P(ASTC_6x6,   NONE),
-   P(ASTC_8x5,   NONE),
-   P(ASTC_8x6,   NONE),
-   P(ASTC_8x8,   NONE),
-   P(ASTC_10x5,  NONE),
-   P(ASTC_10x6,  NONE),
-   P(ASTC_10x8,  NONE),
-   P(ASTC_10x10, NONE),
-   P(ASTC_12x10, NONE),
-   P(ASTC_12x12, NONE),
-
-   /* YUV */
-   P(YUYV, YUY2),
-   P(UYVY, NONE),
-
-   /* multi-planar YUV */
-   P(NV12, NONE),
-};
-
 static inline bool
 pe_format_is_native_rgba(enum pipe_format fmt, const struct etna_screen *screen)
 {
@@ -314,34 +167,23 @@ uint32_t
 translate_pe_format(enum pipe_format fmt, const struct etna_screen *screen)
 {
    fmt = util_format_linear(fmt);
-
-   if (!formats[fmt].present)
-      return ETNA_NO_MATCH;
-
-   if (formats[fmt].pe == ETNA_NO_MATCH)
-      return ETNA_NO_MATCH;
-
-   uint32_t pe = formats[fmt].pe;
+   assert(eil_format_supports_rendering(screen->info, fmt));
 
    if (pe_format_is_native_rgba(fmt, screen))
-      pe = PE_FORMAT_A8B8G8R8;
+      return PE_FORMAT_A8B8G8R8;
 
-   return PE_FORMAT(pe);
+   return eil_get_format_entry(fmt)->pe;
 }
 
-int
+bool
 translate_pe_format_rb_swap(enum pipe_format fmt, const struct etna_screen *screen)
 {
    fmt = util_format_linear(fmt);
-   assert(formats[fmt].present);
-
-   if (formats[fmt].pe == ETNA_NO_MATCH)
-      return 0;
 
    if (pe_format_is_native_rgba(fmt, screen))
-      return 0;
+      return false;
 
-   return formats[fmt].pe & PE_FORMAT_RB_SWAP;
+   return eil_get_format_entry(fmt)->pe_rb_swap;
 }
 
 /* For RB_SWAP formats, remaps the HW texture format to the one matching
