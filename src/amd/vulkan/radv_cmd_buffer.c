@@ -17703,6 +17703,14 @@ radv_bind_compute_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader_
    cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
 
    assert(cs->b->cdw <= cdw_max);
+
+   /* Raytracing uses compute shaders but has separate bind points and pipelines. So if we set
+    * compute userdata & shader registers we should dirty the raytracing ones and the other way
+    * around.
+    */
+   radv_mark_descriptors_dirty(cmd_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+   cmd_buffer->push_constant_stages |= RADV_RT_STAGE_BITS;
+   cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RAY_TRACING_PIPELINE;
 }
 
 VKAPI_ATTR void VKAPI_CALL
