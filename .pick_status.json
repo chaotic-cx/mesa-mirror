@@ -1654,7 +1654,7 @@
         "description": "dzn: Fix collect_buffer barriers around vkCmdCopyQueryPoolResults",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ca8c8f2fc1f72cff286ddd0dec4e62e0720bd835",
         "notes": null
