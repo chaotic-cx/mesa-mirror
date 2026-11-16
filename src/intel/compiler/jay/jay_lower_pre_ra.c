@@ -105,8 +105,8 @@ lower_imm_to_ugpr(jay_builder *b,
    return x;
 }
 
-static bool
-try_swap_src01(jay_inst *I)
+bool
+jay_try_swap_src01(jay_inst *I)
 {
    if (I->op == JAY_OPCODE_SEL) {
       /* sel(a, b, p) = sel(b, a, !p) */
@@ -152,7 +152,7 @@ lower_immediates(jay_builder *b, jay_inst *I, struct hash_table_u64 *constants)
    if ((other < I->num_srcs && jay_is_imm(I->src[other])) &&
        !_mesa_hash_table_u64_search(constants, jay_as_uint(I->src[other]))) {
 
-      try_swap_src01(I);
+      jay_try_swap_src01(I);
    }
 
    /* Immediates allowed only in certain cases, lower the rest */

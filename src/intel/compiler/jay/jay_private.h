@@ -117,6 +117,8 @@ void jay_lower_scoreboard_trivial(jay_shader *s);
 void
 jay_lower_post_sched(jay_shader *shader, uint32_t api, uint32_t float_sizes);
 
+bool jay_try_swap_src01(jay_inst *I);
+
 gen_pipe jay_inferred_sync_pipe(const struct intel_device_info *devinfo,
                                 const jay_inst *I);
 gen_pipe jay_inst_exec_pipe(const struct intel_device_info *devinfo,

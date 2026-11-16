@@ -47,6 +47,16 @@ is_maclh(jay_inst *I)
  * the same in current and previous inst, we need to insert a
  * dummy mov in between.
  */
+static bool
+macl_issue_2(jay_inst *u, jay_inst *v)
+{
+   return !(is_mul(u) || is_maclh(u)) &&
+          jay_num_isa_srcs(u) > 1 &&
+          is_maclh(v) &&
+          u->src[1].file == v->src[1].file &&
+          (u->src[1].reg >> 1) == (v->src[1].reg >> 1);
+}
+
 static void
 insert_dummy_mov(jay_builder *b, jay_inst *u, jay_inst *v)
 {
@@ -55,12 +65,12 @@ insert_dummy_mov(jay_builder *b, jay_inst *u, jay_inst *v)
                   (v->src[1].file == UGPR && jay_num_values(v->src[1]) == 1) &&
                   (u->src[1].reg >> 1) == (v->src[1].reg >> 1);
 
-   bool issue_2 = !(is_mul(u) || is_maclh(u)) &&
-                  jay_num_isa_srcs(u) > 1 && is_maclh(v) &&
-                  u->src[1].file == v->src[1].file &&
-                  (u->src[1].reg >> 1) == (v->src[1].reg >> 1);
+   /* Swapping sources can avoid a move from issue 2, try that */
+   if (macl_issue_2(u, v) && !jay_is_imm(u->src[1])) {
+      jay_try_swap_src01(u);
+   }
 
-   if (issue_1 || issue_2) {
+   if (issue_1 || macl_issue_2(u, v)) {
       jay_MOV(b, jay_null(), 0);
    }
 }
