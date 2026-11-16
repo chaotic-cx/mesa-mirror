@@ -235,7 +235,7 @@ TEST_F(Optimizer, IfNot)
       if (after) {
          jay_add_predicate(b, jay_IF(b), jay_negate(flag), jay_null());
       } else {
-         jay_NOT(b, flag2, flag);
+         jay_NOT(b, JAY_TYPE_U32, flag2, flag);
          jay_add_predicate(b, jay_IF(b), flag2, jay_null());
       }
    });

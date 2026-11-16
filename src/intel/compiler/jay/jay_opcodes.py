@@ -227,7 +227,7 @@ op('unit_test', 1, 'u32', Props.NO_DEST)
 # Produces a unstable indeterminate value. Undef in LLVM parlance.
 op('undef', 0, 'u1 u16 u32')
 
-op('not', 1, 'u1 u32', Props.CMOD)
+op('not', 1, 'u1 u16 u32 s16 s32', Props.CMOD)
 
 op('mov_imm64', 0, 'u64', 0, ['uint64_t imm'])
 
