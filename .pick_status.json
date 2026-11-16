@@ -1664,7 +1664,7 @@
         "description": "wgl: exclude pbuffer-only formats in wglChoosePixelFormatARB unless requested",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9646762261d976d34bee8c8b1dcda9656cec655c",
         "notes": null
