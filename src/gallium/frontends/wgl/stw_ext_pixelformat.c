@@ -318,6 +318,9 @@ static const struct attrib_match_info attrib_match[] = {
    { WGL_SAMPLE_BUFFERS_ARB,      2, false },
    { WGL_SAMPLES_ARB,             2, false },
 
+   /* WGL_ARB_pbuffer */
+   { WGL_DRAW_TO_PBUFFER_ARB,     0, true },
+
    /* WGL_ARB_render_texture */
    { WGL_BIND_TO_TEXTURE_RGB_ARB, 0, false },
    { WGL_BIND_TO_TEXTURE_RGBA_ARB, 0, false },
@@ -396,6 +399,8 @@ wglChoosePixelFormatARB(HDC hdc, const int *piAttribIList,
    uint count;
    struct stw_pixelformat_score *scores;
    uint i;
+   bool empty_attribs = true;
+   bool want_pbuffer = false;
 
    *nNumFormats = 0;
 
@@ -418,6 +423,9 @@ wglChoosePixelFormatARB(HDC hdc, const int *piAttribIList,
     */
    if (piAttribIList != NULL) {
       while (*piAttribIList != 0) {
+         empty_attribs = false;
+         if (piAttribIList[0] == WGL_DRAW_TO_PBUFFER_ARB)
+            want_pbuffer = piAttribIList[1] != 0;
          if (!score_pixelformats(hdc, scores, count, piAttribIList[0],
                                  piAttribIList[1])) {
             FREE(scores);
@@ -428,12 +436,31 @@ wglChoosePixelFormatARB(HDC hdc, const int *piAttribIList,
    }
    if (pfAttribFList != NULL) {
       while (*pfAttribFList != 0) {
+         empty_attribs = false;
+         if ((int) pfAttribFList[0] == WGL_DRAW_TO_PBUFFER_ARB)
+            want_pbuffer = (int) pfAttribFList[1] != 0;
          if (!score_pixelformats(hdc, scores, count, (int) pfAttribFList[0],
                                  (int) pfAttribFList[1])) {
             FREE(scores);
             return false;
          }
          pfAttribFList += 2;
+      }
+   }
+
+   /* WGL_ARB_pixel_format states:
+    *    "If both <piAttribIList> and <pfAttribFList> are NULL or empty then
+    *     all pixel formats for this device are returned."
+    * Otherwise, non-displayable extended formats cannot be passed to
+    * SetPixelFormat(), so exclude them unless WGL_DRAW_TO_PBUFFER_ARB is
+    * explicitly requested.
+    */
+   if (!empty_attribs && !want_pbuffer) {
+      for (i = 0; i < count; i++) {
+         const struct stw_pixelformat_info *pfi =
+            stw_pixelformat_get_info(i + 1);
+         if (!pfi || !(pfi->pfd.dwFlags & PFD_DRAW_TO_WINDOW))
+            scores[i].points = 0;
       }
    }
 
