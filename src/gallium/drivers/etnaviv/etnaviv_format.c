@@ -53,8 +53,6 @@ struct etna_format {
 #define PE_FORMAT_X8B8G8R8_RB_SWAP (PE_FORMAT_X8R8G8B8 | PE_FORMAT_RB_SWAP)
 #define PE_FORMAT_A8B8G8R8_RB_SWAP (PE_FORMAT_A8R8G8B8 | PE_FORMAT_RB_SWAP)
 
-#define TS_SAMPLER_FORMAT_NONE      ETNA_NO_MATCH
-
 /* texture-only */
 #define T(pipe, fmt, rsfmt) \
    [PIPE_FORMAT_##pipe] = {        \
