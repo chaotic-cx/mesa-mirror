@@ -2624,7 +2624,7 @@
         "description": "dzn: Open host-imported heaps with the exact allocation size",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f0569cdba013cf048129b76b448ba6f241972616",
         "notes": null
