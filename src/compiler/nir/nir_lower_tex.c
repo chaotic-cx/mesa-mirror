@@ -430,6 +430,9 @@ convert_yuv_to_rgb(nir_builder *b, nir_tex_instr *tex,
    else if (options->lower_sx12_external & (1u << texture_index))
       scale = 65535.0f / 4095.0f;
 
+   if (bpc != 8 && (options->yuv_msb_aligned_external & (1u << texture_index)))
+      scale /= (float)(1u << (16 - bpc));
+
    if (scale != 1.0f) {
       m0 = nir_fmul_imm(b, m0, scale);
       m1 = nir_fmul_imm(b, m1, scale);

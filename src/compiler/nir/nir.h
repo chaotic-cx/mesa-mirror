@@ -6514,6 +6514,7 @@ typedef struct nir_lower_tex_options {
    unsigned lower_y41x_external;
    unsigned lower_sx10_external;
    unsigned lower_sx12_external;
+   unsigned yuv_msb_aligned_external;
    unsigned bt709_external;
    unsigned bt2020_external;
    unsigned yuv_full_range_external;
