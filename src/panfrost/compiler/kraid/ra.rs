@@ -1308,9 +1308,14 @@ impl LocalRegAlloc<'_> {
         b..(b + u16::from(bytes))
     }
 
-    fn choose_aligned_bytes(&self, p: &PinnedByteSet, bytes: u8) -> Range<u16> {
+    fn choose_aligned_bytes(
+        &self,
+        p: &PinnedByteSet,
+        bytes: u8,
+        cost_fn: impl Fn(u16) -> u8,
+    ) -> Range<u16> {
         let align = RegAlignConstraint::for_align(bytes, 0);
-        self.choose_bytes(p, bytes, align, |_| 0)
+        self.choose_bytes(p, bytes, align, cost_fn)
     }
 
     fn choose_ssa_ref_bytes(
@@ -1816,8 +1821,15 @@ impl LocalRegAlloc<'_> {
                 idx_bytes
             } else {
                 let nr_bytes = e.bytes.len().try_into().unwrap();
-                let bytes =
-                    self.choose_aligned_bytes(&self.pinned_in_out, nr_bytes);
+                let cost_fn = |b| {
+                    let range = (b as usize)..(b as usize + nr_bytes as usize);
+                    self.used.count_set_in_range(range) as u8
+                };
+                let bytes = self.choose_aligned_bytes(
+                    &self.pinned_in_out,
+                    nr_bytes,
+                    cost_fn,
+                );
 
                 // Evict anything that might happen to be in dst_bytes
                 for b in bytes.clone() {
