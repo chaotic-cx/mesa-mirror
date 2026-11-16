@@ -1648,6 +1648,13 @@ bool ResourceTracker::supportsAsyncQueueSubmit() const {
     return mFeatureInfo.hasVulkanAsyncQueueSubmit;
 }
 
+bool ResourceTracker::supportsAsyncResets() const {
+    // A reply-less command is ordered before later commands from other guest threads only by
+    // the host's per-process seqno.
+    return mCaps.vulkanCapset.hasAsyncResets &&
+           (streamFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT);
+}
+
 bool ResourceTracker::supportsCreateResourcesWithRequirements() const {
     return mFeatureInfo.hasVulkanCreateResourcesWithRequirements;
 }
@@ -5186,8 +5193,15 @@ VkResult ResourceTracker::on_vkResetFences(void* context, VkResult, VkDevice dev
     }
     if (hostFences.empty()) return VK_SUCCESS;
 
-    VkResult res =
-        enc->vkResetFences(device, hostFences.size(), hostFences.data(), true /* do lock */);
+    VkResult res = VK_SUCCESS;
+    if (supportsAsyncResets()) {
+        // vkResetFences() can only fail with out of memory errors: skip the host round trip for
+        // the result.
+        enc->vkResetFencesAsyncGOOGLE(device, hostFences.size(), hostFences.data(),
+                                      true /* do lock */);
+    } else {
+        res = enc->vkResetFences(device, hostFences.size(), hostFences.data(), true /* do lock */);
+    }
 
     if (res != VK_SUCCESS) return res;
 
@@ -5613,6 +5627,16 @@ void ResourceTracker::on_vkDestroyDescriptorPool(void* context, VkDevice device,
     enc->vkDestroyDescriptorPool(device, descriptorPool, pAllocator, true /* do lock */);
 }
 
+VkResult ResourceTracker::on_vkResetEvent(void* context, VkResult, VkDevice device, VkEvent event) {
+    VkEncoder* enc = (VkEncoder*)context;
+    if (supportsAsyncResets()) {
+        // vkResetEvent() can only fail with out of memory errors: skip the host round trip.
+        enc->vkResetEventAsyncGOOGLE(device, event, true /* do lock */);
+        return VK_SUCCESS;
+    }
+    return enc->vkResetEvent(device, event, true /* do lock */);
+}
+
 VkResult ResourceTracker::on_vkResetDescriptorPool(void* context, VkResult, VkDevice device,
                                                    VkDescriptorPool descriptorPool,
                                                    VkDescriptorPoolResetFlags flags) {
@@ -5620,7 +5644,13 @@ VkResult ResourceTracker::on_vkResetDescriptorPool(void* context, VkResult, VkDe
 
     VkEncoder* enc = (VkEncoder*)context;
 
-    VkResult res = enc->vkResetDescriptorPool(device, descriptorPool, flags, true /* do lock */);
+    VkResult res = VK_SUCCESS;
+    if (supportsAsyncResets()) {
+        // vkResetDescriptorPool() always succeeds: skip the host round trip for the result.
+        enc->vkResetDescriptorPoolAsyncGOOGLE(device, descriptorPool, flags, true /* do lock */);
+    } else {
+        res = enc->vkResetDescriptorPool(device, descriptorPool, flags, true /* do lock */);
+    }
 
     if (res != VK_SUCCESS) return res;
 

@@ -2767,6 +2767,10 @@ void unmarshal_VkDebugMetadataGOOGLE(VulkanStreamGuest* vkStream, VkStructureTyp
                                      VkDebugMetadataGOOGLE* forUnmarshaling);
 
 #define OP_vkSetDebugMetadataAsyncGOOGLE 236453297
+#define OP_vkResetFencesAsyncGOOGLE 265428372
+#define OP_vkResetCommandPoolAsyncGOOGLE 283932813
+#define OP_vkResetDescriptorPoolAsyncGOOGLE 251966118
+#define OP_vkResetEventAsyncGOOGLE 211041550
 #endif
 #ifdef VK_EXT_border_color_swizzle
 void unmarshal_VkPhysicalDeviceBorderColorSwizzleFeaturesEXT(

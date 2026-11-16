@@ -621,7 +621,8 @@ VkResult gfxstream_vk_ResetEvent(VkDevice device, VkEvent event) {
     MESA_TRACE_SCOPE("vkResetEvent");
     VkResult vkResetEvent_VkResult_return = (VkResult)0;
     auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-    vkResetEvent_VkResult_return = vkEnc->vkResetEvent(device, event, true /* do lock */);
+    auto resources = gfxstream::vk::ResourceTracker::get();
+    vkResetEvent_VkResult_return = resources->on_vkResetEvent(vkEnc, VK_SUCCESS, device, event);
     return vkResetEvent_VkResult_return;
 }
 VkResult gfxstream_vk_CreateBufferView(VkDevice device, const VkBufferViewCreateInfo* pCreateInfo,

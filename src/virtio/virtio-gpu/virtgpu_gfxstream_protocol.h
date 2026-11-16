@@ -109,6 +109,9 @@ struct vulkanCapset {
     uint32_t hasTraceAsyncCommand;
     uint32_t hasSetMetadataCommand;
     uint32_t hasGuestCapabilities;
+    // The host decodes vkResetFencesAsyncGOOGLE, vkResetCommandPoolAsyncGOOGLE,
+    // vkResetDescriptorPoolAsyncGOOGLE, and vkResetEventAsyncGOOGLE (reply-less resets).
+    uint32_t hasAsyncResets;
 };
 
 struct magmaCapset {

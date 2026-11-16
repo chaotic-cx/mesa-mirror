@@ -215,6 +215,29 @@ specific entries.
             <proto><type>void</type> <name>vkQueueWaitIdleAsyncGOOGLE</name></proto>
             <param><type>VkQueue</type> <name>queue</name></param>
         </command>
+        <command>
+            <proto><type>void</type> <name>vkResetFencesAsyncGOOGLE</name></proto>
+            <param><type>VkDevice</type> <name>device</name></param>
+            <param><type>uint32_t</type> <name>fenceCount</name></param>
+            <param len="fenceCount" externsync="true">const <type>VkFence</type>* <name>pFences</name></param>
+        </command>
+        <command>
+            <proto><type>void</type> <name>vkResetCommandPoolAsyncGOOGLE</name></proto>
+            <param><type>VkDevice</type> <name>device</name></param>
+            <param externsync="true"><type>VkCommandPool</type> <name>commandPool</name></param>
+            <param optional="true"><type>VkCommandPoolResetFlags</type> <name>flags</name></param>
+        </command>
+        <command>
+            <proto><type>void</type> <name>vkResetDescriptorPoolAsyncGOOGLE</name></proto>
+            <param><type>VkDevice</type> <name>device</name></param>
+            <param externsync="true"><type>VkDescriptorPool</type> <name>descriptorPool</name></param>
+            <param optional="true"><type>VkDescriptorPoolResetFlags</type> <name>flags</name></param>
+        </command>
+        <command>
+            <proto><type>void</type> <name>vkResetEventAsyncGOOGLE</name></proto>
+            <param><type>VkDevice</type> <name>device</name></param>
+            <param externsync="true"><type>VkEvent</type> <name>event</name></param>
+        </command>
         <command queues="sparse_binding">
             <proto><type>void</type> <name>vkQueueBindSparseAsyncGOOGLE</name></proto>
             <param externsync="true"><type>VkQueue</type> <name>queue</name></param>
@@ -363,6 +386,10 @@ specific entries.
                 <command name="vkGetSemaphoreGOOGLE"/>
                 <command name="vkTraceAsyncGOOGLE"/>
                 <command name="vkSetDebugMetadataAsyncGOOGLE"/>
+                <command name="vkResetFencesAsyncGOOGLE"/>
+                <command name="vkResetCommandPoolAsyncGOOGLE"/>
+                <command name="vkResetDescriptorPoolAsyncGOOGLE"/>
+                <command name="vkResetEventAsyncGOOGLE"/>
             </require>
         </extension>
     </extensions>

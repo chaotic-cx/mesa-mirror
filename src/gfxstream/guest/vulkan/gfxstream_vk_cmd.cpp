@@ -37,13 +37,20 @@ void gfxstream_vk_DestroyCommandPool(VkDevice device, VkCommandPool commandPool,
 VkResult gfxstream_vk_ResetCommandPool(VkDevice device, VkCommandPool commandPool,
                                        VkCommandPoolResetFlags flags) {
     MESA_TRACE_SCOPE("vkResetCommandPool");
-    VkResult vkResetCommandPool_VkResult_return = (VkResult)0;
+    VkResult vkResetCommandPool_VkResult_return = VK_SUCCESS;
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkResetCommandPool_VkResult_return =
-            vkEnc->vkResetCommandPool(device, commandPool, flags, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        if (resources->supportsAsyncResets()) {
+            // vkResetCommandPool() can only fail with out of memory errors: skip the host
+            // round trip for the result.
+            vkEnc->vkResetCommandPoolAsyncGOOGLE(device, commandPool, flags, true /* do lock */);
+        } else {
+            vkResetCommandPool_VkResult_return =
+                vkEnc->vkResetCommandPool(device, commandPool, flags, true /* do lock */);
+        }
         if (vkResetCommandPool_VkResult_return == VK_SUCCESS) {
-            gfxstream::vk::ResourceTracker::get()->resetCommandPoolStagingInfo(commandPool);
+            resources->resetCommandPoolStagingInfo(commandPool);
         }
     }
     return vkResetCommandPool_VkResult_return;

@@ -356,6 +356,8 @@ class ResourceTracker {
     VkResult on_vkResetFences(void* context, VkResult input_result, VkDevice device,
                               uint32_t fenceCount, const VkFence* pFences);
 
+    VkResult on_vkResetEvent(void* context, VkResult input_result, VkDevice device, VkEvent event);
+
     VkResult on_vkImportFenceFdKHR(void* context, VkResult input_result, VkDevice device,
                                    const VkImportFenceFdInfoKHR* pImportFenceFdInfo);
 
@@ -596,6 +598,7 @@ class ResourceTracker {
     void addToCommandPool(VkCommandPool commandPool, uint32_t commandBufferCount,
                           VkCommandBuffer* pCommandBuffers);
     void resetCommandPoolStagingInfo(VkCommandPool commandPool);
+    bool supportsAsyncResets() const;
 
 #ifdef LINUX_GUEST_BUILD
     // TODO: This information is tracked in

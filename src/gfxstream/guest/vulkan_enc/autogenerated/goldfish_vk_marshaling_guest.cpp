@@ -9285,6 +9285,8 @@ const char* api_opcode_to_string(const uint32_t opcode) {
             return "OP_vkGetBlobGOOGLE";
         case OP_vkGetSemaphoreGOOGLE:
             return "OP_vkGetSemaphoreGOOGLE";
+        case OP_vkResetEventAsyncGOOGLE:
+            return "OP_vkResetEventAsyncGOOGLE";
         case OP_vkCollectDescriptorPoolIdsGOOGLE:
             return "OP_vkCollectDescriptorPoolIdsGOOGLE";
         case OP_vkSetDebugMetadataAsyncGOOGLE:
@@ -9293,10 +9295,16 @@ const char* api_opcode_to_string(const uint32_t opcode) {
             return "OP_vkQueueSignalReleaseImageANDROIDAsyncGOOGLE";
         case OP_vkUpdateDescriptorSetWithTemplateSized2GOOGLE:
             return "OP_vkUpdateDescriptorSetWithTemplateSized2GOOGLE";
+        case OP_vkResetDescriptorPoolAsyncGOOGLE:
+            return "OP_vkResetDescriptorPoolAsyncGOOGLE";
+        case OP_vkResetFencesAsyncGOOGLE:
+            return "OP_vkResetFencesAsyncGOOGLE";
         case OP_vkQueueCommitDescriptorSetUpdatesGOOGLE:
             return "OP_vkQueueCommitDescriptorSetUpdatesGOOGLE";
         case OP_vkGetLinearImageLayout2GOOGLE:
             return "OP_vkGetLinearImageLayout2GOOGLE";
+        case OP_vkResetCommandPoolAsyncGOOGLE:
+            return "OP_vkResetCommandPoolAsyncGOOGLE";
         case OP_vkTraceAsyncGOOGLE:
             return "OP_vkTraceAsyncGOOGLE";
         case OP_vkQueueFlushCommandsFromAuxMemoryGOOGLE:

@@ -176,6 +176,15 @@ typedef VkResult(VKAPI_PTR* PFN_vkGetSemaphoreGOOGLE)(VkDevice device, VkSemapho
 typedef void(VKAPI_PTR* PFN_vkTraceAsyncGOOGLE)(uint64_t id);
 typedef void(VKAPI_PTR* PFN_vkSetDebugMetadataAsyncGOOGLE)(
     const VkDebugMetadataGOOGLE* pDebugMetadata);
+typedef void(VKAPI_PTR* PFN_vkResetFencesAsyncGOOGLE)(VkDevice device, uint32_t fenceCount,
+                                                      const VkFence* pFences);
+typedef void(VKAPI_PTR* PFN_vkResetCommandPoolAsyncGOOGLE)(VkDevice device,
+                                                           VkCommandPool commandPool,
+                                                           VkCommandPoolResetFlags flags);
+typedef void(VKAPI_PTR* PFN_vkResetDescriptorPoolAsyncGOOGLE)(VkDevice device,
+                                                              VkDescriptorPool descriptorPool,
+                                                              VkDescriptorPoolResetFlags flags);
+typedef void(VKAPI_PTR* PFN_vkResetEventAsyncGOOGLE)(VkDevice device, VkEvent event);
 
 VKAPI_ATTR VkResult VKAPI_CALL vkMapMemoryIntoAddressSpaceGOOGLE(VkDevice device,
                                                                  VkDeviceMemory memory,
@@ -284,6 +293,18 @@ VKAPI_ATTR void VKAPI_CALL vkTraceAsyncGOOGLE(uint64_t id);
 
 VKAPI_ATTR void VKAPI_CALL
 vkSetDebugMetadataAsyncGOOGLE(const VkDebugMetadataGOOGLE* pDebugMetadata);
+
+VKAPI_ATTR void VKAPI_CALL vkResetFencesAsyncGOOGLE(VkDevice device, uint32_t fenceCount,
+                                                    const VkFence* pFences);
+
+VKAPI_ATTR void VKAPI_CALL vkResetCommandPoolAsyncGOOGLE(VkDevice device, VkCommandPool commandPool,
+                                                         VkCommandPoolResetFlags flags);
+
+VKAPI_ATTR void VKAPI_CALL vkResetDescriptorPoolAsyncGOOGLE(VkDevice device,
+                                                            VkDescriptorPool descriptorPool,
+                                                            VkDescriptorPoolResetFlags flags);
+
+VKAPI_ATTR void VKAPI_CALL vkResetEventAsyncGOOGLE(VkDevice device, VkEvent event);
 
 #ifdef __cplusplus
 }

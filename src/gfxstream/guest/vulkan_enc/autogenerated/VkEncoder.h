@@ -1189,6 +1189,13 @@ class VkEncoder {
     void vkTraceAsyncGOOGLE(uint64_t id, uint32_t doLock);
     void vkSetDebugMetadataAsyncGOOGLE(const VkDebugMetadataGOOGLE* pDebugMetadata,
                                        uint32_t doLock);
+    void vkResetFencesAsyncGOOGLE(VkDevice device, uint32_t fenceCount, const VkFence* pFences,
+                                  uint32_t doLock);
+    void vkResetCommandPoolAsyncGOOGLE(VkDevice device, VkCommandPool commandPool,
+                                       VkCommandPoolResetFlags flags, uint32_t doLock);
+    void vkResetDescriptorPoolAsyncGOOGLE(VkDevice device, VkDescriptorPool descriptorPool,
+                                          VkDescriptorPoolResetFlags flags, uint32_t doLock);
+    void vkResetEventAsyncGOOGLE(VkDevice device, VkEvent event, uint32_t doLock);
 #endif
    private:
     class Impl;

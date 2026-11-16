@@ -13761,6 +13761,87 @@ void VkEncoder::vkSetDebugMetadataAsyncGOOGLE(const VkDebugMetadataGOOGLE* pDebu
     if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
 }
 
+void VkEncoder::vkResetFencesAsyncGOOGLE(VkDevice device, uint32_t fenceCount,
+                                         const VkFence* pFences, uint32_t doLock) {
+    bool queueSubmitWithCommandsEnabled =
+        sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
+    if (!queueSubmitWithCommandsEnabled && doLock) this->lock();
+    auto stream = mImpl->stream();
+    size_t count = 0;
+    count += 8;
+    count += sizeof(uint32_t);
+    if (fenceCount) {
+        count += fenceCount * 8;
+    }
+    uint8_t* streamPtr =
+        reservePacket(stream, OP_vkResetFencesAsyncGOOGLE, count, queueSubmitWithCommandsEnabled);
+    writeStreamVal(&streamPtr, gfxstream_vk_device_to_host_u64(device));
+    writeStreamBytes(&streamPtr, &fenceCount, sizeof(uint32_t));
+    if (fenceCount) {
+        for (uint32_t k = 0; k < fenceCount; ++k) {
+            writeStreamVal(&streamPtr, gfxstream_vk_fence_to_host_u64(pFences[k]));
+        }
+    }
+    stream->flush();
+    clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
+    if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
+}
+
+void VkEncoder::vkResetCommandPoolAsyncGOOGLE(VkDevice device, VkCommandPool commandPool,
+                                              VkCommandPoolResetFlags flags, uint32_t doLock) {
+    bool queueSubmitWithCommandsEnabled =
+        sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
+    if (!queueSubmitWithCommandsEnabled && doLock) this->lock();
+    auto stream = mImpl->stream();
+    size_t count = 0;
+    count += 2 * 8;
+    count += sizeof(VkCommandPoolResetFlags);
+    uint8_t* streamPtr = reservePacket(stream, OP_vkResetCommandPoolAsyncGOOGLE, count,
+                                       queueSubmitWithCommandsEnabled);
+    writeStreamVal(&streamPtr, gfxstream_vk_device_to_host_u64(device));
+    writeStreamVal(&streamPtr, gfxstream_vk_command_pool_to_host_u64(commandPool));
+    writeStreamBytes(&streamPtr, &flags, sizeof(VkCommandPoolResetFlags));
+    stream->flush();
+    clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
+    if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
+}
+
+void VkEncoder::vkResetDescriptorPoolAsyncGOOGLE(VkDevice device, VkDescriptorPool descriptorPool,
+                                                 VkDescriptorPoolResetFlags flags,
+                                                 uint32_t doLock) {
+    bool queueSubmitWithCommandsEnabled =
+        sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
+    if (!queueSubmitWithCommandsEnabled && doLock) this->lock();
+    auto stream = mImpl->stream();
+    size_t count = 0;
+    count += 2 * 8;
+    count += sizeof(VkDescriptorPoolResetFlags);
+    uint8_t* streamPtr = reservePacket(stream, OP_vkResetDescriptorPoolAsyncGOOGLE, count,
+                                       queueSubmitWithCommandsEnabled);
+    writeStreamVal(&streamPtr, gfxstream_vk_device_to_host_u64(device));
+    writeStreamVal(&streamPtr, gfxstream_vk_descriptor_pool_to_host_u64(descriptorPool));
+    writeStreamBytes(&streamPtr, &flags, sizeof(VkDescriptorPoolResetFlags));
+    stream->flush();
+    clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
+    if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
+}
+
+void VkEncoder::vkResetEventAsyncGOOGLE(VkDevice device, VkEvent event, uint32_t doLock) {
+    bool queueSubmitWithCommandsEnabled =
+        sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
+    if (!queueSubmitWithCommandsEnabled && doLock) this->lock();
+    auto stream = mImpl->stream();
+    size_t count = 0;
+    count += 2 * 8;
+    uint8_t* streamPtr =
+        reservePacket(stream, OP_vkResetEventAsyncGOOGLE, count, queueSubmitWithCommandsEnabled);
+    writeStreamVal(&streamPtr, gfxstream_vk_device_to_host_u64(device));
+    writeStreamVal(&streamPtr, gfxstream_vk_event_to_host_u64(event));
+    stream->flush();
+    clearPoolIfNeeded(&encodeCount, mImpl->pool(), stream);
+    if (!queueSubmitWithCommandsEnabled && doLock) this->unlock();
+}
+
 #endif
 }  // namespace vk
 }  // namespace gfxstream

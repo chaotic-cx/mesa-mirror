@@ -120,6 +120,10 @@ ENCODER_EXPLICIT_FLUSHED_APIS = [
     "vkQueueSubmitAsyncGOOGLE",
     "vkQueueBindSparseAsyncGOOGLE",
     "vkQueueWaitIdleAsyncGOOGLE",
+    "vkResetFencesAsyncGOOGLE",
+    "vkResetCommandPoolAsyncGOOGLE",
+    "vkResetDescriptorPoolAsyncGOOGLE",
+    "vkResetEventAsyncGOOGLE",
     "vkQueueSignalReleaseImageANDROID",
     "vkDestroyDevice",
 ]
