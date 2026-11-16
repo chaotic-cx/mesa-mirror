@@ -937,7 +937,7 @@ dzn_cmd_buffer_collect_queries(struct dzn_cmd_buffer *cmdbuf,
     * for views other than the first one. */
    BITSET_WORD *zero =
       util_dynarray_element(&state->zero, BITSET_WORD, 0);
-   const uint32_t step = DZN_QUERY_REFS_SECTION_SIZE / sizeof(uint64_t);
+   const uint32_t step = DZN_QUERY_REFS_SECTION_SIZE / qpool->query_size;
 
    for (start = first_query, end = first_query,
         __bitset_next_range(&start, &end, zero, nbits_zero);
@@ -5740,11 +5740,13 @@ dzn_CmdResetQueryPool(VkCommandBuffer commandBuffer,
    q_step = DZN_QUERY_REFS_SECTION_SIZE / qpool->query_size;
 
    for (uint32_t q = 0; q < queryCount; q += q_step) {
+      uint32_t q_count = MIN2(queryCount - q, q_step);
+
       ID3D12GraphicsCommandList1_CopyBufferRegion(cmdbuf->cmdlist, qpool->collect_buffer,
                                         dzn_query_pool_get_result_offset(qpool, firstQuery + q),
                                         device->queries.refs,
                                         DZN_QUERY_REFS_ALL_ZEROS_OFFSET,
-                                        qpool->query_size);
+                                        q_count * qpool->query_size);
    }
 
    dzn_cmd_buffer_dynbitset_set_range(cmdbuf, &state->reset, firstQuery, queryCount);
