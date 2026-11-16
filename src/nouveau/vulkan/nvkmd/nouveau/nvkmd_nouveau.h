@@ -82,7 +82,8 @@ VkResult nvkmd_nouveau_alloc_tiled_mem(struct nvkmd_dev *dev,
 
 VkResult nvkmd_nouveau_import_dma_buf(struct nvkmd_dev *dev,
                                       struct vk_object_base *log_obj,
-                                      int fd, struct nvkmd_mem **mem_out);
+                                      int fd, uint64_t va_align_B,
+                                      struct nvkmd_mem **mem_out);
 
 struct nvkmd_nouveau_va {
    struct nvkmd_va base;

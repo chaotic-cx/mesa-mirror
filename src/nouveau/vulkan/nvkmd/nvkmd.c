@@ -155,9 +155,11 @@ nvkmd_dev_alloc_mapped_mem(struct nvkmd_dev *dev,
 VkResult MUST_CHECK
 nvkmd_dev_import_dma_buf(struct nvkmd_dev *dev,
                          struct vk_object_base *log_obj,
-                         int fd, struct nvkmd_mem **mem_out)
+                         int fd, uint64_t va_align_B,
+                         struct nvkmd_mem **mem_out)
 {
-   VkResult result = dev->ops->import_dma_buf(dev, log_obj, fd, mem_out);
+   VkResult result =
+      dev->ops->import_dma_buf(dev, log_obj, fd, va_align_B, mem_out);
    if (result == VK_SUCCESS)
       nvkmd_dev_add_mem(dev, *mem_out);
 
