@@ -172,7 +172,11 @@ PanfrostPerf::create_available_counters() const
          Counter counter = {};
          counter.id = global_counter_id++;
          counter.name = get_counter_name(cinfo->name, cinfo->block, j);
-         counter.description = cinfo->desc;
+	 /* emit (optional) description only for the first block, to reduce
+	  * packet size
+	  */
+         if (j == 0)
+            counter.description = cinfo->desc;
          counter.group = cinfo->block;
          counter.group_mask = convert_classes(cinfo->classes);
          counter.units = convert_pan_units(cinfo->units);
