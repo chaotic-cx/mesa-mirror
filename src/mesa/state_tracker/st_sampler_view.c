@@ -643,6 +643,10 @@ st_get_buffer_sampler_view_from_stobj(struct st_context *st,
    if (!size)
       return NULL;
 
+   /* Size must be bigger than format blocksize. */
+   if (size < util_format_get_blocksize(format))
+      return NULL;
+
    /* Create a new sampler view. There is no need to clear the entire
     * structure (consider CPU overhead).
     */
