@@ -213,6 +213,7 @@ struct d3d12_shader {
    } srv_bindings[PIPE_MAX_SHADER_SAMPLER_VIEWS];
    uint32_t begin_srv_binding;
    uint32_t end_srv_binding;
+   bool has_samplers;
 
    /* Images and SSBOs are never sparse */
    struct {

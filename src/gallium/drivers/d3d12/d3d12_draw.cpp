@@ -179,7 +179,8 @@ fill_ssbo_descriptors(struct d3d12_context *ctx,
 static D3D12_GPU_DESCRIPTOR_HANDLE
 fill_sampler_descriptors(struct d3d12_context *ctx,
                          const struct d3d12_shader_selector *shader_sel,
-                         unsigned stage)
+                         unsigned stage,
+                         bool use_null_samplers)
 {
    const struct d3d12_shader *shader = shader_sel->current;
    struct d3d12_batch *batch = d3d12_current_batch(ctx);
@@ -187,7 +188,7 @@ fill_sampler_descriptors(struct d3d12_context *ctx,
 
    view.count = 0;
    for (unsigned i = shader->begin_srv_binding; i < shader->end_srv_binding; i++, view.count++) {
-      struct d3d12_sampler_state *sampler = ctx->samplers[stage][i];
+      struct d3d12_sampler_state *sampler = use_null_samplers ? NULL : ctx->samplers[stage][i];
 
       unsigned desc_idx = i - shader->begin_srv_binding;
       if (sampler != NULL) {
@@ -470,6 +471,8 @@ check_descriptors_left(struct d3d12_context *ctx, bool compute)
    if (d3d12_descriptor_heap_get_remaining_handles(batch->view_heap) < needed_descs)
       return false;
 
+   bool root_sig_dirty = ctx->cmdlist_dirty & (compute ? D3D12_DIRTY_COMPUTE_ROOT_SIGNATURE :
+                                                         D3D12_DIRTY_ROOT_SIGNATURE);
    needed_descs = 0;
    for (unsigned i = 0; i < count; ++i) {
       struct d3d12_shader_selector *shader = compute ? ctx->compute_state : ctx->gfx_stages[i];
@@ -477,7 +480,9 @@ check_descriptors_left(struct d3d12_context *ctx, bool compute)
       if (!shader)
          continue;
 
-      needed_descs += shader->current->end_srv_binding - shader->current->begin_srv_binding;
+      if (shader->current->end_srv_binding > 0 &&
+          (shader->current->has_samplers || root_sig_dirty))
+         needed_descs += shader->current->end_srv_binding - shader->current->begin_srv_binding;
    }
 
    if (d3d12_descriptor_heap_get_remaining_handles(batch->sampler_heap) < needed_descs)
@@ -499,6 +504,9 @@ update_shader_stage_root_parameters(struct d3d12_context *ctx,
    auto stage = shader_sel->stage;
    struct d3d12_shader *shader = shader_sel->current;
    uint64_t dirty = ctx->shader_dirty[stage];
+   bool root_sig_dirty = ctx->cmdlist_dirty & (stage == MESA_SHADER_COMPUTE ?
+                                               D3D12_DIRTY_COMPUTE_ROOT_SIGNATURE :
+                                               D3D12_DIRTY_ROOT_SIGNATURE);
    assert(shader);
 
    if (shader->end_ubo_binding - shader->begin_ubo_binding > 0) {
@@ -516,9 +524,15 @@ update_shader_stage_root_parameters(struct d3d12_context *ctx,
          root_desc_indices[num_root_descriptors++] = num_params;
       }
       num_params++;
-      if (dirty & D3D12_SHADER_DIRTY_SAMPLERS) {
+      if (shader->has_samplers) {
+         if (dirty & D3D12_SHADER_DIRTY_SAMPLERS) {
+            assert(num_root_descriptors < MAX_DESCRIPTOR_TABLES);
+            root_desc_tables[num_root_descriptors] = fill_sampler_descriptors(ctx, shader_sel, stage, false);
+            root_desc_indices[num_root_descriptors++] = num_params;
+         }
+      } else if (root_sig_dirty) {
          assert(num_root_descriptors < MAX_DESCRIPTOR_TABLES);
-         root_desc_tables[num_root_descriptors] = fill_sampler_descriptors(ctx, shader_sel, stage);
+         root_desc_tables[num_root_descriptors] = fill_sampler_descriptors(ctx, shader_sel, stage, true);
          root_desc_indices[num_root_descriptors++] = num_params;
       }
       num_params++;
@@ -1258,8 +1272,14 @@ d3d12_draw_vbo(struct pipe_context *pctx,
    /* The next dispatch needs to reassert the compute PSO */
    ctx->cmdlist_dirty |= D3D12_DIRTY_COMPUTE_SHADER;
 
-   for (unsigned i = 0; i < D3D12_GFX_SHADER_STAGES; ++i)
-      ctx->shader_dirty[i] = 0;
+   for (unsigned i = 0; i < D3D12_GFX_SHADER_STAGES; ++i) {
+      if (ctx->gfx_pipeline_state.stages[i] &&
+          ctx->gfx_pipeline_state.stages[i]->end_srv_binding > 0 &&
+          ctx->gfx_pipeline_state.stages[i]->has_samplers)
+         ctx->shader_dirty[i] = 0;
+      else
+         ctx->shader_dirty[i] &= D3D12_SHADER_DIRTY_SAMPLERS;
+   }
 
    for (int i = 0; i < ctx->fb.nr_cbufs; ++i) {
       if (ctx->fb_cbufs[i]) {
@@ -1406,6 +1426,9 @@ d3d12_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
    ctx->cmdlist_dirty |= D3D12_DIRTY_SHADER;
    batch->pending_memory_barrier = false;
 
-   ctx->shader_dirty[MESA_SHADER_COMPUTE] = 0;
+   if (shader->end_srv_binding > 0 && shader->has_samplers)
+      ctx->shader_dirty[MESA_SHADER_COMPUTE] = 0;
+   else
+      ctx->shader_dirty[MESA_SHADER_COMPUTE] &= D3D12_SHADER_DIRTY_SAMPLERS;
    pipe_resource_reference(&patched_indirect, nullptr);
 }

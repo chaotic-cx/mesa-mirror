@@ -169,6 +169,11 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
          shader->begin_srv_binding = MIN2(var->data.binding, shader->begin_srv_binding);
          shader->end_srv_binding = MAX2(var->data.binding + count, shader->end_srv_binding);
       }
+      /* Match nir_to_dxil() sampler emission so texture-only shaders
+       * (e.g. texel fetches or queries) avoid redundant sampler table updates.
+       */
+      if (glsl_type_get_sampler_count(var->type) > 0)
+         shader->has_samplers = true;
    }
 
    nir_foreach_image_variable(var, nir) {
