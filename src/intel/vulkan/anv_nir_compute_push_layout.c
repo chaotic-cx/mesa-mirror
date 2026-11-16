@@ -717,7 +717,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
 
    struct anv_push_range analysis_ranges[4] = {};
    if (data.push_ubo_ranges || data.push_pointer_ranges) {
-      anv_nir_analyze_push_constants_ranges(nir, devinfo, push_map,
+      anv_nir_analyze_push_constants_ranges(nir, pdevice, push_map,
                                             analysis_ranges);
    }
 

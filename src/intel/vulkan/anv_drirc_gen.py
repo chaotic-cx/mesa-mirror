@@ -133,6 +133,10 @@ def declare_options(android_version):
         B("anv_disable_xe_engine_cycles", False,
           "Disable use of DRM_XE_DEVICE_QUERY_ENGINE_CYCLES on Xe",
           c_name="disable_xe_engine_cycles"),
+        B("anv_enable_push_pointer_promotion", False,
+          "Promote 64bit pointers in push constants to pushed buffers (3DSTATE_CONSTANT*)",
+          c_name="enable_push_pointer_promotion"),
+
         # Workaround command emission
         B("anv_barrier_post_untyped_clear_shader", False,
           "Insert pipeline barriers post clearing shader on untyped data",

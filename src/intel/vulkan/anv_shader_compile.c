@@ -309,6 +309,9 @@ anv_shader_init_uuid(struct anv_physical_device *device)
    const bool emulate_divergent_barriers = device->drirc.debug.emulate_divergent_barriers;
    _mesa_blake3_update(&ctx, &emulate_divergent_barriers, sizeof(emulate_divergent_barriers));
 
+   const bool push_pointer_promote = device->drirc.debug.enable_push_pointer_promotion;
+   _mesa_blake3_update(&ctx, &push_pointer_promote, sizeof(push_pointer_promote));
+
    uint8_t blake3[BLAKE3_KEY_LEN];
    _mesa_blake3_final(&ctx, blake3);
    memcpy(device->shader_binary_uuid, blake3, sizeof(device->shader_binary_uuid));
