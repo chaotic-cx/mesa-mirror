@@ -42,7 +42,7 @@ create_mem_or_close_bo(struct nvkmd_nouveau_dev *dev,
    }
 
    /* It should be the caller's responsibility to ensure proper alignment and
-    * this function should be kept pretty simple. However, because dma_buf
+    * this function should be kept pretty simple. However, because some dma_buf
     * imports call this with 0 alignment, we need a minimum alignment for the
     * memory object initialization. For other cases, we just pass in the given
     * alignment along the chain. There's no need to re-align here because the

@@ -217,7 +217,7 @@ nvk_AllocateMemory(VkDevice device,
                VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
 
       result = nvkmd_dev_import_dma_buf(dev->nvkmd, &dev->vk.base,
-                                        fd_info->fd, 0, &mem->mem);
+                                        fd_info->fd, alignment, &mem->mem);
       if (result != VK_SUCCESS)
          goto fail_alloc;
 
