@@ -297,9 +297,10 @@ struct si_context *si_get_aux_context(struct si_screen *sscreen, struct si_aux_c
    mtx_lock(&actx->lock);
    /* Init aux_context on demand. */
    if (actx->ctx == NULL) {
-      bool compute = !sscreen->info.has_graphics ||
-                     actx == &sscreen->aux_context.compute_resource_init ||
-                     actx == &sscreen->aux_context.shader_upload;
+      bool compute = (!sscreen->info.has_graphics ||
+                      actx == &sscreen->aux_context.compute_resource_init ||
+                      actx == &sscreen->aux_context.shader_upload) &&
+                     !(sscreen->debug_flags & DBG(NO_COMPUTE));
       actx->ctx =
          si_create_context(&sscreen->b,
                            SI_CONTEXT_FLAG_AUX | PIPE_CONTEXT_LOSE_CONTEXT_ON_RESET |

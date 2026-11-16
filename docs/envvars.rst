@@ -2034,6 +2034,10 @@ RadeonSI driver environment variables
       Logs BO VA operations and CS flushes.
    ``bo_all``
       Always add all BOs to CS. Useful to debug VM FAULT issues.
+   ``nodma``
+      Disable SDMA-copy for DRI_PRIME.
+   ``nocompute``
+      Disable compute queues use.
 
 r600 driver environment variables
 ---------------------------------

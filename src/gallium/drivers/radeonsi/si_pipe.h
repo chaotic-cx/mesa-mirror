@@ -139,6 +139,8 @@ enum
    DBG_IB_CACHES_FLUSH,
    DBG_BO_HISTORY,
    DBG_BO_LIST_ALL,
+   DBG_NO_COMPUTE,
+   DBG_NO_DMA,
 
    /* 3D engine options: */
    DBG_NO_NGG,
@@ -160,7 +162,6 @@ enum
    DBG_DCC_STORE,
    DBG_NO_DCC_MSAA,
    DBG_NO_FMASK,
-   DBG_NO_DMA,
 
    DBG_FORCE_GFX_BLIT,
    DBG_FORCE_COMPUTE_BLIT,

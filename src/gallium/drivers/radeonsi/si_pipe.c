@@ -49,6 +49,8 @@ static const struct debug_named_value radeonsi_debug_options[] = {
    {"ibcachesflush", DBG(IB_CACHES_FLUSH), "Flush all caches at the beginning of IBs."},
    {"bo_history", DBG(BO_HISTORY), "Logs BO VA operations and CS flushes."},
    {"bo_all", DBG(BO_LIST_ALL), "Always add all BOs to CS."},
+   {"nocompute", DBG(NO_COMPUTE), "Disable compute queues use."},
+   {"nodma", DBG(NO_DMA), "Disable SDMA-copy for DRI_PRIME"},
 
    /* 3D engine options: */
    {"nongg", DBG(NO_NGG), "Disable NGG and use the legacy pipeline."},
@@ -70,7 +72,6 @@ static const struct debug_named_value radeonsi_debug_options[] = {
    {"dccstore", DBG(DCC_STORE), "Enable DCC stores"},
    {"nodccmsaa", DBG(NO_DCC_MSAA), "Disable DCC for MSAA"},
    {"nofmask", DBG(NO_FMASK), "Disable MSAA compression"},
-   {"nodma", DBG(NO_DMA), "Disable SDMA-copy for DRI_PRIME"},
 
    {"forcegfxblit", DBG(FORCE_GFX_BLIT), "Force the use of fragment shaders for image clears, copies, blits, and resolve."},
    {"forcecomputeblit", DBG(FORCE_COMPUTE_BLIT), "Force the use of compute shaders for image clears, copies, blits, and resolve."},

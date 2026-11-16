@@ -19,6 +19,9 @@
 
 void si_init_aux_async_compute_ctx(struct si_screen *sscreen)
 {
+   if (sscreen->debug_flags & DBG(NO_COMPUTE))
+      return;
+
    assert(!sscreen->async_compute_context);
    sscreen->async_compute_context =
       si_create_context(&sscreen->b,
