@@ -1532,6 +1532,7 @@ impl LocalRegAlloc<'_> {
         }
 
         let mut src_bytes = BitSet::new();
+        let mut dst_bytes = BitSet::new();
         let mut evicted = VecDeque::new();
         let mut srcs_dsts: Vec<SrcDst> = Vec::new();
         for (i, src) in instr.srcs().iter().enumerate() {
@@ -1780,14 +1781,7 @@ impl LocalRegAlloc<'_> {
                         src.swizzle = swz
                             .swizzle(src.swizzle)
                             .expect("8 and 16-bit sources have to swizzle");
-
-                        // If all the SSA values read by this source are killed,
-                        // mark this as the last use.  Only do this if the SSA
-                        // values in question consume whole registers because
-                        // the hardware's last-use concept is per-register, not
-                        // per-byte.
-                        let whole_regs = src_dst.vec[0].bits() == 32;
-                        src.last_use = src_dst.is_killed && whole_regs;
+                        src.last_use = false;
                     } else {
                         assert_eq!(src.swizzle, ra_src.swizzle);
                         instr.srcs_mut()[i].src_ref = ra_src.src_ref;
@@ -1796,6 +1790,8 @@ impl LocalRegAlloc<'_> {
             } else {
                 debug_assert!(src_dst.mask.is_power_of_two());
                 let i = usize::try_from(src_dst.mask.trailing_zeros()).unwrap();
+
+                dst_bytes.set_range(ra_bytes.start.into()..ra_bytes.end.into());
 
                 if self.model.op_dst_is_staging_reg(&instr.op) {
                     // Staging registers respect lanes.  We just widened the
@@ -1849,6 +1845,32 @@ impl LocalRegAlloc<'_> {
                 self.arena.dst_for_bytes(dst_bytes),
                 self.arena.src_for_bytes(e.bytes),
             );
+        }
+
+        // Set last_use on killed srcs that share no other values within their
+        // registers, dsts don't count as their regs must already be free.
+        for src_dst in srcs_dsts.iter() {
+            if !src_dst.is_src || !src_dst.is_killed {
+                continue;
+            }
+
+            let mut mask = src_dst.mask;
+            while mask != 0 {
+                let i = mask.trailing_zeros();
+                mask &= !(1 << i);
+
+                let src = &mut instr.srcs_mut()[i as usize];
+                let SrcRef::Reg(reg) = &src.src_ref else {
+                    continue;
+                };
+                let regs = reg.reg_range();
+                let bytes =
+                    self.arena.phys_to_virt(regs.start * 4..regs.end * 4);
+                let other_uses = bytes
+                    .map(usize::from)
+                    .any(|b| self.used.contains(b) && !dst_bytes.contains(b));
+                src.last_use = !other_uses;
+            }
         }
 
         // Clean up by unpinning everything
