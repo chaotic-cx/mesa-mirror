@@ -182,7 +182,7 @@ op('zip', 4, 'u32')
 op('extract_byte_per_8lanes', 2, 'u32')
 op('shr_odd_subspans_by_4', 1, 'u16')
 op('and_u32_u16', 2, 'u32')
-op('and_sN_s32', 2, 's32', 0, ['unsigned n'])
+op('and_sN', 2, 's16 s32', 0, ['unsigned n'])
 
 # Pixel coord calculations. expand_quad replicates out the per-2x2 values from
 # its source g0.[10...13] and - in the case of SIMD32 - g1.[10...13] into a

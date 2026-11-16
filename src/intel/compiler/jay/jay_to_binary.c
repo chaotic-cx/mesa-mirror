@@ -292,7 +292,7 @@ static const struct {
    OP(ADD_RTNE, ADD, 2),
    OP(AND, AND, 2),
    OP(AND_U32_U16, AND, 2),
-   OP(AND_SN_S32, AND, 2),
+   OP(AND_SN, AND, 2),
    OP(ASR, ASR, 2),
    OP(AVG, AVG, 2),
    OP(BFE, BFE, 3),

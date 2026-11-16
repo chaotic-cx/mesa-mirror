@@ -201,8 +201,8 @@ pass(jay_function *f)
                 *
                 * TODO: We should really add extends to the IR properly.
                 */
-               jay_AND_SN_S32(&b, I->dst, cond, I->src[0],
-                              b.shader->dispatch_width);
+               jay_AND_SN(&b, JAY_TYPE_S32, I->dst, cond, I->src[0],
+                          b.shader->dispatch_width);
             }
          } else {
             jay_inst *csel = jay_CSEL(&b, jay_flag_type(f), I->dst, I->src[0],
