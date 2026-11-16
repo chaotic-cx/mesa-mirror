@@ -1421,11 +1421,21 @@ attrib_src(const struct gl_vertex_array_object *vao,
 {
    const struct gl_vertex_buffer_binding *binding =
       &vao->BufferBinding[array->BufferBindingIndex];
-   const GLubyte *src = _mesa_vertex_attrib_address(array, binding);
+   const GLubyte *src;
 
-   if (binding->BufferObj) {
-      src = ADD_POINTERS(binding->BufferObj->Mappings[MAP_INTERNAL].Pointer,
-                         src);
+   if (binding->BufferObj && binding->BufferObj->GLThreadInternal) {
+      /* glthread uploads user arrays for draws and leaves its buffer bound.
+       * The buffer only has the vertices of the last draw that used it, so
+       * read the user array, whose pointer is kept in gl_array_attributes.
+       */
+      src = array->Ptr;
+   } else {
+      src = _mesa_vertex_attrib_address(array, binding);
+
+      if (binding->BufferObj) {
+         src = ADD_POINTERS(binding->BufferObj->Mappings[MAP_INTERNAL].Pointer,
+                            src);
+      }
    }
 
    return src + elt * binding->Stride;

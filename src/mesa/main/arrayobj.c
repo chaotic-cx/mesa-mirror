@@ -808,7 +808,10 @@ _mesa_vao_map_arrays(struct gl_context *ctx, struct gl_vertex_array_object *vao,
 
       struct gl_buffer_object *bo = binding->BufferObj;
       assert(bo);
-      if (_mesa_bufferobj_mapped(bo, MAP_INTERNAL))
+      /* Buffers that glthread bound for user arrays aren't read, the user
+       * arrays are.
+       */
+      if (bo->GLThreadInternal || _mesa_bufferobj_mapped(bo, MAP_INTERNAL))
          continue;
 
       _mesa_bufferobj_map_range(ctx, 0, bo->Size, access, bo, MAP_INTERNAL);
@@ -850,7 +853,7 @@ _mesa_vao_unmap_arrays(struct gl_context *ctx,
 
       struct gl_buffer_object *bo = binding->BufferObj;
       assert(bo);
-      if (!_mesa_bufferobj_mapped(bo, MAP_INTERNAL))
+      if (bo->GLThreadInternal || !_mesa_bufferobj_mapped(bo, MAP_INTERNAL))
          continue;
 
       _mesa_bufferobj_unmap(ctx, bo, MAP_INTERNAL);
