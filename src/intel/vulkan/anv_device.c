@@ -28,6 +28,7 @@
 #include "drm-uapi/drm_fourcc.h"
 #include "drm-uapi/drm.h"
 #include <xf86drm.h>
+#include "c11/time.h"
 
 #include "anv_private.h"
 #include "anv_measure.h"

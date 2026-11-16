@@ -36,6 +36,7 @@
 
 #include "drm-uapi/drm_fourcc.h"
 
+#include "c11/time.h"
 #include "vk_instance.h"
 #include "vk_device.h"
 #include "vk_physical_device.h"

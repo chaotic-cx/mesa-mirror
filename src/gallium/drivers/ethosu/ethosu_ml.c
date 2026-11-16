@@ -9,6 +9,7 @@
 #include "util/macros.h"
 #include "util/u_dynarray.h"
 #include "util/u_inlines.h"
+#include "c11/time.h"
 
 #include <assert.h>
 #include <inttypes.h>

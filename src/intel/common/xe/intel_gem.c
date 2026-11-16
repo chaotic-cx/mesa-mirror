@@ -28,6 +28,7 @@
 #include "common/intel_gem.h"
 #include "common/xe/intel_engine.h"
 
+#include "c11/time.h"
 #include "util/log.h"
 #include "util/os_time.h"
 #include "util/timespec.h"

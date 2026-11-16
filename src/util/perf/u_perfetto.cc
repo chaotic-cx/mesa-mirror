@@ -24,6 +24,7 @@
 #include "u_perfetto.h"
 
 #include "c11/threads.h"
+#include "c11/time.h"
 #include "util/u_call_once.h"
 #include "util/macros.h"
 #include "util/timespec.h"

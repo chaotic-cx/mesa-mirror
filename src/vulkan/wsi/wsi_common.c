@@ -21,6 +21,7 @@
  * IN THE SOFTWARE.
  */
 
+#include "c11/time.h"
 #include "wsi_common_private.h"
 #include "wsi_common_entrypoints.h"
 #include "util/u_debug.h"

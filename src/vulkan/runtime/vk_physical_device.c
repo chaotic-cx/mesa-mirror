@@ -26,6 +26,7 @@
 #include "vk_common_entrypoints.h"
 #include "vk_device.h"
 #include "vk_util.h"
+#include "c11/time.h"
 
 VkResult
 vk_physical_device_init(struct vk_physical_device *pdevice,
