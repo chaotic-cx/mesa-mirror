@@ -918,6 +918,12 @@ bifrost_postprocess_nir(nir_shader *nir,
    if (bi_use_kraid(nir, gpu_arch) && nir->info.stage == MESA_SHADER_FRAGMENT)
       NIR_PASS(_, nir, pan_nir_opt_var_tex, gpu_arch);
 
+   /* CSE helps expose loads from the same resource. load_store_vectorize
+    * does not vectorize loads if they are not from the same resource
+    * (determined by the SSA value of the source).
+    */
+   NIR_PASS(_, nir, nir_opt_cse);
+
    /* Why aren't we vectorizing nir_var_shader_temp?
     * Basically, the current RA doesn't know rematerialization and is still
     * learning spills, if we vectorize temp stores it might create long-lived
