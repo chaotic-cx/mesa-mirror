@@ -187,8 +187,11 @@ radv_retile_dcc(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image)
          return;
 
       /* Wait for all pending work on SDMA. */
-      if (radv_flush_gang_leader_semaphore(cmd_buffer))
+      cmd_buffer->gang.sem.leader_value++;
+      if (radv_flush_gang_leader_semaphore(cmd_buffer)) {
          radv_wait_gang_leader(cmd_buffer);
+         cmd_buffer->gang.flush_bits |= AC_BARRIER_INV_L2;
+      }
 
       /* Emit pending cache fluses on ACE. */
       radv_gang_cache_flush(cmd_buffer);
