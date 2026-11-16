@@ -595,6 +595,24 @@ lower_demote_to_terminate(nir_builder *b, nir_intrinsic_instr *intr, void *_)
    }
 }
 
+static bool
+lower_fragment_outputs(nir_builder *b, nir_intrinsic_instr *intr, void *_)
+{
+   if (intr->intrinsic != nir_intrinsic_store_render_target_intel) {
+      return false;
+   }
+
+   /* Jay wants omask to be 16-bit, but intel_nir_lower_fragment_outputs makes
+    * it 32-bit because brw can't handle 16-bit.
+    *
+    * TODO: Delete this pass when we delete brw.
+    */
+   b->cursor = nir_before_instr(&intr->instr);
+   nir_src *omask = &intr->src[4];
+   nir_src_rewrite(omask, nir_u2u16(b, omask->ssa));
+   return true;
+}
+
 /**
  * Do NIR processing that can be shared across all SIMD width variants.
  */
@@ -957,6 +975,8 @@ jay_process_nir(const struct intel_device_info *devinfo,
                     alpha_to_coverage_enabled(nir, key->fs.alpha_to_coverage) &&
                     !(nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK))),
                    NULL, NULL);
+      JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_fragment_outputs,
+                   nir_metadata_control_flow, NULL);
 
       brw_nir_cleanup_pre_fs_prog_data(pt);
 
