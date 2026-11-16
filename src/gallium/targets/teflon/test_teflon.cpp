@@ -37,8 +37,8 @@ test_model(void *buf, size_t buf_size, std::string cache_dir, unsigned tolerance
    TfLiteModel *model = TfLiteModelCreate(buf, buf_size);
    assert(model);
 
-   run_model(model, EXECUTOR_CPU, &input, &num_inputs, &cpu_output, &output_sizes, &output_types, &num_outputs, cache_dir);
-   run_model(model, EXECUTOR_NPU, &input, &num_inputs, &npu_output, &output_sizes, &output_types, &num_outputs, cache_dir);
+   ASSERT_NO_FATAL_FAILURE(run_model(model, EXECUTOR_CPU, &input, &num_inputs, &cpu_output, &output_sizes, &output_types, &num_outputs, cache_dir));
+   ASSERT_NO_FATAL_FAILURE(run_model(model, EXECUTOR_NPU, &input, &num_inputs, &npu_output, &output_sizes, &output_types, &num_outputs, cache_dir));
 
    const char *dump_output = os_get_option("TEFLON_DUMP_OUTPUT");
    if (dump_output && atoi(dump_output) == 1) {

@@ -132,7 +132,7 @@ run_model(TfLiteModel *model, enum executor executor, void ***input, size_t *num
    TfLiteInterpreter *interpreter = TfLiteInterpreterCreateWithSelectedOps(model, options);
    assert(interpreter);
 
-   EXPECT_EQ(TfLiteInterpreterAllocateTensors(interpreter), kTfLiteOk);
+   ASSERT_EQ(TfLiteInterpreterAllocateTensors(interpreter), kTfLiteOk);
 
    *num_inputs = TfLiteInterpreterGetInputTensorCount(interpreter);
    if (*input == NULL)
