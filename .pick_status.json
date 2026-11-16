@@ -1244,7 +1244,7 @@
         "description": "mesa: read user arrays in glArrayElement when glthread's buffers are bound",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "616d595d18d54c8e39e64386a5a2ac2be8e5fef9",
         "notes": null
