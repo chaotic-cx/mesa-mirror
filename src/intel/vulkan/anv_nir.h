@@ -209,7 +209,7 @@ bool anv_nir_is_pushable_pointer(nir_intrinsic_instr *intrin,
                                  uint32_t *out_load_offset);
 
 void anv_nir_analyze_push_constants_ranges(nir_shader *nir,
-                                           const struct intel_device_info *devinfo,
+                                           const struct anv_physical_device *pdevice,
                                            const struct anv_pipeline_push_map *push_map,
                                            struct anv_push_range out_ranges[4]);
 

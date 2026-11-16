@@ -93,7 +93,7 @@ struct push_block_info
 
 struct push_analysis_state
 {
-   const struct intel_device_info *devinfo;
+   const struct anv_physical_device *pdevice;
    struct hash_table *blocks;
 };
 
@@ -133,7 +133,7 @@ maybe_add_pushable_ubo(struct push_analysis_state *state,
 {
    const int block = anv_nir_get_ubo_binding_push_block(intrin->src[0]);
    const unsigned byte_offset = nir_src_as_uint(intrin->src[1]);
-   const int offset = byte_offset / state->devinfo->grf_size;
+   const int offset = byte_offset / state->pdevice->info.grf_size;
 
    /* Avoid shifting by larger than the width of our bitfield, as this
     * is undefined in C.  Even if we require multiple bits to represent
@@ -148,9 +148,9 @@ maybe_add_pushable_ubo(struct push_analysis_state *state,
    const unsigned num_components =
       nir_def_last_component_read(&intrin->def) + 1;
    const int bytes = num_components * (intrin->def.bit_size / 8);
-   const int start = ROUND_DOWN_TO(byte_offset, state->devinfo->grf_size);
-   const int end = align(byte_offset + bytes, state->devinfo->grf_size);
-   const int chunks = (end - start) / state->devinfo->grf_size;
+   const int start = ROUND_DOWN_TO(byte_offset, state->pdevice->info.grf_size);
+   const int end = align(byte_offset + bytes, state->pdevice->info.grf_size);
+   const int chunks = (end - start) / state->pdevice->info.grf_size;
 
    /* TODO: should we count uses in loops as higher benefit? */
 
@@ -237,7 +237,10 @@ add_pushable_pointer(struct push_analysis_state *state,
                      uint32_t push_byte_offset,
                      uint32_t load_byte_offset)
 {
-   const int offset = load_byte_offset / state->devinfo->grf_size;
+   if (!state->pdevice->instance->drirc.debug.enable_push_pointer_promotion)
+      return;
+
+   const int offset = load_byte_offset / state->pdevice->info.grf_size;
 
    /* Avoid shifting by larger than the width of our bitfield, as this
     * is undefined in C.  Even if we require multiple bits to represent
@@ -251,9 +254,9 @@ add_pushable_pointer(struct push_analysis_state *state,
    const unsigned num_components =
       nir_def_last_component_read(&intrin->def) + 1;
    const int bytes = num_components * (intrin->def.bit_size / 8);
-   const int start = ROUND_DOWN_TO(load_byte_offset, state->devinfo->grf_size);
-   const int end = align(load_byte_offset + bytes, state->devinfo->grf_size);
-   const int chunks = (end - start) / state->devinfo->grf_size;
+   const int start = ROUND_DOWN_TO(load_byte_offset, state->pdevice->info.grf_size);
+   const int end = align(load_byte_offset + bytes, state->pdevice->info.grf_size);
+   const int chunks = (end - start) / state->pdevice->info.grf_size;
 
    struct push_block_info *info =
       get_block_info(state, PUSH_BLOCK_TYPE_POINTER, push_byte_offset);
@@ -305,14 +308,14 @@ print_push_entry(FILE *file,
 
 void
 anv_nir_analyze_push_constants_ranges(nir_shader *nir,
-                                      const struct intel_device_info *devinfo,
+                                      const struct anv_physical_device *pdevice,
                                       const struct anv_pipeline_push_map *push_map,
                                       struct anv_push_range out_ranges[4])
 {
    void *mem_ctx = ralloc_context(NULL);
 
    struct push_analysis_state state = {
-      .devinfo = devinfo,
+      .pdevice = pdevice,
       .blocks = _mesa_hash_table_create(mem_ctx,
                                         push_block_key_hash,
                                         push_block_key_compare),
@@ -417,8 +420,8 @@ anv_nir_analyze_push_constants_ranges(nir_shader *nir,
    struct push_range_entry *entries = ranges.data;
 
    for (unsigned i = 0; i < nr_entries; i++) {
-      entries[i].range.start *= devinfo->grf_size / 32;
-      entries[i].range.length *= devinfo->grf_size / 32;
+      entries[i].range.start *= pdevice->info.grf_size / 32;
+      entries[i].range.length *= pdevice->info.grf_size / 32;
    }
 
    /* Return the top 4, limited to the maximum number of push registers.
