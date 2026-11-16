@@ -173,8 +173,8 @@ fn swap_mem<A: AllocSSA>(
     let x = ssa_alloc.alloc_ref((bytes * 8).into());
     let y = ssa_alloc.alloc_ref((bytes * 8).into());
 
-    b.copy_to(x.clone().into(), data_type, src.clone().into());
-    b.copy_to(y.clone().into(), data_type, dst.clone().into());
+    b.copy_to(x.clone().into(), data_type, src.into());
+    b.copy_to(y.clone().into(), data_type, dst.into());
     b.copy_to(dst.into(), data_type, x.into());
     b.copy_to(src.into(), data_type, y.into());
 }
@@ -204,10 +204,7 @@ impl ByteCopy {
     fn iter(&self) -> impl Iterator<Item = (u16, u16)> + use<> {
         debug_assert!(self.dst_b.len() == self.src_b.len());
         // TODO: Use Range::iter() when we update to Rust 1.96
-        self.dst_b
-            .clone()
-            .into_iter()
-            .zip(self.src_b.clone().into_iter())
+        self.dst_b.clone().into_iter().zip(self.src_b.clone())
     }
 
     fn try_add_copy(&mut self, other: ByteCopy) -> bool {
@@ -369,14 +366,11 @@ impl ParallelCopy<'_> {
         mut ssa_alloc: Option<&mut A>,
     ) -> impl Iterator<Item = Instr> + use<A> {
         if self.copies.is_empty() {
-            return MappedInstrs::new()
-                .into_iter()
-                .chain(self.const_copies.into_iter());
+            return MappedInstrs::new().into_iter().chain(self.const_copies);
         }
 
         // Sort by destination register so we can detect duplicates/overlaps
-        self.copies
-            .sort_by(|a, b| a.dst_b.start.cmp(&b.dst_b.start));
+        self.copies.sort_by_key(|x| x.dst_b.start);
 
         let mut bytes = ByteArr::new(self.max_b);
 
@@ -438,15 +432,12 @@ impl ParallelCopy<'_> {
         loop {
             let mut progress = false;
             let mut start = 0;
-            loop {
-                let Some(dst_b) = ready.find_aligned_set_range(
-                    start,
-                    copy_size.into(),
-                    copy_size.into(),
-                    0,
-                ) else {
-                    break;
-                };
+            while let Some(dst_b) = ready.find_aligned_set_range(
+                start,
+                copy_size.into(),
+                copy_size.into(),
+                0,
+            ) {
                 start += usize::from(copy_size);
 
                 let mut dst_b = u16::try_from(dst_b).unwrap();
@@ -502,17 +493,11 @@ impl ParallelCopy<'_> {
         }
 
         if needed.is_empty() {
-            return b
-                .into_mapped()
-                .into_iter()
-                .chain(self.const_copies.into_iter());
+            return b.into_mapped().into_iter().chain(self.const_copies);
         }
 
         let mut start = 0;
-        loop {
-            let Some(start_b) = needed.next_set(usize::from(start)) else {
-                break;
-            };
+        while let Some(start_b) = needed.next_set(usize::from(start)) {
             let start_b = u16::try_from(start_b).unwrap();
 
             // Walk the cycle and figure out the copy size
@@ -553,8 +538,6 @@ impl ParallelCopy<'_> {
             start = start_b + copy_size;
         }
 
-        b.into_mapped()
-            .into_iter()
-            .chain(self.const_copies.into_iter())
+        b.into_mapped().into_iter().chain(self.const_copies)
     }
 }
