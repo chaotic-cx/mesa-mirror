@@ -29,18 +29,18 @@ import time
 
 
 class Connection:
-    def __init__(self, host, port, verbose):
+    def __init__(self, host: str, port: int, verbose: bool):
+        self.verbose = verbose
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((host, port))
         self.s.setblocking(0)
-        self.verbose = verbose
 
-    def send_line(self, line):
+    def send_line(self, line: str) -> None:
         if self.verbose:
             print(f"IRC: sending {line}")
         self.s.sendall((line + '\n').encode())
 
-    def wait(self, secs):
+    def wait(self, secs: int) -> None:
         for i in range(secs):
             if self.verbose:
                 while True:
@@ -54,13 +54,13 @@ class Connection:
                         print(f"IRC: received {line}")
             time.sleep(1)
 
-    def quit(self):
+    def quit(self) -> None:
         self.send_line("QUIT")
         self.s.shutdown(socket.SHUT_WR)
         self.s.close()
 
 
-def read_flakes(results):
+def read_flakes(results: str) -> list[str]:
     flakes = []
     csv = re.compile("(.*),(.*),(.*)")
     for line in open(results, 'r').readlines():
@@ -69,7 +69,8 @@ def read_flakes(results):
             flakes.append(match.group(1))
     return flakes
 
-def main():
+
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str,
                         help='IRC server hostname', required=True)
