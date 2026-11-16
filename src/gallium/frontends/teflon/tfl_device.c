@@ -1194,6 +1194,9 @@ partition_prepare(TfLiteContext *context, TfLiteNode *node)
 {
    // TODO: If input size has changed, resize input, intermediate and output buffers
 
+   if (!node->user_data)
+      return kTfLiteError;
+
    return kTfLiteOk;
 }
 
