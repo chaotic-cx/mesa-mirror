@@ -1089,8 +1089,15 @@ dzn_physical_device_get_properties(const struct dzn_physical_device *pdev,
       /* VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT */
       .maxVertexAttribDivisor = UINT32_MAX,
 
-      /* VkPhysicalDeviceExternalMemoryHostPropertiesEXT */
-      .minImportedHostPointerAlignment = 65536,
+      /* VkPhysicalDeviceExternalMemoryHostPropertiesEXT
+       *
+       * Heaps opened from a host address are cross-adapter heaps. D3D12
+       * requires resources placed in cross-adapter heaps to use the default
+       * 64KB placement alignment, and a 4KB-aligned address gives the heap
+       * only 4KB alignment, after which CreatePlacedResource() rejects every
+       * buffer or linear image. So 64KB really is the minimum here.
+       */
+      .minImportedHostPointerAlignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
 
       /* VkPhysicalDeviceLayeredDriverPropertiesMSFT */
       .underlyingAPI = VK_LAYERED_DRIVER_UNDERLYING_API_D3D12_MSFT,
@@ -2806,7 +2813,15 @@ dzn_device_memory_create(struct dzn_device *device,
       if (!device->dev13)
          goto cleanup;
 
-      if (FAILED(ID3D12Device13_OpenExistingHeapFromAddress1(device->dev13, host_pointer, heap_desc.SizeInBytes, &IID_ID3D12Heap, (void**)&mem->heap)))
+      /* heap_desc.SizeInBytes has been rounded up to the heap alignment,
+       * which is 4MB for large non-dedicated allocations. Ask D3D12 to wrap
+       * exactly the range the application handed over instead.
+       */
+      if (FAILED(ID3D12Device13_OpenExistingHeapFromAddress1(device->dev13,
+                                                             host_pointer,
+                                                             mem->size,
+                                                             &IID_ID3D12Heap,
+                                                             (void**)&mem->heap)))
          goto cleanup;
 
       D3D12_HEAP_DESC desc = dzn_ID3D12Heap_GetDesc(mem->heap);
