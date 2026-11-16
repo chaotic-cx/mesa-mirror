@@ -36,6 +36,8 @@
 
     # Keep the job script in the artifacts
     CI_TRON_JOB_SCRIPT_PATH: results/job_script.sh
+
+    CI_TRON_PROXY__ALLOWED_ENDPOINTS_CATEGORY__IRC__OFTC: irc.oftc.net:6667
   tags:
     - farm:$RUNNER_FARM_LOCATION
     - ci-tron:priority:$CI_TRON_JOB_PRIORITY

@@ -29,11 +29,18 @@ import time
 
 
 class Connection:
-    def __init__(self, host: str, port: int, verbose: bool):
+    def __init__(self, host: str, port: int, verbose: bool, proxy_connect: str | None):
         self.verbose = verbose
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect((host, port))
-        self.s.setblocking(0)
+        if proxy_connect:
+            proxy_host, proxy_port = proxy_connect.rsplit(':', maxsplit=1)
+            self.s.connect((proxy_host, int(proxy_port)))
+            self.s.setblocking(0)
+            self.s.sendall(f"CONNECT {host}:{port} HTTP/1.1\r\n\r\n".encode())
+            self.wait(2)
+        else:
+            self.s.connect((host, port))
+            self.s.setblocking(0)
 
     def send_line(self, line: str) -> None:
         if self.verbose:
@@ -79,6 +86,8 @@ def main() -> None:
                         help='IRC server hostname', required=True)
     parser.add_argument('--port', type=int,
                         help='IRC server port', required=True)
+    parser.add_argument('--proxy-connect', type=str,
+                        help='Use the specified CONNECT proxy')
     parser.add_argument('--results', type=str,
                         help='results.csv file from deqp-runner or piglit-runner', required=True)
     parser.add_argument('--channel', type=str,
@@ -103,7 +112,7 @@ def main() -> None:
             print("No flakes to report, exiting")
         exit(0)
 
-    irc = Connection(args.host, args.port, args.verbose)
+    irc = Connection(args.host, args.port, args.verbose, args.proxy_connect)
 
     # The nick needs to be something unique so that multiple runners
     # connecting at the same time don't race for one nick and get blocked.
