@@ -34,6 +34,7 @@
 #ifdef HAVE_GALLIUM_D3D12_GRAPHICS
 #include "compiler/glsl_types.h"
 #include "nir.h"
+#include "dxil_enums.h"
 #include "dxil_versions.h"
 #endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
@@ -41,22 +42,6 @@
 
 struct pb_manager;
 struct util_dl_library;
-
-enum resource_dimension
-{
-   RESOURCE_DIMENSION_UNKNOWN = 0,
-   RESOURCE_DIMENSION_BUFFER = 1,
-   RESOURCE_DIMENSION_TEXTURE1D = 2,
-   RESOURCE_DIMENSION_TEXTURE2D = 3,
-   RESOURCE_DIMENSION_TEXTURE2DMS = 4,
-   RESOURCE_DIMENSION_TEXTURE3D = 5,
-   RESOURCE_DIMENSION_TEXTURECUBE = 6,
-   RESOURCE_DIMENSION_TEXTURE1DARRAY = 7,
-   RESOURCE_DIMENSION_TEXTURE2DARRAY = 8,
-   RESOURCE_DIMENSION_TEXTURE2DMSARRAY = 9,
-   RESOURCE_DIMENSION_TEXTURECUBEARRAY = 10,
-   RESOURCE_DIMENSION_COUNT
-};
 
 struct d3d12_memory_info {
    uint64_t usage_local;
@@ -120,9 +105,11 @@ struct d3d12_screen {
    struct d3d12_descriptor_pool *dsv_pool;
    struct d3d12_descriptor_pool *view_pool;
 
-   struct d3d12_descriptor_handle null_srvs[RESOURCE_DIMENSION_COUNT];
-   struct d3d12_descriptor_handle null_uavs[RESOURCE_DIMENSION_COUNT];
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
+   struct d3d12_descriptor_handle null_srvs[DXIL_RESOURCE_KIND_TYPED_BUFFER + 1];
+   struct d3d12_descriptor_handle null_uavs[DXIL_RESOURCE_KIND_TYPED_BUFFER + 1];
    struct d3d12_descriptor_handle null_rtv;
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
    volatile uint32_t ctx_count;
    volatile uint64_t resource_id_generator;

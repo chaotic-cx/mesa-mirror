@@ -26,6 +26,7 @@
 
 #include "d3d12_common.h"
 
+#include "dxil_enums.h"
 #include "dxil_nir_lower_int_samplers.h"
 
 #include "pipe/p_defines.h"
@@ -207,14 +208,14 @@ struct d3d12_shader {
 
    /* Samplers/textures can be sparse for some internal shaders */
    struct {
-      uint32_t dimension;
+      enum dxil_resource_kind dimension;
    } srv_bindings[PIPE_MAX_SHADER_SAMPLER_VIEWS];
    uint32_t begin_srv_binding;
    uint32_t end_srv_binding;
 
    /* Images and SSBOs are never sparse */
    struct {
-      uint32_t dimension;
+      enum dxil_resource_kind dimension;
    } uav_bindings[PIPE_MAX_SHADER_IMAGES];
 
    struct d3d12_shader_key key;

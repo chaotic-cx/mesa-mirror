@@ -50,21 +50,18 @@
 #include "dxil_validator.h"
 #endif
 
-static uint32_t
-resource_dimension(enum glsl_sampler_dim dim)
+/* This driver never creates multisampled UAVs, and d3d12_init_null_uavs() has
+ * no handle for one. MS images can't be bound either, so keep the invalid
+ * fallback instead of a zero null UAV handle.
+ */
+static enum dxil_resource_kind
+image_resource_kind(const struct glsl_type *type)
 {
-   switch (dim) {
-   case GLSL_SAMPLER_DIM_1D:
-      return RESOURCE_DIMENSION_TEXTURE1D;
-   case GLSL_SAMPLER_DIM_2D:
-      return RESOURCE_DIMENSION_TEXTURE2D;
-   case GLSL_SAMPLER_DIM_3D:
-      return RESOURCE_DIMENSION_TEXTURE3D;
-   case GLSL_SAMPLER_DIM_CUBE:
-      return RESOURCE_DIMENSION_TEXTURECUBE;
-   default:
-      return RESOURCE_DIMENSION_UNKNOWN;
-   }
+   enum dxil_resource_kind kind = dxil_get_resource_kind(type);
+   if (kind == DXIL_RESOURCE_KIND_TEXTURE2DMS ||
+       kind == DXIL_RESOURCE_KIND_TEXTURE2DMS_ARRAY)
+      return DXIL_RESOURCE_KIND_INVALID;
+   return kind;
 }
 
 static bool
@@ -164,8 +161,10 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
       auto type_no_array = glsl_without_array(var->type);
       if (glsl_type_is_texture(type_no_array)) {
          unsigned count = glsl_type_is_array(var->type) ? glsl_get_aoa_size(var->type) : 1;
+         enum dxil_resource_kind kind = dxil_get_resource_kind(type_no_array);
+         assert(kind < ARRAY_SIZE(screen->null_srvs));
          for (unsigned i = 0; i < count; ++i) {
-            shader->srv_bindings[var->data.binding + i].dimension = resource_dimension(glsl_get_sampler_dim(type_no_array));
+            shader->srv_bindings[var->data.binding + i].dimension = kind;
          }
          shader->begin_srv_binding = MIN2(var->data.binding, shader->begin_srv_binding);
          shader->end_srv_binding = MAX2(var->data.binding + count, shader->end_srv_binding);
@@ -173,10 +172,11 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
    }
 
    nir_foreach_image_variable(var, nir) {
-      auto type_no_array = glsl_without_array(var->type);
       unsigned count = glsl_type_is_array(var->type) ? glsl_get_aoa_size(var->type) : 1;
+      enum dxil_resource_kind kind = image_resource_kind(var->type);
+      assert(kind < ARRAY_SIZE(screen->null_uavs));
       for (unsigned i = 0; i < count; ++i) {
-         shader->uav_bindings[var->data.driver_location + i].dimension = resource_dimension(glsl_get_sampler_dim(type_no_array));
+         shader->uav_bindings[var->data.driver_location + i].dimension = kind;
       }
    }
 

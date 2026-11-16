@@ -963,30 +963,31 @@ can_shader_image_load_all_formats(struct d3d12_screen *screen)
    return true;
 }
 
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
 static void
 d3d12_init_null_srvs(struct d3d12_screen *screen)
 {
-   for (unsigned i = 0; i < RESOURCE_DIMENSION_COUNT; ++i) {
+   for (unsigned i = 0; i < ARRAY_SIZE(screen->null_srvs); ++i) {
       D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
 
       srv.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
       srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
       switch (i) {
-      case RESOURCE_DIMENSION_BUFFER:
-      case RESOURCE_DIMENSION_UNKNOWN:
+      case DXIL_RESOURCE_KIND_TYPED_BUFFER:
+      case DXIL_RESOURCE_KIND_INVALID:
          srv.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
          srv.Buffer.FirstElement = 0;
          srv.Buffer.NumElements = 0;
          srv.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
          srv.Buffer.StructureByteStride = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE1D:
+      case DXIL_RESOURCE_KIND_TEXTURE1D:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;
          srv.Texture1D.MipLevels = 1;
          srv.Texture1D.MostDetailedMip = 0;
          srv.Texture1D.ResourceMinLODClamp = 0.0f;
          break;
-      case RESOURCE_DIMENSION_TEXTURE1DARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURE1D_ARRAY:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1DARRAY;
          srv.Texture1DArray.MipLevels = 1;
          srv.Texture1DArray.ArraySize = 1;
@@ -994,14 +995,14 @@ d3d12_init_null_srvs(struct d3d12_screen *screen)
          srv.Texture1DArray.FirstArraySlice = 0;
          srv.Texture1DArray.ResourceMinLODClamp = 0.0f;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2D:
+      case DXIL_RESOURCE_KIND_TEXTURE2D:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
          srv.Texture2D.MipLevels = 1;
          srv.Texture2D.MostDetailedMip = 0;
          srv.Texture2D.PlaneSlice = 0;
          srv.Texture2D.ResourceMinLODClamp = 0.0f;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2DARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURE2D_ARRAY:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
          srv.Texture2DArray.MipLevels = 1;
          srv.Texture2DArray.ArraySize = 1;
@@ -1010,27 +1011,27 @@ d3d12_init_null_srvs(struct d3d12_screen *screen)
          srv.Texture2DArray.PlaneSlice = 0;
          srv.Texture2DArray.ResourceMinLODClamp = 0.0f;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2DMS:
+      case DXIL_RESOURCE_KIND_TEXTURE2DMS:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2DMSARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURE2DMS_ARRAY:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMSARRAY;
          srv.Texture2DMSArray.ArraySize = 1;
          srv.Texture2DMSArray.FirstArraySlice = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE3D:
+      case DXIL_RESOURCE_KIND_TEXTURE3D:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
          srv.Texture3D.MipLevels = 1;
          srv.Texture3D.MostDetailedMip = 0;
          srv.Texture3D.ResourceMinLODClamp = 0.0f;
          break;
-      case RESOURCE_DIMENSION_TEXTURECUBE:
+      case DXIL_RESOURCE_KIND_TEXTURECUBE:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
          srv.TextureCube.MipLevels = 1;
          srv.TextureCube.MostDetailedMip = 0;
          srv.TextureCube.ResourceMinLODClamp = 0.0f;
          break;
-      case RESOURCE_DIMENSION_TEXTURECUBEARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURECUBE_ARRAY:
          srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBEARRAY;
          srv.TextureCubeArray.MipLevels = 1;
          srv.TextureCubeArray.NumCubes = 1;
@@ -1051,13 +1052,13 @@ d3d12_init_null_srvs(struct d3d12_screen *screen)
 static void
 d3d12_init_null_uavs(struct d3d12_screen *screen)
 {
-   for (unsigned i = 0; i < RESOURCE_DIMENSION_COUNT; ++i) {
+   for (unsigned i = 0; i < ARRAY_SIZE(screen->null_uavs); ++i) {
       D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
 
       uav.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
       switch (i) {
-      case RESOURCE_DIMENSION_BUFFER:
-      case RESOURCE_DIMENSION_UNKNOWN:
+      case DXIL_RESOURCE_KIND_TYPED_BUFFER:
+      case DXIL_RESOURCE_KIND_INVALID:
          uav.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
          uav.Buffer.FirstElement = 0;
          uav.Buffer.NumElements = 0;
@@ -1065,34 +1066,34 @@ d3d12_init_null_uavs(struct d3d12_screen *screen)
          uav.Buffer.StructureByteStride = 0;
          uav.Buffer.CounterOffsetInBytes = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE1D:
+      case DXIL_RESOURCE_KIND_TEXTURE1D:
          uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE1D;
          uav.Texture1D.MipSlice = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE1DARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURE1D_ARRAY:
          uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE1DARRAY;
          uav.Texture1DArray.MipSlice = 0;
          uav.Texture1DArray.ArraySize = 1;
          uav.Texture1DArray.FirstArraySlice = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2D:
+      case DXIL_RESOURCE_KIND_TEXTURE2D:
          uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
          uav.Texture2D.MipSlice = 0;
          uav.Texture2D.PlaneSlice = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2DARRAY:
-      case RESOURCE_DIMENSION_TEXTURECUBE:
-      case RESOURCE_DIMENSION_TEXTURECUBEARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURE2D_ARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURECUBE:
+      case DXIL_RESOURCE_KIND_TEXTURECUBE_ARRAY:
          uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
          uav.Texture2DArray.MipSlice = 0;
          uav.Texture2DArray.ArraySize = 1;
          uav.Texture2DArray.FirstArraySlice = 0;
          uav.Texture2DArray.PlaneSlice = 0;
          break;
-      case RESOURCE_DIMENSION_TEXTURE2DMS:
-      case RESOURCE_DIMENSION_TEXTURE2DMSARRAY:
+      case DXIL_RESOURCE_KIND_TEXTURE2DMS:
+      case DXIL_RESOURCE_KIND_TEXTURE2DMS_ARRAY:
          break;
-      case RESOURCE_DIMENSION_TEXTURE3D:
+      case DXIL_RESOURCE_KIND_TEXTURE3D:
          uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
          uav.Texture3D.MipSlice = 0;
          uav.Texture3D.FirstWSlice = 0;
@@ -1119,6 +1120,7 @@ d3d12_init_null_rtv(struct d3d12_screen *screen)
    d3d12_descriptor_pool_alloc_handle(screen->rtv_pool, &screen->null_rtv);
    screen->dev->CreateRenderTargetView(NULL, &rtv, screen->null_rtv.cpu_handle);
 }
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
 static void
 d3d12_get_adapter_luid(struct pipe_screen *pscreen, char *luid)
