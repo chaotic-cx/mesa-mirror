@@ -108,6 +108,9 @@ for i in range(2, 14):
     lower_algebraic.extend([
         (('iadd', ('ishl(is_only_used_by_iadd)', 'b@32', i), c),
          ('imad_32x16_intel', b, 1 << i, c)),
+
+        (('iadd', ('ineg(is_only_used_by_iadd)', ('ishl(is_used_once)', 'b@32', i)), c),
+         ('imad_32x16_intel', ('ineg', b), 1 << i, c)),
     ])
 
 lower_algebraic.extend([
