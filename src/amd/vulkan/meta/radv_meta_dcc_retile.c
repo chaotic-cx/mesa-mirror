@@ -213,4 +213,11 @@ radv_retile_dcc(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image)
       cmd_buffer->gang.flush_bits |= src_flush;
    else
       cmd_buffer->state.flush_bits |= src_flush;
+
+   if (use_gang) {
+      /* Wait on SDMA for the ACE retile to finish. */
+      cmd_buffer->gang.sem.follower_value++;
+      if (radv_flush_gang_follower_semaphore(cmd_buffer))
+         radv_wait_gang_follower(cmd_buffer);
+   }
 }
