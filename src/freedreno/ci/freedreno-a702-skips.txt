@@ -21,11 +21,15 @@ dEQP-VK.sparse_resources.image_sparse_binding.multiple_bind_sparse_info.cube_arr
 dEQP-VK.rasterization.primitive_size.points.point_size_8192
 dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory\.*
 
-# tests are broken with Vulkan 1.0: https://gerrit.khronos.org/c/vk-gl-cts/+/19823
+# Slow single-threaded tests
 dEQP-VK.wsi.direct_drm.*
 dEQP-VK.wsi.acquire_drm_display.*
 dEQP-VK.api.image_compression_control.swapchain.direct_drm.*
 dEQP-VK.api.image_compression_control.swapchain.direct.disabled
+
+# Passes with FDO_CI_CONCURRENT=1, but hangs the board with 3
+dEQP-VK.api.buffer_marker.graphics.default_mem.top_of_pipe.sequential.65536
+dEQP-VK.api.buffer_marker.graphics.default_mem.top_of_pipe.sequential.65536_offset_1024
 
 # flake timeout
 program@execute@builtin@builtin-float-sincos-1.0.generated

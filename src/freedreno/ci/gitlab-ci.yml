@@ -378,11 +378,11 @@ a702-vk:
     - .lava-arm64-test-vk
     - .lava-qcom-rb1:arm64
     - .qualcomm-turnip-manual-rules
-  timeout: 7h
+  timeout: 4h
   parallel: 4
   variables:
     DEQP_SUITE: freedreno-a702-vk
-    FDO_CI_CONCURRENT: 1
+    FDO_CI_CONCURRENT: 3
 
 a750-angle:
   extends:

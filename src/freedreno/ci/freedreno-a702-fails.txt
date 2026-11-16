@@ -242,7 +242,3 @@ gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.1_view.render.density
 gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.offset.clamp_to_edge.vert_offset_negative_multilayer,Fail
 gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.offset.oversized_fdm.vert_offset_negative_multilayer,Fail
-
-# Reliably crashes since VKCTS 1.4.7.0 -> 1.4.7.1 uprev
-# *** gpu fault: ttbr0=000000009214f000 iova=0001fffffffff000 dir=READ type=TRANSLATION source=SP (0,0,0,0)
-dEQP-VK.glsl.shader_clock.vertex.clockRealtime2x32EXT,Crash
