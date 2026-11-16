@@ -33,6 +33,10 @@ radeon_check_space(struct radeon_winsys *ws, struct ac_cmdbuf *cs, unsigned need
    struct radv_cmd_stream *__rcs = (cs);                                                                               \
    ac_cmdbuf_begin(__rcs->b);
 
+#define radeon_begin_predicate(cs, predicate)                                                                          \
+   struct radv_cmd_stream *__rcs = (cs);                                                                               \
+   ac_cmdbuf_begin_predicate(__rcs->b, predicate);
+
 #define radeon_end() ac_cmdbuf_end()
 
 #define radeon_emit(value) ac_cmdbuf_emit(value)

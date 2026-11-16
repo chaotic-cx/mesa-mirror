@@ -287,7 +287,11 @@ struct ac_tracked_regs {
                             uint32_t __cs_num = __cs->cdw;                        \
                             UNUSED uint32_t __cs_num_initial = __cs_num;          \
                             UNUSED uint32_t __cs_reserved_dw = __cs->reserved_dw; \
-                            UNUSED uint32_t *__cs_buf = __cs->buf
+                            UNUSED uint32_t *__cs_buf = __cs->buf;                \
+                            UNUSED bool __cs_predicate = false
+
+#define ac_cmdbuf_begin_predicate(cs, predicate) ac_cmdbuf_begin(cs); \
+                                                 __cs_predicate = (predicate)
 
 #define ac_cmdbuf_begin_again(cs) do { \
    assert(__cs == NULL);               \
@@ -322,7 +326,7 @@ struct ac_tracked_regs {
 #define __ac_cmdbuf_set_reg_seq(reg, num, idx, prefix_name, packet, reset_filter_cam)     \
    do {                                                                                   \
       assert((reg) >= prefix_name##_REG_OFFSET && (reg) < prefix_name##_REG_END);         \
-      ac_cmdbuf_emit(PKT3(packet, num, 0) | PKT3_RESET_FILTER_CAM_S(reset_filter_cam));   \
+      ac_cmdbuf_emit(PKT3(packet, num, __cs_predicate) | PKT3_RESET_FILTER_CAM_S(reset_filter_cam)); \
       ac_cmdbuf_emit((((reg) - prefix_name##_REG_OFFSET) >> 2) | ((idx) << 28));          \
    } while (0)
 
@@ -404,12 +408,12 @@ struct ac_tracked_regs {
                                  __event_type == V_028A90_PIXEL_PIPE_STAT_CONTROL ? 1 : 0)); \
    } while (0)
 
-#define ac_cmdbuf_event_write(event_type) ac_cmdbuf_event_write_predicate(event_type, false)
+#define ac_cmdbuf_event_write(event_type) ac_cmdbuf_event_write_predicate(event_type, __cs_predicate)
 
 #define ac_cmdbuf_set_privileged_cfg_reg(reg, value)                                         \
    do {                                                                                      \
       assert((reg) < CIK_UCONFIG_REG_OFFSET);                                                \
-      ac_cmdbuf_emit(PKT3(PKT3_COPY_DATA, 4, 0));                                            \
+      ac_cmdbuf_emit(PKT3(PKT3_COPY_DATA, 4, __cs_predicate));                               \
       ac_cmdbuf_emit(COPY_DATA_SRC_SEL(COPY_DATA_IMM) | COPY_DATA_DST_SEL(COPY_DATA_PERF));  \
       ac_cmdbuf_emit(value);                                                                 \
       ac_cmdbuf_emit(0); /* unused */                                                        \
@@ -447,11 +451,12 @@ struct ac_tracked_regs {
          }                                                                                                  \
          assert(__cs_context_reg_count % 2 == 0);                                                           \
          unsigned __num_dw = (__cs_context_reg_count / 2) * 3;                                              \
-         ac_cmdbuf_emit(PKT3(PKT3_SET_CONTEXT_REG_PAIRS_PACKED, __num_dw, 0) | PKT3_RESET_FILTER_CAM_S(1)); \
+         ac_cmdbuf_emit(PKT3(PKT3_SET_CONTEXT_REG_PAIRS_PACKED, __num_dw, __cs_predicate) |                 \
+                        PKT3_RESET_FILTER_CAM_S(1));                                                        \
          ac_cmdbuf_emit(__cs_context_reg_count);                                                            \
          ac_cmdbuf_emit_array(__cs_context_regs, __num_dw);                                                 \
       } else if (__cs_context_reg_count == 1) {                                                             \
-         ac_cmdbuf_emit(PKT3(PKT3_SET_CONTEXT_REG, 1, 0));                                                  \
+         ac_cmdbuf_emit(PKT3(PKT3_SET_CONTEXT_REG, 1, __cs_predicate));                                     \
          ac_cmdbuf_emit(__cs_context_regs[0].reg_offset[0]);                                                \
          ac_cmdbuf_emit(__cs_context_regs[0].reg_value[0]);                                                 \
       }                                                                                                     \
@@ -476,7 +481,8 @@ struct ac_tracked_regs {
          __cs_num--; /* no registers have been set, back off */                           \
       } else {                                                                            \
          unsigned __dw_count = __cs_num - (header) - 2;                                   \
-         __cs_buf[(header)] = PKT3((packet), __dw_count, 0) | PKT3_RESET_FILTER_CAM_S(1); \
+         __cs_buf[(header)] =                                                             \
+            PKT3((packet), __dw_count, __cs_predicate) | PKT3_RESET_FILTER_CAM_S(1);      \
       }                                                                                   \
    } while (0)
 
