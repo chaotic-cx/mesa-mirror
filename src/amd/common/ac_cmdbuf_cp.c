@@ -36,17 +36,17 @@ ac_emit_cp_indirect_buffer(struct ac_cmdbuf *cs, uint64_t va, uint32_t cdw,
 
 void
 ac_emit_cp_cond_exec(struct ac_cmdbuf *cs, enum amd_gfx_level gfx_level,
-                     uint64_t va, uint32_t count)
+                     uint64_t va, uint32_t count, bool predicate)
 {
    ac_cmdbuf_begin(cs);
    if (gfx_level >= GFX7) {
-      ac_cmdbuf_emit(PKT3(PKT3_COND_EXEC, 3, 0));
+      ac_cmdbuf_emit(PKT3(PKT3_COND_EXEC, 3, predicate));
       ac_cmdbuf_emit(va);
       ac_cmdbuf_emit(va >> 32);
       ac_cmdbuf_emit(0);
       ac_cmdbuf_emit(count);
    } else {
-      ac_cmdbuf_emit(PKT3(PKT3_COND_EXEC, 2, 0));
+      ac_cmdbuf_emit(PKT3(PKT3_COND_EXEC, 2, predicate));
       ac_cmdbuf_emit(va);
       ac_cmdbuf_emit(va >> 32);
       ac_cmdbuf_emit(count);

@@ -34,7 +34,7 @@ ac_emit_cp_indirect_buffer(struct ac_cmdbuf *cs, uint64_t va, uint32_t cdw,
 
 void
 ac_emit_cp_cond_exec(struct ac_cmdbuf *cs, enum amd_gfx_level gfx_level,
-                     uint64_t va, uint32_t count);
+                     uint64_t va, uint32_t count, bool predicate);
 
 void
 ac_emit_cp_write_data_head(struct ac_cmdbuf *cs, uint32_t engine_sel,

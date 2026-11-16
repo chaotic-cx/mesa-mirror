@@ -626,7 +626,7 @@ radv_pc_stop_and_sample(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query
       uint64_t pred_va = radv_buffer_get_va(device->perf_counter_bo) + PERF_CTR_BO_PASS_OFFSET + 8 * pass;
       uint64_t reg_va = va + (end ? 8 : 0);
 
-      ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, pred_va, 0);
+      ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, pred_va, 0, false);
 
       uint32_t *skip_dwords = cs->b->buf + (cs->b->cdw - 1);
 
@@ -693,7 +693,7 @@ radv_pc_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query_poo
    for (unsigned pass = 0; pass < pool->num_passes; ++pass) {
       uint64_t pred_va = radv_buffer_get_va(device->perf_counter_bo) + PERF_CTR_BO_PASS_OFFSET + 8 * pass;
 
-      ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, pred_va, 0);
+      ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, pred_va, 0, false);
 
       uint32_t *skip_dwords = cs->b->buf + (cs->b->cdw - 1);
 

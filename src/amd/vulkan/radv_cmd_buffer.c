@@ -5095,7 +5095,7 @@ radv_update_zrange_precision(struct radv_cmd_buffer *cmd_buffer, const struct ra
    if (requires_cond_exec) {
       uint64_t va = radv_get_tc_compat_zrange_va(image, iview->vk.base_mip_level);
 
-      ac_emit_cp_cond_exec(cmd_buffer->cs->b, pdev->info.gfx_level, va, 3 /* SET_CONTEXT_REG size */);
+      ac_emit_cp_cond_exec(cmd_buffer->cs->b, pdev->info.gfx_level, va, 3 /* SET_CONTEXT_REG size */, false);
    }
 
    radeon_begin(cmd_buffer->cs);
@@ -6202,7 +6202,7 @@ radv_gfx12_emit_hiz_wa_full(struct radv_cmd_buffer *cmd_buffer)
    } else {
       const uint64_t va = radv_get_hiz_metadata_va(iview->image, iview->vk.base_mip_level);
 
-      ac_emit_cp_cond_exec(cmd_buffer->cs->b, pdev->info.gfx_level, va, num_dwords);
+      ac_emit_cp_cond_exec(cmd_buffer->cs->b, pdev->info.gfx_level, va, num_dwords, false);
 
       radv_gfx12_override_hiz_enable(cmd_buffer, true, force_rez, db_shader_control);
    }
@@ -11712,7 +11712,7 @@ radv_cs_begin_compute_predication(const struct radv_device *device, struct radv_
          radv_emit_copy_data_imm(pdev, cs, 1, inv_va);
 
          /* If the API predication VA == 0, skip next command. */
-         ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, va, 6 /* 1x COPY_DATA size */);
+         ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, va, 6 /* 1x COPY_DATA size */, false);
 
          /* Write 0 to the new predication VA (when the API condition != 0) */
          radv_emit_copy_data_imm(pdev, cs, 0, inv_va);
@@ -11721,7 +11721,7 @@ radv_cs_begin_compute_predication(const struct radv_device *device, struct radv_
       va = inv_va;
    }
 
-   ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, va, 0);
+   ac_emit_cp_cond_exec(cs->b, pdev->info.gfx_level, va, 0, false);
 
    /* The number of dwords to skip is the last dword of COND_EXEC. */
    return &cs->b->buf[cs->b->cdw - 1];
