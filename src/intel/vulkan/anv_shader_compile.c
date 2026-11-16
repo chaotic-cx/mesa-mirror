@@ -288,6 +288,9 @@ anv_shader_init_uuid(struct anv_physical_device *device)
    const bool r11g11b10_wa = device->instance->drirc.debug.r11g11b10_atomic_swap_wa;
    _mesa_blake3_update(&ctx, &r11g11b10_wa, sizeof(r11g11b10_wa));
 
+   const bool push_pointer_promote = device->instance->drirc.debug.enable_push_pointer_promotion;
+   _mesa_blake3_update(&ctx, &push_pointer_promote, sizeof(push_pointer_promote));
+
    uint8_t blake3[BLAKE3_KEY_LEN];
    _mesa_blake3_final(&ctx, blake3);
    memcpy(device->shader_binary_uuid, blake3, sizeof(device->shader_binary_uuid));
