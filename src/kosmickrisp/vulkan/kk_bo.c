@@ -23,6 +23,7 @@ kk_alloc_bo(struct kk_device *dev, struct vk_object_base *log_obj,
             uint64_t size_B, uint64_t align_B, struct kk_bo **bo_out)
 {
    VkResult result = VK_SUCCESS;
+   struct kk_physical_device *pdev = kk_device_physical(dev);
 
    // TODO_KOSMICKRISP: Probably requires handling the buffer maximum 256MB
    uint64_t minimum_alignment = 0u;
@@ -32,13 +33,26 @@ kk_alloc_bo(struct kk_device *dev, struct vk_object_base *log_obj,
 
 #if DETECT_ARCH_X86_64
    /* KK_WORKAROUND_8 */
-   struct kk_physical_device *pdev = kk_device_physical(dev);
    if (!(pdev->settings.disabled_workarounds & BITFIELD64_BIT(8))) {
       minimum_alignment = MAX2(minimum_alignment, 16384);
    }
 #endif
 
    size_B = align64(size_B, minimum_alignment);
+
+   /* KK_WORKAROUND_20 */
+   if (!(pdev->settings.disabled_workarounds & BITFIELD64_BIT(20))) {
+      uint64_t budget =
+         mtl_device_recommended_max_working_set_size(dev->mtl_handle);
+      uint64_t used = mtl_device_current_allocated_size(dev->mtl_handle);
+      /* Only allow 95% */
+      uint64_t limit = (budget / 100) * 95;
+      if (size_B > limit - used)
+         return vk_errorf(
+            log_obj, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+            "Allocation could potentially trigger a known kernel panic");
+   }
+
    mtl_heap *handle =
       mtl_new_heap(dev->mtl_handle, size_B, KK_MTL_RESOURCE_OPTIONS);
    if (handle == NULL) {

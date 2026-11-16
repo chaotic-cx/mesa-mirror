@@ -1130,6 +1130,7 @@ kk_parse_environment_options(struct kk_physical_device *pdev)
       settings->disabled_workarounds |= BITFIELD64_BIT(11);
       settings->disabled_workarounds |= BITFIELD64_BIT(12);
       settings->disabled_workarounds |= BITFIELD64_BIT(18);
+      settings->disabled_workarounds |= BITFIELD64_BIT(20);
    }
    /* M5 only workarounds */
    if (pdev->info.gpu_apple_family >= 10) {

@@ -49,6 +49,23 @@ info on what was updated.
 Workarounds
 ===========
 
+KK_WORKAROUND_20
+----------------
+| macOS version: 26
+| Metal ticket: Unreported
+| Metal ticket status: Fixed in macOS 27
+| CTS test failure:
+| Comments:
+
+Allocating more than ``recommendedMaxWorkingSetSize`` and making it resident
+runs into a kernel panic on macOS 26. Guard against allocations that go over
+the limit allowing only 95% usage. If multiple processes allocate below the
+limit, applications may still run into the kernel panic, but that is outside
+of our scope to fix.
+
+| Log:
+| 2026-11-16: Workaround implemented
+
 KK_WORKAROUND_19
 ----------------
 | macOS version: 26 and 27
