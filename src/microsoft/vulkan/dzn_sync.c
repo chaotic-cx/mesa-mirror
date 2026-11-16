@@ -97,18 +97,6 @@ dzn_sync_get_value(struct vk_device *device,
 }
 
 static VkResult
-dzn_sync_reset(struct vk_device *device,
-               struct vk_sync *sync)
-{
-   struct dzn_sync *dsync = container_of(sync, struct dzn_sync, vk);
-
-   if (FAILED(ID3D12Fence_Signal(dsync->fence, 0)))
-      return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
-
-   return VK_SUCCESS;
-}
-
-static VkResult
 dzn_sync_move(struct vk_device *device,
               struct vk_sync *dst,
               struct vk_sync *src)
@@ -322,7 +310,6 @@ const struct vk_sync_type dzn_sync_type = {
    .finish = dzn_sync_finish,
    .signal = dzn_sync_signal,
    .get_value = dzn_sync_get_value,
-   .reset = dzn_sync_reset,
    .move = dzn_sync_move,
    .wait_many = dzn_sync_wait,
 #ifdef _WIN32
