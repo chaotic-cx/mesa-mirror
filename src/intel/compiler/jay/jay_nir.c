@@ -204,6 +204,12 @@ jay_nir_lower_simd(nir_builder *b, nir_intrinsic_instr *intr, void *simd_)
       return true;
    }
 
+   case nir_intrinsic_inverse_ballot:
+      /* Likewise for inverse ballots */
+      b->cursor = nir_before_instr(&intr->instr);
+      nir_src_rewrite(&intr->src[0], nir_u2uN(b, intr->src[0].ssa, flag_width));
+      return true;
+
    case nir_intrinsic_load_simd_width_intel:
       /* Just a constant */
       nir_def_replace(&intr->def, nir_imm_int(b, simd_width));

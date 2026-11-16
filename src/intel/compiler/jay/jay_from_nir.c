@@ -2597,6 +2597,8 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
     */
    case nir_intrinsic_inverse_ballot: {
       assert(dst.file == FLAG);
+      assert(intr->src[0].ssa->bit_size == jay_flag_bits(b->func));
+
       jay_def x = nj_src(b, intr->src[0]);
       if (x.file == GPR) {
          x = emit_uniformize(nj, x);
