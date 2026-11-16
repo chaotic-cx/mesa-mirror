@@ -98,6 +98,8 @@ def main() -> None:
 
     flakes = read_flakes(args.results)
     if not flakes:
+        if args.verbose:
+            print("No flakes to report, exiting")
         exit(0)
 
     known_flakes = []
