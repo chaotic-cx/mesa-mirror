@@ -3034,7 +3034,7 @@
         "description": "vulkan/wsi: Preserve the swapchain image type",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c1401fda8a0ee29dc3ff878c438510b00031265c",
         "notes": null

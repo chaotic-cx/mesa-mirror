@@ -449,8 +449,8 @@ configure_image(const struct wsi_swapchain *chain,
                 const struct wsi_base_image_params *params,
                 struct wsi_image_info *info)
 {
+   memset(info, 0, sizeof(*info));
    info->image_type = params->image_type;
-   info->color_space = pCreateInfo->imageColorSpace;
 
    switch (params->image_type) {
    case WSI_IMAGE_TYPE_CPU: {
@@ -706,7 +706,6 @@ wsi_configure_image(const struct wsi_swapchain *chain,
                     VkExternalMemoryHandleTypeFlags handle_types,
                     struct wsi_image_info *info)
 {
-   memset(info, 0, sizeof(*info));
    uint32_t queue_family_count = 1;
 
    if (pCreateInfo->imageSharingMode == VK_SHARING_MODE_CONCURRENT)
