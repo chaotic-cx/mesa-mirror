@@ -24,6 +24,6 @@ dEQP-VK.renderpass.suballocation.attachment_allocation.grow_shrink.50,Fail
 dEQP-VK.renderpass2.dedicated_allocation.attachment_allocation.grow_shrink.50,Fail
 dEQP-VK.renderpass2.suballocation.attachment_allocation.grow_shrink.50,Fail
 dEQP-VK.renderpass2.suballocation.attachment_allocation.input_output.54,Fail
-dEQP-VK.wsi.win32.swapchain.create.image_usage,Crash
-dEQP-VK.wsi.win32.swapchain.simulate_oom.image_usage,Crash
+dEQP-VK.wsi.win32.swapchain.create.image_usage,Fail
+dEQP-VK.wsi.win32.swapchain.simulate_oom.image_usage,Fail
 
