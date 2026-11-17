@@ -655,7 +655,7 @@ panfrost_kmod_bo_label(struct pan_kmod_dev *dev, struct pan_kmod_bo *bo, const c
 }
 
 static uint32_t
-panthor_kmod_perf_hw_sample_size(struct pan_kmod_dev *dev)
+panfrost_kmod_perf_hw_sample_size(struct pan_kmod_dev *dev)
 {
    uint32_t hw_blk_cnt =
       2 + pan_query_core_count(&dev->props) + pan_query_l2_slices(&dev->props);
@@ -855,7 +855,7 @@ panfrost_kmod_perf_create(struct pan_kmod_dev *dev)
       goto err_cleanup_session;
 
    session->hw_sample =
-      pan_kmod_dev_alloc(dev, panthor_kmod_perf_hw_sample_size(dev));
+      pan_kmod_dev_alloc(dev, panfrost_kmod_perf_hw_sample_size(dev));
    ret = pan_kmod_perf_consolidated_sample_init(dev, &session->sample_layout,
                                                 &session->consolidated_sample);
    ret |= pan_kmod_perf_dumped_sample_init(dev, &session->sample_layout,
