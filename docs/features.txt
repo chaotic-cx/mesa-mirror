@@ -442,7 +442,7 @@ we DO NOT WANT implementations of these extensions for Mesa.
 
 Vulkan 1.0 -- all DONE: anv, dzn, hk, kk, lvp, nvk, panvk, pvr, radv, tu, v3dv, vn
 
-Vulkan 1.1 -- all DONE: anv, dzn, hk, kk, lvp, nvk, panvk, pvr, radv, tu, vn
+Vulkan 1.1 -- all DONE: anv, hk, kk, lvp, nvk, panvk, pvr, radv, tu, vn
 
   VK_KHR_16bit_storage                                  DONE (anv, dzn, hasvk, lvp, nvk, panvk, radv, tu/a650+, v3dv, vn)
   VK_KHR_bind_memory2                                   DONE (anv, dzn, hasvk, lvp, nvk, panvk, pvr, radv, tu, v3dv, vn)
@@ -468,7 +468,7 @@ Vulkan 1.1 -- all DONE: anv, dzn, hk, kk, lvp, nvk, panvk, pvr, radv, tu, vn
   VK_KHR_storage_buffer_storage_class                   DONE (anv, dzn, hasvk, lvp, nvk, panvk, pvr, radv, tu, v3dv, vn)
   VK_KHR_variable_pointers                              DONE (anv, hasvk, lvp, nvk, panvk, radv, tu, v3dv, vn)
 
-Vulkan 1.2 -- all DONE: anv, dzn, hk, nvk, panvk, pvr, tu, vn
+Vulkan 1.2 -- all DONE: anv, hk, nvk, panvk, pvr, tu, vn
 
   VK_KHR_8bit_storage                                   DONE (anv, dzn, hasvk, kk, lvp, nvk, panvk, radv, tu/a750+, v3dv, vn)
   VK_KHR_buffer_device_address                          DONE (anv, dzn, hasvk, kk, lvp, nvk, panvk, pvr, radv, tu, v3dv, vn)
