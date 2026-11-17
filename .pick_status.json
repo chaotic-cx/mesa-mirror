@@ -334,7 +334,7 @@
         "description": "kk: rework workaround 10 and disable 17",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "39f9d1f8e4845bb6cd854dda5d28e61391a3937b",
         "notes": null

@@ -623,11 +623,12 @@ alu_to_msl(struct nir_to_msl_ctx *ctx, nir_alu_instr *instr)
       P(ctx, " ? 1.0 : 0.0");
       break;
    case nir_op_bcsel:
-      /* KK_WORKAROUND_10 All shaders will have buf0 bound */
+      alu_src_to_msl(ctx, instr, 0);
+      /* KK_WORKAROUND_10 All shaders will have buf0 bound. Must come after the
+       * condition, see docs. */
       if (!(ctx->disabled_workarounds & BITFIELD_BIT(10)) &&
           ctx->shader->info.stage == MESA_SHADER_COMPUTE)
-         P(ctx, "(ulong)&buf0.contents[0] && ");
-      alu_src_to_msl(ctx, instr, 0);
+         P(ctx, " && (ulong)&buf0.contents[0]");
       P(ctx, " ? ");
       alu_src_to_msl(ctx, instr, 1);
       P(ctx, " : ");

@@ -72,10 +72,13 @@ KK_WORKAROUND_17
 | CTS test failure: ``dEQP-VK.spirv_assembly.instruction.compute.float_controls2.fp*.input_args.tanh_testedWithout_NotNaN_arg1_nan_arg2_one_res_nan_*``
 | Comments:
 
-Same issue as KK_WORKAROUND_14 but we need to add ``isNan`` to fix it
+Same issue as KK_WORKAROUND_14 but we need to add ``isNan`` to fix it.
+
+No longer needed after KK_WORKAROUND_10 swapped the true value to be last.
 
 | Log:
 | 2026-08-10: Workaround implemented
+| 2026-11-17: Disabled after WA10 rework
 
 KK_WORKAROUND_16
 ----------------
@@ -195,8 +198,13 @@ handle ``bcsel`` and the compiled shader misbehaves while the ``ior`` version
 does not. This is worked around by adding a known true value to the conditional
 of the ``bcsel``.
 
+The known true value is placed after the condition to avoid an interaction with
+KK_WORKAROUND_6 and KK_WORKAROUND_17 leading to compiler crashes in tests:
+``dEQP-VK.robustness.image_robustness.*.notemplate.r*32f.unroll.nonvolatile.sampled_image.no_fmt_qual.img.samples_1.2d_array.frag``
+
 | Log:
 | 2026-05-14: Workaround implemented
+| 2026-11-17: Swapped conditional so that the true value is last
 
 KK_WORKAROUND_9
 ---------------
