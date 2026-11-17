@@ -1349,21 +1349,20 @@ elif host_machine.system() == 'windows'
   pre_args += [
     '-D_WIN32_WINNT=0x0A00',
     '-DWINVER=0x0A00',
+    '-D_USE_MATH_DEFINES',
+    '-D_CRT_NONSTDC_NO_DEPRECATE',
+    '-D_CRT_SECURE_NO_WARNINGS',
+    '-D_CRT_SECURE_NO_DEPRECATE',
+    '-D_SCL_SECURE_NO_WARNINGS',
+    '-D_SCL_SECURE_NO_DEPRECATE',
+    '-D_ALLOW_KEYWORD_MACROS',
+    '-D_HAS_EXCEPTIONS=0', # Tell C++ STL to not use exceptions
+    '-DNOMINMAX',
+    '-D_UCRT_NOISY_NAN', # https://developercommunity.visualstudio.com/t/NAN-is-no-longer-compile-time-constant-i/10688907?viewtype=all
+    '-DWIN32_LEAN_AND_MEAN', # http://msdn2.microsoft.com/en-us/library/6dwk3a1z.aspx
   ]
-  if cc.get_argument_syntax() == 'msvc'
-    pre_args += [
-      '-D_USE_MATH_DEFINES',
-      '-D_CRT_NONSTDC_NO_DEPRECATE',
-      '-D_CRT_SECURE_NO_WARNINGS',
-      '-D_CRT_SECURE_NO_DEPRECATE',
-      '-D_SCL_SECURE_NO_WARNINGS',
-      '-D_SCL_SECURE_NO_DEPRECATE',
-      '-D_ALLOW_KEYWORD_MACROS',
-      '-D_HAS_EXCEPTIONS=0', # Tell C++ STL to not use exceptions
-      '-DNOMINMAX',
-      '-D_UCRT_NOISY_NAN', # https://developercommunity.visualstudio.com/t/NAN-is-no-longer-compile-time-constant-i/10688907?viewtype=all
-    ]
-  else
+
+  if cc.get_argument_syntax() != 'msvc'
     # MINGW also accept _GNU_SOURCE
     pre_args += '-D_GNU_SOURCE'
 
@@ -1958,10 +1957,6 @@ use_xmlconfig = get_option('xmlconfig') \
            error_message : 'requires expat') \
   .allowed()
 
-# Predefined macros for windows
-if host_machine.system() == 'windows'
-  pre_args += '-DWIN32_LEAN_AND_MEAN' # http://msdn2.microsoft.com/en-us/library/6dwk3a1z.aspx
-endif
 # this only exists on linux so either this is linux and it will be found, or
 # it's not linux and wont
 dep_m = cc.find_library('m', required : false)
