@@ -3648,10 +3648,13 @@ tu_lower_nir(struct tu_device *dev,
       nir_shader_gather_xfb_info(nir);
 
    {
-      /* Lower 64b push constants before lowering IO. */
+      /* Lower push constant and UBO access sizes before lowering IO, because
+       * tu_lower_io() turns push constants and inline uniform blocks into
+       * const file loads, which can only load whole 32-bit components.
+       */
       nir_lower_mem_access_bit_sizes_options options = {
          .callback = ir3_mem_access_size_align,
-         .modes = nir_var_mem_push_const,
+         .modes = nir_var_mem_push_const | nir_var_mem_ubo,
       };
 
       NIR_PASS(_, nir, nir_lower_mem_access_bit_sizes, &options);
