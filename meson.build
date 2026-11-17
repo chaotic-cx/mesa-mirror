@@ -1438,6 +1438,7 @@ else
     # Clang
     '-Wno-microsoft-enum-value',
     '-Wno-unused-function',
+    '-fansi-escape-codes',
   ]
   _trial_cpp = [
     '-Werror=return-type',
@@ -1458,6 +1459,7 @@ else
     '-Wno-unknown-pragmas',
     # Clang
     '-Wno-microsoft-enum-value',
+    '-fansi-escape-codes',
   ]
 
   # MinGW chokes on format specifiers and I can't get it all working
