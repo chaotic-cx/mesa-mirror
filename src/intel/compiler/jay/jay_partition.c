@@ -410,17 +410,13 @@ jay_partition_grf(jay_shader *shader)
       min_grf[JAY_STRIDE_2] +
       special_4;
 
-   unsigned mapped_accums =
-      shader->devinfo->ver >= 20 ? (reserve_acc01 ? 2 : 4) / grf_per_gpr : 0;
-
-   for (unsigned spilling = 0; spilling <= 2; spilling++) {
+   for (unsigned spilling = 0; spilling <= 1; spilling++) {
       /* There is an interdependence between partition choice and spilling,
        * because spilling requires reserved UGPRs for the lowered SENDs. The
-       * solution is to first try to build a partition that forbids spilling
-       * (spilling = 0), then try to build one that spills to accumulators
-       * (spilling = 1), and if all else fails, build one that spills to memory.
+       * solution is to first try to build a partition that forbids spilling,
+       * and if that fails, build one that spills to memory.
        */
-      spilling_grfs = spilling == 2 ? shader->dispatch_width / ugpr_per_grf : 0;
+      spilling_grfs = spilling == 1 ? shader->dispatch_width / ugpr_per_grf : 0;
       uniform_grfs = DIV_ROUND_UP(MAX2(demand[UGPR], min_ugprs), ugpr_per_grf) +
                      spilling_grfs;
 
@@ -455,16 +451,6 @@ jay_partition_grf(jay_shader *shader)
       if (demand[GPR] <=
           register_limit(shader, GPR, shader->num_regs[GPR], base_split)) {
          break;
-      }
-
-      /* Try mapping accumulators */
-      if (spilling == 0) {
-         jay_foreach_function(shader, f) {
-            if (f->demand[GPR] > shader->num_regs[GPR] && mapped_accums) {
-               jay_spill(f, GPR, ACCUM, f->demand[GPR] - mapped_accums);
-               jay_spill(f, ACCUM, GPR, mapped_accums);
-            }
-         }
       }
    }
 
@@ -558,11 +544,9 @@ jay_partition_grf(jay_shader *shader)
       { UGPR, 0, eot_u, JAY_BLOCK_EOT },
 
       /* Accumulator/flag blocks */
-      { ACCUM, 0, mapped_accums * grf_per_gpr },
       { FLAG, 0, flag_limit * jay_grf_per_gpr(shader) },
    };
 
-   shader->num_regs[ACCUM] = mapped_accums;
    shader->num_regs[FLAG] = hw_flags;
    shader->num_regs[J_ADDRESS] = 1;
 
