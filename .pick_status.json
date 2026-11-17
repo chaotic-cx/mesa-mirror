@@ -24,7 +24,7 @@
         "description": "panfrost/kmod: Fix pan[thor|frost] naming mistake",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "8bb82dbeab6ca5c3581c6c7cb6397064b58ba7b8",
         "notes": null
