@@ -258,7 +258,7 @@ _mesa_check_sample_count(struct gl_context *ctx, GLenum target,
     * for <internalformat> then the error INVALID_OPERATION is generated."
     */
    if (_mesa_has_internalformat_query(ctx)) {
-      GLint buffer[MAX_SAMPLES] = {-1};
+      GLint buffer[MAX_SAMPLES] = {0};
       GLint limit;
 
       st_QueryInternalFormat(ctx, target, internalFormat,
