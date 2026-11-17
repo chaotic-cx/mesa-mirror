@@ -1634,7 +1634,7 @@
         "description": "nir/opt_offsets: skip unencodable shared2 offsets",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0f364aded31dceaf1b14b1d3ff844d5b79965484",
         "notes": null
