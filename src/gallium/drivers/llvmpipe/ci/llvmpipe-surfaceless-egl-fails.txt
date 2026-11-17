@@ -80,7 +80,6 @@ spec@!opengl 1.0@gl-1.0-front-invalidate-back,Crash
 spec@!opengl 1.1@masked-clear,Crash
 spec@!opengl 1.1@ppgtt_memory_alignment,Crash
 spec@!opengl 3.0@gl30basic,Crash
-spec@arb_timer_query@query gl_timestamp,Fail
 spec@ext_framebuffer_blit@fbo-blit-check-limits,Crash
 spec@ext_framebuffer_blit@fbo-sys-blit,Crash
 spec@ext_framebuffer_blit@fbo-sys-sub-blit,Crash
