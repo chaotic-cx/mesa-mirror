@@ -528,6 +528,7 @@ regid(int num, int comp)
 /* special registers: */
 #define REG_A0 61 /* address register */
 #define REG_A0_X regid(REG_A0, 0)
+#define REG_A1_X regid(REG_A0, 1)
 #define REG_P0 62 /* predicate register */
 #define REG_P0_X regid(REG_P0, 0) /* p0.x */
 

@@ -122,7 +122,11 @@ print_instr_name(struct log_stream *stream, struct ir3_instruction *instr,
       }
    } else if (opc_cat(instr->opc) == 1) {
       if (instr->opc == OPC_MOV) {
-         if (instr->cat1.src_type == instr->cat1.dst_type)
+         if (writes_addr0(instr))
+            mesa_log_stream_printf(stream, "mova");
+         else if (writes_addr1(instr))
+            mesa_log_stream_printf(stream, "mova1");
+         else if (instr->cat1.src_type == instr->cat1.dst_type)
             mesa_log_stream_printf(stream, "mov");
          else
             mesa_log_stream_printf(stream, "cov");
@@ -177,7 +181,8 @@ print_instr_name(struct log_stream *stream, struct ir3_instruction *instr,
       }
 
       if (instr->opc != OPC_MOVMSK && instr->opc != OPC_SCAN_MACRO &&
-          instr->opc != OPC_PUSH_CONSTS_LOAD_MACRO) {
+          instr->opc != OPC_PUSH_CONSTS_LOAD_MACRO && !writes_addr0(instr) &&
+          !writes_addr1(instr)) {
          mesa_log_stream_printf(stream, ".%s%s",
                                 type_name(instr->cat1.src_type),
                                 type_name(instr->cat1.dst_type));
@@ -320,14 +325,23 @@ print_ssa_name(struct log_stream *stream, struct ir3_register *reg, bool dst)
    if (reg->num != INVALID_REG && !(reg->flags & IR3_REG_ARRAY)) {
       const char *prefix = "r";
       unsigned num = reg_num(reg);
+      unsigned comp = reg_comp(reg);
 
       if (reg->flags & IR3_REG_PREDICATE) {
          prefix = "p";
          num = 0;
+      } else if (reg->num == REG_A0_X) {
+         prefix = "a";
+         num = 0;
+         comp = 0;
+      } else if (reg->num == REG_A1_X) {
+         prefix = "a";
+         num = 1;
+         comp = 0;
       }
 
       mesa_log_stream_printf(stream, "(" SYN_REG("%s%u.%c") ")", prefix, num,
-                             "xyzw"[reg_comp(reg)]);
+                             "xyzw"[comp]);
    }
 }
 
@@ -381,8 +395,10 @@ print_reg_name(struct log_stream *stream, struct ir3_instruction *instr,
       mesa_log_stream_printf(stream, "u");
    if (reg->flags & IR3_REG_SHARED)
       mesa_log_stream_printf(stream, "s");
-   if (reg->flags & IR3_REG_HALF)
+   if ((reg->flags & IR3_REG_HALF) && reg->num != REG_A0_X &&
+       reg->num != REG_A1_X) {
       mesa_log_stream_printf(stream, "h");
+   }
    if (reg->flags & IR3_REG_PREDICATE)
       mesa_log_stream_printf(stream, "p");
 
@@ -420,6 +436,10 @@ print_reg_name(struct log_stream *stream, struct ir3_instruction *instr,
       else if (reg->flags & IR3_REG_RT)
          mesa_log_stream_printf(stream, SYN_RT("rt%u.%c"), reg_num(reg),
                                 "xyzw"[reg_comp(reg)]);
+      else if (reg->num == REG_A0_X)
+         mesa_log_stream_printf(stream, SYN_REG("a0.x"));
+      else if (reg->num == REG_A1_X)
+         mesa_log_stream_printf(stream, SYN_REG("a1.x"));
       else
          mesa_log_stream_printf(stream, SYN_REG("r%u.%c"), reg_num(reg),
                                 "xyzw"[reg_comp(reg)]);
