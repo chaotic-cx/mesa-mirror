@@ -301,6 +301,15 @@ split_addr(struct ir3_sched_ctx *ctx, struct ir3_instruction **addr,
    /* all remaining indirects remapped to new addr: */
    *addr = NULL;
 
+   assert(new_addr);
+   list_delinit(&new_addr->node);
+   list_addtail(&new_addr->node, &ctx->unscheduled_list);
+
+   /* If we produced a new instruction, do not schedule it next to
+    * guarantee progress.
+    */
+   ctx->split = new_addr;
+
    return new_addr;
 }
 
@@ -1241,7 +1250,6 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
           */
          ctx->split = NULL;
       } else {
-         struct ir3_instruction *new_instr = NULL;
          struct ir3 *ir = block->shader;
 
          /* nothing available to schedule.. if we are blocked on
@@ -1249,11 +1257,9 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
           * by cloning the instruction that wrote that reg:
           */
          if (notes.addr0_conflict) {
-            new_instr =
-               split_addr(ctx, &ctx->addr0, ir->a0_users, ir->a0_users_count);
+            split_addr(ctx, &ctx->addr0, ir->a0_users, ir->a0_users_count);
          } else if (notes.addr1_conflict) {
-            new_instr =
-               split_addr(ctx, &ctx->addr1, ir->a1_users, ir->a1_users_count);
+            split_addr(ctx, &ctx->addr1, ir->a1_users, ir->a1_users_count);
          } else {
             d("unscheduled_list:\n");
             foreach_instr (instr, &ctx->unscheduled_list)
@@ -1262,16 +1268,6 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
             ctx->error = true;
             return;
          }
-
-         if (new_instr) {
-            list_delinit(&new_instr->node);
-            list_addtail(&new_instr->node, &ctx->unscheduled_list);
-         }
-
-         /* If we produced a new instruction, do not schedule it next to
-          * guarantee progress.
-          */
-         ctx->split = new_instr;
       }
    }
 
