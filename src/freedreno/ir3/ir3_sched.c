@@ -83,6 +83,8 @@ struct ir3_sched_ctx {
    struct ir3_instruction *addr1;     /* current a1.x user, if any */
    unsigned addr0_uses;               /* number of unscheduled uses of addr0 */
    unsigned addr1_uses;               /* number of unscheduled uses of addr1 */
+   unsigned addr0_scheduled_uses;     /* number of scheduled uses of addr0 */
+   unsigned addr1_scheduled_uses;     /* number of scheduled uses of addr1 */
 
    struct ir3_instruction *split; /* most-recently-split a0/a1 producer */
 
@@ -324,7 +326,11 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
    list_delinit(&instr->node);
 
    if (writes_addr0(instr)) {
-      assert(ctx->addr0 == NULL);
+      if (ctx->addr0) {
+         split_addr(ctx, &ctx->addr0, ctx->ir->a0_users,
+                    ctx->ir->a0_users_count);
+      }
+
       if (instr->opc != OPC_MOV) {
          /* If a0 is written but not actually used (i.e., bar in REUSEGPRMODE or
           * alias-using texture instructions), we shouldn't keep track of the
@@ -339,10 +345,16 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
          ctx->addr0 = instr;
          ctx->addr0_uses = instr->uses->entries;
       }
+
+      ctx->addr0_scheduled_uses = 0;
    }
 
    if (writes_addr1(instr)) {
-      assert(ctx->addr1 == NULL);
+      if (ctx->addr1) {
+         split_addr(ctx, &ctx->addr1, ctx->ir->a1_users,
+                    ctx->ir->a1_users_count);
+      }
+
       if (instr->opc != OPC_MOV) {
          /* See note above for a0. */
          ctx->addr1 = NULL;
@@ -351,6 +363,8 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
          ctx->addr1 = instr;
          ctx->addr1_uses = instr->uses->entries;
       }
+
+      ctx->addr1_scheduled_uses = 0;
    }
 
    if (reads_addr0(instr)) {
@@ -359,6 +373,9 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
 
       if (--ctx->addr0_uses == 0) {
          ctx->addr0 = NULL;
+         ctx->addr0_scheduled_uses = 0;
+      } else {
+         ctx->addr0_scheduled_uses++;
       }
    }
 
@@ -368,6 +385,9 @@ schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
 
       if (--ctx->addr1_uses == 0) {
          ctx->addr1 = NULL;
+         ctx->addr1_scheduled_uses = 0;
+      } else {
+         ctx->addr1_scheduled_uses++;
       }
    }
 
@@ -564,15 +584,30 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
    }
 
    /* if this is a write to address register, and that register is currently in
-    * use, we need to defer until it is free:
+    * use, we need to defer until it is free. Don't defer it indefinitely,
+    * though, as scheduling a new a0.x write might free up more instructions
+    * that can lower register pressure.
     */
-   if (writes_addr0(instr) && ctx->addr0) {
+   if (writes_addr0(instr) && ctx->addr0 && ctx->addr0_scheduled_uses < 4) {
       assert(ctx->addr0 != instr);
       notes->addr0_conflict = true;
       return false;
    }
 
-   if (writes_addr1(instr) && ctx->addr1) {
+   /* Same as above but allow a1.x writes to be scheduled even earlier.
+    * Preambles often contain many sequential sequences like this:
+    * mova1 ...
+    * isam.v ..., a1.x
+    * ; process SSBO values
+    * mova1 ...
+    * stc c[a1.x] ; store processed SSBO values
+    *
+    * If the a1.x value is the same for all isam.v but different for stc, we
+    * might end up with a huge register pressure because all the SSBO values
+    * pile up. Experimentally, it was found that just allowing a1.x writes to be
+    * scheduled again immediately gives the best results.
+    */
+   if (writes_addr1(instr) && ctx->addr1 && ctx->addr1_scheduled_uses < 1) {
       assert(ctx->addr1 != instr);
       notes->addr1_conflict = true;
       return false;
@@ -742,6 +777,11 @@ should_defer(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
       return true;
 
    if (ctx->ss_index - ctx->first_outstanding_ss_index >= 8 && is_ss_producer(instr))
+      return true;
+
+   if (writes_addr0(instr) && ctx->addr0)
+      return true;
+   if (writes_addr1(instr) && ctx->addr1)
       return true;
 
    return false;
