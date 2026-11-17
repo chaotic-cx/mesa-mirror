@@ -61,6 +61,8 @@ enum {
    HEADER_CHECKSUM_OFFSET = 148,
    HEADER_CHECKSUM_LENGTH = 8,
 
+   HEADER_TYPEFLAG_OFFSET = 156,
+
    HEADER_MAGIC_OFFSET = 257,
    HEADER_MAGIC_LENGTH = 6,
 
@@ -119,17 +121,49 @@ archive_update_size(char *header, unsigned size)
    snprintf(&header[HEADER_CHECKSUM_OFFSET], HEADER_CHECKSUM_LENGTH, "%07o", checksum);
 }
 
-static void
-archive_start_header(char *header, const char *prefix, const char *filename, time_t timestamp)
+static bool
+archive_set_path(char *header, const char *prefix, const char *filename)
 {
-   /* NOTE: If we ever need more, implement the more complex `path` extension. */
-   assert(!prefix || strlen(prefix) < HEADER_PREFIX_LENGTH);
-   assert(strlen(filename) < HEADER_NAME_LENGTH);
+   char path[HEADER_PREFIX_LENGTH + 1 + HEADER_NAME_LENGTH + 1];
+   int len;
+   if (!prefix || !*prefix) {
+      len = snprintf(path, sizeof(path), "%s", filename);
+   } else {
+      len = snprintf(path, sizeof(path), "%s/%s", prefix, filename);
+   }
+   if (len < 0 || (size_t)len >= sizeof(path))
+      return false;
 
-   strncpy(&header[HEADER_NAME_OFFSET], filename, HEADER_NAME_LENGTH);
+   if ((size_t)len <= HEADER_NAME_LENGTH) {
+      memcpy(&header[HEADER_NAME_OFFSET], path, len);
+      return true;
+   }
 
-   if (prefix)
-      strncpy(&header[HEADER_PREFIX_OFFSET], prefix, HEADER_PREFIX_LENGTH);
+   /* Split at the last '/' that fits in the USTAR prefix field. */
+   size_t split = (size_t)len - 1;
+   if (split > HEADER_PREFIX_LENGTH)
+      split = HEADER_PREFIX_LENGTH;
+   while (split > 0 && path[split] != '/')
+      split--;
+   if (split == 0)
+      return false;
+
+   size_t name_len = (size_t)len - split - 1;
+   if (name_len == 0 || name_len > HEADER_NAME_LENGTH)
+      return false;
+
+   memcpy(&header[HEADER_PREFIX_OFFSET], path, split);
+   memcpy(&header[HEADER_NAME_OFFSET], path + split + 1, name_len);
+   return true;
+}
+
+static bool
+archive_start_header(char *header, const char *prefix, const char *filename,
+                     char type, time_t timestamp)
+{
+   if (!archive_set_path(header, prefix, filename))
+      return false;
+   header[HEADER_TYPEFLAG_OFFSET] = type;
 
    const char *filemode = "0644";
    strcpy(&header[HEADER_MODE_OFFSET], filemode);
@@ -141,6 +175,7 @@ archive_start_header(char *header, const char *prefix, const char *filename, tim
 
    const char *ustar_version = "00";
    strcpy(&header[HEADER_VERSION_OFFSET], ustar_version);
+   return true;
 }
 
 static unsigned
@@ -174,12 +209,49 @@ archive_prewrite_end_of_archive(FILE *archive)
 }
 
 static bool
+archive_write_path(FILE *archive, const char *prefix, const char *filename,
+                   time_t timestamp)
+{
+   const char *directory = prefix && *prefix ? prefix : "";
+   const char *separator = *directory ? "/" : "";
+
+   /* The record length includes its own decimal digits. */
+   int size = 0;
+   while (true) {
+      int next = snprintf(NULL, 0, "%d path=%s%s%s\n", size,
+                          directory, separator, filename);
+      if (next < 0)
+         return false;
+      if (next == size)
+         break;
+      size = next;
+   }
+
+   char header[RECORD_SIZE] = {0};
+   if (!archive_start_header(header, NULL, "PaxHeaders/mda", 'x', timestamp))
+      return false;
+   archive_update_size(header, size);
+   if (fwrite(header, RECORD_SIZE, 1, archive) != 1)
+      return false;
+   if (fprintf(archive, "%d path=%s%s%s\n", size,
+               directory, separator, filename) != size)
+      return false;
+   if (!archive_write_padding(archive, size))
+      return false;
+   return ferror(archive) == 0;
+}
+
+static bool
 archive_file_from_bytes(FILE *archive, const char *prefix, const char *filename,
                         const char *contents, unsigned contents_size, time_t timestamp)
 {
    char header[RECORD_SIZE] = {0};
 
-   archive_start_header(header, prefix, filename, timestamp);
+   if (!archive_start_header(header, prefix, filename, '0', timestamp)) {
+      if (!archive_write_path(archive, prefix, filename, timestamp))
+         return false;
+      archive_start_header(header, NULL, "file", '0', timestamp);
+   }
    archive_update_size(header, contents_size);
 
    if (fwrite(header, RECORD_SIZE, 1, archive) != 1)
@@ -216,7 +288,11 @@ tar_writer_start_file(tar_writer *tw, const char *filename)
    assert(tw->header_pos == -1);
    memset(tw->header, 0, RECORD_SIZE);
 
-   archive_start_header(tw->header, tw->prefix, filename, tw->timestamp);
+   if (!archive_start_header(tw->header, tw->prefix, filename, '0', tw->timestamp)) {
+      if (!archive_write_path(tw->file, tw->prefix, filename, tw->timestamp))
+         goto fail;
+      archive_start_header(tw->header, NULL, "file", '0', tw->timestamp);
+   }
    archive_update_size(tw->header, 0);
 
    tw->header_pos = ftell(tw->file);
@@ -298,8 +374,8 @@ tar_reader_init_from_bytes(tar_reader *ar, const char *contents, unsigned conten
    ar->contents = (slice){contents, contents_size};
 }
 
-bool
-tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
+static bool
+archive_read_entry(tar_reader *ar, tar_reader_entry *entry, char *type)
 {
    if (ar->error)
       return false;
@@ -324,6 +400,7 @@ tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
    }
 
    ar->pos += RECORD_SIZE;
+   *type = header[HEADER_TYPEFLAG_OFFSET];
 
    unsigned size = 0;
    if (sscanf((const char *)&header[HEADER_SIZE_OFFSET], "%11o", &size) != 1) {
@@ -332,7 +409,8 @@ tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
    }
 
    unsigned long mtime = 0;
-   if (sscanf((const char *)&header[HEADER_MTIME_OFFSET], "%11lo", &mtime) != 1) {
+   if (*type != 'x' &&
+       sscanf((const char *)&header[HEADER_MTIME_OFFSET], "%11lo", &mtime) != 1) {
       ar->error = true;
       return false;
    }
@@ -358,4 +436,59 @@ tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
    entry->mtime    = (time_t)mtime;
 
    return true;
+}
+
+static bool
+archive_read_path(slice contents, slice *path)
+{
+   while (!slice_is_empty(contents)) {
+      slice_cut_result cut = slice_cut(contents, ' ');
+      if (!cut.found)
+         return false;
+
+      int length = 0;
+      for (int i = 0; i < cut.before.len; i++) {
+         int digit = cut.before.data[i] - '0';
+         if (digit < 0 || digit > 9 || length > (INT_MAX - digit) / 10)
+            return false;
+         length = length * 10 + digit;
+      }
+
+      int offset = cut.before.len + 1;
+      if (length <= offset || length > contents.len || contents.data[length - 1] != '\n')
+         return false;
+
+      cut = slice_cut(slice_substr(contents, offset, length - 1), '=');
+      if (!cut.found)
+         return false;
+      if (slice_equal_cstr(cut.before, "path")) {
+         if (slice_is_empty(cut.after))
+            return false;
+         *path = cut.after;
+      }
+      contents = slice_substr_from(contents, length);
+   }
+   return true;
+}
+
+bool
+tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
+{
+   slice path = {0};
+   char type;
+   while (archive_read_entry(ar, entry, &type)) {
+      if (type == 'x') {
+         if (!archive_read_path(entry->contents, &path)) {
+            ar->error = true;
+            return false;
+         }
+         continue;
+      }
+      if (path.data) {
+         entry->prefix = (slice){path.data, 0};
+         entry->name = path;
+      }
+      return true;
+   }
+   return false;
 }

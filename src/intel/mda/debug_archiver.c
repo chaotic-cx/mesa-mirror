@@ -23,7 +23,7 @@ struct debug_archiver
 {
    FILE *f;
    tar_writer *tw;
-   char prefix[128];
+   char *prefix;
    char *archive_path;
    char *mda_dir_in_archive;
 };
@@ -158,12 +158,14 @@ debug_archiver_set_prefix(debug_archiver *da, const char *prefix)
    if (!da)
       return;
 
+   char *new_prefix;
    if (!prefix || !*prefix) {
-      snprintf(da->prefix, ARRAY_SIZE(da->prefix) - 1, "%s", da->mda_dir_in_archive);
+      new_prefix = ralloc_strdup(da, da->mda_dir_in_archive);
    } else {
-      snprintf(da->prefix, ARRAY_SIZE(da->prefix) - 1, "%s/%s", da->mda_dir_in_archive, prefix);
+      new_prefix = ralloc_asprintf(da, "%s/%s", da->mda_dir_in_archive, prefix);
    }
-
+   ralloc_free(da->prefix);
+   da->prefix = new_prefix;
    da->tw->prefix = da->prefix;
 }
 
