@@ -263,7 +263,6 @@ struct radv_shader_layout {
       uint32_t dynamic_offset_start;
    } set[MAX_SETS];
 
-   uint32_t dynamic_offset_count;
    bool use_dynamic_descriptors;
 
    bool independent_sets;

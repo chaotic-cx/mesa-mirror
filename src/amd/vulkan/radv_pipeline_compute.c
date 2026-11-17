@@ -168,9 +168,6 @@ radv_compute_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkC
       return result;
    }
 
-   if (pipeline_layout)
-      pipeline->base.dynamic_offset_count = pipeline_layout->dynamic_offset_count;
-
    radv_pipeline_report_pso_history(device, &pipeline->base);
 
    *pPipeline = radv_pipeline_to_handle(&pipeline->base);

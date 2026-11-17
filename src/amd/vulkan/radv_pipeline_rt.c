@@ -1385,7 +1385,6 @@ radv_rt_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkRayTra
 {
    VK_FROM_HANDLE(radv_device, device, _device);
    VK_FROM_HANDLE(vk_pipeline_cache, cache, _cache);
-   VK_FROM_HANDLE(radv_pipeline_layout, pipeline_layout, pCreateInfo->layout);
    struct radv_ray_tracing_state_key rt_state;
    VkResult result;
    const VkPipelineCreationFeedbackCreateInfo *creation_feedback =
@@ -1436,9 +1435,6 @@ radv_rt_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkRayTra
    if (!(pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR)) {
       compute_rt_stack_size(pCreateInfo, pipeline);
       compile_rt_prolog(device, pipeline);
-
-      if (pipeline_layout)
-         pipeline->base.base.dynamic_offset_count = pipeline_layout->dynamic_offset_count;
    }
 
    /* write shader VAs into group handles */

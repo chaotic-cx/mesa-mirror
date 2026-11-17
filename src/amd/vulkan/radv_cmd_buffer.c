@@ -1520,6 +1520,7 @@ radv_reset_cmd_buffer(struct vk_command_buffer *vk_cmd_buffer, UNUSED VkCommandB
    for (unsigned i = 0; i < MAX_BIND_POINTS; i++) {
       cmd_buffer->descriptors[i].dirty = 0;
       cmd_buffer->descriptors[i].valid = 0;
+      cmd_buffer->descriptors[i].dynamic_offset_count = 0;
       cmd_buffer->descriptors[i].dirty_dynamic = false;
 
       cmd_buffer->descriptors[i].dirty_heaps = 0;
@@ -8812,6 +8813,8 @@ radv_bind_descriptor_sets(struct radv_cmd_buffer *cmd_buffer, const VkBindDescri
          }
 
          descriptors_state->dynamic_descriptors_offsets[set_idx] = dynamic_offset_start;
+         descriptors_state->dynamic_offset_count = MAX2(
+            descriptors_state->dynamic_offset_count, dynamic_offset_start + set->header.layout->dynamic_offset_count);
          descriptors_state->dirty_dynamic = true;
       }
    }
@@ -9827,8 +9830,6 @@ radv_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipeline
       assert(!"invalid bind point");
       break;
    }
-
-   cmd_buffer->descriptors[vk_to_bind_point(pipelineBindPoint)].dynamic_offset_count = pipeline->dynamic_offset_count;
 
    radv_mark_descriptors_dirty(cmd_buffer, pipelineBindPoint);
 }
@@ -14592,7 +14593,6 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   uint32_t dynamic_offset_count = 0;
 
    for (unsigned s = 0; s <= MESA_SHADER_MESH; s++) {
       const struct radv_shader_object *shader_obj = cmd_buffer->state.shader_objs[s];
@@ -14621,10 +14621,6 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
       }
 
       radv_bind_shader(cmd_buffer, shader, s);
-      if (!shader)
-         continue;
-
-      dynamic_offset_count = MAX2(dynamic_offset_count, shader_obj->dynamic_offset_count);
    }
 
    struct radv_shader *gs_copy_shader = cmd_buffer->state.shader_objs[MESA_SHADER_GEOMETRY]
@@ -14662,10 +14658,6 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
    if (ps && !ps->info.ps.has_epilog) {
       radv_bind_fragment_output_state(cmd_buffer, ps, NULL, 0);
    }
-
-   struct radv_descriptor_state *descriptors_state =
-      radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
-   descriptors_state->dynamic_offset_count = dynamic_offset_count;
 
    if (pdev->info.gfx_level <= GFX9) {
       cmd_buffer->state.ia_multi_vgt_param = radv_compute_ia_multi_vgt_param(device, cmd_buffer->state.shaders);
@@ -17913,10 +17905,6 @@ radv_bind_compute_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader_
    ASSERTED const unsigned cdw_max = radeon_check_space(device->ws, cs->b, 128);
 
    radv_emit_compute_shader(pdev, cs, shader, true);
-
-   struct radv_descriptor_state *descriptors_state =
-      radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE);
-   descriptors_state->dynamic_offset_count = shader_obj->dynamic_offset_count;
 
    assert(cs->b->cdw <= cdw_max);
 

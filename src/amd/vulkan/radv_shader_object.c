@@ -17,10 +17,6 @@
 #include "radv_shader_graphics.h"
 #include "radv_shader_object.h"
 
-struct radv_shader_object_metadata {
-   uint32_t dynamic_offset_count;
-};
-
 static void
 radv_shader_object_destroy(struct radv_device *device, struct radv_shader_object *shader_obj,
                            const VkAllocationCallbacks *pAllocator)
@@ -342,13 +338,6 @@ radv_shader_object_init(struct radv_shader_object *shader_obj, struct radv_devic
       if (memcmp(cache_uuid, pdev->cache_uuid, VK_UUID_SIZE))
          return VK_INCOMPATIBLE_SHADER_BINARY_EXT;
 
-      const struct radv_shader_object_metadata *md =
-         (struct radv_shader_object_metadata *)blob_read_bytes(&blob, sizeof(struct radv_shader_object_metadata));
-      if (!md)
-         return VK_INCOMPATIBLE_SHADER_BINARY_EXT;
-
-      shader_obj->dynamic_offset_count = md->dynamic_offset_count;
-
       const bool has_main_binary = blob_read_uint32(&blob);
 
       if (has_main_binary) {
@@ -392,8 +381,6 @@ radv_shader_object_init(struct radv_shader_object *shader_obj, struct radv_devic
       assert(pCreateInfo->codeType == VK_SHADER_CODE_TYPE_SPIRV_EXT);
 
       radv_get_shader_layout(device, layout_info, shader_obj->stage, &layout);
-
-      shader_obj->dynamic_offset_count = layout.dynamic_offset_count;
 
       if (pCreateInfo->stage == VK_SHADER_STAGE_COMPUTE_BIT) {
          result = radv_shader_object_init_compute(shader_obj, device, pCreateInfo, layout_info);
@@ -565,7 +552,6 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
 
       shader_obj->stage = s;
       shader_obj->code_type = pCreateInfo->codeType;
-      shader_obj->dynamic_offset_count = stages[s].layout.dynamic_offset_count;
 
       if (s == MESA_SHADER_VERTEX) {
          if (stages[s].next_stage == MESA_SHADER_TESS_CTRL) {
@@ -737,7 +723,6 @@ radv_get_shader_object_size(const struct radv_shader_object *shader_obj)
 {
    size_t size = VK_UUID_SIZE;
 
-   size += sizeof(struct radv_shader_object_metadata);
    size += radv_get_shader_binary_size(shader_obj->shader);
 
    if (shader_obj->stage == MESA_SHADER_VERTEX) {
@@ -750,16 +735,6 @@ radv_get_shader_object_size(const struct radv_shader_object *shader_obj)
    }
 
    return size;
-}
-
-static void
-radv_write_shader_object_metadata(struct blob *blob, const struct radv_shader_object *shader_obj)
-{
-   struct radv_shader_object_metadata md = {
-      .dynamic_offset_count = shader_obj->dynamic_offset_count,
-   };
-
-   blob_write_bytes(blob, &md, sizeof(md));
 }
 
 static void
@@ -803,7 +778,6 @@ radv_GetShaderBinaryDataEXT(VkDevice _device, VkShaderEXT shader, size_t *pDataS
    blob_init_fixed(&blob, pData, *pDataSize);
    blob_write_bytes(&blob, pdev->cache_uuid, VK_UUID_SIZE);
 
-   radv_write_shader_object_metadata(&blob, shader_obj);
    radv_write_shader_binary(&blob, shader_obj->shader);
 
    if (shader_obj->stage == MESA_SHADER_VERTEX) {

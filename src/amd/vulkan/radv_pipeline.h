@@ -51,9 +51,6 @@ struct radv_pipeline {
 
    /* Unique pipeline hash identifier. */
    uint64_t pipeline_hash;
-
-   /* Dynamic buffers info. */
-   uint32_t dynamic_offset_count;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_pipeline, base, VkPipeline, VK_OBJECT_TYPE_PIPELINE)
