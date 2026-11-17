@@ -471,9 +471,31 @@ wsi_create_dxgi_image_mem(const struct wsi_swapchain *drv_chain,
    if (chain->base.blit.type == WSI_SWAPCHAIN_NO_BLIT)
       return VK_SUCCESS;
 
+   struct wsi_image_create_info blit_wsi = {
+      VK_STRUCTURE_TYPE_WSI_IMAGE_CREATE_INFO_MESA,
+      nullptr,
+      info->wsi.scanout,
+      false,
+   };
+   const VkImageUsageFlags2CreateInfoKHR blit_usage2 = {
+      VK_STRUCTURE_TYPE_IMAGE_USAGE_FLAGS_2_CREATE_INFO_KHR,
+      &blit_wsi,
+      (info->usage2.usage & ~VK_IMAGE_USAGE_2_STORAGE_BIT_KHR) |
+         VK_IMAGE_USAGE_2_TRANSFER_DST_BIT_KHR,
+   };
+
    VkImageCreateInfo create = info->create;
 
-   create.usage &= ~VK_IMAGE_USAGE_STORAGE_BIT;
+   create.pNext = &blit_usage2;
+   create.flags &= ~(VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
+                     VK_IMAGE_CREATE_EXTENDED_USAGE_BIT);
+   create.usage = (create.usage & ~VK_IMAGE_USAGE_STORAGE_BIT) |
+                  VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+   if (chain->base.blit.queue) {
+      create.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+      create.queueFamilyIndexCount = 0;
+      create.pQueueFamilyIndices = nullptr;
+   }
    create.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
    result = wsi->CreateImage(chain->base.device, &create,
@@ -492,7 +514,7 @@ wsi_create_dxgi_image_mem(const struct wsi_swapchain *drv_chain,
    const VkMemoryDedicatedAllocateInfo memory_dedicated_info = {
       VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
       nullptr,
-      image->blit.image,
+      image->image,
       VK_NULL_HANDLE,
    };
    const VkMemoryAllocateInfo memory_info = {

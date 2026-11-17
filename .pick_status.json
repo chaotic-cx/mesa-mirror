@@ -2504,7 +2504,7 @@
         "description": "vulkan/wsi/win32: Fix DXGI blit image usage2 and dedicated memory target",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a2e1b8c5dedf5e350368b64a030a3ed16039717f",
         "notes": null
