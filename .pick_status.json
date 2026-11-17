@@ -1424,7 +1424,7 @@
         "description": "radeonsi/mm: Fix VCN5 AV1 encode uniform tile info",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "83d01892884af82f2ffefb715e9fedbeab24e201",
         "notes": null
