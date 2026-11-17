@@ -1491,8 +1491,9 @@ dzn_CmdPipelineBarrier2_enhanced(VkCommandBuffer commandBuffer,
    if (ma.size == 0)
       return;
 
-   if (!vk_multialloc_alloc(&ma, &cmdbuf->vk.pool->alloc,
-                            VK_SYSTEM_ALLOCATION_SCOPE_COMMAND)) {
+   void *alloc_ptr = vk_multialloc_alloc(&ma, &cmdbuf->vk.pool->alloc,
+                                         VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+   if (!alloc_ptr) {
       vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
       return;
    }
@@ -1665,7 +1666,7 @@ dzn_CmdPipelineBarrier2_enhanced(VkCommandBuffer commandBuffer,
 
    ID3D12GraphicsCommandList8_Barrier(cmdbuf->cmdlist8, num_barrier_groups, groups);
 
-   vk_free(&cmdbuf->vk.pool->alloc, global_barriers);
+   vk_free(&cmdbuf->vk.pool->alloc, alloc_ptr);
 }
 
 static D3D12_CPU_DESCRIPTOR_HANDLE
