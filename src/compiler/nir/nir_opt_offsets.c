@@ -274,10 +274,12 @@ try_fold_shared2(nir_builder *b,
    uint32_t excess_normal = 0, excess_st64 = 0;
    bool normal = decrease_shared2_offsets(offset0, offset1, comp_size, &excess_normal);
    bool st64 = decrease_shared2_offsets(offset0, offset1, 64 * comp_size, &excess_st64);
+   if (!normal && !st64)
+      return modified_shader;
+
    /* Use ST64 if the normal mode is impossible or using ST64 saves an addition. */
    st64 &= !normal || (excess_normal > 0 && excess_st64 == 0);
    uint32_t excess = st64 ? excess_st64 : excess_normal;
-   assert(st64 || normal);
 
    if (excess == const_offset && !modified_shader)
       return false;
