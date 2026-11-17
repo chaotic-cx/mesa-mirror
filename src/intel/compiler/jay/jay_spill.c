@@ -214,12 +214,8 @@ ensure_spilled(struct spill_ctx *ctx, unsigned node)
 
       if (!BITSET_TEST(ctx->remat, node)) {
          jay_builder b = jay_init_builder(ctx->func, cursor);
-         jay_inst *I = jay_MOV(&b, jay_def_spilled(ctx, node),
-                               jay_scalar(ctx->file, 32, node));
-
-         if (ctx->file == ACCUM || ctx->target == ACCUM) {
-            I->type = JAY_TYPE_F32;
-         }
+         jay_MOV(&b, jay_def_spilled(ctx, node),
+                 jay_scalar(ctx->file, 32, node));
       }
 
       ctx->spill_block[node] = NULL;
@@ -276,8 +272,6 @@ insert_reload(struct spill_ctx *ctx,
          jay_inst *I = jay_MOV(&b, new_def, spilled);
          if (ctx->file == FLAG)
             I->type = jay_flag_type(ctx->func);
-         else if (ctx->file == ACCUM || ctx->target == ACCUM)
-            I->type = JAY_TYPE_F32;
       }
    }
 
@@ -816,7 +810,7 @@ jay_spill(jay_function *f, enum jay_file file, enum jay_file target, unsigned l)
 
    ctx.n = f->ssa_alloc;
    ctx.file = file;
-   ctx.cfg = file == GPR || file == ACCUM ? GPR : UGPR;
+   ctx.cfg = file == GPR ? GPR : UGPR;
    ctx.in_file = BITSET_LINEAR_ZALLOC(linctx, ctx.n);
    ctx.remat = BITSET_LINEAR_ZALLOC(linctx, ctx.n);
    ctx.defs = linear_zalloc_array(linctx, jay_inst *, ctx.n);
