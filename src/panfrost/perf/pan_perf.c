@@ -30,17 +30,9 @@ int64_t
 pan_perf_counter_read_sum(const struct pan_perf *perf,
                           const struct mali_perf_counter *counter)
 {
-   /* If counter belongs to shader core, sum values for all cores. */
-   uint8_t blk_cnt =
-      mali_perf_block_count(counter->block, &perf->constants);
-   int64_t ret = 0;
-
-   for (uint8_t blk_idx = 0; blk_idx < blk_cnt; blk_idx++) {
-      ret += pan_perf_counter_read(perf, counter, blk_idx);
-      assert(ret >= 0 && "counter sum should not overflow");
-   }
-
-   return ret;
+   return counter->get_value(&perf->session->mali_perf_backend,
+                             MALI_PERF_HW_COUNTER_ID_BLOCK_INDEX_ALL,
+                             &perf->constants, &perf->dump_info);
 }
 
 void

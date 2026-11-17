@@ -337,7 +337,7 @@ def main():
                     __VA_ARGS__,                                                    \\
                  };                                                                 \\
                                                                                     \\
-                 (double)backend->get_hw_counter_value(backend, id);                \\
+                 mali_perf_get_hw_counter_value(backend, id, constants);            \\
               })
 
       #define MALI_CONFIG_NEURAL_ACCELERATOR_COUNT (double)0

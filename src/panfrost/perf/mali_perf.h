@@ -67,6 +67,7 @@ struct mali_perf_counter_source {
    uint16_t counter;
 };
 
+#define MALI_PERF_HW_COUNTER_ID_BLOCK_INDEX_ALL UINT8_MAX
 struct mali_perf_hw_counter_id {
    struct {
       int8_t type;
@@ -147,6 +148,29 @@ mali_perf_block_count(enum mali_perf_block_type block_type,
    default:
       return 0;
    }
+}
+
+static inline double
+mali_perf_get_hw_counter_value(struct mali_perf_backend *backend,
+                               struct mali_perf_hw_counter_id id,
+                               const struct mali_perf_constants *constants)
+{
+   uint32_t nblocks = mali_perf_block_count(
+      (enum mali_perf_block_type)id.block.type, constants);
+
+   if (nblocks == 0)
+      return 0;
+
+   if (id.block.index != MALI_PERF_HW_COUNTER_ID_BLOCK_INDEX_ALL)
+      return (double)backend->get_hw_counter_value(backend, id);
+
+   double res = 0.0;
+   for (uint32_t blk = 0; blk < nblocks; ++blk) {
+      id.block.index = blk;
+      res += (double)backend->get_hw_counter_value(backend, id);
+   }
+
+   return res;
 }
 
 extern const struct mali_perf_gpu_info mali_perf_g1;
