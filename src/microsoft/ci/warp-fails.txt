@@ -6,6 +6,7 @@ dEQP-VK.graphicsfuzz.while-inside-switch,Fail
 dEQP-VK.api.driver_properties.conformance_version,Fail
 dEQP-VK.info.device_extensions,Fail
 dEQP-VK.wsi.win32.swapchain.create.composite_alpha,Fail
+dEQP-VK.wsi.win32.swapchain.private_data.composite_alpha,Fail
 dEQP-VK.wsi.win32.swapchain.simulate_oom.composite_alpha,Fail
 
 # Seen in https://gitlab.freedesktop.org/mesa/mesa/-/pipelines/1364513
@@ -26,5 +27,6 @@ dEQP-VK.renderpass2.dedicated_allocation.attachment_allocation.grow_shrink.50,Fa
 dEQP-VK.renderpass2.suballocation.attachment_allocation.grow_shrink.50,Fail
 dEQP-VK.renderpass2.suballocation.attachment_allocation.input_output.54,Fail
 dEQP-VK.wsi.win32.swapchain.create.image_usage,Crash
+dEQP-VK.wsi.win32.swapchain.private_data.image_usage,Crash
 dEQP-VK.wsi.win32.swapchain.simulate_oom.image_usage,Crash
 

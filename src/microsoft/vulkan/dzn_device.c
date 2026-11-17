@@ -151,6 +151,7 @@ dzn_physical_device_get_extensions(struct dzn_physical_device *pdev)
       .EXT_external_memory_host              = pdev->dev13,
 #endif
       .EXT_host_query_reset                  = true,
+      .EXT_private_data                      = true,
       .EXT_scalar_block_layout               = true,
       .EXT_separate_stencil_usage            = true,
       .EXT_shader_replicated_composites      = true,
