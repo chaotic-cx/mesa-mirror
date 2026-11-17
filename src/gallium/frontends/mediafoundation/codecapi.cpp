@@ -691,13 +691,13 @@ CDX12EncHMFT::GetParameterValues( const GUID *Api, VARIANT **Values, ULONG *Valu
       }
       else if( *Api == CODECAPI_AVEncVideoLTRBufferControl )
       {
-         // reserve one dpb spot for short term reference frame.
-         // when m_EncoderCapabilities.m_uiMaxHWSupportedLongTermReferences = m_EncoderCapabilities.m_uiMaxHWSupportedDPBCapacity,
-         // we subtract one.
-         ULONG numSupportedLTR = m_EncoderCapabilities.m_uiMaxHWSupportedLongTermReferences;
-         if( numSupportedLTR > 0 && numSupportedLTR == m_EncoderCapabilities.m_uiMaxHWSupportedDPBCapacity )
+         // we are allowed to mark LTR up to m_EncoderCapabilities.m_uiMaxHWSupportedDPBCapacity - 1 (reserving one for current frame)
+         // m_EncoderCapabilities.m_uiMaxHWSupportedLongTermReferences specifies the max number of LTR we can use as reference frame (as oppose to mark).
+         // when it is 0, driver doesn't support using LTR as reference frame, so we should not allow marking LTR frames as well.
+         ULONG numSupportedLTR = m_EncoderCapabilities.m_uiMaxHWSupportedDPBCapacity >= 1 ? m_EncoderCapabilities.m_uiMaxHWSupportedDPBCapacity - 1 : 0;
+         if( m_EncoderCapabilities.m_uiMaxHWSupportedLongTermReferences == 0 )
          {
-            numSupportedLTR -= 1;
+            numSupportedLTR = 0;
          }
          *ValuesCount = numSupportedLTR + 1;
          CHECKNULL_GOTO( *Values = (VARIANT *) CoTaskMemAlloc( ( *ValuesCount ) * sizeof( VARIANT ) ), E_OUTOFMEMORY, done );

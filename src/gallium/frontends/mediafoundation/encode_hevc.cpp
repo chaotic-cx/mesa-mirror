@@ -1101,12 +1101,12 @@ CDX12EncHMFT::CreateGOPTracker( uint32_t textureWidth, uint32_t textureHeight )
    // Validate logic expression (m_uiMaxLongTermReferences != 0) => (m_uiBFrameCount == 0)
    CHECKBOOL_GOTO( ( m_uiMaxLongTermReferences == 0 ) || ( m_uiBFrameCount == 0 ), MF_E_OUT_OF_RANGE, done );
 
-   // Ensure that the number of long term references is <= than the max supported by HW
-   // TODO: This check should be added at CodecAPI_AVEncVideoLTRBufferControl level and fail there too, but would need to setup
-   // global encoder cap first.
-   CHECKBOOL_GOTO( ( m_uiMaxLongTermReferences <= m_EncoderCapabilities.m_uiMaxHWSupportedLongTermReferences ),
-                   MF_E_OUT_OF_RANGE,
-                   done );
+   if( m_uiMaxLongTermReferences > 0 )
+   {
+      CHECKBOOL_GOTO( m_EncoderCapabilities.m_uiMaxHWSupportedLongTermReferences >= 1,
+                      E_INVALIDARG,
+                      done );
+   }
 
    assert( m_uiBFrameCount == 0 );
    assert( m_uiMaxNumRefFrame == m_pPipeVideoCodec->max_references );
