@@ -1124,9 +1124,9 @@ st_nir_lower_external_samplers(nir_shader *nir,
                                const struct st_external_sampler_key *key)
 {
    nir_lower_tex_options options = {0};
-   options.lower_y_uv_external = key->lower_nv12;
-   options.lower_y_vu_external = key->lower_nv21;
-   options.lower_y_u_v_external = key->lower_iyuv;
+   options.lower_y_uv_external = key->lower_semi_planar;
+   options.lower_y_vu_external = key->lower_semi_planar_vu;
+   options.lower_y_u_v_external = key->lower_planar;
    options.lower_xy_uxvx_external = key->lower_xy_uxvx;
    options.lower_xy_vxux_external = key->lower_xy_vxux;
    options.lower_yx_xuxv_external = key->lower_yx_xuxv;
@@ -1159,10 +1159,10 @@ st_nir_lower_external_sampler_planes(nir_shader *nir,
                                      unsigned free_slots)
 {
    NIR_PASS(_, nir, st_nir_lower_tex_src_plane, free_slots,
-            key->lower_nv12 | key->lower_nv21 |
+            key->lower_semi_planar | key->lower_semi_planar_vu |
                key->lower_xy_uxvx | key->lower_xy_vxux |
                key->lower_yx_xuxv | key->lower_yx_xvxu,
-            key->lower_iyuv);
+            key->lower_planar);
 }
 
 static struct st_fp_variant *
@@ -1319,8 +1319,9 @@ st_create_fp_variant(struct st_context *st,
 
    bool need_lower_tex_src_plane = false;
 
-   if (unlikely(key->external.lower_nv12 || key->external.lower_nv21 ||
-                  key->external.lower_iyuv ||
+   if (unlikely(key->external.lower_semi_planar ||
+                  key->external.lower_semi_planar_vu ||
+                  key->external.lower_planar ||
                   key->external.lower_xy_uxvx || key->external.lower_yx_xuxv ||
                   key->external.lower_yx_xvxu || key->external.lower_xy_vxux ||
                   key->external.lower_ayuv || key->external.lower_xyuv ||
