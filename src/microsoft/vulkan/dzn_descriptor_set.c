@@ -1889,7 +1889,9 @@ dzn_ResetDescriptorPool(VkDevice device,
 void
 dzn_descriptor_heap_pool_finish(struct dzn_descriptor_heap_pool *pool)
 {
+   pool->offset = 0;
    list_splicetail(&pool->active_heaps, &pool->free_heaps);
+   list_inithead(&pool->active_heaps);
    list_for_each_entry_safe(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link) {
       list_del(&entry->link);
       dzn_descriptor_heap_finish(&entry->heap);
@@ -1930,19 +1932,40 @@ dzn_descriptor_heap_pool_alloc_slots(struct dzn_descriptor_heap_pool *pool,
    uint32_t last_heap_desc_count =
       last_heap ? last_heap->desc_count : 0;
 
-   if (pool->offset + desc_count > last_heap_desc_count) {
-      uint32_t granularity =
+   if (desc_count > last_heap_desc_count - pool->offset) {
+      if (pool->shader_visible) {
+         uint32_t max_desc_count =
+            pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
+            MAX_DESCS_PER_CBV_SRV_UAV_HEAP : MAX_DESCS_PER_SAMPLER_HEAP;
+         assert(pool->type != D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER ||
+                desc_count <= MAX_DESCS_PER_SAMPLER_HEAP);
+         if (desc_count > max_desc_count)
+            return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+      }
+
+      uint64_t granularity =
          (pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ||
           pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) ?
          64 * 1024 : 4 * 1024;
-      uint32_t alloc_step = ALIGN_POT(desc_count * pool->desc_sz, granularity);
-      uint32_t heap_desc_count = MAX2(alloc_step / pool->desc_sz, 16);
+      uint64_t alloc_step =
+         ALIGN_POT((uint64_t)desc_count * pool->desc_sz, granularity);
+      if (alloc_step / pool->desc_sz > UINT32_MAX)
+         return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-      /* Maximum of 2048 samplers per heap when shader_visible is true. */
-      if (pool->shader_visible &&
-          pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
-         assert(desc_count <= MAX_DESCS_PER_SAMPLER_HEAP);
-         heap_desc_count = MIN2(heap_desc_count, MAX_DESCS_PER_SAMPLER_HEAP);
+      uint32_t heap_desc_count = MAX2((uint32_t)(alloc_step / pool->desc_sz), 16);
+
+      if (pool->shader_visible) {
+         if (pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+            uint32_t doubled =
+               last_heap_desc_count > MAX_DESCS_PER_CBV_SRV_UAV_HEAP / 2 ?
+               MAX_DESCS_PER_CBV_SRV_UAV_HEAP :
+               last_heap_desc_count * 2;
+            heap_desc_count = MAX2(heap_desc_count, doubled);
+            heap_desc_count = MIN2(heap_desc_count, MAX_DESCS_PER_CBV_SRV_UAV_HEAP);
+         } else {
+            /* Maximum of 2048 samplers per heap when shader_visible is true. */
+            heap_desc_count = MIN2(heap_desc_count, MAX_DESCS_PER_SAMPLER_HEAP);
+         }
       }
 
       struct dzn_descriptor_heap_pool_entry *new_heap = NULL;
@@ -1952,6 +1975,12 @@ dzn_descriptor_heap_pool_alloc_slots(struct dzn_descriptor_heap_pool *pool,
             new_heap = entry;
             list_del(&entry->link);
             break;
+         }
+         if (pool->shader_visible &&
+             pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+            list_del(&entry->link);
+            dzn_descriptor_heap_finish(&entry->heap);
+            vk_free(pool->alloc, entry);
          }
       }
 
@@ -1988,6 +2017,21 @@ dzn_descriptor_heap_pool_reset(struct dzn_descriptor_heap_pool *pool)
    pool->offset = 0;
    list_splicetail(&pool->active_heaps, &pool->free_heaps);
    list_inithead(&pool->active_heaps);
+
+   if (pool->shader_visible &&
+       pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+      uint32_t max_desc_count = 0;
+      list_for_each_entry(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link)
+         max_desc_count = MAX2(max_desc_count, entry->heap.desc_count);
+
+      list_for_each_entry_safe(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link) {
+         if (entry->heap.desc_count < max_desc_count) {
+            list_del(&entry->link);
+            dzn_descriptor_heap_finish(&entry->heap);
+            vk_free(pool->alloc, entry);
+         }
+      }
+   }
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

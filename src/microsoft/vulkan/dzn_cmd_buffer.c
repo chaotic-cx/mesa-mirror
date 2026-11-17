@@ -481,7 +481,6 @@ dzn_cmd_buffer_reset(struct vk_command_buffer *cbuf, VkCommandBufferResetFlags f
       vk_free(&cmdbuf->vk.pool->alloc, he->data);
    _mesa_hash_table_clear(cmdbuf->rtvs.ht, NULL);
    cmdbuf->null_rtv.ptr = 0;
-   dzn_descriptor_heap_pool_reset(&cmdbuf->rtvs.pool);
    hash_table_foreach(cmdbuf->dsvs.ht, he)
       vk_free(&cmdbuf->vk.pool->alloc, he->data);
    _mesa_hash_table_clear(cmdbuf->dsvs.ht, NULL);
@@ -498,9 +497,6 @@ dzn_cmd_buffer_reset(struct vk_command_buffer *cbuf, VkCommandBufferResetFlags f
    hash_table_foreach(cmdbuf->transition_barriers, he)
       vk_free(&cmdbuf->vk.pool->alloc, he->data);
    _mesa_hash_table_clear(cmdbuf->transition_barriers, NULL);
-   dzn_descriptor_heap_pool_reset(&cmdbuf->dsvs.pool);
-   dzn_descriptor_heap_pool_reset(&cmdbuf->cbv_srv_uav_pool);
-   dzn_descriptor_heap_pool_reset(&cmdbuf->sampler_pool);
 
    if (cmdbuf->vk.state == MESA_VK_COMMAND_BUFFER_STATE_RECORDING &&
        cmdbuf->vk.level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
@@ -510,6 +506,17 @@ dzn_cmd_buffer_reset(struct vk_command_buffer *cbuf, VkCommandBufferResetFlags f
 
    if (cmdbuf->vk.level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
       ID3D12CommandAllocator_Reset(cmdbuf->cmdalloc);
+
+   dzn_descriptor_heap_pool_reset(&cmdbuf->rtvs.pool);
+   dzn_descriptor_heap_pool_reset(&cmdbuf->dsvs.pool);
+   /* Keep CPU RTV/DSV heaps pooled until get_rtv/get_dsv handle OOM. */
+   if (flags & VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT) {
+      dzn_descriptor_heap_pool_finish(&cmdbuf->cbv_srv_uav_pool);
+      dzn_descriptor_heap_pool_finish(&cmdbuf->sampler_pool);
+   } else {
+      dzn_descriptor_heap_pool_reset(&cmdbuf->cbv_srv_uav_pool);
+      dzn_descriptor_heap_pool_reset(&cmdbuf->sampler_pool);
+   }
 }
 
 static uint32_t
