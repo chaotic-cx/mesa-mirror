@@ -134,6 +134,7 @@ dzn_physical_device_get_extensions(struct dzn_physical_device *pdev)
       .KHR_shader_float16_int8               = pdev->options4.Native16BitShaderOpsSupported,
       .KHR_shader_float_controls             = true,
       .KHR_shader_integer_dot_product        = true,
+      .KHR_shader_subgroup_extended_types    = true,
       .KHR_spirv_1_4                         = true,
       .KHR_storage_buffer_storage_class      = true,
 #ifdef DZN_USE_WSI_PLATFORM
