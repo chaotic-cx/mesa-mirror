@@ -22,14 +22,14 @@
 // Disabled
 #define ADDR_HAS_AVX2 0
 #define AVX2_FUNC
-#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-// x86 visual studio builds
-#define ADDR_HAS_AVX2 1
-#define AVX2_FUNC
 #elif defined(__x86_64__) || defined(__i386__)
 // x86 GCC/Clang builds
 #define ADDR_HAS_AVX2 1
 #define AVX2_FUNC [[gnu::target("avx2")]]
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+// x86 visual studio builds
+#define ADDR_HAS_AVX2 1
+#define AVX2_FUNC
 #else
 // Unknown
 #define ADDR_HAS_AVX2 0
@@ -40,12 +40,12 @@
 // Disabled
 #define ADDR_HAS_NEON 0
 #define NEON_FUNC
-#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM))
-// arm visual studio builds
-#define ADDR_HAS_NEON 1
-#define NEON_FUNC
 #elif (defined(__linux__) || defined(_WIN32)) && (defined(__aarch64__) || (defined(__arm__) && defined(__ARM_FP)))
 // arm GCC/Clang builds on windows or linux
+#define ADDR_HAS_NEON 1
+#define NEON_FUNC
+#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM))
+// arm visual studio builds
 #define ADDR_HAS_NEON 1
 #define NEON_FUNC
 #else
