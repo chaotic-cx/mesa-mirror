@@ -1485,6 +1485,28 @@ st_ChooseTextureFormat(struct gl_context *ctx, GLenum target,
 
 
 /**
+ * EXT_color_buffer_float only requires single sample renderbuffers for these
+ * formats and allows NUM_SAMPLE_COUNTS to be zero.
+ */
+static bool
+is_float_format_with_optional_msaa(const struct gl_context *ctx,
+                                   GLenum internalFormat)
+{
+   if (!_mesa_is_gles(ctx))
+      return false;
+
+   switch (internalFormat) {
+   case GL_RGBA16F:
+   case GL_R32F:
+   case GL_RG32F:
+   case GL_RGBA32F:
+      return true;
+   default:
+      return false;
+   }
+}
+
+/**
  * Called via ctx->Driver.QueryInternalFormat().
  */
 static size_t
@@ -1517,18 +1539,22 @@ st_QuerySamplesForFormat(struct gl_context *ctx, GLenum target,
       internalFormat = _mesa_get_linear_internalformat(internalFormat);
    }
 
+   const bool optional_msaa =
+      is_float_format_with_optional_msaa(ctx, internalFormat);
+
    /* Set sample counts in descending order. */
    for (i = MAX_SAMPLES; i > 1; i--) {
       format = st_choose_format(st, internalFormat, GL_NONE, GL_NONE,
                                 PIPE_TEXTURE_2D, i, i, bind,
                                 false, false);
 
-      if (format != PIPE_FORMAT_NONE || i == min_max_samples) {
+      if (format != PIPE_FORMAT_NONE ||
+          (i == min_max_samples && !optional_msaa)) {
          samples[num_sample_counts++] = i;
       }
    }
 
-   if (!num_sample_counts) {
+   if (!num_sample_counts && !optional_msaa) {
       samples[num_sample_counts++] = 1;
    }
 
