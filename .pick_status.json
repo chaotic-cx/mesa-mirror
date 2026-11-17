@@ -904,7 +904,7 @@
         "description": "dzn: Fix pooled descriptor set vk_object_base lifecycle",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a012b219640e875aa552b37dfdaf69336d5863c7",
         "notes": null
