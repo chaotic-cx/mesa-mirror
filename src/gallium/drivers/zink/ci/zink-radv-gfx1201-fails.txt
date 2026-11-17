@@ -58,7 +58,6 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr8888,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
-spec@ext_multisampled_render_to_texture@valid-usage,Crash
 
 # CL issues
 api@clgetdeviceinfo,Fail
