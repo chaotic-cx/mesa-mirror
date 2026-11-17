@@ -309,9 +309,7 @@ mov(jay_builder *b, jay_def dst, jay_def src, struct jay_temp_regs temps)
       }
    } else {
       jay_MOV(b, dst, src)->type =
-         dst.file == FLAG  ? jay_flag_type(b->func) :
-         dst.file == ACCUM ? JAY_TYPE_F32 :
-                             JAY_TYPE_U32;
+         dst.file == FLAG ? jay_flag_type(b->func) : JAY_TYPE_U32;
    }
 }
 
@@ -1183,9 +1181,8 @@ local_ra(jay_ra_state *ra, jay_block *block)
       }
 
       if (jay_debug & JAY_DBG_PRINTDEMAND) {
-         fprintf(stderr, "(RA) [G:%u\tU:%u\tF:%u\tA:%u] ",
-                 register_demand(ra, GPR), register_demand(ra, UGPR),
-                 register_demand(ra, FLAG), register_demand(ra, ACCUM));
+         fprintf(stderr, "(RA) [G:%u\tU:%u\tF:%u] ", register_demand(ra, GPR),
+                 register_demand(ra, UGPR), register_demand(ra, FLAG));
          jay_print_inst(stderr, ra->b.func, I);
       }
    }
@@ -1481,7 +1478,7 @@ jay_register_allocate_function(jay_function *f)
    }
 
    jay_foreach_inst_in_func(f, block, I) {
-      if (I->dst.file == GPR || I->dst.file == UGPR || I->dst.file == ACCUM) {
+      if (I->dst.file == GPR || I->dst.file == UGPR) {
          I->dst.reg *= 2;
       } else if (I->dst.file == FLAG) {
          I->dst.reg *= jay_phys_flag_per_virt(shader);
@@ -1490,9 +1487,7 @@ jay_register_allocate_function(jay_function *f)
       I->cond_flag.reg *= jay_phys_flag_per_virt(shader);
 
       jay_foreach_src(I, s) {
-         if (I->src[s].file == GPR ||
-             I->src[s].file == UGPR ||
-             I->src[s].file == ACCUM) {
+         if (I->src[s].file == GPR || I->src[s].file == UGPR) {
             I->src[s].reg *= 2;
          } else if (I->src[s].file == FLAG) {
             I->src[s].reg *= jay_phys_flag_per_virt(shader);
