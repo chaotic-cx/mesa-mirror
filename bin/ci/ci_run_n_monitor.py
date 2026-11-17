@@ -77,6 +77,7 @@ PROFILES: dict[str, dict] = {
             r"|anv-tgl"
             r"|anv-cml-asan"
             r"|tu-a618"
+            r"|tu-a750"
             r"|lavapipe"
             r"|radv-cezanne"
             r"|radv-gfx1201-valve"
