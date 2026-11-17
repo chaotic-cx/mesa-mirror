@@ -392,20 +392,6 @@ bi_optimize_late(nir_shader *nir, unsigned arch,
     * to reduce register pressure. */
    NIR_PASS(_, nir, nir_opt_sink, nir_move_all);
    NIR_PASS(_, nir, nir_opt_move, nir_move_all);
-
-   /* We might lower attribute, varying, and image indirects. Use the
-    * gathered info to skip the extra analysis in the happy path. */
-   bool any_indirects =
-      nir->info.inputs_read_indirectly || nir->info.outputs_read_indirectly ||
-      nir->info.outputs_written_indirectly ||
-      nir->info.patch_inputs_read_indirectly ||
-      nir->info.patch_outputs_read_indirectly ||
-      nir->info.patch_outputs_written_indirectly || nir->info.images_used[0];
-
-   if (any_indirects) {
-      nir_divergence_analysis(nir);
-      NIR_PASS(_, nir, bi_lower_divergent_indirects, pan_subgroup_size(arch));
-   }
 }
 
 void

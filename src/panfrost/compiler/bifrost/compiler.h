@@ -2014,8 +2014,6 @@ bi_record_use(bi_instr **uses, BITSET_WORD *multiple, bi_instr *I, unsigned s)
 
 /* NIR passes */
 
-bool bi_lower_divergent_indirects(nir_shader *shader, unsigned lanes);
-
 void bi_find_loop_blocks(const bi_context *ctx, bi_block *header,
                          BITSET_WORD *out);
 
