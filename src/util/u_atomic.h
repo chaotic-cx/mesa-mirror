@@ -13,6 +13,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <assert.h>
 
 /* Favor OS-provided implementations.
  *
@@ -22,10 +23,10 @@
  */
 #if defined(__sun)
 #define PIPE_ATOMIC_OS_SOLARIS
+#elif defined(__GNUC__) || defined(__clang__)
+#define PIPE_ATOMIC_GCC_INTRINSIC
 #elif defined(_MSC_VER)
 #define PIPE_ATOMIC_MSVC_INTRINSIC
-#elif defined(__GNUC__)
-#define PIPE_ATOMIC_GCC_INTRINSIC
 #else
 #error "Unsupported platform"
 #endif
@@ -117,7 +118,6 @@
  * implementations where not.
  */
 #include <intrin.h>
-#include <assert.h>
 
 __forceinline char _interlockedadd8(char volatile * _Addend, char _Value)
 {
@@ -227,7 +227,6 @@ __forceinline short _interlockedadd16(short volatile * _Addend, short _Value)
 #define PIPE_ATOMIC "Solaris OS atomic functions"
 
 #include <atomic.h>
-#include <assert.h>
 
 #define p_atomic_set(_v, _i) (*(_v) = (_i))
 #define p_atomic_read(_v) (*(_v))
