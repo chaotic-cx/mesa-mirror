@@ -1118,6 +1118,9 @@ kk_parse_environment_options(struct kk_physical_device *pdev)
       settings->disabled_workarounds |= BITFIELD64_BIT(index);
    }
 
+   /* No longer needed workarounds (to be deleted in code eventually) */
+   settings->disabled_workarounds |= BITFIELD64_BIT(17);
+
    /* Workarounds resolved on macOS 27 */
    if (ns_is_os_version_at_least(27, 0, 0)) {
       /* 1-6 */
@@ -1126,7 +1129,6 @@ kk_parse_environment_options(struct kk_physical_device *pdev)
       settings->disabled_workarounds |= BITFIELD64_BIT(8);
       settings->disabled_workarounds |= BITFIELD64_BIT(11);
       settings->disabled_workarounds |= BITFIELD64_BIT(12);
-      settings->disabled_workarounds |= BITFIELD64_BIT(17);
       settings->disabled_workarounds |= BITFIELD64_BIT(18);
    }
    /* M5 only workarounds */
