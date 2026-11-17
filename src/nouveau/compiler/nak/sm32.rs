@@ -3,12 +3,12 @@
 
 use crate::ir::*;
 use crate::legalize::{
-    src_is_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers, LegalizeBuilder,
-    PadValue,
+    LegalizeBuildHelpers, LegalizeBuilder, PadValue, src_is_reg,
+    swap_srcs_if_not_reg,
 };
 use crate::sm30_instr_latencies::{
-    encode_kepler_shader, instr_exec_latency, instr_latency,
-    latency_upper_bound, KeplerInstructionEncoder,
+    KeplerInstructionEncoder, encode_kepler_shader, instr_exec_latency,
+    instr_latency, latency_upper_bound,
 };
 use mesa_util::bitview::*;
 
@@ -3009,10 +3009,11 @@ impl SM32Op for OpBra {
 
     fn encode(&self, e: &mut SM32Encoder<'_>) {
         e.set_opcode(0x120, 0);
-        e.set_field(2..6, 0xf_u8); // Condition code
-                                   // 7: bra to cbuf
-                                   // 8: .lmt (limit)
-                                   // 9: .u (uniform for warp)
+        // Condition code:
+        // 7: bra to cbuf
+        // 8: .lmt (limit)
+        // 9: .u (uniform for warp)
+        e.set_field(2..6, 0xf_u8);
         e.set_rel_offset(23..47, &self.target);
     }
 }

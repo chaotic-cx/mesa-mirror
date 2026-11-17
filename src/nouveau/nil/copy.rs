@@ -1,7 +1,7 @@
 // Copyright © 2024 Valve Corp. and Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::extent::{units, Extent4D, Offset4D};
+use crate::extent::{Extent4D, Offset4D, units};
 use crate::tiling::{GOBType, Tiling};
 
 use std::ffi::c_void;

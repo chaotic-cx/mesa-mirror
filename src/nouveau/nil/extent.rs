@@ -1,10 +1,10 @@
 // Copyright © 2024 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+use crate::Minify;
 use crate::format::Format;
 use crate::image::SampleLayout;
 use crate::tiling::{GOBType, Tiling};
-use crate::Minify;
 
 use std::ops::Add;
 

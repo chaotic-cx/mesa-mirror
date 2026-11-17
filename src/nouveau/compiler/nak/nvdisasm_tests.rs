@@ -9,8 +9,8 @@ use std::io::Write;
 use std::process;
 use std::process::Command;
 use std::slice;
-use std::sync::atomic::AtomicUsize;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicUsize;
 
 static FILE_NUM: AtomicUsize = AtomicUsize::new(0);
 
@@ -521,9 +521,13 @@ pub fn test_ld_st_atom() {
                                         };
 
                                         if sm >= 70 {
-                                            format!("{op}.e{atom_op}.ef{atom_type_str}.strong.{cta} {dst}[{r4_64_str}{uniform_addr}+{addr_offset_str}], r2;")
+                                            format!(
+                                                "{op}.e{atom_op}.ef{atom_type_str}.strong.{cta} {dst}[{r4_64_str}{uniform_addr}+{addr_offset_str}], r2;"
+                                            )
                                         } else {
-                                            format!("{op}.e{atom_op}{atom_type_str} {dst}[{r4_64_str}{uniform_addr}+{addr_offset_str}], r2;")
+                                            format!(
+                                                "{op}.e{atom_op}{atom_type_str} {dst}[{r4_64_str}{uniform_addr}+{addr_offset_str}], r2;"
+                                            )
                                         }
                                     }
                                     MemSpace::Shared => {
@@ -535,7 +539,9 @@ pub fn test_ld_st_atom() {
                                         }
                                         let dst =
                                             if use_dst { "r0" } else { "rz" };
-                                        format!("atoms{atom_op}{atom_type_str} {dst}, [{r4_64_str}{addr_stride}{uniform_addr}+{addr_offset_str}], r2;")
+                                        format!(
+                                            "atoms{atom_op}{atom_type_str} {dst}, [{r4_64_str}{addr_stride}{uniform_addr}+{addr_offset_str}], r2;"
+                                        )
                                     }
                                     MemSpace::Local => continue,
                                 };
@@ -1074,9 +1080,13 @@ pub fn test_isberd() {
                                 skew,
                             };
                             let disasm = if imm_offset != 0 {
-                                format!("isberd{output_str}{access_type_str}{skew_str}{mem_type_str} r1, [r2+0x{imm_offset:x}];")
+                                format!(
+                                    "isberd{output_str}{access_type_str}{skew_str}{mem_type_str} r1, [r2+0x{imm_offset:x}];"
+                                )
                             } else {
-                                format!("isberd{output_str}{access_type_str}{skew_str}{mem_type_str} r1, [r2];")
+                                format!(
+                                    "isberd{output_str}{access_type_str}{skew_str}{mem_type_str} r1, [r2];"
+                                )
                             };
                             c.push(instr, disasm);
                         }
@@ -1130,9 +1140,13 @@ pub fn test_isbewr() {
                             skew,
                         };
                         let disasm = if imm_offset != 0 {
-                            format!("isbewr.o{access_type_str}{skew_str}{mem_type_str} [r2+0x{imm_offset:x}], r1;")
+                            format!(
+                                "isbewr.o{access_type_str}{skew_str}{mem_type_str} [r2+0x{imm_offset:x}], r1;"
+                            )
                         } else {
-                            format!("isbewr.o{access_type_str}{skew_str}{mem_type_str} [r2], r1;")
+                            format!(
+                                "isbewr.o{access_type_str}{skew_str}{mem_type_str} [r2], r1;"
+                            )
                         };
                         c.push(instr, disasm);
                     }
@@ -1585,7 +1599,9 @@ pub fn test_float_ops() {
                             srcs: srcs.clone(),
                             ftz,
                         };
-                        let disasm = format!("ufset.bf{cmp_op}{ftz_str}.and {dst}, {srcs_str}, upt;");
+                        let disasm = format!(
+                            "ufset.bf{cmp_op}{ftz_str}.and {dst}, {srcs_str}, upt;"
+                        );
                         c.push(instr, disasm);
 
                         for set_op in &pred_set_ops {
@@ -1813,7 +1829,7 @@ pub fn test_float_ops() {
                                 ftz,
                             };
                             let disasm = format!(
-                            "ufadd{ftz_str}{rnd_mode_str}{saturate_str} {dst}, {srcs_str};"
+                                "ufadd{ftz_str}{rnd_mode_str}{saturate_str} {dst}, {srcs_str};"
                             );
                             c.push(instr, disasm);
 
@@ -1826,7 +1842,7 @@ pub fn test_float_ops() {
                                 dnz: false,
                             };
                             let disasm = format!(
-                            "ufmul{ftz_str}{rnd_mode_str}{saturate_str} {dst}, {srcs_str};"
+                                "ufmul{ftz_str}{rnd_mode_str}{saturate_str} {dst}, {srcs_str};"
                             );
                             c.push(instr, disasm);
                         }
@@ -1843,7 +1859,7 @@ pub fn test_float_ops() {
                                 dnz: false,
                             };
                             let disasm = format!(
-                            "uffma{ftz_str}{rnd_mode_str}{saturate_str} {dst}, {srcs_str};"
+                                "uffma{ftz_str}{rnd_mode_str}{saturate_str} {dst}, {srcs_str};"
                             );
                             c.push(instr, disasm);
                         }

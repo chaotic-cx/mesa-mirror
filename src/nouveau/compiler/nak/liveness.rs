@@ -6,7 +6,7 @@ use crate::ir::*;
 use compiler::dataflow::BackwardDataflow;
 use mesa_util::bitset::BitSet;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::cmp::{max, min, Ord, Ordering};
+use std::cmp::{Ord, Ordering, max, min};
 
 #[derive(Clone, Default)]
 pub struct LiveSet {

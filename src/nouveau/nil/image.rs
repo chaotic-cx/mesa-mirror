@@ -1,11 +1,11 @@
 // Copyright © 2024 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::extent::{units, Extent4D};
+use crate::Minify;
+use crate::extent::{Extent4D, units};
 use crate::format::Format;
 use crate::modifiers::*;
 use crate::tiling::Tiling;
-use crate::Minify;
 
 use mesa_util::format::pipe_format::*;
 use mesa_util::format::*;

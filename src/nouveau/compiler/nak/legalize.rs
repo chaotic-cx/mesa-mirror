@@ -1,7 +1,7 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::const_tracker::ConstTracker;
 use crate::ir::*;
 use crate::liveness::{BlockLiveness, Liveness, SimpleLiveness};

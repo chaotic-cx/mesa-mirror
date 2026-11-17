@@ -3,11 +3,11 @@
 
 use crate::ir::*;
 use crate::legalize::{
-    src_is_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers, LegalizeBuilder,
+    LegalizeBuildHelpers, LegalizeBuilder, src_is_reg, swap_srcs_if_not_reg,
 };
 use crate::sm30_instr_latencies::{
-    encode_kepler_shader, instr_exec_latency, instr_latency,
-    latency_upper_bound, KeplerInstructionEncoder,
+    KeplerInstructionEncoder, encode_kepler_shader, instr_exec_latency,
+    instr_latency, latency_upper_bound,
 };
 use mesa_util::bitview::*;
 

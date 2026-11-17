@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    api::{GetDebugFlags, DEBUG},
+    api::{DEBUG, GetDebugFlags},
     ir::*,
 };
 use mesa_util::bitset::BitSet;

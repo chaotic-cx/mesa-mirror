@@ -7,7 +7,7 @@ use mesa_util::format::*;
 use nil_rs_bindings::*;
 use nvidia_headers::classes::{cla297, clb097, clb197};
 
-use crate::extent::{units, Extent4D};
+use crate::extent::{Extent4D, units};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

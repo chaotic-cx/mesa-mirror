@@ -9,19 +9,19 @@ extern crate nvidia_headers;
 use mesa_util::bitview::*;
 use mesa_util::format::pipe_format::*;
 use nil_rs_bindings::*;
-use nvidia_headers::classes::cl9097::tex as cl9097;
 use nvidia_headers::classes::cl9097::FERMI_A;
-use nvidia_headers::classes::clb097::tex as clb097;
+use nvidia_headers::classes::cl9097::tex as cl9097;
 use nvidia_headers::classes::clb097::MAXWELL_A;
-use nvidia_headers::classes::clc097::tex as clc097;
+use nvidia_headers::classes::clb097::tex as clb097;
 use nvidia_headers::classes::clc097::PASCAL_A;
+use nvidia_headers::classes::clc097::tex as clc097;
 use nvidia_headers::classes::clc397::VOLTA_A;
-use nvidia_headers::classes::clcb97::tex as clcb97;
 use nvidia_headers::classes::clcb97::HOPPER_A;
+use nvidia_headers::classes::clcb97::tex as clcb97;
 use paste::paste;
 use std::ops::Range;
 
-use crate::extent::{units, Extent4D};
+use crate::extent::{Extent4D, units};
 use crate::format::Format;
 use crate::image::{Image, ImageDim, SampleLayout, View, ViewAccess, ViewType};
 

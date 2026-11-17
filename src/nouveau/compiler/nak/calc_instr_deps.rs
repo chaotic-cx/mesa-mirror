@@ -1,7 +1,7 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::ir::*;
 use crate::opt_instr_sched_common::estimate_block_weight;
 use crate::reg_tracker::{RegRefIterable, RegTracker, SparseRegTracker};

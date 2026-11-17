@@ -5,12 +5,12 @@ use compiler::bindings::*;
 use nak_bindings::*;
 use nv_push_rs::Push as NvPush;
 use nvidia_headers::classes::cla0c0::mthd as cla0c0;
-use nvidia_headers::classes::clb1c0::mthd as clb1c0;
 use nvidia_headers::classes::clb1c0::MAXWELL_COMPUTE_B;
-use nvidia_headers::classes::clc3c0::mthd as clc3c0;
+use nvidia_headers::classes::clb1c0::mthd as clb1c0;
 use nvidia_headers::classes::clc3c0::VOLTA_COMPUTE_A;
-use nvidia_headers::classes::clc6c0::mthd as clc6c0;
+use nvidia_headers::classes::clc3c0::mthd as clc3c0;
 use nvidia_headers::classes::clc6c0::AMPERE_COMPUTE_A;
+use nvidia_headers::classes::clc6c0::mthd as clc6c0;
 use nvidia_headers::classes::clcbc0::HOPPER_COMPUTE_A;
 
 use std::ffi::c_void;

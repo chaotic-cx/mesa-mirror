@@ -1,7 +1,7 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::ir::*;
 
 use mesa_util::bitset::BitSet;

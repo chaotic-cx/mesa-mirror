@@ -1,14 +1,14 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::ir::*;
 use crate::liveness::{BlockLiveness, Liveness, SimpleLiveness};
 
 use compiler::union_find::UnionFind;
 use mesa_util::bitset::BitSet;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
-use std::cmp::{max, min, Ordering};
+use std::cmp::{Ordering, max, min};
 
 struct KillSet {
     set: FxHashSet<SSAValue>,
@@ -1125,11 +1125,7 @@ impl AssignRegsBlock {
 
                 self.ra.free_killed(dsts_killed);
 
-                if del_copy {
-                    None
-                } else {
-                    Some(instr)
-                }
+                if del_copy { None } else { Some(instr) }
             }
             Op::Pin(_) | Op::Unpin(_) => {
                 assert!(instr.pred.is_true());
@@ -1226,11 +1222,7 @@ impl AssignRegsBlock {
                 self.ra.free_killed(dsts_killed);
 
                 pcopy.tmp = self.pcopy_tmp();
-                if pcopy.is_empty() {
-                    None
-                } else {
-                    Some(instr)
-                }
+                if pcopy.is_empty() { None } else { Some(instr) }
             }
             Op::RegOut(out) => {
                 for src in out.srcs.iter_mut() {

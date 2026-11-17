@@ -3,8 +3,8 @@
 
 use crate::from_nir::*;
 use crate::ir::{
-    max_warps_per_sm, ShaderInfo, ShaderIoInfo, ShaderModel, ShaderModelInfo,
-    ShaderStageInfo,
+    ShaderInfo, ShaderIoInfo, ShaderModel, ShaderModelInfo, ShaderStageInfo,
+    max_warps_per_sm,
 };
 use crate::sph;
 

@@ -1,13 +1,13 @@
 // Copyright © 2024 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::extent::{units, Extent4D};
+use crate::ILog2Ceil;
+use crate::extent::{Extent4D, units};
 use crate::format::Format;
 use crate::image::{
-    ImageDim, ImageUsageFlags, SampleLayout, IMAGE_USAGE_2D_VIEW_BIT,
-    IMAGE_USAGE_LINEAR_BIT, IMAGE_USAGE_VIDEO_BIT,
+    IMAGE_USAGE_2D_VIEW_BIT, IMAGE_USAGE_LINEAR_BIT, IMAGE_USAGE_VIDEO_BIT,
+    ImageDim, ImageUsageFlags, SampleLayout,
 };
-use crate::ILog2Ceil;
 
 use mesa_util::format::pipe_format::*;
 use mesa_util::format::*;

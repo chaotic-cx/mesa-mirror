@@ -3,8 +3,8 @@
 
 #![allow(non_upper_case_globals)]
 
-use crate::api::GetDebugFlags;
 use crate::api::DEBUG;
+use crate::api::GetDebugFlags;
 use crate::builder::*;
 use crate::ir::*;
 use crate::sph::{OutputTopology, PixelImap};
@@ -3236,7 +3236,9 @@ impl<'a> ShaderFromNir<'a> {
                     if flags.per_primitive() {
                         let ShaderStageInfo::Mesh(stage) = &mut self.info.stage
                         else {
-                            panic!("isberd_nv per primitive attributes can only be used for mesh shaders");
+                            panic!(
+                                "isberd_nv per primitive attributes can only be used for mesh shaders"
+                            );
                         };
 
                         // Per primitive always imply output
@@ -3297,7 +3299,9 @@ impl<'a> ShaderFromNir<'a> {
                     if flags.per_primitive() {
                         let ShaderStageInfo::Mesh(stage) = &mut self.info.stage
                         else {
-                            panic!("isbewr_nv per primitives attributes can only be used for mesh shaders");
+                            panic!(
+                                "isbewr_nv per primitives attributes can only be used for mesh shaders"
+                            );
                         };
 
                         // Per primitive always imply output
@@ -3545,7 +3549,9 @@ impl<'a> ShaderFromNir<'a> {
                     {
                         info.reads_interlock_ticket = true;
                     } else {
-                        panic!("Ordering ticket is only available in fragment shaders");
+                        panic!(
+                            "Ordering ticket is only available in fragment shaders"
+                        );
                     }
                 }
 

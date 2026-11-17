@@ -3,7 +3,7 @@
 
 use crate::ir::*;
 use crate::legalize::{
-    src_is_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers, LegalizeBuilder,
+    LegalizeBuildHelpers, LegalizeBuilder, src_is_reg, swap_srcs_if_not_reg,
 };
 
 use mesa_util::bitview::*;

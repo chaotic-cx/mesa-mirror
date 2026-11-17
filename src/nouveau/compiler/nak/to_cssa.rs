@@ -1,7 +1,7 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::ir::*;
 use crate::liveness::{BlockLiveness, Liveness, SimpleLiveness};
 
@@ -32,11 +32,7 @@ where
     fn next(&mut self) -> Option<<I as Iterator>::Item> {
         if let Some(a) = self.a.peek() {
             if let Some(b) = self.b.peek() {
-                if a <= b {
-                    self.a.next()
-                } else {
-                    self.b.next()
-                }
+                if a <= b { self.a.next() } else { self.b.next() }
             } else {
                 self.a.next()
             }

@@ -1,7 +1,7 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::const_tracker::ConstTracker;
 use crate::ir::*;
 use crate::liveness::{
@@ -11,7 +11,7 @@ use crate::liveness::{
 use mesa_util::bitset::BitSet;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cell::RefCell;
-use std::cmp::{max, Ordering, Reverse};
+use std::cmp::{Ordering, Reverse, max};
 use std::collections::BinaryHeap;
 
 #[derive(Default)]

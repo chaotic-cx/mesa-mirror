@@ -1,8 +1,8 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, ShaderBin, DEBUG};
-use crate::hw_runner::{Context, PushBuilder, RunConfig, Runner, BO, CB0};
+use crate::api::{DEBUG, GetDebugFlags, ShaderBin};
+use crate::hw_runner::{BO, CB0, Context, PushBuilder, RunConfig, Runner};
 use crate::ir::*;
 
 use acorn::Acorn;
@@ -547,7 +547,10 @@ pub fn test_foldable_op_with(
                         DstType::F32 => {
                             let a = f32::from_bits(*u);
                             let b = f32::from_bits(d);
-                            assert!(f32_eq(a, b), "{fold_src:?} => {a} (expected) vs {b} (device)");
+                            assert!(
+                                f32_eq(a, b),
+                                "{fold_src:?} => {a} (expected) vs {b} (device)"
+                            );
                         }
                         typ => panic!("Can't auto-test {typ:?} data"),
                     }
@@ -3076,8 +3079,10 @@ pub fn test_xorsign() {
         // The xorsign pattern is equal to fmax(fmin(a, b), -b) or fmin(fmax(a, -b), b) except when
         // a is NaN, where it is equal to the negative of the result.
         assert!(
-            (f32_eq(fres, fres_fmax_fmin) || src_af.is_nan() && f32_eq(fres, -fres_fmax_fmin)) &&
-            (f32_eq(fres, fres_fmin_fmax) || src_af.is_nan() && f32_eq(fres, -fres_fmin_fmax)),
+            (f32_eq(fres, fres_fmax_fmin)
+                || src_af.is_nan() && f32_eq(fres, -fres_fmax_fmin))
+                && (f32_eq(fres, fres_fmin_fmax)
+                    || src_af.is_nan() && f32_eq(fres, -fres_fmin_fmax)),
             "expected: {fres_fmax_fmin:e} ({res_fmax_fmin:x}) got: {fres:e} ({res:x}), inputs: {src_af:e} ({src_au:x}), {src_bf:e} ({src_bu:x})"
         );
     }

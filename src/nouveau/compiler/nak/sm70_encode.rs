@@ -3,8 +3,8 @@
 
 use crate::ir::*;
 use crate::legalize::{
-    src_is_reg, src_is_upred_reg, swap_srcs_if_both_reg, swap_srcs_if_not_reg,
-    LegalizeBuildHelpers, LegalizeBuilder,
+    LegalizeBuildHelpers, LegalizeBuilder, src_is_reg, src_is_upred_reg,
+    swap_srcs_if_both_reg, swap_srcs_if_not_reg,
 };
 use crate::sm70::ShaderModel70;
 
@@ -47,11 +47,7 @@ impl SM70Encoder<'_> {
     ///
     /// This may be different from the actual maximum supported by hardware.
     fn ugpr_max(&self) -> u32 {
-        if self.sm >= 100 {
-            255
-        } else {
-            63
-        }
+        if self.sm >= 100 { 255 } else { 63 }
     }
 
     fn zero_reg(&self, file: RegFile) -> RegRef {

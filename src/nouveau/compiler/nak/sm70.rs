@@ -3,10 +3,10 @@
 
 use crate::ir::*;
 use crate::legalize::LegalizeBuilder;
-use crate::sm120_instr_latencies::SM120Latency;
 use crate::sm70_encode::*;
 use crate::sm75_instr_latencies::SM75Latency;
 use crate::sm80_instr_latencies::SM80Latency;
+use crate::sm120_instr_latencies::SM120Latency;
 pub struct ShaderModel70 {
     sm: u8,
 }

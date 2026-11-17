@@ -1,12 +1,12 @@
 // Copyright © 2025 Valve Corporation
 // SPDX-License-Identifier: MIT
 
-use crate::api::{GetDebugFlags, DEBUG};
+use crate::api::{DEBUG, GetDebugFlags};
 use crate::ir::*;
 use crate::liveness::{BlockLiveness, LiveSet, Liveness, SimpleLiveness};
 use crate::opt_instr_sched_common::{
-    calc_statistics, estimate_variable_latency, side_effect_type, DepGraph,
-    EdgeLabel, FutureReadyInstr, ReadyInstr, SideEffect,
+    DepGraph, EdgeLabel, FutureReadyInstr, ReadyInstr, SideEffect,
+    calc_statistics, estimate_variable_latency, side_effect_type,
 };
 use rustc_hash::FxHashMap;
 use std::cmp::Reverse;

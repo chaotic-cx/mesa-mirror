@@ -698,11 +698,7 @@ impl SrcRef {
 
 impl From<bool> for SrcRef {
     fn from(b: bool) -> SrcRef {
-        if b {
-            SrcRef::True
-        } else {
-            SrcRef::False
-        }
+        if b { SrcRef::True } else { SrcRef::False }
     }
 }
 
@@ -1090,11 +1086,7 @@ impl Src {
         match self.src_ref {
             SrcRef::Imm32(i) => {
                 assert!(self.is_unmodified());
-                if (i & 0xfff) == 0 {
-                    None
-                } else {
-                    Some(i)
-                }
+                if (i & 0xfff) == 0 { None } else { Some(i) }
             }
             _ => None,
         }
@@ -1521,11 +1513,7 @@ impl OpFoldData<'_> {
     #[allow(dead_code)]
     pub fn get_u32_bnot_src(&self, op: &impl SrcsAsSlice, src: &Src) -> u32 {
         let x = self.get_u32_src(op, src);
-        if src.src_mod.is_bnot() {
-            !x
-        } else {
-            x
-        }
+        if src.src_mod.is_bnot() { !x } else { x }
     }
 
     #[allow(dead_code)]

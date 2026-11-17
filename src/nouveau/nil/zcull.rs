@@ -194,8 +194,14 @@ mod tests {
     }
 
     fn check_reference(data: [u32; 5 + 16 * 2]) {
-        let [width, height, aliquot_count, normalized_aliquots, subregion_algorithm, expected_subregion_data @ ..] =
-            data;
+        let [
+            width,
+            height,
+            aliquot_count,
+            normalized_aliquots,
+            subregion_algorithm,
+            expected_subregion_data @ ..,
+        ] = data;
 
         let zcull =
             ZCull::new(&REFERENCE_DEV_INFO, 0, 0, width.into(), height.into());

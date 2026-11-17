@@ -3,8 +3,8 @@
 
 use crate::ir::*;
 use compiler::cfg::CFG;
-use std::cmp::max;
 use std::cmp::Reverse;
+use std::cmp::max;
 
 pub mod graph {
     #[derive(Clone)]

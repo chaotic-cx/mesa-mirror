@@ -38,11 +38,7 @@ enum RegLatencySM75 {
 }
 
 pub const fn pred(has_pred: bool, a: u32, b: u32) -> u32 {
-    if has_pred {
-        a + b
-    } else {
-        b
-    }
+    if has_pred { a + b } else { b }
 }
 
 impl RegLatencySM75 {
