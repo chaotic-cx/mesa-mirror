@@ -703,6 +703,8 @@ static void radeon_enc_av1_tile_info(struct radeon_encoder *enc, struct radeon_b
    uint32_t minLog2TileCols = radeon_enc_av1_tile_log2(maxTileWidthSb, sbCols);
    uint32_t minLog2Tiles = MAX2(minLog2TileCols,
                                 radeon_enc_av1_tile_log2(maxTileAreaSb, sbRows * sbCols));
+   uint32_t maxLog2TileCols = radeon_enc_av1_tile_log2(1, MIN2(sbCols, 64));
+   uint32_t maxLog2TileRows = radeon_enc_av1_tile_log2(1, MIN2(sbRows, 64));
    uint32_t TileColsLog2, TileRowsLog2;
 
    TileColsLog2 = util_logbase2_ceil(p_config->num_tile_cols);
@@ -710,15 +712,25 @@ static void radeon_enc_av1_tile_info(struct radeon_encoder *enc, struct radeon_b
 
    radeon_bs_code_fixed_bits(bs, p_config->uniform_tile_spacing, 1);
    if (p_config->uniform_tile_spacing) {
-      for ( i = minLog2TileCols; i < TileColsLog2; i++)
-         radeon_bs_code_fixed_bits(bs, 1, 1);
+      uint32_t log2val = minLog2TileCols;
+      while (log2val < maxLog2TileCols) {
+         uint32_t increment_tile_cols_log2 = log2val < TileColsLog2 ? 1 : 0;
+         radeon_bs_code_fixed_bits(bs, increment_tile_cols_log2, 1);
+         if (increment_tile_cols_log2 == 1)
+            log2val++;
+         else
+            break;
+      }
 
-      radeon_bs_code_fixed_bits(bs, 0, 1);
-
-      for ( i = minLog2Tiles - TileColsLog2; i < TileRowsLog2; i++)
-         radeon_bs_code_fixed_bits(bs, 1, 1);
-
-      radeon_bs_code_fixed_bits(bs, 0, 1);
+      log2val = minLog2Tiles > TileColsLog2 ? minLog2Tiles - TileColsLog2 : 0;
+      while (log2val < maxLog2TileRows) {
+         uint32_t increment_tile_rows_log2 = log2val < TileRowsLog2 ? 1 : 0;
+         radeon_bs_code_fixed_bits(bs, increment_tile_rows_log2, 1);
+         if (increment_tile_rows_log2 == 1)
+            log2val++;
+         else
+            break;
+      }
    } else {
       uint32_t widestTileSb = 0;
       uint32_t maxWidthInSb = 0;
