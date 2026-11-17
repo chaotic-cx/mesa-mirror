@@ -44,6 +44,7 @@ replace_with_formatted_load_buffer_amd(nir_builder *b, nir_def *old_def, nir_der
                                  .can_speculate = access & ACCESS_CAN_SPECULATE,
                                  .backend_flags = backend_flags);
    desc->num_components = gfx_level >= GFX13 ? 8 : 4; /* size of buffer descriptors */
+   nir_instr_as_tex(nir_def_instr(desc))->texture_non_uniform = access & ACCESS_NON_UNIFORM;
 
    if (gfx_level >= GFX13) {
       /* The 5th dword is the format dword. */

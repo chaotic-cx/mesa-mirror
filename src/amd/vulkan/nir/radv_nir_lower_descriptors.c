@@ -26,6 +26,7 @@ typedef struct {
    bool has_desc_resource_level;
    bool enable_custom_border_on_compute_queue;
    bool gfx10_descriptor_alias_robust;
+   bool use_llvm;
 
    const struct radv_shader_args *args;
    const struct radv_shader_info *info;
@@ -389,6 +390,15 @@ get_sampler_desc(nir_builder *b, lower_descriptors_state *state, nir_deref_instr
    return desc;
 }
 
+/* descriptor_amd needs the descriptor itself rather than its address, which may be non-uniform. */
+static nir_def *
+load_non_uniform_desc(nir_builder *b, lower_descriptors_state *state, nir_def *ptr, unsigned num_components)
+{
+   assert(state->use_llvm);
+   return nir_load_global(b, num_components, 32, convert_pointer_to_64_bit(b, state, ptr),
+                          .access = ACCESS_NON_WRITEABLE | ACCESS_CAN_REORDER, .align_mul = num_components * 4u);
+}
+
 static void
 update_image_intrinsic(nir_builder *b, lower_descriptors_state *state, nir_intrinsic_instr *intrin)
 {
@@ -401,6 +411,8 @@ update_image_intrinsic(nir_builder *b, lower_descriptors_state *state, nir_intri
                                     nir_intrinsic_access(intrin) & ACCESS_NON_UNIFORM, NULL, !is_load);
 
    if (intrin->intrinsic == nir_intrinsic_image_deref_descriptor_amd) {
+      if (nir_intrinsic_access(intrin) & ACCESS_NON_UNIFORM)
+         desc = load_non_uniform_desc(b, state, desc, intrin->def.num_components);
       nir_def_replace(&intrin->def, desc);
    } else {
       nir_rewrite_image_intrinsic(intrin, desc, nir_image_intrinsic_type_bindless);
@@ -451,6 +463,8 @@ lower_image_heap_intrinsic(nir_builder *b, lower_descriptors_state *state, nir_i
                        nir_intrinsic_access(intrin) & ACCESS_NON_UNIFORM, NULL, !is_load);
 
    if (intrin->intrinsic == nir_intrinsic_image_heap_descriptor_amd) {
+      if (nir_intrinsic_access(intrin) & ACCESS_NON_UNIFORM)
+         desc = load_non_uniform_desc(b, state, desc, intrin->def.num_components);
       nir_def_replace(&intrin->def, desc);
    } else {
       nir_rewrite_image_intrinsic(intrin, desc, nir_image_intrinsic_type_bindless);
@@ -730,6 +744,8 @@ lower_descriptors_tex(nir_builder *b, lower_descriptors_state *state, nir_tex_in
    }
 
    if (tex->op == nir_texop_descriptor_amd) {
+      if (tex->texture_non_uniform)
+         image = load_non_uniform_desc(b, state, image, tex->def.num_components);
       nir_def_replace(&tex->def, image);
       return true;
    }
@@ -870,6 +886,7 @@ radv_nir_lower_descriptors(nir_shader *shader, const struct radv_compiler_info *
       .has_desc_resource_level = compiler_info->ac->has_desc_resource_level,
       .enable_custom_border_on_compute_queue = compiler_info->key.enable_custom_border_on_compute_queue,
       .gfx10_descriptor_alias_robust = compiler_info->key.gfx10_descriptor_alias_robust,
+      .use_llvm = compiler_info->key.use_llvm,
       .args = &stage->args,
       .info = &stage->info,
       .layout = &stage->layout,

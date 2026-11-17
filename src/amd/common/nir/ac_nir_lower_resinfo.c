@@ -336,7 +336,8 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
          desc = nir_image_descriptor_amd(b, dim == GLSL_SAMPLER_DIM_BUF ? 4 : 8,
                                          32, intr->src[0].ssa,
                                          .image_dim = dim,
-                                         .image_array = is_array);
+                                         .image_array = is_array,
+                                         .access = nir_intrinsic_access(intr));
          break;
 
       case nir_intrinsic_image_deref_size:
@@ -347,7 +348,8 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
          desc = nir_image_deref_descriptor_amd(b, dim == GLSL_SAMPLER_DIM_BUF ? 4 : 8,
                                                32, intr->src[0].ssa,
                                                .image_dim = dim,
-                                               .image_array = is_array);
+                                               .image_array = is_array,
+                                               .access = nir_intrinsic_access(intr));
          break;
 
       case nir_intrinsic_bindless_image_size:
@@ -357,7 +359,8 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
          desc = nir_bindless_image_descriptor_amd(b, dim == GLSL_SAMPLER_DIM_BUF ? 4 : 8,
                                                   32, intr->src[0].ssa,
                                                   .image_dim = dim,
-                                                  .image_array = is_array);
+                                                  .image_array = is_array,
+                                                  .access = nir_intrinsic_access(intr));
          break;
 
       case nir_intrinsic_image_heap_size:
@@ -367,7 +370,8 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
          desc = nir_image_heap_descriptor_amd(b, dim == GLSL_SAMPLER_DIM_BUF ? 4 : 8,
                                               32, intr->src[0].ssa,
                                               .image_dim = dim,
-                                              .image_array = is_array);
+                                              .image_array = is_array,
+                                              .access = nir_intrinsic_access(intr));
          break;
 
       default:
@@ -417,6 +421,7 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
                new_tex->texture_index = tex->texture_index;
                new_tex->sampler_index = tex->sampler_index;
                new_tex->can_speculate = tex->can_speculate;
+               new_tex->texture_non_uniform = tex->texture_non_uniform;
                new_tex->dest_type = nir_type_int32;
                new_tex->src[0].src = nir_src_for_ssa(tex->src[i].src.ssa);
                new_tex->src[0].src_type = tex->src[i].src_type;
