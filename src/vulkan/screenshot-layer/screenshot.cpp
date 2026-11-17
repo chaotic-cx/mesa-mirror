@@ -145,7 +145,6 @@ struct swapchain_data {
    VkExtent2D imageExtent;
    VkFormat format;
 
-   VkImage image;
    VkImage *imageList;
    uint32_t imageListSize;
 };
@@ -194,19 +193,17 @@ void set_swapchain_images(swapchain_data *data, VkImage *imageList, uint32_t siz
    }
 }
 
-void select_image_from_swapchain(swapchain_data *data, uint32_t index) {
+VkImage select_image_from_swapchain(swapchain_data *data, uint32_t index) {
    if (!data->imageList || index >= data->imageListSize) {
       LOG(WARN, "Swapchain image index (%u) is out of range (%u images)\n", index, data->imageListSize);
-      data->image = VK_NULL_HANDLE;
-      return;
+      return VK_NULL_HANDLE;
    }
-   data->image = data->imageList[index];
+   return data->imageList[index];
 }
 
 void free_swapchain_images(swapchain_data *data) {
    ralloc_free(data->imageList);
    data->imageList = nullptr;
-   data->image = VK_NULL_HANDLE;
    data->imageListSize = 0;
 }
 
@@ -1247,6 +1244,7 @@ static VkResult screenshot_QueuePresentKHR(
       VkSwapchainKHR swapchain = pPresentInfo->pSwapchains[0];
 
       struct swapchain_data *swapchain_data = FIND(struct swapchain_data, swapchain);
+      VkImage presented_image = select_image_from_swapchain(swapchain_data, pPresentInfo->pImageIndices[0]);
 
       /* Run initial setup with client */
       if (instance_data->params.enabled[SCREENSHOT_PARAM_ENABLED_comms] && instance_data->socket_fd < 0) {
@@ -1294,8 +1292,8 @@ static VkResult screenshot_QueuePresentKHR(
          LOG(DEBUG, "No swapchain images available. Aborting screenshot capture.\n");
          instance_data->screenshot_enabled = false;
       }
-      if (!swapchain_data->image) {
-         LOG(DEBUG, "No swapchain image acquired. Aborting screenshot capture.\n");
+      if (presented_image == VK_NULL_HANDLE) {
+         LOG(DEBUG, "No swapchain image set. Aborting screenshot capture.\n");
          instance_data->screenshot_enabled = false;
       }
 
@@ -1341,7 +1339,7 @@ static VkResult screenshot_QueuePresentKHR(
             semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
             device_data->vtable.CreateSemaphore(device_data->device, &semaphoreInfo, nullptr, &semaphoreWaitAfterSubmission);
             if(write_image(full_path,
-                           swapchain_data->image,
+                           presented_image,
                            device_data,
                            instance_data,
                            queue_data,
@@ -1368,32 +1366,6 @@ static VkResult screenshot_QueuePresentKHR(
       device_data->vtable.DestroySemaphore(device_data->device, semaphoreWaitAfterSubmission, nullptr);
       semaphoreWaitAfterSubmission = VK_NULL_HANDLE;
    }
-   return result;
-}
-
-static VkResult screenshot_AcquireNextImageKHR(
-    VkDevice                                    device,
-    VkSwapchainKHR                              swapchain,
-    uint64_t                                    timeout,
-    VkSemaphore                                 semaphore,
-    VkFence                                     fence,
-    uint32_t*                                   pImageIndex)
-{
-   struct swapchain_data *swapchain_data =
-      FIND(struct swapchain_data, swapchain);
-   struct device_data *device_data = swapchain_data->device;
-
-   VkResult result = device_data->vtable.AcquireNextImageKHR(device, swapchain, timeout,
-                                                             semaphore, fence, pImageIndex);
-   loader_platform_thread_lock_mutex(&globalLock);
-
-   if (result == VK_SUCCESS) {
-      // Use the index given by AcquireNextImageKHR() to obtain the image we intend to copy.
-      if(pImageIndex){
-         select_image_from_swapchain(swapchain_data, *pImageIndex);
-      }
-   }
-   loader_platform_thread_unlock_mutex(&globalLock);
    return result;
 }
 
@@ -1518,7 +1490,6 @@ static const struct {
    ADD_HOOK(GetSwapchainImagesKHR),
    ADD_HOOK(DestroySwapchainKHR),
    ADD_HOOK(QueuePresentKHR),
-   ADD_HOOK(AcquireNextImageKHR),
 
    ADD_HOOK(CreateDevice),
    ADD_HOOK(GetDeviceQueue),
