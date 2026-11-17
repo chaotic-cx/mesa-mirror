@@ -297,6 +297,15 @@ v3d-rpi5-traces:arm64:
   variables:
     PIGLIT_TRACES_FILE: traces-broadcom.yml
 
+v3d-rpi5-traces-citron:arm64:
+  extends:
+    - .ci-tron-v3d-traces:arm64
+    - .ci-tron-broadcom-rpi5:arm64
+    - .v3d-rules
+  timeout: 10m
+  variables:
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 5
+
 v3d-rpi5-gl-asan:arm64:
   extends:
     - .ci-tron-arm64-test-asan-gl
