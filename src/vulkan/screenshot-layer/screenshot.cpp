@@ -146,6 +146,7 @@ struct swapchain_data {
    VkFormat format;
 
    VkImage image;
+   VkImage *imageList;
    uint32_t imageListSize;
 };
 
@@ -185,30 +186,27 @@ static void unmap_object(uint64_t obj)
    simple_mtx_unlock(&vk_object_to_data_mutex);
 }
 
-void map_images(swapchain_data *data, VkImage *imageList, uint32_t size) {
+void set_swapchain_images(swapchain_data *data, VkImage *imageList, uint32_t size) {
    data->imageListSize = size;
-   VkImage *image;
-   image = (VkImage *)malloc(sizeof(VkImage) * size);
+   data->imageList = ralloc_array(data, VkImage, size);
    for (uint32_t index = 0; index < size; index++) {
-      image[index] = imageList[index];
-      map_object(HKEY(index), &image[index]);
+      data->imageList[index] = imageList[index];
    }
 }
 
-void select_image_from_map(swapchain_data *data, uint32_t index) {
-   data->image = *(FIND(VkImage, index));
+void select_image_from_swapchain(swapchain_data *data, uint32_t index) {
+   if (!data->imageList || index >= data->imageListSize) {
+      LOG(WARN, "Swapchain image index (%u) is out of range (%u images)\n", index, data->imageListSize);
+      data->image = VK_NULL_HANDLE;
+      return;
+   }
+   data->image = data->imageList[index];
 }
 
-void unmap_images(swapchain_data *data) {
-   VkImage *image, *first;
-   first = nullptr;
-   for (uint32_t index = 0; index < data->imageListSize; index++) {
-      image = FIND(VkImage, index);
-      if (!first)
-         first = image;
-      unmap_object(HKEY(index));
-   }
-   free(first);
+void free_swapchain_images(swapchain_data *data) {
+   ralloc_free(data->imageList);
+   data->imageList = nullptr;
+   data->image = VK_NULL_HANDLE;
    data->imageListSize = 0;
 }
 
@@ -361,7 +359,7 @@ static struct swapchain_data *new_swapchain_data(VkSwapchainKHR swapchain,
 
 static void destroy_swapchain_data(struct swapchain_data *data)
 {
-   unmap_images(data);
+   free_swapchain_images(data);
    unmap_object(HKEY(data->swapchain));
    ralloc_free(data);
 }
@@ -629,15 +627,12 @@ static VkResult screenshot_GetSwapchainImagesKHR(
    VkResult result = vtable->GetSwapchainImagesKHR(device, swapchain, pCount, pSwapchainImages);
 
    loader_platform_thread_lock_mutex(&globalLock);
-   LOG(DEBUG, "Swapchain size: %d\n", *pCount);
-   if (swapchain_data->imageListSize > 0)
-      unmap_images(swapchain_data);
    if (result == VK_SUCCESS) {
-      // Save the images produced from the swapchain in a hash table
-      if (*pCount > 0) {
-            if(pSwapchainImages){
-               map_images(swapchain_data, pSwapchainImages, *pCount);
-         }
+      LOG(DEBUG, "Swapchain size: %d\n", *pCount);
+      // Save the images produced from the swapchain in the swapchain_data structure
+      if (*pCount > 0 && pSwapchainImages != NULL) {
+         free_swapchain_images(swapchain_data);
+         set_swapchain_images(swapchain_data, pSwapchainImages, *pCount);
       }
    }
    loader_platform_thread_unlock_mutex(&globalLock);
@@ -1294,6 +1289,15 @@ static VkResult screenshot_QueuePresentKHR(
             instance_data->region_enabled = true;
          }
       }
+      /* Run check on swapchain images to ensure they exist, else abort capture */
+      if (!swapchain_data->imageList || swapchain_data->imageListSize == 0) {
+         LOG(DEBUG, "No swapchain images available. Aborting screenshot capture.\n");
+         instance_data->screenshot_enabled = false;
+      }
+      if (!swapchain_data->image) {
+         LOG(DEBUG, "No swapchain image acquired. Aborting screenshot capture.\n");
+         instance_data->screenshot_enabled = false;
+      }
 
       if (instance_data->screenshot_enabled) {
          LOG(DEBUG, "Screenshot Authorized!\n");
@@ -1386,7 +1390,7 @@ static VkResult screenshot_AcquireNextImageKHR(
    if (result == VK_SUCCESS) {
       // Use the index given by AcquireNextImageKHR() to obtain the image we intend to copy.
       if(pImageIndex){
-         select_image_from_map(swapchain_data, *pImageIndex);
+         select_image_from_swapchain(swapchain_data, *pImageIndex);
       }
    }
    loader_platform_thread_unlock_mutex(&globalLock);
