@@ -534,7 +534,7 @@
         "description": "mesa/st: Do not report multisampling for optional float formats",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "561f9ae74b2b7da06bb4830aaca8d017a3dd2746",
         "notes": null
