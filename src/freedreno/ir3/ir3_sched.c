@@ -72,6 +72,7 @@
  */
 
 struct ir3_sched_ctx {
+   struct ir3 *ir;
    struct ir3_compiler *compiler;
    struct ir3_block *block; /* the current block */
    struct dag *dag;
@@ -521,7 +522,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
     * addr value which is otherwise ready.
     */
    if (writes_addr0(instr) && instr->uses) {
-      struct ir3 *ir = instr->block->shader;
+      struct ir3 *ir = ctx->ir;
       bool ready = false;
       bool has_users = false;
       for (unsigned i = 0; (i < ir->a0_users_count) && !ready; i++) {
@@ -542,7 +543,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
    }
 
    if (writes_addr1(instr) && instr->uses) {
-      struct ir3 *ir = instr->block->shader;
+      struct ir3 *ir = ctx->ir;
       bool ready = false;
       bool has_users = false;
       for (unsigned i = 0; (i < ir->a1_users_count) && !ready; i++) {
@@ -591,7 +592,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
     * TODO we could handle this by false-deps now, probably.
     */
    if (is_kill_or_demote(instr)) {
-      struct ir3 *ir = instr->block->shader;
+      struct ir3 *ir = ctx->ir;
 
       for (unsigned i = 0; i < ir->baryfs_count; i++) {
          struct ir3_instruction *baryf = ir->baryfs[i];
@@ -1286,6 +1287,7 @@ ir3_sched(struct ir3 *ir)
 {
    struct ir3_sched_ctx *ctx = rzalloc(NULL, struct ir3_sched_ctx);
 
+   ctx->ir = ir;
    ctx->compiler = ir->compiler;
 
    foreach_block (block, &ir->block_list) {
