@@ -532,6 +532,8 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
             continue;
          has_users = true;
          ready = could_sched(ctx, indirect, instr);
+         if (ready)
+            break;
       }
 
       /* nothing could be scheduled, so keep looking: */
@@ -551,6 +553,8 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
             continue;
          has_users = true;
          ready = could_sched(ctx, indirect, instr);
+         if (ready)
+            break;
       }
 
       /* nothing could be scheduled, so keep looking: */
