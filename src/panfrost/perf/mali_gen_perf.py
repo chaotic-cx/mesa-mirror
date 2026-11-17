@@ -345,7 +345,7 @@ def main():
       #define MALI_CONFIG_L2_CACHE_COUNT (double)constants->l2_cache_count
       #define MALI_CONFIG_SHADER_CORE_COUNT (double)constants->shader_core_count
       #define MALI_CONFIG_TIME_SPAN                                                 \\
-              (double)(MIN2(dump_info->time_span.end_ns - dump_info->time_span.start_ns, 1))
+              ((double)(dump_info->time_span.end_ns - dump_info->time_span.start_ns) / 1000000000.0)
 
       /* We seem to have a few cases where the dividend is low and the divisor
        * is zero. Let's assume a divisor of zero means we just had an
