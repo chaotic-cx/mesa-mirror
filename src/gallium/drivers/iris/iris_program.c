@@ -92,6 +92,33 @@ iris_backend_compile(const struct iris_screen *screen,
       };
       struct jay_shader_bin *bin = jay_compile(devinfo, &jc_params);
 
+      if (bin == NULL)
+         return NULL;
+
+      for (unsigned i = 0; i < ARRAY_SIZE(bin->stats); i++) {
+         if (bin->stats[i].dispatch_width == 0)
+            break;
+
+         brw_shader_debug_log(screen->brw, params->log_data,
+                              "%s SIMD%d shader: %d inst, %d loops, %u cycles, "
+                              "%d:%d spills:fills, %u sends, "
+                              "scheduled with mode %s, "
+                              "Promoted %u constants, "
+                              "compacted %d to %d bytes.\n",
+                              _mesa_shader_stage_to_abbrev(nir->info.stage),
+                              bin->stats[i].dispatch_width,
+                              bin->stats[i].instrs,
+                              bin->stats[i].loops,
+                              bin->stats[i].cycles,
+                              bin->stats[i].spills,
+                              bin->stats[i].fills,
+                              bin->stats[i].sends,
+                              "jay",
+                              0, /* promoted_constants */
+                              bin->stats[i].code_size,
+                              bin->stats[i].code_size);
+      }
+
       return bin->kernel;
    } else {
       return brw_compile(screen->brw, params);
