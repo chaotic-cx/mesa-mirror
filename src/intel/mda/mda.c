@@ -51,6 +51,7 @@ typedef struct mesa_archive {
    slice   contents;
    int     objects_count;
    object *objects;
+   struct hash_table *group_descriptions;
 
    slice info;
    slice detected_mda_prefix;
@@ -106,6 +107,42 @@ static slice
 ralloc_slice_dup(void *mem_ctx, slice s)
 {
    return (slice){ ralloc_memdup(mem_ctx, s.data, s.len), s.len };
+}
+
+static char *
+sanitize_description(void *mem_ctx, slice name)
+{
+   if (slice_is_empty(name))
+      return NULL;
+
+   char *description = ralloc_size(mem_ctx, name.len + 1);
+   for (int i = 0; i < name.len; i++) {
+      unsigned char c = name.data[i];
+      description[i] = (c < 0x20 || c == 0x7f) ? '-' : c;
+   }
+   description[name.len] = '\0';
+   return description;
+}
+
+static char *
+nir_description(void *mem_ctx, slice nir)
+{
+   if (!slice_starts_with(nir, slice_from_cstr("shader: ")))
+      return NULL;
+
+   while (!slice_is_empty(nir)) {
+      slice_cut_result line = slice_cut(nir, '\n');
+      slice prefix = slice_from_cstr("name: ");
+      if (slice_starts_with(line.before, prefix))
+         return sanitize_description(mem_ctx, slice_strip_prefix(line.before, prefix));
+
+      if (slice_is_empty(line.before) ||
+          slice_starts_with(line.before, slice_from_cstr("decl_")) ||
+          slice_starts_with(line.before, slice_from_cstr("impl ")))
+         break;
+      nir = line.after;
+   }
+   return NULL;
 }
 
 typedef struct {
@@ -301,6 +338,7 @@ parse_mesa_archive(void *mem_ctx, const char *filename)
    tar_reader_init_from_bytes(&tr, contents, size);
 
    struct hash_table *lookup = slice_hash_table_create(ma);
+   ma->group_descriptions = slice_hash_table_create(ma);
 
    while (tar_reader_next(&tr, &entry)) {
       slice fullpath;
@@ -380,6 +418,14 @@ parse_mesa_archive(void *mem_ctx, const char *filename)
          slice_hash_table_insert(lookup, key_slice, (void *)(intptr_t)obj_index);
       } else {
          obj = &ma->objects[obj_index];
+      }
+
+      if (obj->versions_count == 0 &&
+          slice_starts_with(obj->name, slice_from_cstr("NIR")) &&
+          !slice_hash_table_search(ma->group_descriptions, obj->prefix)) {
+         char *description = nir_description(ma, entry.contents);
+         if (description)
+            slice_hash_table_insert(ma->group_descriptions, obj->prefix, description);
       }
 
       obj->versions = rerzalloc(ma, obj->versions, content,
@@ -512,6 +558,14 @@ cmd_listraw(context *ctx)
    return 0;
 }
 
+static const char *
+group_description(mesa_archive *ma, slice prefix)
+{
+   struct hash_entry *entry =
+      slice_hash_table_search(ma->group_descriptions, prefix);
+   return entry ? entry->data : NULL;
+}
+
 static int
 cmd_list(context *ctx)
 {
@@ -529,7 +583,11 @@ cmd_list(context *ctx)
 
       foreach_object(obj, ma) {
          if (!slice_equal_cstr(obj->prefix, cur_name)) {
-            printf("  %.*s/\n", SLICE_FMT(obj->prefix));
+            printf("  %.*s/", SLICE_FMT(obj->prefix));
+            const char *description = group_description(ma, obj->prefix);
+            if (description)
+               printf("    # %s", description);
+            printf("\n");
             cur_name = slice_to_cstr(ctx, obj->prefix);
          }
          printf("    %.*s/", SLICE_FMT(obj->name));
