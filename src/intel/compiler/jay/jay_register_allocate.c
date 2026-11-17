@@ -1393,11 +1393,13 @@ jay_register_allocate_function(jay_function *f)
 
    /* We track the order of instructions in the program to inform coalescing */
    uint32_t *order = linear_alloc_array(lin_ctx, uint32_t, f->ssa_alloc);
+   jay_inst **def = linear_alloc_array(lin_ctx, jay_inst *, f->ssa_alloc);
    uint32_t order_counter = 0;
 
    jay_foreach_inst_in_func(f, block, I) {
       jay_foreach_dst_index(I, _, index) {
          order[index] = order_counter++;
+         def[index] = I;
          ra.affinities[index].stride = JAY_NUM_STRIDES;
       }
 
@@ -1408,9 +1410,16 @@ jay_register_allocate_function(jay_function *f)
          if (jay_num_values(I->src[s]) > 1 && !ra.affinities[index].repr) {
             uint32_t repr = UINT_MAX, repr_c = 0, best_order = UINT_MAX;
 
-            /* Pick the earliest representative to maximize freedom */
+            /* Pick the earliest representative to maximize freedom. However,
+             * exclude preloads that are too early in the register file and
+             * cannot possibly fit the vector.
+             */
             jay_foreach_index(I->src[s], j, index) {
-               if (order[index] < best_order) {
+               bool better = (order[index] < best_order &&
+                              !(def[index]->op == JAY_OPCODE_PRELOAD &&
+                                jay_preload_reg(def[index]) < j));
+
+               if (repr == UINT_MAX || better) {
                   repr = index;
                   repr_c = j;
                   best_order = order[index];
