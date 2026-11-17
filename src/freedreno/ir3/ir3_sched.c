@@ -246,6 +246,64 @@ cycle_count(struct ir3_instruction *instr)
    }
 }
 
+static struct ir3_instruction *
+split_instr(struct ir3_sched_ctx *ctx, struct ir3_instruction *orig_instr)
+{
+   struct ir3_instruction *new_instr = ir3_instr_clone(orig_instr);
+   di(new_instr, "split instruction");
+   sched_node_init(ctx, new_instr);
+   return new_instr;
+}
+
+/* "spill" the address registers by remapping any unscheduled
+ * instructions which depend on the current address register
+ * to a clone of the instruction which wrote the address reg.
+ */
+static struct ir3_instruction *
+split_addr(struct ir3_sched_ctx *ctx, struct ir3_instruction **addr,
+           struct ir3_instruction **users, unsigned users_count)
+{
+   struct ir3_instruction *new_addr = NULL;
+   unsigned i;
+
+   assert(*addr);
+
+   for (i = 0; i < users_count; i++) {
+      struct ir3_instruction *indirect = users[i];
+
+      if (!indirect)
+         continue;
+
+      /* skip instructions already scheduled: */
+      if (is_scheduled(indirect))
+         continue;
+
+      /* remap remaining instructions using current addr
+       * to new addr:
+       */
+      if (indirect->address->def == (*addr)->dsts[0]) {
+         if (!new_addr) {
+            new_addr = split_instr(ctx, *addr);
+            /* original addr is scheduled, but new one isn't: */
+            new_addr->flags &= ~IR3_INSTR_MARK;
+            new_addr->uses = _mesa_pointer_set_create(ctx);
+         }
+         indirect->address->def = new_addr->dsts[0];
+         _mesa_set_add(new_addr->uses, indirect);
+         /* don't need to remove old dag edge since old addr is
+          * already scheduled:
+          */
+         sched_node_add_dep(ctx, indirect, new_addr, 0);
+         di(indirect, "new address");
+      }
+   }
+
+   /* all remaining indirects remapped to new addr: */
+   *addr = NULL;
+
+   return new_addr;
+}
+
 static void
 schedule(struct ir3_sched_ctx *ctx, struct ir3_instruction *instr)
 {
@@ -931,64 +989,6 @@ choose_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes)
       return chosen->instr;
 
    return NULL;
-}
-
-static struct ir3_instruction *
-split_instr(struct ir3_sched_ctx *ctx, struct ir3_instruction *orig_instr)
-{
-   struct ir3_instruction *new_instr = ir3_instr_clone(orig_instr);
-   di(new_instr, "split instruction");
-   sched_node_init(ctx, new_instr);
-   return new_instr;
-}
-
-/* "spill" the address registers by remapping any unscheduled
- * instructions which depend on the current address register
- * to a clone of the instruction which wrote the address reg.
- */
-static struct ir3_instruction *
-split_addr(struct ir3_sched_ctx *ctx, struct ir3_instruction **addr,
-           struct ir3_instruction **users, unsigned users_count)
-{
-   struct ir3_instruction *new_addr = NULL;
-   unsigned i;
-
-   assert(*addr);
-
-   for (i = 0; i < users_count; i++) {
-      struct ir3_instruction *indirect = users[i];
-
-      if (!indirect)
-         continue;
-
-      /* skip instructions already scheduled: */
-      if (is_scheduled(indirect))
-         continue;
-
-      /* remap remaining instructions using current addr
-       * to new addr:
-       */
-      if (indirect->address->def == (*addr)->dsts[0]) {
-         if (!new_addr) {
-            new_addr = split_instr(ctx, *addr);
-            /* original addr is scheduled, but new one isn't: */
-            new_addr->flags &= ~IR3_INSTR_MARK;
-            new_addr->uses = _mesa_pointer_set_create(ctx);
-         }
-         indirect->address->def = new_addr->dsts[0];
-         _mesa_set_add(new_addr->uses, indirect);
-         /* don't need to remove old dag edge since old addr is
-          * already scheduled:
-          */
-         sched_node_add_dep(ctx, indirect, new_addr, 0);
-         di(indirect, "new address");
-      }
-   }
-
-   /* all remaining indirects remapped to new addr: */
-   *addr = NULL;
-
-   return new_addr;
 }
 
 static void
