@@ -7215,24 +7215,6 @@ radv_flush_dynamic_descriptors(struct radv_cmd_buffer *cmd_buffer, VkShaderStage
       radv_flush_dynamic_descriptors_offsets(cmd_buffer, stages, bind_point);
 }
 
-ALWAYS_INLINE void
-radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t idx, struct radv_vbo_info *vbo_info)
-{
-   const struct radv_vertex_buffer_state *vertex_buffer = &cmd_buffer->state.vertex_buffer;
-   const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
-   const uint32_t binding = d->vertex_input.bindings[idx];
-
-   vbo_info->binding = binding;
-   vbo_info->va = vertex_buffer->bindings[binding].addr;
-   vbo_info->size = vertex_buffer->bindings[binding].size;
-
-   vbo_info->stride = d->vk.vi_binding_strides[binding];
-
-   vbo_info->attrib_offset = d->vertex_input.offsets[idx];
-   vbo_info->attrib_format_size = d->vertex_input.format_sizes[idx];
-   vbo_info->non_trivial_format = d->vertex_input.non_trivial_format[idx];
-}
-
 ALWAYS_INLINE static void
 radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, const unsigned i,
                              const bool uses_dynamic_inputs, uint32_t *desc, uint32_t *format)
