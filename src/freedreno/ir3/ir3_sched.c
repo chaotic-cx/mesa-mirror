@@ -51,12 +51,12 @@
  *
  * There are a few special cases that need to be handled, since sched
  * is currently independent of register allocation.  Usages of address
- * register (a0.x) or predicate register (p0.x) must be serialized.  Ie.
- * if you have two pairs of instructions that write the same special
- * register and then read it, then those pairs cannot be interleaved.
- * To solve this, when we are in such a scheduling "critical section",
- * and we encounter a conflicting write to a special register, we try
- * to schedule any remaining instructions that use that value first.
+ * registers (a0.x/a1.x) must be serialized.  Ie. if you have two
+ * pairs of instructions that write the same special register and then
+ * read it, then those pairs cannot be interleaved. To solve this,
+ * when we are in such a scheduling "critical section", and we
+ * encounter a conflicting write to a special register, we try to
+ * schedule any remaining instructions that use that value first.
  *
  * TODO we can detect too-large live_values here.. would be a good place
  * to "spill" cheap things, like move from uniform/immed.  (Constructing
@@ -431,7 +431,7 @@ could_sched(struct ir3_sched_ctx *ctx,
 }
 
 /* Check if instruction is ok to schedule.  Make sure it is not blocked
- * by use of addr/predicate register, etc.
+ * by use of addr register, etc.
  */
 static bool
 check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
@@ -440,7 +440,7 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
    assert(!is_scheduled(instr));
 
    if (instr == ctx->split) {
-      /* Don't schedule instructions created by splitting a a0.x/a1.x/p0.x
+      /* Don't schedule instructions created by splitting a a0.x/a1.x
        * write until another "normal" instruction has been scheduled.
        */
       return false;
@@ -452,9 +452,6 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
    /* For instructions that write address register we need to
     * make sure there is at least one instruction that uses the
     * addr value which is otherwise ready.
-    *
-    * NOTE if any instructions use pred register and have other
-    * src args, we would need to do the same for writes_pred()..
     */
    if (writes_addr0(instr) && instr->uses) {
       struct ir3 *ir = instr->block->shader;
@@ -494,9 +491,8 @@ check_instr(struct ir3_sched_ctx *ctx, struct ir3_sched_notes *notes,
          return false;
    }
 
-   /* if this is a write to address/predicate register, and that
-    * register is currently in use, we need to defer until it is
-    * free:
+   /* if this is a write to address register, and that register is currently in
+    * use, we need to defer until it is free:
     */
    if (writes_addr0(instr) && ctx->addr0) {
       assert(ctx->addr0 != instr);
@@ -1169,7 +1165,7 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
 {
    ctx->block = block;
 
-   /* addr/pred writes are per-block: */
+   /* addr writes are per-block: */
    ctx->addr0 = NULL;
    ctx->addr1 = NULL;
    ctx->sy_delay = 0;
@@ -1246,9 +1242,8 @@ sched_block(struct ir3_sched_ctx *ctx, struct ir3_block *block)
          struct ir3 *ir = block->shader;
 
          /* nothing available to schedule.. if we are blocked on
-          * address/predicate register conflict, then break the
-          * deadlock by cloning the instruction that wrote that
-          * reg:
+          * address register conflict, then break the deadlock
+          * by cloning the instruction that wrote that reg:
           */
          if (notes.addr0_conflict) {
             new_instr =
