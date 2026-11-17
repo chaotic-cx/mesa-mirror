@@ -891,9 +891,12 @@ dump_state(struct ir3_sched_ctx *ctx)
    if (!SCHED_DEBUG)
       return;
 
+   struct ir3_sched_notes notes;
+
    foreach_sched_node (n, &ctx->dag->heads) {
-      di(n->instr, "maxdel=%3d le=%d del=%u ", n->max_delay,
-         live_effect(n->instr), node_delay(ctx, n));
+      di(n->instr, "maxdel=%3d le=%d del=%u should_defer=%u check_instr=%u",
+         n->max_delay, live_effect(n->instr), node_delay(ctx, n),
+         should_defer(ctx, n->instr), check_instr(ctx, &notes, n->instr));
 
       util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
          struct ir3_sched_node *child = (struct ir3_sched_node *)edge->child;
