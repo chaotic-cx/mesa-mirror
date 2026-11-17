@@ -170,4 +170,7 @@ dEQP-VK.subgroups.basic.graphics.subgroupbarrier
 Events
 Events@out_of_order_event_waitlist_multi_queue
 
+dEQP-VK.api.image_clearing.dedicated_allocation.clear_depth_stencil_image.2d.multiple_layers.d24_unorm_s8_uint_separate_layouts_depth_64x11
+dEQP-VK.memory.device_memory_report.create_and_destroy_object.compute_pipeline
+dEQP-VK.memory.device_memory_report.create_and_destroy_object.graphics_pipeline
 dEQP-VK.texture.filtering.3d.combinations.nearest.linear.repeat.mirror_clamp_to_edge.mirror_clamp_to_edge

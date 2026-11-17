@@ -263,7 +263,6 @@ program@execute@vector-conversion,Fail
 ubsan-KHR-GL31.framebuffer_blit.multisampled_to_singlesampled_blit_color_config_test,Fail
 
 # SKQP failing tests
-ES2BlendWithNoTexture,Fail
 SRGBReadWritePixels,Fail
 gl_all_bitmap_configs,Fail
 gl_androidblendmodes,Fail
@@ -275,7 +274,6 @@ gl_blurSmallRadii,Fail
 gl_coloremoji_blendmodes,Fail
 gl_colorwheelnative,Fail
 gl_combinemaskfilter,Fail
-gl_composeshader_grid,Fail
 gl_dashtextcaps,Fail
 gl_degenerate_gradients,Fail
 gl_draw-atlas-colors,Fail
