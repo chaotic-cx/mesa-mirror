@@ -1714,6 +1714,9 @@ dzn_descriptor_set_init(struct dzn_descriptor_set *set,
 static void
 dzn_descriptor_set_finish(struct dzn_descriptor_set *set)
 {
+   if (!set->layout)
+      return;
+
    vk_object_base_finish(&set->base);
    set->pool = NULL;
    set->layout = NULL;
@@ -1727,6 +1730,9 @@ dzn_descriptor_pool_destroy(struct dzn_descriptor_pool *pool,
       return;
 
    struct dzn_device *device = container_of(pool->base.device, struct dzn_device, vk);
+
+   for (uint32_t s = 0; s < pool->set_count; s++)
+      dzn_descriptor_set_finish(&pool->sets[s]);
 
    if (device->bindless) {
       if (pool->bindless.buf)
