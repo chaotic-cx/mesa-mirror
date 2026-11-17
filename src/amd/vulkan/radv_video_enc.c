@@ -2858,16 +2858,30 @@ radv_enc_av1_obu_instruction(struct radv_cmd_buffer *cmd_buffer, const VkVideoEn
       uint32_t min_log2_tiles = MAX2(min_log2_tile_cols, radv_enc_av1_tile_log2(64 * 36, sb_rows * sb_cols));
       uint32_t tile_cols_log2 = radv_enc_av1_tile_log2(1, av1_state->tile_config.num_tile_cols);
       uint32_t tile_rows_log2 = radv_enc_av1_tile_log2(1, av1_state->tile_config.num_tile_rows);
+      uint32_t max_log2_tile_cols = radv_enc_av1_tile_log2(1, MIN2(sb_cols, 64));
+      uint32_t max_log2_tile_rows = radv_enc_av1_tile_log2(1, MIN2(sb_rows, 64));
 
       radv_enc_code_fixed_bits(cmd_buffer, av1_state->tile_config.uniform_tile_spacing, 1);
       if (av1_state->tile_config.uniform_tile_spacing) {
-         for (unsigned i = min_log2_tile_cols; i < tile_cols_log2; i++)
-            radv_enc_code_fixed_bits(cmd_buffer, 1, 1);
-         radv_enc_code_fixed_bits(cmd_buffer, 0, 1);
+         uint32_t log2val = min_log2_tile_cols;
+         while (log2val < max_log2_tile_cols) {
+            uint32_t increment_tile_cols_log2 = log2val < tile_cols_log2 ? 1 : 0;
+            radv_enc_code_fixed_bits(cmd_buffer, increment_tile_cols_log2, 1);
+            if (increment_tile_cols_log2 == 1)
+               log2val++;
+            else
+               break;
+         }
 
-         for (unsigned i = min_log2_tiles - tile_cols_log2; i < tile_rows_log2; i++)
-            radv_enc_code_fixed_bits(cmd_buffer, 1, 1);
-         radv_enc_code_fixed_bits(cmd_buffer, 0, 1);
+         log2val = min_log2_tiles > tile_cols_log2 ? min_log2_tiles - tile_cols_log2 : 0;
+         while (log2val < max_log2_tile_rows) {
+            uint32_t increment_tile_rows_log2 = log2val < tile_rows_log2 ? 1 : 0;
+            radv_enc_code_fixed_bits(cmd_buffer, increment_tile_rows_log2, 1);
+            if (increment_tile_rows_log2 == 1)
+               log2val++;
+            else
+               break;
+         }
       } else {
          uint32_t widest_tile_sb = 0;
          uint32_t start_sb = 0;
