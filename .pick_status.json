@@ -2784,7 +2784,7 @@
         "description": "v3dv: disable early-Z for every job in a suspend/resume chain on V3D 4.2",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 3,
         "main_sha": null,
         "because_sha": "2478939b6988ae26ecef9b9f15376c122af134f6",
         "notes": null
