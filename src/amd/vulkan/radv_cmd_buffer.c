@@ -8531,18 +8531,17 @@ radv_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBegi
                radv_CmdSetRenderingInputAttachmentIndices(commandBuffer, ria_info);
             }
          }
-
-         cmd_buffer->state.inherited_pipeline_statistics = pBeginInfo->pInheritanceInfo->pipelineStatistics;
-
-         if (cmd_buffer->state.inherited_pipeline_statistics &
-             VK_QUERY_PIPELINE_STATISTIC_GEOMETRY_SHADER_PRIMITIVES_BIT)
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_SHADER_QUERY;
-
-         cmd_buffer->state.inherited_occlusion_queries = pBeginInfo->pInheritanceInfo->occlusionQueryEnable;
-         cmd_buffer->state.inherited_query_control_flags = pBeginInfo->pInheritanceInfo->queryFlags;
-         if (cmd_buffer->state.inherited_occlusion_queries)
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
       }
+
+      cmd_buffer->state.inherited_pipeline_statistics = pBeginInfo->pInheritanceInfo->pipelineStatistics;
+
+      if (cmd_buffer->state.inherited_pipeline_statistics & VK_QUERY_PIPELINE_STATISTIC_GEOMETRY_SHADER_PRIMITIVES_BIT)
+         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_SHADER_QUERY;
+
+      cmd_buffer->state.inherited_occlusion_queries = pBeginInfo->pInheritanceInfo->occlusionQueryEnable;
+      cmd_buffer->state.inherited_query_control_flags = pBeginInfo->pInheritanceInfo->queryFlags;
+      if (cmd_buffer->state.inherited_occlusion_queries)
+         cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
    }
 
    if (radv_device_fault_detection_enabled(device))
