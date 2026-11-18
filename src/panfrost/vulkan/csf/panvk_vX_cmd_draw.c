@@ -4818,8 +4818,8 @@ setup_tiler_oom_ctx(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_rendering_state *render = &cmdbuf->state.gfx.render;
    struct cs_builder *b = panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_FRAGMENT);
-
-   uint32_t layer_count = render->layer_count;
+   /* Multiview FBD arrays contain only the enabled views. */
+   uint32_t layer_count = calc_enabled_layer_count(cmdbuf);
    uint32_t td_count = DIV_ROUND_UP(layer_count, MAX_LAYERS_PER_TILER_DESC);
 
    struct cs_index counter = cs_scratch_reg32(b, 1);
