@@ -1711,7 +1711,7 @@ radv_query_shader(struct radv_cmd_buffer *cmd_buffer, VkQueryType query_type, st
     * there is an implicit execution dependency from each such query command to all query commands
     * previously submitted to the same queue.
     */
-   cmd_buffer->active_query_flush_bits |= AC_BARRIER_SYNC_CS;
+   cmd_buffer->state.pending_query_flush_bits |= AC_BARRIER_SYNC_CS;
 
    radv_meta_end(cmd_buffer);
 }
@@ -2423,7 +2423,7 @@ radv_CmdCopyQueryPoolResultsToMemoryKHR(VkCommandBuffer commandBuffer, VkQueryPo
     * synchronizes before query copy.
     */
    if (pdev->drirc.debug.flush_before_query_copy)
-      cmd_buffer->state.flush_bits |= cmd_buffer->active_query_flush_bits;
+      cmd_buffer->state.flush_bits |= cmd_buffer->state.pending_query_flush_bits;
 
    /* From the Vulkan spec 1.1.108:
     *
@@ -2486,7 +2486,7 @@ radv_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uin
     * pending active queries. Otherwise the GPU might write queries data
     * after the reset operation.
     */
-   cmd_buffer->state.flush_bits |= cmd_buffer->active_query_flush_bits;
+   cmd_buffer->state.flush_bits |= cmd_buffer->state.pending_query_flush_bits;
 
    radv_suspend_conditional_rendering(cmd_buffer);
    radv_meta_begin(cmd_buffer);
@@ -2586,7 +2586,7 @@ emit_end_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *pool,
       UNREACHABLE("ending unhandled query type");
    }
 
-   cmd_buffer->active_query_flush_bits |= get_query_flush_bits(query_type);
+   cmd_buffer->state.pending_query_flush_bits |= get_query_flush_bits(query_type);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -2721,7 +2721,7 @@ radv_CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 sta
       /* Only EOP timestamps need to be waited for, TOP_OF_PIPE ones are written by the CP directly. */
       const enum ac_barrier_flags flush_bits = get_query_flush_bits(VK_QUERY_TYPE_TIMESTAMP);
 
-      cmd_buffer->active_query_flush_bits |= flush_bits;
+      cmd_buffer->state.pending_query_flush_bits |= flush_bits;
       cmd_buffer->state.pending_timestamp_flush_bits |= flush_bits;
    }
 

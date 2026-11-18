@@ -342,6 +342,9 @@ struct radv_cmd_state {
    /* Flush bits required to wait for pending EOP timestamps. */
    enum ac_barrier_flags pending_timestamp_flush_bits;
 
+   /* Flush bits required to wait for pending queries. */
+   enum ac_barrier_flags pending_query_flush_bits;
+
    /* Earliest PWS acquire point required by the currently pending flush_bits*/
    enum ac_pws_acquire_point pws_acquire_point;
    unsigned active_occlusion_queries;
@@ -558,11 +561,6 @@ struct radv_cmd_buffer {
     * Whether a query pool has been reset and we have to flush caches.
     */
    bool pending_reset_query;
-
-   /**
-    * Bitmask of pending active query flushes.
-    */
-   enum ac_barrier_flags active_query_flush_bits;
 
    struct {
       struct radv_video_session *vid;

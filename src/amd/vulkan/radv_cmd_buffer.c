@@ -8941,7 +8941,7 @@ radv_EndCommandBuffer(VkCommandBuffer commandBuffer)
       /* Make sure to sync all pending active queries at the end of
        * command buffer.
        */
-      cmd_buffer->state.flush_bits |= cmd_buffer->active_query_flush_bits;
+      cmd_buffer->state.flush_bits |= cmd_buffer->state.pending_query_flush_bits;
 
       /* Flush noncoherent images when needed so we can assume they're clean on the start of a
        * command buffer.
@@ -10597,8 +10597,8 @@ radv_CmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCou
       /* Make sure CP DMA is idle on primary prior to executing secondary. */
       primary->state.flush_bits |= AC_BARRIER_SYNC_CP_DMA;
 
-      /* Make sure to wait for pending EOP timestamps on primary prior to executing secondary. */
-      primary->state.flush_bits |= primary->state.pending_timestamp_flush_bits;
+      /* Make sure to wait for pending query flushes on primary prior to executing secondary. */
+      primary->state.flush_bits |= primary->state.pending_query_flush_bits;
 
       /* Emit pending flushes on primary prior to executing secondary */
       radv_emit_cache_flush(primary, false);
@@ -16730,7 +16730,7 @@ radv_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer, bool pws_defer_allowed
    /* Clear the caches that have been flushed to avoid syncing too much
     * when there is some pending active queries.
     */
-   cmd_buffer->active_query_flush_bits &= ~cmd_buffer->state.flush_bits;
+   cmd_buffer->state.pending_query_flush_bits &= ~cmd_buffer->state.flush_bits;
    cmd_buffer->state.pending_timestamp_flush_bits &= ~cmd_buffer->state.flush_bits;
 
    cmd_buffer->state.flush_bits = 0;
