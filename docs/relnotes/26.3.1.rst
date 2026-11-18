@@ -1,0 +1,474 @@
+Mesa 26.3.1 Release Notes / 2026-11-18
+======================================
+
+Mesa 26.3.1 is a bug fix release which fixes bugs found since the 26.3.0 release.
+
+Mesa 26.3.1 implements the OpenGL 4.6 API, but the version reported by
+glGetString(GL_VERSION) or glGetIntegerv(GL_MAJOR_VERSION) /
+glGetIntegerv(GL_MINOR_VERSION) depends on the particular driver being used.
+Some drivers don't support all the features required in OpenGL 4.6. OpenGL
+4.6 is **only** available if requested at context creation.
+Compatibility contexts may report a lower version depending on each driver.
+
+Mesa 26.3.1 implements the OpenCL 3.1 API, but the version reported by
+the CL_DEVICE_VERSION, CL_DEVICE_NUMERIC_VERSION and CL_DEVICE_OPENCL_C_ALL_VERSIONS
+clGetDeviceInfo queries depends on the particular driver being used.
+
+Mesa 26.3.1 implements the Vulkan 1.4 API, but the version reported by
+the apiVersion property of the VkPhysicalDeviceProperties struct
+depends on the particular driver being used.
+
+SHA checksums
+-------------
+
+::
+
+    TBD.
+
+
+New features
+------------
+
+- None
+
+
+Bug fixes
+---------
+
+- Confidential issue #16794
+- Fails to build on macOS < 10.12
+- RadeonSI syncrhonization/barrier issue with Clear+Dispatch (Repro included)
+- V3D: Labwc fails to allocate GBM buffers wider than 4096 pixels unless non-MSAA texture size limit is enabled
+- VC4: Kodi on Pi 3: DRM PRIME / V4L2 fails after Mesa 26.2.6 with avfilter_graph_config: Function not implemented (-38)
+- Windows ARM memory-leak
+- Windows: u_memstream leaks MEM*.tmp files on SPIR-V shader compilation, stalling Lavapipe
+- [ANV] Dragon's Dogma 2 Dark Arisen Glitch Shadows
+- [OpenMW] Certain shaders cause visual corruption at the bottom of the screen when anti-aliasing is enabled, possibly Z-buffer related
+- anv: compute shader writes to a storage image are partly lost after a render pass cleared the image earlier in the same command buffer on Intel LNL
+- d3d12: NULL dereference in select_shader_variant() when compile_nir() fails
+- d3d12: glClearTexImage through a texture view of another format flushes float32-denormal bit patterns to zero
+- dozen: Driver should fail to enumate anything if requirements are not met
+- dzn: Invalid minImageTransferGranularity specified on graphics/compute queue families
+- dzn: Unaligned block-compressed textures are silently unsupported
+- dzn: external memory buffers cannot be host mapped
+- dzn: maxStorageBufferRange reports 128 MiB, but raw storage buffer views allow 512 MiB
+- dzn: use different bit pattern in device addresses
+- dzn: vkBindBufferMemory fails on memory imported from a host pointer
+- nir_to_dxil has store_def and store_ssa_def and they're subtly different
+- radeonsi: NULL pipe_memory_object dereference in si_resource_from_memobj()
+- radv/aco: fast-linked GPL pipeline breaks fragment shader interlock on GFX11 (no s_waitcnt_vscnt before the jump to the PSepilog)
+- radv: SIGSEGV in the hang-dump path with RADV_DEBUG=hang (null deref at 0x1a8) — no radv_dumps written
+- radv: VK_EXT_descriptor_heap causes  performance slow down in FSR 4.1 workloads
+- radv: attachment shading rate not broadcast to all views
+- radv: fails to decompress when acquiring modifier-tiled images from the foreign queue
+- rusticl/llvmpipe: heap corruption / SIGSEGV in \`llvmpipe_set_global_binding` when kernels on two queues are released by one \`clWaitForEvents`
+- vkCmdDrawIndexed read access violation in Dozen (in dzn_descriptor_heap_copy)
+- zink/ntv: pack_snorm_2x16 and unpack_snorm_2x16 unimplemented, aborts the process
+
+
+Changes
+-------
+
+Aitor Camacho (1):
+
+- kk: Use constant address space for load_global_constant_offset
+
+Ali Milhim (3):
+
+- zink: implement snorm/unorm pack and unpack ops in ntv
+- nir/opt_copy_prop_vars: don't create a copies array just to kill nothing
+- nir: use temporary deref paths for alias invalidation
+
+Andy Hsu (1):
+
+- intel/compiler: Handle load_barycentric_at_sample in lower_msaa_config
+
+Arisa Snowbell (1):
+
+- anv/video: give VDEnc an intra prediction row store for H.264 on Gfx12.5
+
+Ashish Chauhan (2):
+
+- pvr: fix XFB byte-count draw with unaligned counter offsets
+- pvr: Validate XFB primitive topology at draw
+
+Caio Oliveira (7):
+
+- nir/intel: Derive push-data divergence from its offset
+- spirv: Move constant handling to its own file
+- util: Initialize memstream outputs on Xbox
+- jay: Use right stride helpers for destination
+- jay: Don't force alignment for FLAG registers
+- jay: Scalarize indirect push-data loads
+- nir: Track cooperative matrix memory accesses
+
+Calder Young (8):
+
+- intel: Exclude helper lanes for optimized divergent atomics
+- jay: Fix missing dependency on uses_src_xy when calculating coarse pixel depth
+- jay: Preserve loop header flags when splitting blocks for demote
+- jay: Do not "end blocks" after a HALT_TARGET instruction
+- jay: Make jay_opt_predicate consider HALT to be a jump
+- jay: Stop pointlessly setting uses_vmask to true
+- jay: Lower terminate to demote after jay_populate_prog_data
+- jay: Lower demote to terminate unless the shader uses derivatives
+
+Christian Gmeiner (7):
+
+- llvmpipe: Track global bindings per context
+- panvk: Correct maxUniformBufferRange for older archs
+- etnaviv: Allocate the planes of an NV12 resource
+- gallium: Add pipe_caps.needs_split_planar_samplers
+- freedreno: Set needs_split_planar_samplers
+- etnaviv/drm: Fail BO creation when no GPU address is left
+- mesa/st: Lower YUV only when the driver needs split samplers
+
+Daniel Drake (1):
+
+- torx: Depend on idep_mesautilformat for generated format headers
+
+Daniel Schürmann (1):
+
+- aco/tests: fix GFX11.7 unused source encoding expectations
+
+Dave Airlie (1):
+
+- gallivm: disable apx feature for now.
+
+David Rosca (7):
+
+- dri: Move driDestroyConfigs from glx/dri_common and use it
+- glx: Fix driver_configs leak when creating display gpu screen
+- egl/dri2: Fix driver_configs leak when creating display gpu screen
+- egl/wsi/wayland: Fix leaking dmabuf feedback
+- mesa: Handle import fail in ImportMemoryFd/Win32EXT
+- mesa: Handle import fail in ImportSemaphoreFd/Win32EXT
+- mesa: Fix crash in Wait/SignalSemaphoreEXT with null fence
+
+Derek Lesho (4):
+
+- zink: Use zink uploader for clientptr maps.
+- zink/client_pointer: Flush uploader memory on unmap.
+- zink: Make map/unmap_clientptr_range thread-safe.
+- zink: Respect FLUSH_EXPLICIT on unmap_clientptr.
+
+Dhruv Mark Collins (3):
+
+- tu/autotune: Order dropping an RP history reference before its reaping
+- tu/autotune: Remove latency tracking entries once their spikes are old
+- tu/autotune: Take one RP history reference per RP decided
+
+Dmitry Baryshkov (11):
+
+- freedreno: keep the real subgroup size for OpenCL kernels
+- freedreno/ci: drop the fixed a702 uniform texel buffer barrier tests
+- freedreno: round up the NV12 chroma plane size
+- dri: round up the subsampled plane size on dma-buf import
+- freedreno/a5xx: don't write a magic 1 to HLSQ_CS_CNTL_1
+- freedreno/a5xx: the a509 and a512 register files hold 96 vec4 per wave
+- freedreno/a5xx: correct a505, a506 and a510 entries
+- rusticl: fix the contiguous-rows check in sw_copy
+- ir3: count half registers when deciding to double the thread size
+- ir3: read a5xx SSBO sizes with the 4d resinfo
+- freedreno/a5xx: stop undoing the kernel's DBG_ECO workarounds
+
+Duncan Brawley (2):
+
+- pvr: Fix pipeline executable properties segfault
+- pvr: Support pipeline executable properties VkPipelineCreateFlags2 flags
+
+Dylan Baker (11):
+
+- relnotes: Add SHA sums for 26.3.0
+- docs: update calendar for 26.3.0
+- .pick_status.json: Update to e0856f57b87dd9731a4b738ea739d0b163a31510
+- .pick_status.json: Update to b663f3501c6e42ee92d388f91abe3cf71f78187c
+- .pick_status.json: Update to 360e61e7418a0967590029eebeeceecff46755e2
+- .pick_status.json: Mark 77ed7926bf94c263fcb31f0be7b4e3f9fe1a20e9 as denominated
+- .pick_status.json: Update to beaf3192c2e0a3b4fcc05362c0ca9fc198a4e236
+- .pick_status.json: Mark af46d968ba7798f23b9937f4936439ee36f0dc4c as denominated
+- .pick_status.json: Update to 6aa7eaf09fc1ae2d53adfa8a29fd695278111c62
+- .pick_status.json: Update to 8fae0a4519445af71501dc183b3450d8f407bbf1
+- .pick_status.json: Mark a364749b694b8cef8f8b8dcdc5cd9a61c8751aa0 as backported
+
+Emma Anholt (2):
+
+- glsl: Fix linking of various FS inout layout qualifiers pre-GLSL-1.50.
+- ir3: Give is_same_type_mov() an option to allow src mods or not.
+
+Erhan Bilgili (1):
+
+- winsys/amdgpu: Fix UserQ signal point array allocation.
+
+Eric R. Smith (1):
+
+- panfrost: make sure render_target_mask is non-empty if PLS is enabled
+
+Erik Faye-Lund (11):
+
+- nir: use dst_access for the store
+- panvk: restore zero-value for flush_id after copy_fbd
+- panvk: add missing flush after copy_fbd
+- spirv: specialize entire constant-data source
+- pan/ci: restore flaky tests
+- pan/ci: remove stale flakes
+- pan/ci: remove stale flakes
+- pan/ci: remove stale flake
+- pan/ci: remove stale flakes
+- pan/ci: remove stale flakes
+- pan/ci: remove stale flake
+
+Fabricio Akio (2):
+
+- freedreno/a5xx: Program the stream output buffer stride
+- freedreno/a5xx: Implement alpha-to-one
+
+Faith Ekstrand (1):
+
+- panfrost,nir: Get rid of nir_downgrade_pls_vars()
+
+Francesco Stimola (7):
+
+- nv50: size surface views by blocks when the block size differs
+- nv50,nvc0: don't read pipe_surface templates as nv50_surface in clears
+- nv30: don't read pipe_surface templates as nv30_surface in clears
+- nouveau/winsys: pass the drm fd when deleting subchannel objects
+- nv50: only push constant buffer updates through a current binding
+- nouveau: pass chroma_format_idc to the vp3 H.264 decoder
+- nouveau: tell the vp3 H.264 decoder whether a picture is MBAFF
+
+Francisco Jerez (1):
+
+- intel/gen: Fix possible corruption of instructions other than standard one/two-source layout during pre-compaction.
+
+Frank Binns (2):
+
+- docs: drop references to ROGUE_DEBUG & ROGUE_COLOR envvars
+- docs: fix PCO related envvar name
+
+Georg Lehmann (5):
+
+- aco/opt_postRA: check quad alignment of sgprs
+- aco/opt_postRA: fix split_vector reassign with late kill operands
+- nir/opt_load_store_vectorize: handle load_heap_descriptor
+- nir/opt_large_constants: fix constant deduplication edge case
+- nir/range_analysis: fix 8/16bit ishr uub
+
+Jeongik Cha (2):
+
+- gfxstream: guard Goldfish sync fd collection in queue submit
+- gfxstream: handle WSI dummy sync objects and reset temporary state
+
+Jesse Natalie (1):
+
+- d3d12: Fix hash lookup for command signatures
+
+Job Noorman (6):
+
+- ir3: don't emit alias.rt for relative const movs
+- ir3: move is_cat[23]_float helper up in their file
+- ir3: only fold fsat to (sat) on cat2/3 float instructions
+- ir3: add has_valid_alias_flags helper
+- ir3: check src flags of aliased collects
+- ir3: don't create aliases for array srcs
+
+Jose Maria Casanova Crespo (4):
+
+- broadcom/compiler: align shared memory size to zero-initialization chunk
+- vc4: compute the clip window after the predraw blits
+- v3d/driconf: expose non-MSAA texture limits for labwc
+- v3d: fix the order of the alpha sampler state variants
+
+José Roberto de Souza (1):
+
+- intel/dev: Update Xe3P PAT entries
+
+Juan A. Suarez Romero (6):
+
+- broadcom/compiler: write fragment shader scratch from helper invocations
+- v3dv: track memory budget heap usage per process
+- v3dv: apply alpha to coverage with single-sampled rasterization
+- v3dv: use the image depth/stencil format for any Z/S tile buffer access
+- v3dv: update conformance version
+- v3dv: disable early-Z for every job in a suspend/resume chain on V3D 4.2
+
+Lionel Landwerlin (2):
+
+- anv: fix PIPE_CONTROL with fragment->compute barrier on Xe2+
+- anv: use the actual size for vma allocations
+
+Louis-Francis Ratté-Boulianne (1):
+
+- vulkan: initialize swapchain private mutex properly
+
+Marek Olšák (4):
+
+- radv: fix invalid use of radv_image_has_hiz on GFX6-8
+- radv: suspend conditional rendering in CmdResetQueryPool
+- radv: suspend conditional rendering in radv_barrier
+- radv: make buffer clears & copies respect conditional rendering
+
+Matt Arsenault (1):
+
+- radv/llvm: keep the ring offsets in s[0:1] for GFX11+ compute shaders
+
+Mel Henning (1):
+
+- nir: Fix incorrect is_ssa replacement
+
+Mike Blumenkrantz (2):
+
+- glsl: treat volatile as coherent when translating to nir
+- zink: reset attachment storeOp when begin_rendering has no tc info
+
+MoGGuU (1):
+
+- rocket: allocate separate arrays for each job to avoid double-free
+
+Mohamed Akram (1):
+
+- glx/apple: fix build on macOS < 10.12
+
+Oliver Clarke (3):
+
+- hk: fix shader dump use after free
+- hk: remove input attachment offset from tex instructions
+- radv: do layout transition on foreign queue acquire when needed
+
+Olivia Lee (2):
+
+- pan/va: fix out-of-bounds read propagating swizzles on pseudo instructions
+- panvk: fix null pointer dereference in shader variant helpers
+
+Omar Rashwan (1):
+
+- iris: fix double free in iris_bufmgr
+
+Patrick Lerda (1):
+
+- r600: fix shaders.indexing.tmp_array.vertexid related issue
+
+Paulo Zanoni (2):
+
+- vulkan: export vk_queue_stop_submit_thread()
+- anv: extract and call anv_queue_drain() during anv_DestroyDevice()
+
+Pavel Ondračka (1):
+
+- r300: skip output modifier absolute or negated inputs
+
+Pierre-Eric Pelloux-Prayer (2):
+
+- gallium/ddebug: implement resource_release
+- radeonsi: fix debug dump of buffer descriptors
+
+Raphtaliyah (2):
+
+- radv: Mask device coherent memory types if the feature is not enabled
+- loader: fix drm device memory management issues
+
+Rhys Perry (2):
+
+- nir/uub: fix imul by constant with overflow
+- aco: consider p_jump_to_epilog as a POPS end export
+
+Rusi Genev (3):
+
+- v3d: Use the initial sample mask for centroid interpolation
+- v3d: Fix interpolateAtOffset without MSAA
+- v3d: Fix centroid interpolation at offsets
+
+Samuel Pitoiset (7):
+
+- radv: fix copying VRS rates for multiview or layered rendering on RDNA2
+- spirv: fix memory semantics for image loads/stores
+- aco: make sure SSBO SMEM loads respect barriers
+- nir/lower_memory_model: don't skip readonly accesses
+- radv: split copies after optimizing memcpy
+- radv: do not try to dump VBOs without a VS with RADV_DEBUG=hang
+- radv: fix emitting push constants with ESO
+
+Serdar Kocdemir (1):
+
+- util: avoid Windows memstream temp file leaks
+
+Simon Perretta (1):
+
+- pco: fence before mutex release ops
+
+Tapani Pälli (1):
+
+- anv/dric: add workarounds for Dragon's Dogma 2
+
+Timothy Arceri (5):
+
+- ac,radv: move the pipe-misaligned metadata check to common code
+- radeonsi: invalidate L2 before shaders read pipe-misaligned HTILE
+- radeonsi: decompress resident depth textures rendered to after becoming resident
+- radeonsi: flush the IB on NGG -> legacy transitions on Navi21 too
+- radeonsi: write back L2 after DCC fast clears if RBs and L2 aren't coherent
+
+Valentine Burley (6):
+
+- tu: Lower terminate to demote in fragment shaders
+- tu: Advertise VK_KHR_shader_maximal_reconvergence
+- panfrost: Remove redundant perfetto header include
+- tu: Disable LRZ for imported depth images
+- Revert "tu: Reject VK_FORMAT_S8_UINT AHB import"
+- vulkan/android: Force linear for depth AHBs when compression disabled
+
+Vinson Lee (2):
+
+- kopper: fix unused and uninitialized warnings on macOS
+- util/u_trace: Fix UtilPerfTraceTest.EndOfFrameOnce unit test on macOS
+
+Yiwei Zhang (2):
+
+- anv: allow re-importing BOs with mismatched device address flags
+- zink: gate conditional rendering buffer usage behind the extension
+
+Zan Dobersek (1):
+
+- freedreno: update SP_DBG_ECO_CNTL magic reg value on A740
+
+Zmicier Prybysh (1):
+
+- ethosu: Fix same-size RESIZE_BILINEAR case
+
+alexandre minette (1):
+
+- freedreno/ir3: use implicit LOD zero for a3xx multisample fetches
+
+hamb3r (18):
+
+- dzn: Handle missing variable descriptor count layout support output
+- d3d12: Preserve raw texel bits in clear_texture
+- dzn: Report 512 MiB for maxStorageBufferRange
+- dzn: Pass modified resource desc in dzn_BindBufferMemory2
+- dzn: Enumerate zero devices when runtime requirements are not met
+- dzn: Handle descriptor heap allocation failure in cmd_buffer_update_heaps
+- dzn: Preserve host-visible memory types for host-imported buffers
+- dzn: Set minImageTransferGranularity to (1, 1, 1)
+- dzn: Apply all dependencies in CmdWaitEvents2
+- d3d12: Clean up failed shader variant allocations in compile_nir()
+- d3d12: Hook up DXIL logger in compile_nir()
+- d3d12: Handle shader variant compilation failures
+- dzn: Fix resource flags for MSAA and concurrent linear images
+- dzn: Handle D3D12 image allocation info failures
+- microsoft/compiler: Unify DXIL SSA definition storage
+- microsoft/compiler: Fix memory leaks on nir_to_dxil() error paths
+- dzn: Set bits 52-63 of buffer device addresses
+- dzn: Fix query result zero-fill copy sizes
+
+mmes (1):
+
+- jay: set SLICE_REPACK operands to stride 4
+
+mozixun (1):
+
+- zink: don't charge a batch the whole slab for a suballocated resource
+
+osman.yagci (2):
+
+- panfrost: handle a NULL batch in the remaining callers
+- mesa: don't advertise APIs that are not built
