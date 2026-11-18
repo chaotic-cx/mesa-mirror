@@ -1,4 +1,5 @@
 import copy
+from dataclasses import dataclass, field
 import re
 import xml.etree.ElementTree as et
 
@@ -11,15 +12,16 @@ def get_api_list(s):
         apis.append(a)
     return apis
 
+@dataclass
 class Extension:
-    def __init__(self, name, number, ext_version):
-        self.name = name
-        self.type = None
-        self.number = number
-        self.platform = None
-        self.provisional = False
-        self.ext_version = int(ext_version)
-        self.supported = []
+    """Class representing a Vulkan extension."""
+    name: str
+    number: int
+    version: int
+    type: str | None = None
+    platform: str | None = None
+    provisional: bool = False
+    supported: list[str] = field(default_factory=list)
 
     def from_xml(ext_elem):
         name = ext_elem.attrib['name']
@@ -30,7 +32,7 @@ class Extension:
             supported = ['vulkan']
 
         if not supported:
-            return Extension(name, number, 0)
+            return Extension(name=name, number=number, version=0)
 
         version = None
         for enum_elem in ext_elem.findall('.require/enum'):
@@ -39,13 +41,17 @@ class Extension:
                 if 'value' in enum_elem.attrib:
                     assert version is None
                     version = int(enum_elem.attrib['value'])
-
         assert version is not None
-        ext = Extension(name, number, version)
-        ext.type = ext_elem.attrib['type']
-        ext.platform = ext_elem.attrib.get('platform', None)
-        ext.provisional = ext_elem.attrib.get('provisional', False)
-        ext.supported = supported
+
+        ext = Extension(
+            name=name,
+            number=number,
+            version=version,
+            type=ext_elem.attrib['type'],
+            platform=ext_elem.attrib.get('platform', None),
+            provisional=ext_elem.attrib.get('provisional', False),
+            supported=supported
+        )
 
         return ext
 
@@ -60,11 +66,12 @@ class Extension:
 
         return 'ANDROID_API_LEVEL >= %d' % (allowed_version)
 
-class ApiVersion:
-    def __init__(self, version):
-        self.version = version
-
+@dataclass
 class VkVersion:
+    major: int
+    minor: int
+    patch: int | None
+
     def __init__(self, string):
         split = string.split('.')
         self.major = int(split[0])
@@ -158,11 +165,11 @@ def init_exts_from_xml(xml, extensions, platform_defines):
         ext = ext_name_map[ext_name]
         ext.type = ext_elem.attrib['type']
 
+@dataclass
 class Requirements:
-    def __init__(self, core_version=None):
-        self.core_version = core_version
-        self.extensions = []
-        self.guard = None
+    core_version: VkVersion | None = None
+    extensions: list[str] = field(default_factory=list)
+    guard: str | None = None
 
     def add_extension(self, ext):
         for e in self.extensions:

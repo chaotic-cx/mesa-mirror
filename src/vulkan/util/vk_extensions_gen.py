@@ -83,13 +83,13 @@ _TEMPLATE_C = Template(COPYRIGHT + """
 
 const VkExtensionProperties vk_instance_extensions[VK_INSTANCE_EXTENSION_COUNT] = {
 %for ext in instance_extensions:
-   {"${ext.name}", ${ext.ext_version}},
+   {"${ext.name}", ${ext.version}},
 %endfor
 };
 
 const VkExtensionProperties vk_device_extensions[VK_DEVICE_EXTENSION_COUNT] = {
 %for ext in device_extensions:
-   {"${ext.name}", ${ext.ext_version}},
+   {"${ext.name}", ${ext.version}},
 %endfor
 };
 
