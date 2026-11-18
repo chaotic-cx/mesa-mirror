@@ -143,28 +143,6 @@ def get_all_exts_from_xml(xml, api='vulkan'):
 
     return sorted(extensions, key=extension_order)
 
-def init_exts_from_xml(xml, extensions, platform_defines):
-    """ Walk the Vulkan XML and fill out extra extension information. """
-
-    xml = et.parse(xml)
-
-    ext_name_map = {}
-    for ext in extensions:
-        ext_name_map[ext.name] = ext
-
-    # KHR_display is missing from the list.
-    platform_defines.append('VK_USE_PLATFORM_DISPLAY_KHR')
-    for platform in xml.findall('./platforms/platform'):
-        platform_defines.append(platform.attrib['protect'])
-
-    for ext_elem in xml.findall('.extensions/extension'):
-        ext_name = ext_elem.attrib['name']
-        if ext_name not in ext_name_map:
-            continue
-
-        ext = ext_name_map[ext_name]
-        ext.type = ext_elem.attrib['type']
-
 @dataclass
 class Requirements:
     core_version: VkVersion | None = None

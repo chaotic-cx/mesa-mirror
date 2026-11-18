@@ -25,12 +25,13 @@ COPYRIGHT = """\
 """
 
 import argparse
+from xml.etree import ElementTree
 
 from mako.template import Template
 
 # Mesa-local imports must be declared in meson variable
 # '{file_without_suffix}_depend_files'.
-from vk_extensions import get_all_exts_from_xml, init_exts_from_xml
+from vk_extensions import get_all_exts_from_xml
 
 _TEMPLATE_H = Template(COPYRIGHT + """
 
@@ -109,9 +110,12 @@ const struct vk_device_extension_table vk_android_allowed_device_extensions = {
 """)
 
 def gen_extensions(xml_files, extensions, out_c, out_h):
-    platform_defines = []
+    # KHR_display is missing from the list.
+    platform_defines = ['VK_USE_PLATFORM_DISPLAY_KHR']
     for filename in xml_files:
-        init_exts_from_xml(filename, extensions, platform_defines)
+        xml = ElementTree.parse(filename)
+        for platform in xml.findall('./platforms/platform'):
+            platform_defines.append(platform.attrib['protect'])
 
     for ext in extensions:
         assert ext.type in {'instance', 'device'}
