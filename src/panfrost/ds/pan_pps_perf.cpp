@@ -144,6 +144,9 @@ PanfrostPerf::create_available_counters() const
 
    for (const struct mali_perf_counter *cinfo = perf->info->counters;
         cinfo->name; cinfo++) {
+      if (mali_perf_counter_is_config(cinfo))
+         continue;
+
       uint8_t nblocks = mali_perf_block_count(cinfo->block, &perf->constants);
 
       /* Don't use up space for counters this device doesn't have. */

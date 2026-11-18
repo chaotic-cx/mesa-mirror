@@ -7,6 +7,7 @@
 #ifndef MALI_PERF_H
 #define MALI_PERF_H
 
+#include <stdbool.h>
 #include <util/macros.h>
 
 #define MALI_PERF_MAX_COUNTERS_PER_BLOCK 128
@@ -108,6 +109,12 @@ struct mali_perf_counter {
                        const struct mali_perf_constants *constants,
                        const struct mali_perf_dump_info *dump_info);
 };
+
+static inline bool
+mali_perf_counter_is_config(const struct mali_perf_counter *c)
+{
+   return c->sources[0].block == MALI_PERF_BLOCK_NONE;
+}
 
 struct mali_perf_gpu_info {
    const struct mali_perf_counter *counters;
