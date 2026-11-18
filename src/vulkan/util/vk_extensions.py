@@ -13,6 +13,54 @@ def get_api_list(s):
     return apis
 
 @dataclass
+class VkVersion:
+    major: int
+    minor: int
+    patch: int | None
+
+    def __init__(self, string):
+        split = string.split('.')
+        self.major = int(split[0])
+        self.minor = int(split[1])
+        if len(split) > 2:
+            assert len(split) == 3
+            self.patch = int(split[2])
+        else:
+            self.patch = None
+
+        # Sanity check.  The range bits are required by the definition of the
+        # VK_MAKE_VERSION macro
+        assert self.major < 1024 and self.minor < 1024
+        assert self.patch is None or self.patch < 4096
+        assert str(self) == string
+
+    def __str__(self):
+        ver_list = [str(self.major), str(self.minor)]
+        if self.patch is not None:
+            ver_list.append(str(self.patch))
+        return '.'.join(ver_list)
+
+    def c_vk_version(self):
+        ver_list = [str(self.major), str(self.minor), str(self.patch or 0)]
+        return 'VK_MAKE_VERSION(' + ', '.join(ver_list) + ')'
+
+    def __int_ver(self):
+        # This is just an expansion of VK_VERSION
+        return (self.major << 22) | (self.minor << 12) | (self.patch or 0)
+
+    def __gt__(self, other):
+        # If only one of them has a patch version, "ignore" it by making
+        # other's patch version match self.
+        if (self.patch is None) != (other.patch is None):
+            other = copy.copy(other)
+            other.patch = self.patch
+
+        return self.__int_ver() > other.__int_ver()
+
+    def __le__(self, other):
+        return not self.__gt__(other)
+
+@dataclass
 class Extension:
     """Class representing a Vulkan extension."""
     name: str
@@ -65,54 +113,6 @@ class Extension:
             return 'false'
 
         return 'ANDROID_API_LEVEL >= %d' % (allowed_version)
-
-@dataclass
-class VkVersion:
-    major: int
-    minor: int
-    patch: int | None
-
-    def __init__(self, string):
-        split = string.split('.')
-        self.major = int(split[0])
-        self.minor = int(split[1])
-        if len(split) > 2:
-            assert len(split) == 3
-            self.patch = int(split[2])
-        else:
-            self.patch = None
-
-        # Sanity check.  The range bits are required by the definition of the
-        # VK_MAKE_VERSION macro
-        assert self.major < 1024 and self.minor < 1024
-        assert self.patch is None or self.patch < 4096
-        assert str(self) == string
-
-    def __str__(self):
-        ver_list = [str(self.major), str(self.minor)]
-        if self.patch is not None:
-            ver_list.append(str(self.patch))
-        return '.'.join(ver_list)
-
-    def c_vk_version(self):
-        ver_list = [str(self.major), str(self.minor), str(self.patch or 0)]
-        return 'VK_MAKE_VERSION(' + ', '.join(ver_list) + ')'
-
-    def __int_ver(self):
-        # This is just an expansion of VK_VERSION
-        return (self.major << 22) | (self.minor << 12) | (self.patch or 0)
-
-    def __gt__(self, other):
-        # If only one of them has a patch version, "ignore" it by making
-        # other's patch version match self.
-        if (self.patch is None) != (other.patch is None):
-            other = copy.copy(other)
-            other.patch = self.patch
-
-        return self.__int_ver() > other.__int_ver()
-
-    def __le__(self, other):
-        return not self.__gt__(other)
 
 # Sort the extension list the way we expect: KHR, then EXT, then vendors
 # alphabetically. For digits, read them as a whole number sort that.
