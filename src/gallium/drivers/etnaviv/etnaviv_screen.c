@@ -462,6 +462,11 @@ gpu_supports_multisampled_blitter_resolve(const struct etna_screen *screen,
    case PIPE_FORMAT_R32_FLOAT:
       /* handled by u_blitter */
       return true;
+   case PIPE_FORMAT_R32G32_FLOAT:
+   case PIPE_FORMAT_R16G16B16A16_FLOAT:
+   case PIPE_FORMAT_R32G32B32A32_FLOAT:
+      /* handled by u_blitter, rendering needs 64 bit float MSAA in the PE */
+      return VIV_FEATURE(screen, ETNA_FEATURE_MSAA_FLOAT_64BIT);
    default:
       return !VIV_FEATURE(screen, ETNA_FEATURE_BLT_ENGINE) &&
              util_format_get_blocksize(format) <= 4 &&
