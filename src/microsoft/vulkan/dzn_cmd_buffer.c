@@ -113,8 +113,10 @@ dzn_cmd_buffer_queue_transition_barriers(struct dzn_cmd_buffer *cmdbuf,
          return vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
 
       he = _mesa_hash_table_insert(cmdbuf->transition_barriers, res, barriers);
-      if (!he)
+      if (!he) {
+         vk_free(&cmdbuf->vk.pool->alloc, barriers);
          return vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
+      }
    }
 
    for (uint32_t subres = first_subres; subres < first_subres + subres_count; subres++) {

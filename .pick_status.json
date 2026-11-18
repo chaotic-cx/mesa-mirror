@@ -2644,7 +2644,7 @@
         "description": "dzn: Free transition barriers when hash insertion fails",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "8318f7338442c87206f191ec694cca50361a44f5",
         "notes": null
