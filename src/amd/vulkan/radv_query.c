@@ -2717,7 +2717,14 @@ radv_CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 sta
       query_va += pool->stride;
    }
 
-   cmd_buffer->active_query_flush_bits |= get_query_flush_bits(VK_QUERY_TYPE_TIMESTAMP);
+   if (stage != VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT) {
+      /* Only EOP timestamps need to be waited for, TOP_OF_PIPE ones are written by the CP directly. */
+      const enum ac_barrier_flags flush_bits = get_query_flush_bits(VK_QUERY_TYPE_TIMESTAMP);
+
+      cmd_buffer->active_query_flush_bits |= flush_bits;
+      cmd_buffer->state.pending_timestamp_flush_bits |= flush_bits;
+   }
+
    assert(cs->b->cdw <= cdw_max);
 }
 

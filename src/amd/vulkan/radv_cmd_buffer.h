@@ -338,6 +338,10 @@ struct radv_cmd_state {
    struct radv_meta_saved_state meta;
 
    enum ac_barrier_flags flush_bits;
+
+   /* Flush bits required to wait for pending EOP timestamps. */
+   enum ac_barrier_flags pending_timestamp_flush_bits;
+
    /* Earliest PWS acquire point required by the currently pending flush_bits*/
    enum ac_pws_acquire_point pws_acquire_point;
    unsigned active_occlusion_queries;

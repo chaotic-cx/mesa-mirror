@@ -7929,6 +7929,10 @@ radv_stage_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2 src_s
    if (src_stage_mask & vs_stage_mask)
       cmd_buffer->state.flush_bits |= AC_BARRIER_SYNC_VS;
 
+   /* Wait for pending EOP timestamps, otherwise a later TOP_OF_PIPE timestamp could be smaller. */
+   if (src_stage_mask)
+      cmd_buffer->state.flush_bits |= cmd_buffer->state.pending_timestamp_flush_bits;
+
 #ifndef NDEBUG
    // clang-format off
    const VkPipelineStageFlags2 ignored_stages_mask =
@@ -10592,6 +10596,9 @@ radv_CmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCou
 
       /* Make sure CP DMA is idle on primary prior to executing secondary. */
       primary->state.flush_bits |= AC_BARRIER_SYNC_CP_DMA;
+
+      /* Make sure to wait for pending EOP timestamps on primary prior to executing secondary. */
+      primary->state.flush_bits |= primary->state.pending_timestamp_flush_bits;
 
       /* Emit pending flushes on primary prior to executing secondary */
       radv_emit_cache_flush(primary, false);
@@ -16724,6 +16731,7 @@ radv_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer, bool pws_defer_allowed
     * when there is some pending active queries.
     */
    cmd_buffer->active_query_flush_bits &= ~cmd_buffer->state.flush_bits;
+   cmd_buffer->state.pending_timestamp_flush_bits &= ~cmd_buffer->state.flush_bits;
 
    cmd_buffer->state.flush_bits = 0;
    cmd_buffer->state.pws_acquire_point = AC_PWS_ACQUIRE_POINT_NONE;
