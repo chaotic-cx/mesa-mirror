@@ -618,14 +618,21 @@ lower_fragment_outputs(nir_builder *b, nir_intrinsic_instr *intr, void *_)
       return false;
    }
 
-   /* Jay wants omask to be 16-bit, but intel_nir_lower_fragment_outputs makes
-    * it 32-bit because brw can't handle 16-bit.
+   /* Jay wants omask & stencil to be 16-bit, but intel_nir_lower_fragment_outputs
+    * makes it 32-bit because brw can't handle 16-bit.
     *
     * TODO: Delete this pass when we delete brw.
     */
    b->cursor = nir_before_instr(&intr->instr);
-   nir_src *omask = &intr->src[4];
-   nir_src_rewrite(omask, nir_u2u16(b, omask->ssa));
+   unsigned srcs[2] = { 4 /* omask */, 6 /* stencil */ };
+
+   for (unsigned i = 0; i < ARRAY_SIZE(srcs); ++i) {
+      if (!nir_src_is_undef(intr->src[srcs[i]])) {
+         nir_src_rewrite(&intr->src[srcs[i]],
+                         nir_u2u16(b, intr->src[srcs[i]].ssa));
+      }
+   }
+
    return true;
 }
 
