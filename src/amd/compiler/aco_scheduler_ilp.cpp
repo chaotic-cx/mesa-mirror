@@ -425,13 +425,13 @@ can_use_vopd(const SchedILPContext& ctx, unsigned idx)
    assert(second->definitions[0].size() == 1);
 
    /* Check for WaW dependency. */
-   if (first->definitions[0].physReg() == second->definitions[0].physReg())
+   if (first->definitions[0].physReg().reg() == second->definitions[0].physReg().reg())
       return 0;
 
    /* Check for RaW dependency. */
    for (Operand op : second->operands) {
       assert(op.size() == 1);
-      if (first->definitions[0].physReg() == op.physReg())
+      if (first->definitions[0].physReg().reg() == op.physReg().reg())
          return 0;
    }
 
@@ -443,7 +443,7 @@ can_use_vopd(const SchedILPContext& ctx, unsigned idx)
       bool war = false;
       for (Operand op : first->operands) {
          assert(op.size() == 1);
-         if (second->definitions[0].physReg() == op.physReg())
+         if (second->definitions[0].physReg().reg() == op.physReg().reg())
             war = true;
       }
       if (war) {
