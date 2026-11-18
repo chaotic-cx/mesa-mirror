@@ -21,6 +21,7 @@ from torchao.quantization.pt2e.quantizer import (
     SharedQuantizationSpec,
     annotate_input_qspec_map,
     annotate_output_qspec,
+    get_module_name_filter,
 )
 
 from .dim_order_pass import merges_spatial_dims
@@ -115,6 +116,16 @@ class TorxQuantizer(Quantizer):
                 scale=1.0 / 256.0, zero_point=-128),
             qscheme=per_tensor_affine)
 
+        self.unquantized_module_filters = {}
+
+    def set_module_unquantized(self, module_name: str) -> "TorxQuantizer":
+        self.unquantized_module_filters[module_name] = (
+            get_module_name_filter(module_name))
+        return self
+
+    def _is_unquantized(self, node: fx.Node) -> bool:
+        return any(f(node) for f in self.unquantized_module_filters.values())
+
     def _annotate_io(
         self,
         model: fx.GraphModule,
@@ -130,6 +141,8 @@ class TorxQuantizer(Quantizer):
                 mark_node_as_annotated(node)
             if node.op == "output":
                 parent = node.all_input_nodes[0]
+                if self._is_unquantized(parent):
+                    continue
                 annotate_input_qspec_map(
                     node, parent, self.io_spec
                 )
@@ -141,6 +154,7 @@ class TorxQuantizer(Quantizer):
         users = list(node.users.keys())
         act_node = None
         if (len(users) == 1 and users[0].target in FUSABLE_ACTIVATION_OPS_ATEN and
+                not self._is_unquantized(users[0]) and
                 activation_is_absorbable(
                     users[0], node.target == torch.ops.aten.conv2d.default)):
             act_node = users[0]
@@ -182,7 +196,7 @@ class TorxQuantizer(Quantizer):
 
     def _annotate_operations(self, model: fx.GraphModule):
         for node in model.graph.nodes:
-            if is_annotated(node):
+            if is_annotated(node) or self._is_unquantized(node):
                 continue
             if node.op == "call_function":
                 if node.target == torch.ops.aten.conv2d.default:
@@ -249,6 +263,12 @@ class TorxQuantizer(Quantizer):
                         self._annotate_shared_io(node, [node.args[0]])
 
     def annotate(self, model):
+        for module_name, module_filter in (
+                self.unquantized_module_filters.items()):
+            if not any(module_filter(node) for node in model.graph.nodes):
+                raise ValueError(
+                    f"No node of the model belongs to module {module_name}")
+
         # Annotate operations first, then only add I/O quantisation if at
         # least one operation was annotated.  This avoids triggering the
         # expensive convert_pt2e() path for graphs that contain only
