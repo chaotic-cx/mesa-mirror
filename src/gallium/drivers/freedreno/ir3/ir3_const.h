@@ -177,7 +177,20 @@ ir3_emit_user_consts(const struct ir3_shader_variant *v,
       if (cb->user_buffer) {
          uint8_t *p = (uint8_t *)cb->user_buffer;
          p += state->range[i].start;
-         emit_const_user(ring, v, state->range[i].offset / 4, size / 4, (uint32_t *)p);
+         uint32_t avail = cb->buffer_size > state->range[i].start ?
+                          cb->buffer_size - state->range[i].start : 0;
+
+         if (avail >= size) {
+            emit_const_user(ring, v, state->range[i].offset / 4, size / 4,
+                            (uint32_t *)p);
+         } else {
+            /* the range is aligned up past the end of an unpadded user buffer */
+            uint32_t *padded = (uint32_t *)calloc(1, size);
+            memcpy(padded, p, avail);
+            emit_const_user(ring, v, state->range[i].offset / 4, size / 4,
+                            padded);
+            free(padded);
+         }
       } else {
          emit_const_prsc(ring, v, state->range[i].offset / 4, offset, size / 4,
                          cb->buffer);

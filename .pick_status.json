@@ -2734,7 +2734,7 @@
         "description": "freedreno/ir3: don't read past the end of user constant buffers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "852704976aa9b8ddbdc4fee83b95612f88189668",
         "notes": null
