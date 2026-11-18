@@ -86,3 +86,6 @@ c7bf3b69ebc8f2252dbf724a4de638e6bb2ac402
 
 # radv: re-run clang-format
 b888682cba909c477f405e377cee881ca68e289d
+
+# nouveau: Re-rustfmt with edition=2024
+3c253c7f2363f07bff5167cc6a51148333fc55f3
