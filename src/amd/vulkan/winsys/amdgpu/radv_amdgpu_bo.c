@@ -935,6 +935,7 @@ radv_amdgpu_winsys_bo_from_fd(struct radeon_winsys *_ws, int fd, unsigned priori
 
    if (info.preferred_heap & AMDGPU_GEM_DOMAIN_VRAM) {
       bo->base.vram_no_cpu_access = !!(info.alloc_flags & AMDGPU_GEM_CREATE_NO_CPU_ACCESS);
+      bo->base.gfx12_allow_dcc = !!(info.alloc_flags & AMDGPU_GEM_CREATE_GFX12_DCC);
       initial |= RADEON_DOMAIN_VRAM;
    }
    if (info.preferred_heap & AMDGPU_GEM_DOMAIN_GTT)
