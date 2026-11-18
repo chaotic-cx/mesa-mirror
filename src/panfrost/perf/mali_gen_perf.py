@@ -429,7 +429,7 @@ def main():
          blk_type = "MALI_PERF_BLOCK_NONE"
 
       c.write("   {")
-      c.write("      .name = \"{}\",".format(counter.machine_name))
+      c.write("      .name = \"{}\",".format(counter.human_name))
       c.write("      .desc = \"{}\",".format(counter.short_desc))
       c.write("      .units = {},".format(TO_MALI_UNITS[counter.units]))
       c.write("      .block = {},".format(blk_type))
