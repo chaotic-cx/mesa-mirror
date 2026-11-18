@@ -15,6 +15,7 @@ from .wrapperdefs import MAX_PACKET_LENGTH
 from .wrapperdefs import VULKAN_STREAM_TYPE
 from .wrapperdefs import ROOT_TYPE_DEFAULT_VALUE
 from .wrapperdefs import RELAXED_APIS
+from .wrapperdefs import SNAPSHOT_SERIALIZED_RELAXED_APIS
 
 
 SKIPPED_DECODER_DELETES = [
@@ -544,9 +545,12 @@ def emit_snapshot(typeInfo, api, cgen):
 
 def emit_decoding(typeInfo, api, cgen, globalWrapped=False, context=False):
     isAcquire = api.name in RELAXED_APIS
+    isSnapshotSerializedAcquire = api.name in SNAPSHOT_SERIALIZED_RELAXED_APIS
     emit_decode_parameters(typeInfo, api, cgen, globalWrapped)
 
     if isAcquire:
+        emit_seqno_incr(api, cgen)
+    elif isSnapshotSerializedAcquire:
         emit_seqno_incr(api, cgen, "m_queueSubmitWithCommandsEnabled && !m_snapshotsEnabled")
 
     if globalWrapped:
@@ -561,9 +565,9 @@ def emit_decoding(typeInfo, api, cgen, globalWrapped=False, context=False):
     emit_destroyed_handle_cleanup(api, cgen)
     emit_pool_free(cgen)
 
-    if isAcquire:
+    if isSnapshotSerializedAcquire:
         emit_seqno_incr(api, cgen, "m_queueSubmitWithCommandsEnabled && m_snapshotsEnabled")
-    else:
+    elif not isAcquire:
         emit_seqno_incr(api, cgen)
 
 def emit_default_decoding(typeInfo, api, cgen):
@@ -1038,7 +1042,7 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
                         __asm__ __volatile__("yield" ::: "memory");
                         #endif
                         if (++spinCount > 1000) {
-                            std::this_thread::yield();
+                            gfxstream::base::sleepToUs(gfxstream::base::getHighResTimeUs() + 100);
                         }
                     }
                     m_prevSeqno = seqno;

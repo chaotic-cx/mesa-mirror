@@ -79,6 +79,9 @@ RELAXED_APIS = [
     "vkQueueWaitIdle",
     "vkDeviceWaitIdle",
     "vkQueueFlushCommandsGOOGLE",
+]
+
+SNAPSHOT_SERIALIZED_RELAXED_APIS = [
     "vkCreateGraphicsPipelines",
     "vkCreateComputePipelines",
 ]

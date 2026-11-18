@@ -491,7 +491,6 @@ class BumpPool;
 #include <cstring>
 #include <functional>
 #include <optional>
-#include <thread>
 #include <unordered_map>
 
 #include "common/goldfish_vk_marshaling.h"
