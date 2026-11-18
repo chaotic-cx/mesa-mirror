@@ -23,6 +23,7 @@ Usage:
   python compile_torx_tests.py <op_dir> <stamp_file>
   python compile_torx_tests.py --all <model_dir> <stamp_file>
   python compile_torx_tests.py --whole-model [--output-convention <name>]
+                               [--input <npy_file>]...
                                <pt2_file> <out_dir> <stamp_file>
 
 --all compiles every numbered per-op directory under <model_dir>, in
@@ -36,6 +37,8 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+
+import numpy
 
 _script_dir = Path(__file__).resolve().parent
 if str(_script_dir) not in sys.path:
@@ -85,6 +88,22 @@ def _example_inputs(ep, input_shapes):
         return tuple(ep.example_inputs[0])
     torch.manual_seed(42)
     return tuple(torch.randn(s) for s in input_shapes)
+
+
+def _load_inputs(input_paths, input_shapes, input_dtypes):
+    if len(input_paths) != len(input_shapes):
+        print(f"{len(input_paths)} processed inputs, the model takes "
+              f"{len(input_shapes)}", file=sys.stderr)
+        sys.exit(1)
+    inputs = []
+    for path, shape, dtype in zip(input_paths, input_shapes, input_dtypes):
+        tensor = torch.from_numpy(numpy.load(str(path), allow_pickle=False))
+        if list(tensor.shape) != shape or tensor.dtype != dtype:
+            print(f"{path}: {tensor.dtype} {list(tensor.shape)}, the model "
+                  f"takes {dtype} {shape}", file=sys.stderr)
+            sys.exit(1)
+        inputs.append(tensor)
+    return tuple(inputs)
 
 
 def _write_artifacts(out_dir, module, example_inputs, quant_outputs,
@@ -166,7 +185,8 @@ def compile_op(op_dir, device):
                      output_qparams, device)
 
 
-def compile_model(pt2_path, out_dir, device, output_convention=None):
+def compile_model(pt2_path, out_dir, device, output_convention=None,
+                  input_paths=None):
     if not pt2_path.exists():
         print(f"{pt2_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -182,17 +202,25 @@ def compile_model(pt2_path, out_dir, device, output_convention=None):
                         if spec.kind == InputKind.USER_INPUT]
 
     name_to_shape = {}
+    name_to_dtype = {}
     for node in ep.graph.nodes:
         if node.op == "placeholder" and node.name in user_input_names:
             name_to_shape[node.name] = [int(s) for s in node.meta['val'].shape]
+            name_to_dtype[node.name] = node.meta['val'].dtype
     input_shapes = [name_to_shape[name] for name in user_input_names
                     if name in name_to_shape]
+    input_dtypes = [name_to_dtype[name] for name in user_input_names
+                    if name in name_to_dtype]
 
     if not input_shapes:
         print("Could not determine input shape", file=sys.stderr)
         sys.exit(1)
 
-    example_inputs = _example_inputs(ep, input_shapes)
+    if input_paths:
+        example_inputs = _load_inputs(input_paths, input_shapes,
+                                      input_dtypes)
+    else:
+        example_inputs = _example_inputs(ep, input_shapes)
 
     # Re-export with concrete shapes to remove shape guards from the
     # loaded .pt2.
@@ -273,6 +301,10 @@ def main():
     parser.add_argument("--output-convention",
                         help="with --whole-model, the model zoo's name "
                              "for what the model's output holds")
+    parser.add_argument("--input", type=Path, action="append",
+                        help="a processed input of the whole model, a "
+                             "NumPy .npy file; once per input the model "
+                             "takes, in the model's input order")
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
 
@@ -283,9 +315,11 @@ def main():
                     "--whole-model needs <pt2_file> <out_dir> <stamp_file>")
             pt2_path, out_dir, stamp_file = (Path(p) for p in args.paths)
             compile_model(pt2_path, out_dir, get_device(),
-                          args.output_convention)
+                          args.output_convention, args.input)
         elif args.output_convention is not None:
             parser.error("--output-convention needs --whole-model")
+        elif args.input is not None:
+            parser.error("--input needs --whole-model")
         elif args.all:
             if len(args.paths) != 2:
                 parser.error("--all needs <model_dir> <stamp_file>")

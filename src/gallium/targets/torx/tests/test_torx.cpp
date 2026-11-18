@@ -198,6 +198,9 @@ compare_detections(const std::vector<float> &actual,
    printf("%s: %zu detections, reference %zu\n",
           test_name.c_str(), got.size(), want.size());
 
+   ASSERT_FALSE(want.empty())
+      << test_name << ": the reference output decodes to no detection";
+
    EXPECT_EQ(got.size(), want.size())
       << test_name << ": number of detections differs";
 
