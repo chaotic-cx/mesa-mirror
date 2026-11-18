@@ -185,6 +185,8 @@ spec@arb_base_instance@arb_base_instance-drawarrays,Fail
 spec@arb_gpu_shader_fp64@execution@fs-indirect-temp-double-src,Crash
 spec@ext_base_instance@arb_base_instance-baseinstance-doesnt-affect-gl-instance-id_gles3,Fail
 spec@ext_base_instance@arb_base_instance-drawarrays_gles3,Fail
+spec@ext_framebuffer_multisample@depth-blit-after-fast-clear 2,Crash
+spec@ext_framebuffer_multisample@depth-blit-after-fast-clear 4,Crash
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
 spec@ext_multisampled_render_to_texture@valid-usage,Fail
 spec@ext_multisampled_render_to_texture@valid-usage@packed formats,Fail

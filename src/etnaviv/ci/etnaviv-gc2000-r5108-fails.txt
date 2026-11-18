@@ -587,8 +587,8 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
+spec@ext_texture_compression_s3tc@s3tc-errors,Fail
 spec@glsl-1.10@execution@built-in-functions@vs-sign-vec4,Fail
-spec@glsl-1.20@execution@tex-miplevel-selection gl2:textureproj 1d_projvec4,Fail
 
 # Nightly run expectations update
 hiz@hiz-stencil-read-fbo-d0-s8,Fail

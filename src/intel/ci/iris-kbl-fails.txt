@@ -93,5 +93,8 @@ glx@glx-visuals-depth -pixmap,Fail
 glx@glx-visuals-stencil -pixmap,Fail
 
 # uprev Piglit in Mesa
-
+spec@ext_framebuffer_multisample@depth-blit-after-fast-clear 2,Crash
+spec@ext_framebuffer_multisample@depth-blit-after-fast-clear 4,Crash
+spec@ext_framebuffer_multisample@depth-blit-after-fast-clear 6,Crash
+spec@ext_framebuffer_multisample@depth-blit-after-fast-clear 8,Crash
 

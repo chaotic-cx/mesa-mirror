@@ -1017,7 +1017,6 @@ spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one_write-
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one,Fail
 spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-fs-varyings,Fail
 spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-fs-varyings@sso-location,Fail
-spec@arb_gpu_shader_fp64@shader_storage@layout-std140-fp64-shader,Fail
 spec@arb_gpu_shader5@execution@precise@saturate-min-nan,Fail
 spec@arb_point_parameters@arb_point_parameters-point-attenuation@Antialiased combinations,Fail
 spec@arb_sample_shading@samplemask 2@0.500000 mask_in_one,Fail
@@ -1035,8 +1034,7 @@ spec@arb_sample_shading@samplemask 8 all@0.500000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@1.000000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@sample mask_in_one,Fail
-spec@arb_shader_image_load_store@execution@image_checkerboard,Fail
-spec@arb_tessellation_shader@execution@tcs-input@tcs-input-ivec4,Fail
+spec@arb_tessellation_shader@execution@tcs-input@tcs-input-gl_clipdistance,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=2,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=4,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=6,Fail
@@ -1079,9 +1077,7 @@ spec@ext_texture_integer@fbo-integer-attachments,Fail
 spec@ext_transform_feedback@primgen-clear scissor-clear,Fail
 spec@ext_transform_feedback@primgen-clear scissor-clear@scissored clear during primgen query,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
+spec@glsl-1.30@execution@clipping@vs-clip-distance-primitives,Fail
 spec@glsl-1.30@execution@glsl-packed-colors-clamping,Fail
-spec@glsl-1.50@execution@geometry@primitive-types gl_lines_adjacency,Fail
-spec@glsl-1.50@execution@geometry@primitive-types gl_points,Fail
 spec@glsl-1.50@execution@interface-vs-named-to-gs-array,Fail
-spec@glsl-1.50@execution@primitive-id-no-gs-line,Fail
 

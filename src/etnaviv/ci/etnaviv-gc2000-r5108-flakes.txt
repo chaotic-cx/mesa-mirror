@@ -329,6 +329,7 @@ spec@glsl-1.10@execution@builtins@glsl-fs-clamp-3
 spec@glsl-1.10@execution@copy-propagation@glsl-fs-copy-propagation-texcoords-2
 spec@glsl-1.10@execution@glsl-fs-convolution-1
 spec@glsl-1.10@execution@glsl-fs-texture-uniforms-share-same-unit
+spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-03
 spec@glsl-1.10@execution@glsl-gnome-shell-dim-window
 spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-bias
 spec@glsl-1.10@execution@samplers@glsl-fs-texture2d-dependent-4

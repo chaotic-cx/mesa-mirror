@@ -1057,9 +1057,6 @@ spec@arb_texture_rg@texwrap formats@GL_R8- NPOT,Fail
 spec@arb_texture_rg@texwrap formats@GL_RG16- NPOT,Fail
 spec@arb_texture_rg@texwrap formats@GL_RG8- NPOT,Fail
 
-# error: main:90: eglChooseConfig() returned no configs
-spec@egl 1.4@eglterminate then unbind context,Fail
-
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_depth_component24,Fail
 spec@ext_framebuffer_object@fbo-blending-snorm,Fail
 
