@@ -22,6 +22,9 @@ def declare_options():
         B("vs_position_always_invariant", False,
           "Forces all pre-rasterization shader geometry outputs to be invariant",
           c_name="position_always_invariant"),
+        B("kk_sync_render_passes", False,
+          "Prevents overlapping render encoders to work around game bugs",
+          c_name="sync_render_passes"),
     ]
     debug_options = []
     features_options = []

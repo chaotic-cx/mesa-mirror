@@ -13,6 +13,7 @@
 #include "kk_cmd_buffer.h"
 #include "kk_format.h"
 #include "kk_image_view.h"
+#include "kk_instance.h"
 #include "kk_physical_device.h"
 #include "kk_query_pool.h"
 
@@ -541,6 +542,7 @@ kk_CmdEndRendering2KHR(VkCommandBuffer commandBuffer,
                        UNUSED const VkRenderingEndInfoKHR *pRenderingEndInfo)
 {
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
    struct kk_rendering_state *render = &cmd->state.gfx.render;
    bool need_meta_resolve = false;
 
@@ -676,6 +678,13 @@ kk_CmdEndRendering2KHR(VkCommandBuffer commandBuffer,
        * We need a barrier in Metal. */
       cmd->barrier.pending.after |= MTL_STAGE_FRAGMENT;
       cmd->barrier.pending.before |= MTL_STAGE_ALL;
+   }
+
+   struct kk_instance *instance = kk_physical_device_instance(
+      (struct kk_physical_device *)dev->vk.physical);
+   if (instance->drirc.misc.sync_render_passes) {
+      cmd->barrier.pending.after |= MTL_STAGE_FRAGMENT;
+      cmd->barrier.pending.before |= MTL_STAGE_FRAGMENT;
    }
 }
 
