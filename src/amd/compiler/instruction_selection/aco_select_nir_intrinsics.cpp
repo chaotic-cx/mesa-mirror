@@ -2826,8 +2826,9 @@ visit_store_buffer(isel_context* ctx, nir_intrinsic_instr* intrin)
    /* GS outputs are only written once. */
    const bool written_once =
       mem_mode == nir_var_shader_out && ctx->shader->info.stage == MESA_SHADER_GEOMETRY;
-   memory_sync_info sync(aco_storage_mode_from_nir_mem_mode(mem_mode),
-                         written_once ? semantic_can_reorder : semantic_none);
+   memory_sync_info sync =
+      get_memory_sync_info(intrin, (storage_class)aco_storage_mode_from_nir_mem_mode(mem_mode),
+                           written_once ? semantic_can_reorder : semantic_none);
 
    unsigned write_count = 0;
    Temp write_datas[32];
