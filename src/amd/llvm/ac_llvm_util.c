@@ -32,8 +32,12 @@ static void ac_init_llvm_target(void)
    const char *argv[] = {
       /* error messages prefix */
       "mesa",
-      /* image_msaa_load currently doesn't work with LLVM + GFX12 */
+#if LLVM_VERSION_MAJOR < 24
+      /* The image intrinsic optimizer merged MSAA loads with different
+       * dmasks, see llvm-project commit b53cccf32fcf.
+       */
       "-amdgpu-enable-image-intrinsic-optimizer=false",
+#endif
    };
 
    ac_reset_llvm_all_options_occurrences();
