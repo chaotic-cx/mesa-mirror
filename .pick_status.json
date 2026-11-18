@@ -2634,7 +2634,7 @@
         "description": "dzn: Fix enhanced barriers on simultaneous-access textures",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "dc9a3ed4d511a04194b43495f4bcccc0d598fe8d",
         "notes": null

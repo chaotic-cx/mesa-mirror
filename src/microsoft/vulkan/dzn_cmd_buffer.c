@@ -1649,8 +1649,11 @@ dzn_CmdPipelineBarrier2_enhanced(VkCommandBuffer commandBuffer,
             layout_after_valid_access = valid_access_for_layout(texture_barriers[tbar].LayoutAfter);
          }
 
+         const bool is_undefined_layout_transition =
+            texture_barriers[tbar].LayoutBefore == D3D12_BARRIER_LAYOUT_UNDEFINED &&
+            texture_barriers[tbar].LayoutAfter != D3D12_BARRIER_LAYOUT_UNDEFINED;
          texture_barriers[tbar].AccessBefore = texture_barriers[tbar].SyncBefore == D3D12_BARRIER_SYNC_NONE ||
-                                                texture_barriers[tbar].LayoutBefore == D3D12_BARRIER_LAYOUT_UNDEFINED ?
+                                               is_undefined_layout_transition ?
             D3D12_BARRIER_ACCESS_NO_ACCESS :
             translate_access(info->pImageMemoryBarriers[i].srcAccessMask) &
                cmdbuf->valid_access & image->valid_access & layout_before_valid_access;
@@ -1669,7 +1672,7 @@ dzn_CmdPipelineBarrier2_enhanced(VkCommandBuffer commandBuffer,
          texture_barriers[tbar].Subresources.NumPlanes = util_bitcount(aspect);
          texture_barriers[tbar].pResource = image->res;
          texture_barriers[tbar].Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
-         if (texture_barriers[tbar].LayoutBefore == D3D12_BARRIER_LAYOUT_UNDEFINED)
+         if (is_undefined_layout_transition)
             texture_barriers[tbar].Flags |= D3D12_TEXTURE_BARRIER_FLAG_DISCARD;
          ++tbar;
       }
