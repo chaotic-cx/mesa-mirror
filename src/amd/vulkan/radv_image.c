@@ -1243,15 +1243,17 @@ radv_image_create_layout(struct radv_device *device, struct radv_image_create_in
       if (plane == 0) {
          if (!radv_use_dcc_for_image_late(device, image))
             ac_surface_zero_dcc_fields(&image->planes[0].surface);
-      }
 
-      if (pdev->info.gfx_level >= GFX12) {
-         const enum pipe_format format = radv_format_to_pipe_format(image->vk.format);
+         if (pdev->info.gfx_level >= GFX12) {
+            const enum pipe_format format = radv_format_to_pipe_format(image->vk.format);
 
-         /* Set DCC tilings for both color and depth/stencil. */
-         image->planes[plane].surface.u.gfx9.dcc_number_type = ac_get_cb_number_type(format);
-         image->planes[plane].surface.u.gfx9.dcc_data_format = ac_get_cb_format(pdev->info.gfx_level, format);
-         image->planes[plane].surface.u.gfx9.dcc_write_compress_disable = false;
+            /* Set DCC tilings for both color and depth/stencil. Only the first plane is used with
+             * BO metadata.
+             */
+            image->planes[0].surface.u.gfx9.dcc_number_type = ac_get_cb_number_type(format);
+            image->planes[0].surface.u.gfx9.dcc_data_format = ac_get_cb_format(pdev->info.gfx_level, format);
+            image->planes[0].surface.u.gfx9.dcc_write_compress_disable = false;
+         }
       }
 
       if (create_info.bo_metadata && !mod_info &&
