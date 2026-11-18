@@ -4624,7 +4624,7 @@
         "description": "dzn: Advertise KHR_external_memory_capabilities and KHR_external_semaphore_capabilities",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ed25ea1bc9e062a0ae048132a72dd5f7a31d8a00",
         "notes": null
