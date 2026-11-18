@@ -1274,6 +1274,26 @@ spec@arb_framebuffer_srgb@blit texture srgb_to_linear upsample disabled render,F
 spec@arb_framebuffer_srgb@blit texture srgb_to_linear upsample enabled clear,Fail
 spec@arb_framebuffer_srgb@blit texture srgb_to_linear upsample enabled render,Fail
 
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
+spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-04,Fail
+spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-05,Fail
+
 # SKQP failing tests
 DeferredProxyTest,Crash
 GrContext_colorTypeSupportedAsSurface,Fail
@@ -1420,5 +1440,3 @@ gles_wacky_yuv_formats,Fail
 gles_wacky_yuv_formats_cs,Fail
 gles_xfermodes2,Fail
 gles_xfermodes3,Fail
-spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-04,Fail
-spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-05,Fail
