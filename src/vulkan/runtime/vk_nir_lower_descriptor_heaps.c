@@ -943,7 +943,7 @@ try_lower_heaps_load_data(nir_builder *b, nir_intrinsic_instr *load)
    /* The root cast must come from a resource-heap variable, not a descriptor
     * load. This is the "untyped" path where the shader loads raw data
     * directly from the heap. Descriptors are loaded with
-    * load_buffer_ptr_deref.
+    * load_heap_descriptor_deref.
     */
    nir_deref_instr *root_parent = nir_src_as_deref(root_cast->parent);
    if (!root_parent ||
@@ -969,10 +969,10 @@ try_lower_heaps_load_data(nir_builder *b, nir_intrinsic_instr *load)
 }
 
 static bool
-lower_heaps_load_buffer_ptr(nir_builder *b, nir_intrinsic_instr *ptr_load,
-                            struct heap_mapping_ctx *ctx)
+lower_load_heap_descriptor_deref(nir_builder *b, nir_intrinsic_instr *ptr_load,
+                                 struct heap_mapping_ctx *ctx)
 {
-   assert(ptr_load->intrinsic == nir_intrinsic_load_buffer_ptr_deref);
+   assert(ptr_load->intrinsic == nir_intrinsic_load_heap_descriptor_deref);
    nir_deref_instr *deref = nir_src_as_deref(ptr_load->src[0]);
 
    nir_deref_instr *root_cast = deref_get_root_cast(deref);
@@ -1104,8 +1104,8 @@ lower_heaps_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
    case nir_intrinsic_deref_buffer_address:
       return try_lower_heaps_deref_access(b, intrin, ctx);
 
-   case nir_intrinsic_load_buffer_ptr_deref:
-      return lower_heaps_load_buffer_ptr(b, intrin, ctx);
+   case nir_intrinsic_load_heap_descriptor_deref:
+      return lower_load_heap_descriptor_deref(b, intrin, ctx);
 
    case nir_intrinsic_load_vulkan_descriptor:
       return lower_heaps_load_descriptor(b, intrin, ctx);

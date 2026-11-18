@@ -871,7 +871,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_image_deref_load_param_intel:
    case nir_intrinsic_image_heap_load_param_intel:
    case nir_intrinsic_image_load_raw_intel:
-   case nir_intrinsic_load_buffer_ptr_deref:
+   case nir_intrinsic_load_heap_descriptor_deref:
    case nir_intrinsic_get_ubo_size:
    case nir_intrinsic_load_ssbo_address:
    case nir_intrinsic_load_global_bounded:

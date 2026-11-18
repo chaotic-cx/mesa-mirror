@@ -1562,7 +1562,7 @@ intrinsic("cmat_transpose", src_comp=[-1, -1], indices=[SATURATE, CMAT_SIGNED_MA
 intrinsic("cmat_get_coordinate", src_comp=[1], dest_comp=2, indices=[CMAT_DESC], bit_sizes=[32])
 
 # src[] = { deref }.
-load("buffer_ptr_deref", [-1], [ACCESS, RESOURCE_TYPE],
+load("heap_descriptor_deref", [-1], [ACCESS, RESOURCE_TYPE],
      flags=[CAN_ELIMINATE, CAN_REORDER])
 # src[] = { offset }.
 load("heap_descriptor", [1], [RESOURCE_TYPE], [CAN_ELIMINATE, CAN_REORDER])

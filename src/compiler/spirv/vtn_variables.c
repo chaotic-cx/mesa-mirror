@@ -695,9 +695,9 @@ _vtn_variable_load_store(struct vtn_builder *b, bool load,
        */
       vtn_assert(load);
       nir_deref_instr *deref = vtn_pointer_to_deref(b, ptr);
-      (*inout)->def = nir_load_buffer_ptr_deref(&b->nb, 1, 64, &deref->def,
-                                                .access = access,
-                                                .resource_type = nir_resource_type_acceleration_structure);
+      (*inout)->def = nir_load_heap_descriptor_deref(&b->nb, 1, 64, &deref->def,
+                                                     .access = access,
+                                                     .resource_type = nir_resource_type_acceleration_structure);
       return;
    }
 
@@ -3114,10 +3114,10 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
       src = vtn_align_pointer(b, src, b->options->buffer_descriptor_alignment);
 
       nir_deref_instr *src_deref = vtn_pointer_to_deref(b, src);
-      nir_def *ptr = nir_load_buffer_ptr_deref(&b->nb, num_components, bit_size,
-                                               &src_deref->def,
-                                               .access = access,
-                                               .resource_type = resource_type);
+      nir_def *ptr = nir_load_heap_descriptor_deref(&b->nb, num_components, bit_size,
+                                                    &src_deref->def,
+                                                    .access = access,
+                                                    .resource_type = resource_type);
 
       vtn_push_pointer(b, w[2], vtn_pointer_from_ssa(b, ptr, res_type));
       break;
