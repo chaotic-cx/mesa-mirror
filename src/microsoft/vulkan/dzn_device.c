@@ -74,6 +74,7 @@ static const struct vk_instance_extension_table instance_extensions = {
    .KHR_device_group_creation                = true,
    .KHR_external_memory_capabilities         = true,
    .KHR_external_semaphore_capabilities      = true,
+   .KHR_external_fence_capabilities          = true,
 #ifdef DZN_USE_WSI_PLATFORM
    .KHR_surface                              = true,
    .KHR_get_surface_capabilities2            = true,
@@ -112,6 +113,7 @@ dzn_physical_device_get_extensions(struct dzn_physical_device *pdev)
       .KHR_draw_indirect_count               = true,
       .KHR_driver_properties                 = true,
       .KHR_dynamic_rendering                 = true,
+      .KHR_external_fence                    = true,
       .KHR_external_memory                   = true,
       .KHR_external_semaphore                = true,
 #ifdef _WIN32
