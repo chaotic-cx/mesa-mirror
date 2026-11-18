@@ -238,19 +238,19 @@ static struct vc4_simulator_bo *
 vc4_create_simulator_bo(int fd, int handle, unsigned size)
 {
         struct vc4_simulator_file *file = vc4_get_simulator_file_for_fd(fd);
-        struct vc4_simulator_bo *sim_bo = rzalloc(file,
-                                                  struct vc4_simulator_bo);
-        struct drm_vc4_bo *bo = &sim_bo->base;
-        struct drm_gem_cma_object *obj = &bo->base;
         size = align(size, 4096);
 
-        sim_bo->file = file;
-        sim_bo->handle = handle;
-
-        /* Allocate space for the buffer in simulator memory. */
         simple_mtx_lock(&sim_state.mutex);
+        struct vc4_simulator_bo *sim_bo = rzalloc(file,
+                                                  struct vc4_simulator_bo);
+        /* Allocate space for the buffer in simulator memory. */
         sim_bo->block = u_mmAllocMem(sim_state.heap, size + 4, PAGE_ALIGN2, 0);
         simple_mtx_unlock(&sim_state.mutex);
+
+        struct drm_vc4_bo *bo = &sim_bo->base;
+        struct drm_gem_cma_object *obj = &bo->base;
+        sim_bo->file = file;
+        sim_bo->handle = handle;
         assert(sim_bo->block);
 
         obj->base.size = size;
@@ -310,8 +310,8 @@ vc4_free_simulator_bo(struct vc4_simulator_bo *sim_bo)
                 _mesa_hash_table_remove_key(sim_file->bo_map,
                                             int_to_key(sim_bo->handle));
         }
-        simple_mtx_unlock(&sim_state.mutex);
         ralloc_free(sim_bo);
+        simple_mtx_unlock(&sim_state.mutex);
 }
 
 static struct vc4_simulator_bo *
