@@ -20,15 +20,7 @@
 
 int64_t
 pan_perf_counter_read(const struct pan_perf *perf,
-                      const struct mali_perf_counter *counter, uint8_t blk_idx)
-{
-   return counter->get_value(&perf->session->mali_perf_backend, blk_idx,
-                             &perf->constants, &perf->dump_info);
-}
-
-int64_t
-pan_perf_counter_read_sum(const struct pan_perf *perf,
-                          const struct mali_perf_counter *counter)
+                      const struct mali_perf_counter *counter)
 {
    return counter->get_value(&perf->session->mali_perf_backend,
                              MALI_PERF_HW_COUNTER_ID_BLOCK_INDEX_ALL,

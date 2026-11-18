@@ -163,7 +163,7 @@ PanfrostPerf::create_available_counters() const
          struct pan_perf *perf =
             static_cast<struct pan_perf *>(pan_driver.perf->get_subinstance());
 
-         return pan_perf_counter_read_sum(perf, cinfo);
+         return pan_perf_counter_read(perf, cinfo);
       });
 
       counters.emplace_back(counter);

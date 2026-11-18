@@ -29,11 +29,7 @@ struct pan_perf {
 };
 
 int64_t pan_perf_counter_read(const struct pan_perf *perf,
-                              const struct mali_perf_counter *counter,
-                              uint8_t blk_idx);
-
-int64_t pan_perf_counter_read_sum(const struct pan_perf *perf,
-                                  const struct mali_perf_counter *counter);
+                              const struct mali_perf_counter *counter);
 
 struct pan_perf *pan_perf_create(int fd);
 

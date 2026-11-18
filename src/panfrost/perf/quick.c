@@ -42,7 +42,7 @@ main(void)
 
    for (const struct mali_perf_counter *ctr = perf->info->counters; ctr->name;
         ctr++) {
-      int64_t val = pan_perf_counter_read_sum(perf, ctr);
+      int64_t val = pan_perf_counter_read(perf, ctr);
 
       printf("%s: %" PRId64 "\n", ctr->name, val);
    }
