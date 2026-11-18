@@ -1,5 +1,975 @@
 [
     {
+        "sha": "3d2a7e8ad2e09bb5b9b532121bc45230a55221b2",
+        "description": "egl/wayland: clear back after buffer allocation fails",
+        "nominated": true,
+        "nomination_type": 4,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "74c4401fc9a6b1f3098f7af3779e156752696181",
+        "description": "pan/perf: Fix BPS counter timespan",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "c81802cf0890d43597d0725cec44d1bf016687ef",
+        "notes": null
+    },
+    {
+        "sha": "8ee8567956813519e6c394cab7b4b7f10500517c",
+        "description": "panfrost/kmod: Fix pan[thor|frost] naming mistake",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "8bb82dbeab6ca5c3581c6c7cb6397064b58ba7b8",
+        "notes": null
+    },
+    {
+        "sha": "fed2b31c25f9f7fad3d04d1fb6c4c3d1bcbe2ce6",
+        "description": "pan/perf: Sum blocks before equations",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "91675a984a60c361cf3a7dd63811b64d04287bea",
+        "description": "etnaviv/rs: Reset RS_CONFIG before YUV tiler kick",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "042138093f6e48134f073199b3d800161f258baf",
+        "notes": null
+    },
+    {
+        "sha": "470de92a676fafba8f44799ff8b7aeedd44379fc",
+        "description": "iris: Enable efficient 64bit addressing mode by default",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9dd1709427ee9c14e061f60eb02e7b75f91c2b03",
+        "description": "intel/compiler/e64: Set blend state entry index in render target messages",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "71312e12eaca25a281e89038f8c15c51c993f293",
+        "description": "radv: tidy up radv_retile_dcc()/radv_decompress_dcc()",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "27010719789c671d2e4407dd0f40b88af5af129d",
+        "description": "radv: fix HTILE decompression on SDMA with gang submit",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f85e2b6b86115a5e113ccbff8ac1b947de7069a9",
+        "description": "radv: fix bogus synchronization with DCC retile/decompress on SDMA",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e76d0edf7d8dccb6e156e1cad74cfb4f65431cf4",
+        "description": "radv: fix a missing gang wait semaphore for DCC retile",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "8e0f6be8759fa657e80f6cade416970097df1c81",
+        "description": "panvk/utrace: Lazily allocate copy buffer heap",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "596ae46924640ffa4bf0dd92997ff1fe98fae99e",
+        "description": "panvk/utrace: Fix NULL dereferencing for timestamps and data buffers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f735ded20d5622451a34a1cfa5002f8051bf5182",
+        "description": "broadcom/ci: update expected results",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "43e98869631e4c61a661aa88738a1a365e5cb3bb",
+        "description": "nvk: Bind descriptor heaps from command buffers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "62444c84ef84d61dd26698fbc6e269ee3a6af5f6",
+        "description": "nvk/queue: Prepare for binding of descriptor heaps from command buffer",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e3bbc10b2a35e14e3898d52dacac632ae89b6e7a",
+        "description": "ac/vcn_dec: Clamp number of ref frames",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "79af03556ce365a108577b713dfa4056f794a2c1",
+        "notes": null
+    },
+    {
+        "sha": "5652de3dbce8a6367bf1c2e2e718a0f509c01ad7",
+        "description": "ac/vcn_dec: Use max_num_ref_frames for h264 ref_id_size",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "79af03556ce365a108577b713dfa4056f794a2c1",
+        "notes": null
+    },
+    {
+        "sha": "3da2ddf4a7b1578fe98530bce372b5cd9541eaaa",
+        "description": "va: Fix VP9 frame header length when parsing bitstream",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "22fddf363a3785ba046eab5e3d09e59de2fea2dd",
+        "description": "gallium/radeonsi: add missing NULL checks after allocations",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "df1275b06a309052cc7425a37292b3c1df4c2fbc",
+        "description": "vl: Add plane order for NV16 and P210 formats",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "fc29093f6a7ec5e1ba69f8959ed3344096bcaf4e",
+        "notes": null
+    },
+    {
+        "sha": "a7e9a3b98e586dcc54e8c07cc43b1b2de51bb71e",
+        "description": "radv: fix input attachment reads of MSRTSS depth/stencil attachments",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "498240b15c951fa6596e9ec69d2409df5ef5f179",
+        "notes": null
+    },
+    {
+        "sha": "f8f2d8e75c8fd332cbcbe95c1b61756ec517f7a7",
+        "description": "radv: fix input attachment reads of MSRTSS color attachments",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "498240b15c951fa6596e9ec69d2409df5ef5f179",
+        "notes": null
+    },
+    {
+        "sha": "afae2eadaecd8388e892ebafc9d6035722453f5e",
+        "description": "nir/clone: preserve input attachment info of texture instructions",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "1dc711c4074d260da031b6d456c4b0c46b82069e",
+        "notes": null
+    },
+    {
+        "sha": "486b05e612d0942a4885c01ad419c48e284b9a99",
+        "description": "intel/isl: Rename isl_tiled_memcpy.c to isl_tiled_memcpy.h",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a7b91b7113e42db2bc4079830cd29c5a607aee07",
+        "description": "nir/validate: add support color support on Windows",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5dc61ba5508b7b152813fbc4b55dd6d4c5932521",
+        "description": "lavapipe: encode all IR leaf nodes",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "0e9e1086bb86721e21693763c6bf35415d93fff5",
+        "description": "zink: only attempt to resolve when nr_samples > 1",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d8cfbe8276693d0c97bc270baa354840799c1f01",
+        "description": "gfxstream: add reply-less fence, pool, and event resets",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1ad6faf5048723c096ed600880e43cdb808092a3",
+        "description": "jay/ra: remove accumulator support",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5872b57de8e3694fa3954f351e8ac2d773644b5f",
+        "description": "jay/spill: drop ACCUM handling",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e9a3e9240c3e2db0087e61d22a021a4a68f8668c",
+        "description": "jay: remove accumulator mapping",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f09f7bb330eede58cd775bec8a6b5b8d91e43faa",
+        "description": "nouveau: Add the recent rustfmt to .git-blame-ignore-revs",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "dd4215a491b4c668301d1833328f6a51f5edd67e",
+        "description": "jay/ra: fix affinities with preloads",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "da2d473159699a511d6509cc3ddbdc8cd5ff457e",
+        "description": "pan: drop bi_lower_divergent_indirects pass",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "4b2e064a95b393f1df93a88fd81833b9ba067d2d",
+        "description": "anv: enable VK_KHR_maintenance12",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5a60fc94804407fe01feac3c1af2286ded30b719",
+        "description": "anv: use distinct plane indices for src and dst images on resolve",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "3c253c7f2363f07bff5167cc6a51148333fc55f3",
+        "description": "nouveau: Re-rustfmt with edition=2024",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "58b7cd13d3b73f30ca306e17172888b01754ff3a",
+        "description": "tree-wide: make sure everywhere that uses CLOCK_MONOTONIC_RAW includes c11/time.h",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "98795e7108234575009cc262abdabd0bd95d6304",
+        "description": "util/macros: commonize vkrt/anv/hasvk workaround for CLOCK_MONOTONIC_RAW on FreeBSD",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "8ea8bde348ef4abab8f7bcb178199738eb5c1604",
+        "description": "Revert \"docs/features: claim Vulkan 1.1 and 1.2 for dzn\"",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "8945caeca344795e71b8abbcccd454156d0d6b13",
+        "description": "pan/ds: omit redundant counter descriptions",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "bfb747c4ad7189479c53fbbfd8ba0567c2f5c95c",
+        "description": "pan/ds: fix a typo in convert_classes",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "55cfd6e78cb29a34016f000786366c34a1b6064f",
+        "description": "tu, ir3: Enable storagePushConstant{8,16}",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "650e49e4f5f17357c2f62f3ddaff8b819020e609",
+        "description": "tu: Enable uniformAndStorageBuffer{8,16}BitAccess when supported",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "6f26f219568115d04b8154f52f45e49432987eb9",
+        "description": "tu: Lower UBO access sizes before lowering inline uniform blocks",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "881f15ebda3a8befdb658ef7f0365d48023be3eb",
+        "description": "gfxstream: skip GET_CAPS for kCapsetNone and fix kumquat error logging",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "507a032d466e3877c6a3dd03c9b053ec8f5b1fb8",
+        "description": "ac/nir: make lowered load_ordered_id_amd workgroup-uniform",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "522774bcc3f35af3a809c0f9fe391568094a9a79",
+        "description": "nir: add const to nir_src_is_divergent",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2fac6ac9c626b80bd5e569f4b59a973549477716",
+        "description": "nir/divergence: consider a few intrinsics vertex-uniform",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "20b6de08d4a07ef5cbdfcb9ab3dd597b9c163e01",
+        "description": "nir/divergence: consider a few intrinsics workgroup-divergent",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "c5763bb49232c522b1de8a49a534c2f625e7f1c6",
+        "description": "nir/divergence: consider resources with vertex/workgroup divergence",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "98d9f05a7ff904d223e76a6a29e6c0ecee92ce6e",
+        "description": "nir/divergence: use src_divergent() for load_per_view_output",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "da84f47b4d7af412a86074cc3bfa4d7904ada99b",
+        "description": "nir/divergence: fix return for texop_sparse_residency_intel",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "76bf5a05e2edee10ef39088246fb3768d3d074d9",
+        "description": "nir: rename nir_divergence_single_prim_per_subgroup",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "6643394d775db6f920b2ccc2c9b23eb93e8776b2",
+        "description": "nir/divergence: ignore nir_divergence_across_subgroups at input loads",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "36c632c5303a56fcd63effee6065f003057b8734",
+        "description": "nir/skip_helpers: invalidate divergence metadata",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "b53192bc13107868f6863fcfd6e155421155478c",
+        "description": "nir/opt_varyings: don't use vertex divergence for GS producers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f367f74ba61ce19bbb477a95e1e5ddc02ddbf5ad",
+        "description": "nir/opt_varyings: clear output_equal_mask when GS has looped output stores",
+        "nominated": true,
+        "nomination_type": 4,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1b4bf324f0c04a034ca3ee13abb920c6088ca067",
+        "description": "nir/tests: handle GS->FS varyings becoming flat",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "15ad5c1cdab3146ba053541e710c7bc9cac9f1dc",
+        "description": "nir/tests: ensure TES input loads are vertex divergent",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9bfd6154f9d22f051c364b30b1b72f1655813683",
+        "description": "glsl: drop unorm/snorm (un)packing lowering",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "b73e9a6c3e0119ccefb368292b70e4e5ab8514fb",
+        "description": "glsl/standalone: set GLSLHasHalfFloatPacking",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a8526b90077256d593f29a575672bb1c730ed9d5",
+        "description": "ntt: lower snorm/unorm packing",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d8e9db084a879e350a43a63facad8481edf3fe6d",
+        "description": "v3d: lower 2x16 unorm/snorm unpack",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "01638af585b55e2119c3ed91c8b45205032694df",
+        "description": "docs: update calendar for 26.3.0",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f2bcd8de4e12a8ff18e4ae7d3d9bd9e6d25f0b3d",
+        "description": "relnotes: Add SHA sums for 26.3.0",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5b4fd22a027581d3dc89dd2f15c563a0fbd19b22",
+        "description": "docs: add release notes for 26.3.0",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "88d5dae3b98342c9ca71a8bb093e96fa9a1a4763",
+        "description": "jay/lower_post_sched: swap sources to avoid mov",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f5ef89eb4a12288f9c1076d23924d06165494256",
+        "description": "gen/validate: check 3-src ARF restrictions",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f33731c1986af1868c8ee3a89191a6ea5bc95030",
+        "description": "jay: generalize and_sN",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "c237c014a687610ce1932053a101b0b925607ec3",
+        "description": "jay: match inverse_ballot bitsizes to flag width",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "0cfe37de9198a96348bf6b3cfb123d088abfc84d",
+        "description": "jay: add types to not",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a22d416f7b70eb5408b70ef03ec81994b63eee06",
+        "description": "jay: lower omask to 16-bit",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a86673c9419bce290426d13508cab64786d92599",
+        "description": "jay/lower_send: prep for 16-bit address regs",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e63f73516c2eba6ff1384731473f5e49fed3db33",
+        "description": "jay/lower_helpers: don't overrun flag in simd16",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "6f98c99c8727b35393cb6d66dbc0a34a7c1e2f04",
+        "description": "jay/lower_pre_ra: allow 3-src f16, s16 immediates",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "7e9ccecfbdd143c0dec0922d9db4208bbf707c84",
+        "description": "jay/to_binary: handle fp16, s16 immediates",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2dcccc63cc71dfd818b126d1c192e7f86554e7a6",
+        "description": "jay: fix flag bitsize for EOT handling",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "783547dab3c80a79e6b7512aed6a96c00763d1c9",
+        "description": "jay: introduce 16-bit undef",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "8adc63bd7ae2f32dd48a2cf1b59bc52d6807cfab",
+        "description": "jay: handle 16-bit bitfield_select with bfn.u16",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "0453762c732dd339e1015f2826b4ad26a36dfd57",
+        "description": "jay: plumb builder into nj_def",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "8cebc825295cd1e1dd422216a8c8f1ea9358b737",
+        "description": "jay/lower_flags: cast to minimal bit size",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "254828498b56fa503bfc6f357f8b92ba80bd5099",
+        "description": "jay: extract & use jay_flag_bits",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "cf1e0cf4105301164a079142bd924d94f6f04d15",
+        "description": "jay/validate: remove redundant zip validation",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "fa9267016f940419921014295318efac7631fc94",
+        "description": "jay/print: fix predication last-use printing",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9d66450e207f600b959bb8ccd5669fa5d3a48dac",
+        "description": "jay/lower_pre_ra: allow duplicate vectors",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "ce7f0207a6ddffa6141a57671de90de814bf5101",
+        "description": "jay/ra: handle duplicate vector sources",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "3ebf3c3f944d6424d4a71e904d9f71997fc2eb3f",
+        "description": "jay: plumb size into jay_bare_reg(s)",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "572ffb92c48f8e898281c85e0bd9aeb832cb4ad0",
+        "description": "dzn: Expose VK_EXT_private_data",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f3b5ec70f63ed713e5b524217414fcb2c73ab68a",
+        "description": "dzn: Fix pooled descriptor set vk_object_base lifecycle",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "a012b219640e875aa552b37dfdaf69336d5863c7",
+        "notes": null
+    },
+    {
+        "sha": "e79684941e7da8585721bb8b507967cef42b3d40",
+        "description": "dzn: Expose VK_KHR_shader_subgroup_extended_types",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "afc58f4cdfd62b5ad7f34fe13ccab4292a94a38d",
+        "description": "dzn: Expose VK_EXT_host_query_reset",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "10cfb472a2df3ca65ec332f1bce16ff28f96ccfa",
+        "description": "intel: Update URB deref_block_size after the enablement of URB memory",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "722c25ae3824cf971e506c46573d180abf82b8c2",
+        "description": "iris: Emit 3DSTATE_URB_MEMORY to enable URB central storage",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2fdc55e24b65fd0db927a6251e2f0ac96548f956",
+        "description": "anv: Emit 3DSTATE_URB_MEMORY to enable URB central storage",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "21ec1eaa39e1a7b2a2cdcf0c66641663a0fed082",
+        "description": "intel/genxml: Add 3DSTATE_URB_MEMORY",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
         "sha": "8fae0a4519445af71501dc183b3450d8f407bbf1",
         "description": "anv: Fix custom border color swizzling with efficient 64bit addressing",
         "nominated": false,
