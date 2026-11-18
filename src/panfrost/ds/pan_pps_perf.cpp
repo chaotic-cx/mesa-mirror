@@ -87,28 +87,6 @@ PanfrostPerf::get_subinstance() {
    return perf;
 }
 
-static std::string
-get_counter_name(const char *base_name, enum mali_perf_block_type blk_type,
-                 uint8_t blk_idx)
-{
-   std::stringstream ss;
-
-   switch (blk_type) {
-   case MALI_PERF_BLOCK_MEMSYS:
-      ss << base_name << " (slice " << (unsigned)blk_idx << ")";
-      break;
-   case MALI_PERF_BLOCK_SHADER_CORE:
-      ss << base_name << " (core " << (unsigned)blk_idx << ")";
-      break;
-   default:
-      assert(!blk_idx);
-      ss << base_name;
-      break;
-   }
-
-   return ss.str();
-}
-
 Counter::Units
 convert_pan_units(enum mali_perf_counter_units unit)
 {
@@ -166,28 +144,29 @@ PanfrostPerf::create_available_counters() const
 
    for (const struct mali_perf_counter *cinfo = perf->info->counters;
         cinfo->name; cinfo++) {
-      for (uint32_t j = 0;
-           j < mali_perf_block_count(cinfo->block, &perf->constants); j++) {
+      uint8_t nblocks = mali_perf_block_count(cinfo->block, &perf->constants);
 
-         Counter counter = {};
-         counter.id = global_counter_id++;
-         counter.name = get_counter_name(cinfo->name, cinfo->block, j);
-	 /* emit (optional) description only for the first block, to reduce
-	  * packet size
-	  */
-         if (j == 0)
-            counter.description = cinfo->desc;
-         counter.group = cinfo->block;
-         counter.group_mask = convert_classes(cinfo->classes);
-         counter.units = convert_pan_units(cinfo->units);
-         counter.set_getter([=](const Counter &c, const Driver &d) {
-            auto &pan_driver = PanfrostDriver::into(d);
-            struct pan_perf *perf = static_cast<struct pan_perf *>(
-               pan_driver.perf->get_subinstance());
-            return pan_perf_counter_read(perf, cinfo, j);
-         });
-         counters.emplace_back(counter);
-      }
+      /* Don't use up space for counters this device doesn't have. */
+      if (nblocks == 0)
+         continue;
+
+      Counter counter = {};
+      counter.id = global_counter_id++;
+      counter.name = cinfo->name;
+      counter.description = cinfo->desc;
+      counter.group = cinfo->block;
+      counter.group_mask = convert_classes(cinfo->classes);
+      counter.units = convert_pan_units(cinfo->units);
+
+      counter.set_getter([=](const Counter &c, const Driver &d) {
+         auto &pan_driver = PanfrostDriver::into(d);
+         struct pan_perf *perf =
+            static_cast<struct pan_perf *>(pan_driver.perf->get_subinstance());
+
+         return pan_perf_counter_read_sum(perf, cinfo);
+      });
+
+      counters.emplace_back(counter);
    }
 
    for (uint32_t i = 0; i < MALI_PERF_BLOCK_TYPE_COUNT; i++) {
