@@ -994,7 +994,7 @@
         "description": "ethosu: Zero the padding of coefficient allocations",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9316154753d835fdaf07fa40d2366be2b63e7cd0",
         "notes": null

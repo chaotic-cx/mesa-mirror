@@ -132,9 +132,11 @@ unsigned
 ethosu_allocate_coefs(struct ethosu_subgraph *subgraph, unsigned size)
 {
    unsigned address = ALIGN_POT(subgraph->coefs_used, 16);
+   unsigned end = address + ALIGN_POT(size, 16);
 
-   subgraph->coefs_used = address + ALIGN_POT(size, 16);
+   subgraph->coefs_used = end;
    subgraph->coefs = realloc(subgraph->coefs, subgraph->coefs_used);
+   memset(subgraph->coefs + address + size, 0, end - address - size);
    return address;
 }
 
