@@ -1097,6 +1097,11 @@ ntq_emit_alu(struct vc4_compile *c, nir_alu_instr *instr)
                 return;
         }
 
+        /* Every phi is scalarized, so the movs that out-of-SSA adds are
+         * scalar. The general case below only writes channel 0.
+         */
+        assert(instr->op != nir_op_mov || instr->def.num_components == 1);
+
         /* General case: We can just grab the one used channel per src. */
         struct qreg src[nir_op_infos[instr->op].num_inputs];
         for (int i = 0; i < nir_op_infos[instr->op].num_inputs; i++) {
@@ -1491,7 +1496,7 @@ vc4_optimize_nir(struct nir_shader *s)
 
                 NIR_PASS(_, s, nir_lower_vars_to_ssa);
                 NIR_PASS(progress, s, nir_lower_alu_to_scalar, NULL, NULL);
-                NIR_PASS(progress, s, nir_lower_phis_to_scalar, NULL, NULL);
+                NIR_PASS(progress, s, nir_lower_all_phis_to_scalar);
                 NIR_PASS(progress, s, nir_opt_copy_prop);
                 NIR_PASS(progress, s, nir_opt_remove_phis);
                 NIR_PASS(progress, s, nir_opt_dce);
