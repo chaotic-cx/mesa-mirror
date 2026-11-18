@@ -1743,6 +1743,9 @@ intrinsic_to_msl(struct nir_to_msl_ctx *ctx, nir_intrinsic_instr *instr)
       P(ctx, ", 3);\n");
       break;
    case nir_intrinsic_reduce:
+      /* Metal's simd_* reductions always cover the whole simdgroup */
+      assert(nir_intrinsic_cluster_size(instr) == 0 ||
+             nir_intrinsic_cluster_size(instr) >= 32);
       switch (nir_intrinsic_reduction_op(instr)) {
       case nir_op_iadd:
       case nir_op_fadd:
