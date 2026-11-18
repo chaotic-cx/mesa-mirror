@@ -378,7 +378,7 @@ private:
 
    brw_reg build_lane_offsets(const brw_builder &bld,
                               uint32_t spill_offset, int ip,
-                              bool *out_use_base_offset,
+                              bool *use_base_offset,
                               brw_reg offset,
                               uint32_t spill_offset_increment);
    brw_reg build_single_offset(const brw_builder &bld,
@@ -910,13 +910,13 @@ brw_reg_alloc::build_single_offset(const brw_builder &bld, uint32_t spill_offset
 
 brw_reg
 brw_reg_alloc::build_lane_offsets(const brw_builder &bld, uint32_t spill_offset, int ip,
-                                  bool *out_use_base_offset, brw_reg offset,
+                                  bool *use_base_offset, brw_reg offset,
                                   uint32_t spill_offset_increment)
 {
    const intel_device_info *devinfo = bld.shader->devinfo;
    assert(bld.dispatch_width() <= 16 * reg_unit(devinfo));
 
-   *out_use_base_offset =
+   const bool next_use_base_offset =
       brw_lsc_supports_base_offset(devinfo) &&
       brw_lsc_can_use_instruction_offset(devinfo, LSC_ADDR_SURFTYPE_SS,
                                          bld.shader->key->use_efficient_64bit,
@@ -937,7 +937,7 @@ brw_reg_alloc::build_lane_offsets(const brw_builder &bld, uint32_t spill_offset,
                                   brw_imm_uv(0x76543210));
       _mesa_set_add(spill_insts, inst);
 
-      if (spill_offset > 0 && spill_offset <= 0xffffu && !*out_use_base_offset &&
+      if (spill_offset > 0 && spill_offset <= 0xffffu && !next_use_base_offset &&
           devinfo->ver < 35) {
          inst = ubld.group(8, 0).MAD(offset,
                                      brw_imm_uw(spill_offset),
@@ -950,7 +950,7 @@ brw_reg_alloc::build_lane_offsets(const brw_builder &bld, uint32_t spill_offset,
          _mesa_set_add(spill_insts, inst);
 
          /* Add the base offset */
-         if (spill_offset && !*out_use_base_offset) {
+         if (spill_offset && !next_use_base_offset) {
             inst = ubld.group(8, 0).ADD(offset, offset, brw_imm_ud(spill_offset));
             _mesa_set_add(spill_insts, inst);
          }
@@ -973,11 +973,18 @@ brw_reg_alloc::build_lane_offsets(const brw_builder &bld, uint32_t spill_offset,
             brw_imm_ud(16 << 2));
          _mesa_set_add(spill_insts, inst);
       }
-   } else if (!*out_use_base_offset) {
-      inst = ubld.ADD(offset, offset, brw_imm_ud(spill_offset_increment));
+   } else if (!next_use_base_offset) {
+      /* If the previous address calculation used an immediate offset, the
+       * header does not include the base.  Add the full offset instead of
+       * just the increment.
+       */
+      const uint32_t increment = *use_base_offset ?
+         spill_offset : spill_offset_increment;
+      inst = ubld.ADD(offset, offset, brw_imm_ud(increment));
       _mesa_set_add(spill_insts, inst);
    }
 
+   *use_base_offset = next_use_base_offset;
    return offset;
 }
 
@@ -1149,14 +1156,13 @@ brw_reg_alloc::emit_unspill(const brw_builder &bld,
       (bld.dispatch_width() > 16 * reg_unit(devinfo) || bld.has_writemask_all());
    const brw_builder ubld = use_transpose ? bld.uniform() : bld;
    brw_reg payload1 = brw_reg();
+   bool use_base_offset = false;
    unsigned inc = 0;
 
    for (unsigned i = 0; i < DIV_ROUND_UP(count, reg_size); i++) {
       ++stats->fill_count;
 
       if (devinfo->verx10 >= 125) {
-         bool use_base_offset = false;
-
          payload1 = use_transpose ?
             build_single_offset(ubld, slot.offset, ip, &use_base_offset, payload1) :
             build_lane_offsets(ubld, slot.offset, ip, &use_base_offset, payload1, inc);
@@ -1228,13 +1234,13 @@ brw_reg_alloc::emit_spill(const brw_builder &bld,
    const unsigned reg_size = src.component_size(bld.dispatch_width()) /
                              REG_SIZE;
    brw_reg payload1 = brw_reg();
+   bool use_base_offset = false;
    unsigned inc = 0;
 
    for (unsigned i = 0; i < DIV_ROUND_UP(count, reg_size); i++) {
       ++stats->spill_count;
 
       if (devinfo->verx10 >= 125) {
-         bool use_base_offset = false;
          payload1 = build_lane_offsets(bld, slot.offset, ip, &use_base_offset, payload1, inc);
 
          brw_scratch_inst *spill_inst = bld.SPILL();
