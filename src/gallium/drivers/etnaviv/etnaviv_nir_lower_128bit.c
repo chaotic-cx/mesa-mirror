@@ -139,11 +139,12 @@ lower_128bit_sampler(nir_builder *b, nir_tex_instr *tex, void *_data)
 {
    struct lower_128bit_data *data = _data;
 
-   /* txf has no sampler state but still references a texture descriptor.
-    * Pair it via texture_index. All other tex ops use sampler_index.
+   /* txf and txf_ms have no sampler state but still reference a texture
+    * descriptor. Pair them via texture_index. All other tex ops use
+    * sampler_index.
     */
    const bool is_txf = !nir_tex_instr_need_sampler(tex);
-   if (is_txf && tex->op != nir_texop_txf)
+   if (is_txf && tex->op != nir_texop_txf && tex->op != nir_texop_txf_ms)
       return false;
 
    const unsigned idx = is_txf ? tex->texture_index : tex->sampler_index;
