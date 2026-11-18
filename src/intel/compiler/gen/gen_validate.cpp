@@ -845,6 +845,9 @@ private:
                      (src1_reg_nr <= src0_reg_nr &&
                       src0_reg_nr < src1_reg_nr + ex_mlen),
                      "Split-send payloads must not overlap.");
+
+            ERROR_IF(src0_len == 0, "Non-null sends must send something");
+            ERROR_IF(src1_len == 0, "Non-null sends must send something");
          }
       } else if (gen_inst_is_send(inst)) {
          ERROR_IF(inst->src[0].indirect,
