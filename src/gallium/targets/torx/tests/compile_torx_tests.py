@@ -22,7 +22,8 @@ Output per op or model per device:
 Usage:
   python compile_torx_tests.py <op_dir> <stamp_file>
   python compile_torx_tests.py --all <model_dir> <stamp_file>
-  python compile_torx_tests.py --whole-model <pt2_file> <out_dir> <stamp_file>
+  python compile_torx_tests.py --whole-model [--output-convention <name>]
+                               <pt2_file> <out_dir> <stamp_file>
 
 --all compiles every numbered per-op directory under <model_dir>, in
 parallel across processes.
@@ -87,7 +88,7 @@ def _example_inputs(ep, input_shapes):
 
 
 def _write_artifacts(out_dir, module, example_inputs, quant_outputs,
-                     output_qparams, device):
+                     output_qparams, device, output_convention=None):
     """Persist inputs, the quantised CPU output, metadata, and the .pte."""
     for i, inp in enumerate(example_inputs):
         inp.numpy().tofile(str(out_dir / (device + f"-input-{i}.data")))
@@ -99,11 +100,16 @@ def _write_artifacts(out_dir, module, example_inputs, quant_outputs,
 
     compile_to_pte(module, example_inputs, out_dir / (device + ".pte"))
 
-    write_json(out_dir / (device + ".json"), {
+    meta = {
         "num_outputs": num_outputs,
         "output_scales": [float(s) for s, _ in output_qparams],
         "output_zero_points": [int(zp) for _, zp in output_qparams],
-    })
+        "output_shapes": [list(quant_outputs[i].shape)
+                          for i in range(num_outputs)],
+    }
+    if output_convention is not None:
+        meta["output_convention"] = output_convention
+    write_json(out_dir / (device + ".json"), meta)
 
 
 def compile_op(op_dir, device):
@@ -160,7 +166,7 @@ def compile_op(op_dir, device):
                      output_qparams, device)
 
 
-def compile_model(pt2_path, out_dir, device):
+def compile_model(pt2_path, out_dir, device, output_convention=None):
     if not pt2_path.exists():
         print(f"{pt2_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -219,7 +225,7 @@ def compile_model(pt2_path, out_dir, device):
                            out_dir.name)
 
     _write_artifacts(out_dir, module, example_inputs, quant_outputs,
-                     output_qparams, device)
+                     output_qparams, device, output_convention)
 
 
 def _compile_op_worker(op_dir_str):
@@ -264,6 +270,9 @@ def main():
     mode.add_argument("--whole-model", action="store_true",
                       help="compile a whole-model .pt2 with mixed NPU/CPU "
                            "delegation")
+    parser.add_argument("--output-convention",
+                        help="with --whole-model, the model zoo's name "
+                             "for what the model's output holds")
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
 
@@ -273,7 +282,10 @@ def main():
                 parser.error(
                     "--whole-model needs <pt2_file> <out_dir> <stamp_file>")
             pt2_path, out_dir, stamp_file = (Path(p) for p in args.paths)
-            compile_model(pt2_path, out_dir, get_device())
+            compile_model(pt2_path, out_dir, get_device(),
+                          args.output_convention)
+        elif args.output_convention is not None:
+            parser.error("--output-convention needs --whole-model")
         elif args.all:
             if len(args.paths) != 2:
                 parser.error("--all needs <model_dir> <stamp_file>")

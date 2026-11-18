@@ -89,6 +89,52 @@ compare_tensors(const std::vector<float> &actual,
       << ", budget=" << budget << " steps)";
 }
 
+static float
+softmax_at(const std::vector<float> &logits, size_t index)
+{
+   double sum = 0.0;
+   for (float logit : logits)
+      sum += std::exp((double)logit - logits[index]);
+   return (float)(1.0 / sum);
+}
+
+static void
+compare_best_class(const std::vector<float> &actual,
+                   const std::vector<float> &expected,
+                   size_t classes,
+                   const std::string &test_name)
+{
+   ASSERT_EQ(actual.size(), expected.size())
+      << test_name << ": output size mismatch";
+   ASSERT_EQ(actual.size(), classes)
+      << test_name << ": output is not one row of " << classes
+      << " classes";
+
+   size_t got = std::max_element(actual.begin(), actual.end()) -
+                actual.begin();
+   size_t want = std::max_element(expected.begin(), expected.end()) -
+                 expected.begin();
+
+   printf("%s: best class %zu at %.3f, reference %zu at %.3f\n",
+          test_name.c_str(), got, softmax_at(actual, got), want,
+          softmax_at(expected, want));
+
+   EXPECT_EQ(got, want) << test_name << ": best class differs";
+}
+
+typedef void (*output_check)(const std::vector<float> &actual,
+                             const std::vector<float> &expected,
+                             size_t last_dim,
+                             const std::string &test_name);
+
+static output_check
+convention_check(const std::string &convention)
+{
+   if (convention == "logits")
+      return compare_best_class;
+   return nullptr;
+}
+
 /* ------------------------------------------------------------------ */
 /* Test fixture — shared by per-op and whole-model tests               */
 /* ------------------------------------------------------------------ */
@@ -119,6 +165,8 @@ class TorxTest : public testing::Test {
          << "Failed to load metadata for " << test_name_
          << ": " << meta.error;
 
+      output_check check = convention_check(meta.output_convention);
+
       /* 2. Run inference on the local NPU */
       std::vector<std::vector<float>> outputs;
       int rc = run_on_npu(work_dir, pte_path, device_id_, outputs);
@@ -146,8 +194,17 @@ class TorxTest : public testing::Test {
           dump_tensor_float(expected, dump_name + "-expected.bin");
           dump_tensor_float(npu_float,  dump_name + "-actual.bin");
 
-         compare_tensors(npu_float, expected, meta.output_scales[i],
-                         budget_, test_name_);
+         if (check) {
+            ASSERT_LT(i, meta.output_shapes.size())
+               << "Metadata has no shape for output " << i;
+            ASSERT_FALSE(meta.output_shapes[i].empty())
+               << "Metadata has an empty shape for output " << i;
+            check(npu_float, expected, meta.output_shapes[i].back(),
+                  test_name_);
+         } else {
+            compare_tensors(npu_float, expected, meta.output_scales[i],
+                            budget_, test_name_);
+         }
       }
    }
 };

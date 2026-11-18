@@ -53,6 +53,7 @@ if with_tests
   torx_available_models = []
   torx_model_pt2 = {}
   torx_model_dir = {}
+  torx_model_output = {}
   if zoo.found()
     py_mod.find_installation(prog_python.full_path(), pure : false,
       modules : ['torch', 'executorch', 'torchao'])
@@ -62,6 +63,9 @@ if with_tests
         torx_available_models += model
         torx_model_pt2 += {model : entry['models']['pt2']}
         torx_model_dir += {model : zoo_test_dir / model}
+        if 'pt2' in entry.get('output', {})
+          torx_model_output += {model : entry['output']['pt2']}
+        endif
       endif
     endforeach
   else
@@ -111,11 +115,16 @@ if with_tests
         },
       )
 
+      output_convention_args = []
+      if model in torx_model_output
+        output_convention_args = ['--output-convention', torx_model_output[model]]
+      endif
       compile_torx_tests_targets += custom_target(
         'compile_model_@0@_@1@'.format(device, model),
         command : [
           prog_python, files('tests/compile_torx_tests.py'),
           '--whole-model',
+          output_convention_args,
           torx_model_pt2[model],
           torx_tests_dir / model,
           '@OUTPUT@',
