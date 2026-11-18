@@ -459,6 +459,7 @@ gpu_supports_multisampled_blitter_resolve(const struct etna_screen *screen,
    case PIPE_FORMAT_R16_FLOAT:
    case PIPE_FORMAT_R16G16_FLOAT:
    case PIPE_FORMAT_R11G11B10_FLOAT:
+   case PIPE_FORMAT_R32_FLOAT:
       /* handled by u_blitter */
       return true;
    default:
