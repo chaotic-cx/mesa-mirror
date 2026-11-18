@@ -121,12 +121,16 @@ def clone_inputs(example_inputs):
     return tuple(inp.clone() for inp in example_inputs)
 
 
-def quantize_module(module, example_inputs, *, is_prepared=False):
+def quantize_module(module, example_inputs, *, is_prepared=False,
+                    float_modules=()):
     """Prepare, calibrate, and convert a module to PT2E quantized form."""
     from torx import TorxQuantizer
 
     if not is_prepared:
-        module = prepare_pt2e(module, TorxQuantizer())
+        quantizer = TorxQuantizer()
+        for module_name in float_modules:
+            quantizer.set_module_unquantized(module_name)
+        module = prepare_pt2e(module, quantizer)
     module(*clone_inputs(example_inputs))  # calibration
     return convert_pt2e(module)
 
@@ -150,7 +154,8 @@ def check_quantisation(float_outputs, quant_outputs, output_qparams, name):
         out = out.detach().flatten().to(torch.float32)
         scale, _ = output_qparams[i]
         ref_norm = torch.linalg.norm(ref).item()
-        if ref_norm <= float(scale) * math.sqrt(ref.numel()):
+        if (scale is not None
+                and ref_norm <= float(scale) * math.sqrt(ref.numel())):
             continue
         error = torch.linalg.norm(out - ref).item() / ref_norm
         cosine = torch.nn.functional.cosine_similarity(out, ref, dim=0).item()

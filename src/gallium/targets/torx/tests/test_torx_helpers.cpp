@@ -6,6 +6,7 @@
 
 #include "test_torx_helpers.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -129,7 +130,10 @@ load_meta(const std::filesystem::path &meta_path)
 
     if (num_outputs > 0 && scales_arr && zps_arr) {
         for (size_t i = 0; i < num_outputs; i++) {
-            meta.output_scales.push_back((float)json_array_get_number(scales_arr, i));
+            if (json_value_get_type(json_array_get_value(scales_arr, i)) == JSONNull)
+                meta.output_scales.push_back(NAN);
+            else
+                meta.output_scales.push_back((float)json_array_get_number(scales_arr, i));
             meta.output_zero_points.push_back((int)json_array_get_number(zps_arr, i));
         }
         JSON_Array *shapes_arr = json_object_get_array(obj, "output_shapes");

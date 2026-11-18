@@ -325,6 +325,9 @@ class TorxTest : public testing::Test {
             check(npu_float, expected, meta.output_shapes[i].back(),
                   test_name_);
          } else {
+            ASSERT_FALSE(std::isnan(meta.output_scales[i]))
+               << test_name_ << ": output " << i << " has no scale and "
+               << "the model names no output convention";
             compare_tensors(npu_float, expected, meta.output_scales[i],
                             budget_, test_name_);
          }

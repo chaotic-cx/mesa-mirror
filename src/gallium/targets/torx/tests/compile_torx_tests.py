@@ -24,6 +24,7 @@ Usage:
   python compile_torx_tests.py --all <model_dir> <stamp_file>
   python compile_torx_tests.py --whole-model [--output-convention <name>]
                                [--input <npy_file>]...
+                               [--float-module <module_name>]...
                                <pt2_file> <out_dir> <stamp_file>
 
 --all compiles every numbered per-op directory under <model_dir>, in
@@ -121,8 +122,10 @@ def _write_artifacts(out_dir, module, example_inputs, quant_outputs,
 
     meta = {
         "num_outputs": num_outputs,
-        "output_scales": [float(s) for s, _ in output_qparams],
-        "output_zero_points": [int(zp) for _, zp in output_qparams],
+        "output_scales": [None if s is None else float(s)
+                          for s, _ in output_qparams],
+        "output_zero_points": [None if zp is None else int(zp)
+                               for _, zp in output_qparams],
         "output_shapes": [list(quant_outputs[i].shape)
                           for i in range(num_outputs)],
     }
@@ -186,7 +189,7 @@ def compile_op(op_dir, device):
 
 
 def compile_model(pt2_path, out_dir, device, output_convention=None,
-                  input_paths=None):
+                  input_paths=None, float_modules=()):
     if not pt2_path.exists():
         print(f"{pt2_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -236,14 +239,17 @@ def compile_model(pt2_path, out_dir, device, output_convention=None,
     is_quantized = any(is_quantize(node) or is_dequantize(node)
                        for node in module.graph.nodes)
     if not is_quantized:
-        module = quantize_module(module, example_inputs)
+        module = quantize_module(module, example_inputs,
+                                 float_modules=float_modules)
 
+    quant_outputs = _run(module, example_inputs)
     output_qparams = extract_quant_output_params(module)
+    if not output_qparams and float_modules:
+        output_qparams = [(None, None)] * len(quant_outputs)
     if not output_qparams:
         print("    ERROR: could not extract quant params", file=sys.stderr)
         sys.exit(1)
 
-    quant_outputs = _run(module, example_inputs)
     if is_quantized:
         print(f"    {out_dir.name}: the exported program is already "
               "quantised, the quantisation check does not apply",
@@ -305,6 +311,10 @@ def main():
                         help="a processed input of the whole model, a "
                              "NumPy .npy file; once per input the model "
                              "takes, in the model's input order")
+    parser.add_argument("--float-module", action="append", default=[],
+                        help="a module of the whole model to leave "
+                             "unquantised, by its name in the exported "
+                             "program; once per module")
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
 
@@ -315,11 +325,14 @@ def main():
                     "--whole-model needs <pt2_file> <out_dir> <stamp_file>")
             pt2_path, out_dir, stamp_file = (Path(p) for p in args.paths)
             compile_model(pt2_path, out_dir, get_device(),
-                          args.output_convention, args.input)
+                          args.output_convention, args.input,
+                          args.float_module)
         elif args.output_convention is not None:
             parser.error("--output-convention needs --whole-model")
         elif args.input is not None:
             parser.error("--input needs --whole-model")
+        elif args.float_module:
+            parser.error("--float-module needs --whole-model")
         elif args.all:
             if len(args.paths) != 2:
                 parser.error("--all needs <model_dir> <stamp_file>")
