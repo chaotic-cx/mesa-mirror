@@ -30,7 +30,7 @@
  */
 
 
-#include "isl_tiled_memcpy.c"
+#include "isl_tiled_memcpy.h"
 
 void
 _isl_memcpy_linear_to_tiled(uint32_t xt1, uint32_t xt2,

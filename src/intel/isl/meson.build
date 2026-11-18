@@ -76,10 +76,12 @@ isl_format_layout_c = custom_target(
 )
 
 files_isl_tiled_memcpy = files(
-  'isl_tiled_memcpy_normal.c'
+  'isl_tiled_memcpy.h',
+  'isl_tiled_memcpy_normal.c',
 )
 
 files_isl_tiled_memcpy_sse41 = files(
+  'isl_tiled_memcpy.h',
   'isl_tiled_memcpy_sse41.c',
 )
 
@@ -93,7 +95,6 @@ isl_tiled_memcpy = static_library(
   dependencies : [idep_mesautil, idep_intel_dev],
   c_args : [no_override_init_args, soong_compat_c_args, sse2_arg],
   gnu_symbol_visibility : 'hidden',
-  extra_files : ['isl_tiled_memcpy.c']
 )
 
 if with_sse41
@@ -107,7 +108,6 @@ if with_sse41
     link_args : ['-Wl,--exclude-libs=ALL'],
     c_args : [no_override_init_args, sse2_arg, sse41_args],
     gnu_symbol_visibility : 'hidden',
-    extra_files : ['isl_tiled_memcpy.c']
   )
 else
   isl_tiled_memcpy_sse41 = []
