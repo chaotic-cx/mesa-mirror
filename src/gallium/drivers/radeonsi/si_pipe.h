@@ -179,6 +179,8 @@ enum
    DBG_SAFER,
    DBG_SAFEST,
 
+   DBG_USE_RADEON,
+
    DBG_COUNT
 };
 

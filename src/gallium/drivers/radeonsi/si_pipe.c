@@ -89,6 +89,8 @@ static const struct debug_named_value radeonsi_debug_options[] = {
    {"safer", DBG(SAFER), "Disable basic and medium optimizations"},
    {"safest", DBG(SAFEST), "Disable all optimizations"},
 
+   {"use_radeon", DBG(USE_RADEON), "Allow using the deprecated radeon kernel module on GFX6-7 (GCN 1-2)"},
+
    DEBUG_NAMED_VALUE_END /* must be last */
 };
 
@@ -339,7 +341,17 @@ struct pipe_screen *radeonsi_screen_create(int fd, const struct pipe_screen_conf
    {
       switch (version->version_major) {
       case 2:
-         rw = radeon_drm_winsys_create(fd, config, radeonsi_screen_create_impl, debug_flags);
+         mesa_logw(
+            "Support of the radeon kernel module is disabled and will be removed in a future release.\n"
+            "Switching to the amdgpu kernel module is recommended (default since Linux 7.1).\n"
+            "If you experience bugs with the amdgpu module, please report here:\n"
+            "   https://gitlab.freedesktop.org/drm/amd/-/work_items\n");
+         if (debug_flags & DBG(USE_RADEON)) {
+            rw = radeon_drm_winsys_create(fd, config, radeonsi_screen_create_impl, debug_flags);
+         } else {
+            printf(
+               "If you want to keep using radeon, use the AMD_DEBUG=use_radeon environment variable.\n");
+         }
          break;
       case 3:
          rw = amdgpu_winsys_create(fd, config, radeonsi_screen_create_impl, debug_flags, &options);
