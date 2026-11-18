@@ -122,6 +122,121 @@ compare_best_class(const std::vector<float> &actual,
    EXPECT_EQ(got, want) << test_name << ": best class differs";
 }
 
+/* Defaults from YOLOX's demo (tools/demo.py) */
+static constexpr float yolox_score_threshold = 0.3f;
+static constexpr float yolox_nms_threshold = 0.3f;
+static constexpr float detection_match_iou = 0.9f;
+
+struct detection {
+   float x1, y1, x2, y2;
+   float score;
+   size_t cls;
+};
+
+static float
+detection_iou(const detection &a, const detection &b)
+{
+   float w = std::max(0.0f, std::min(a.x2, b.x2) - std::max(a.x1, b.x1));
+   float h = std::max(0.0f, std::min(a.y2, b.y2) - std::max(a.y1, b.y1));
+   float intersection = w * h;
+   float area_a = (a.x2 - a.x1) * (a.y2 - a.y1);
+   float area_b = (b.x2 - b.x1) * (b.y2 - b.y1);
+   return intersection / (area_a + area_b - intersection);
+}
+
+/* Decode as postprocess() in YOLOX's yolox/utils/boxes.py does. */
+static std::vector<detection>
+decode_yolox(const std::vector<float> &output, size_t row_size)
+{
+   std::vector<detection> candidates;
+
+   for (size_t row = 0; row < output.size(); row += row_size) {
+      const float *p = &output[row];
+      const float *best = std::max_element(p + 5, p + row_size);
+      float score = p[4] * *best;
+      if (score < yolox_score_threshold)
+         continue;
+      candidates.push_back({p[0] - p[2] / 2, p[1] - p[3] / 2,
+                            p[0] + p[2] / 2, p[1] + p[3] / 2,
+                            score, (size_t)(best - (p + 5))});
+   }
+
+   std::stable_sort(candidates.begin(), candidates.end(),
+                    [](const detection &a, const detection &b) {
+                       return a.score > b.score;
+                    });
+
+   std::vector<detection> kept;
+   for (const auto &candidate : candidates) {
+      bool suppressed = std::any_of(
+         kept.begin(), kept.end(), [&](const detection &k) {
+            return detection_iou(k, candidate) > yolox_nms_threshold;
+         });
+      if (!suppressed)
+         kept.push_back(candidate);
+   }
+
+   return kept;
+}
+
+static void
+compare_detections(const std::vector<float> &actual,
+                   const std::vector<float> &expected,
+                   size_t row_size,
+                   const std::string &test_name)
+{
+   ASSERT_EQ(actual.size(), expected.size())
+      << test_name << ": output size mismatch";
+   ASSERT_GT(row_size, 5u)
+      << test_name << ": output rows hold no class scores";
+   ASSERT_EQ(actual.size() % row_size, 0u)
+      << test_name << ": output is not a whole number of rows";
+
+   auto got = decode_yolox(actual, row_size);
+   auto want = decode_yolox(expected, row_size);
+
+   printf("%s: %zu detections, reference %zu\n",
+          test_name.c_str(), got.size(), want.size());
+
+   EXPECT_EQ(got.size(), want.size())
+      << test_name << ": number of detections differs";
+
+   std::vector<bool> matched(got.size(), false);
+   for (const auto &reference : want) {
+      size_t best = got.size();
+      float best_iou = 0.0f;
+      for (size_t j = 0; j < got.size(); j++) {
+         if (matched[j] || got[j].cls != reference.cls)
+            continue;
+         float iou = detection_iou(got[j], reference);
+         if (iou > best_iou) {
+            best = j;
+            best_iou = iou;
+         }
+      }
+
+      printf("%s: reference class %zu score %.3f box (%.1f, %.1f, %.1f, "
+             "%.1f), ", test_name.c_str(), reference.cls, reference.score,
+             reference.x1, reference.y1, reference.x2, reference.y2);
+      if (best < got.size()) {
+         printf("best match score %.3f box (%.1f, %.1f, %.1f, %.1f) "
+                "IoU %.3f\n", got[best].score, got[best].x1, got[best].y1,
+                got[best].x2, got[best].y2, best_iou);
+      } else {
+         printf("no detection of its class\n");
+      }
+
+      if (best < got.size() && best_iou >= detection_match_iou) {
+         matched[best] = true;
+      } else {
+         ADD_FAILURE()
+            << test_name << ": reference detection of class "
+            << reference.cls << " has no match at IoU "
+            << detection_match_iou << " (best " << best_iou << ")";
+      }
+   }
+}
+
 typedef void (*output_check)(const std::vector<float> &actual,
                              const std::vector<float> &expected,
                              size_t last_dim,
@@ -132,6 +247,8 @@ convention_check(const std::string &convention)
 {
    if (convention == "logits")
       return compare_best_class;
+   if (convention == "yolox")
+      return compare_detections;
    return nullptr;
 }
 
@@ -166,6 +283,9 @@ class TorxTest : public testing::Test {
          << ": " << meta.error;
 
       output_check check = convention_check(meta.output_convention);
+      ASSERT_TRUE(check || meta.output_convention.empty())
+         << test_name_ << ": no check for output convention '"
+         << meta.output_convention << "'";
 
       /* 2. Run inference on the local NPU */
       std::vector<std::vector<float>> outputs;
