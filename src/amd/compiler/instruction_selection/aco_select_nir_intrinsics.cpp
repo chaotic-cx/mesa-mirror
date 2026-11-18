@@ -2734,7 +2734,8 @@ visit_load_buffer(isel_context* ctx, nir_intrinsic_instr* intrin)
    unsigned num_components = intrin->def.num_components;
 
    nir_variable_mode mem_mode = nir_intrinsic_memory_modes(intrin);
-   memory_sync_info sync(aco_storage_mode_from_nir_mem_mode(mem_mode));
+   memory_sync_info sync = get_memory_sync_info(
+      intrin, (storage_class)aco_storage_mode_from_nir_mem_mode(mem_mode), semantic_none);
 
    const unsigned align_mul = nir_intrinsic_align_mul(intrin);
    const unsigned align_offset = nir_intrinsic_align_offset(intrin);
