@@ -202,10 +202,6 @@ spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb@sRGB decode,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
-spec@arb_shader_image_load_store@early-z,Fail
-spec@arb_shader_image_load_store@early-z@image access test/early-z fail,Fail
-spec@arb_shader_image_load_store@early-z@occlusion query test/early-z fail,Fail
-spec@arb_shader_image_load_store@early-z@occlusion query test/early-z pass,Fail
 
 # New failures appeared after Piglit uprev to 28d1349844eacda869f0f82f551bcd4ac0c4edfe
 spec@arb_gl_spirv@execution@vs-instance-id,Fail
