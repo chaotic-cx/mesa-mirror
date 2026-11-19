@@ -481,7 +481,7 @@ anv_encode_init_batch(struct anv_cmd_buffer *cmd_buffer,
       }
 
       batch->ordered[batch->count].idx = i;
-      batch->ordered[batch->count].leaf_node_count = state->leaf_node_count;
+      batch->ordered[batch->count].leaf_node_count = MAX2(1, state->leaf_node_count);
       batch->count++;
    }
    qsort(batch->ordered, batch->count, sizeof(struct bvh_desc), bvh_reverse_size_compare);
@@ -527,7 +527,7 @@ anv_encode_init_batch(struct anv_cmd_buffer *cmd_buffer,
       batch->args[i].parent_child_count_map = bvh_layout.parent_child_count_map_offset != 0 ?
                                               (vk_acceleration_structure_get_va(dst) +
                                                bvh_layout.parent_child_count_map_offset) : 0,
-      batch->max_leaf_count = MAX2(batch->max_leaf_count, state->leaf_node_count);
+      batch->max_leaf_count = MAX3(batch->max_leaf_count, state->leaf_node_count, 1);
    }
 
    uint64_t arg_size = batch->count * sizeof(struct anv_batch_args);
