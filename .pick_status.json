@@ -6844,7 +6844,7 @@
         "description": "Revert \"frontends/va: Switch to graphics context when creating protected surface\"",
         "nominated": true,
         "nomination_type": 3,
-        "resolution": 0,
+        "resolution": 2,
         "main_sha": null,
         "because_sha": "fcec81363e83f68c1051d5f7ce7bd2c7e6959253",
         "notes": null
