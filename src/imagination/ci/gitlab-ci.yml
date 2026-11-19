@@ -5,24 +5,44 @@ axe-1-16m-vk:
   extends:
     - .ci-tron-arm64-test-vk
     - .imagination-ti-am62-sk:arm64
+    - .imagination-rules
+  timeout: 25m
+  variables:
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 20 # runtime ~16 min
+    DEQP_SUITE: pvr-vk
+    DEQP_FRACTION: 4
+    VK_DRIVER: powervr_mesa
+    MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
+    PVR_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
+
+axe-1-16m-vk-full:
+  extends:
+    - axe-1-16m-vk
     - .imagination-manual-rules
   timeout: 70m
   variables:
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 65
-    DEQP_SUITE: pvr-vk
-    VK_DRIVER: powervr_mesa
-    MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
-    PVR_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
+    DEQP_FRACTION: 1
 
 bxs-4-64-vk:
   extends:
     - .ci-tron-arm64-test-vk
     - .imagination-ti-am68-sk:arm64
+    - .imagination-rules
+  timeout: 15m
+  variables:
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 12 # runtime ~10 min
+    DEQP_SUITE: pvr-vk
+    DEQP_FRACTION: 4
+    VK_DRIVER: powervr_mesa
+    MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
+    PVR_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
+
+bxs-4-64-vk-full:
+  extends:
+    - bxs-4-64-vk
     - .imagination-manual-rules
   timeout: 50m
   variables:
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 45
-    DEQP_SUITE: pvr-vk
-    VK_DRIVER: powervr_mesa
-    MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
-    PVR_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
+    DEQP_FRACTION: 1

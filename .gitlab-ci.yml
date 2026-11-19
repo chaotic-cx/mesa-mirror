@@ -270,6 +270,7 @@ stages:
   - freedreno-nightly
   - etnaviv
   - etnaviv-nightly
+  - imagination
   - imagination-nightly
   - software-renderer
   - software-renderer-nightly
