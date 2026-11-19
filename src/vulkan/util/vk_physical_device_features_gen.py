@@ -24,15 +24,16 @@ COPYRIGHT=u"""
 
 import argparse
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
+import re
 import sys
-import typing
 import xml.etree.ElementTree as et
 
 import mako
 from mako.template import Template
-from vk_extensions import Requirements, get_all_required, filter_api
+from vk_extensions import Requirements, get_all_required, filter_api, \
+                          extension_order
 
 RENAMED_FEATURES = {
     # See https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/17272#note_1446477 for details
@@ -167,8 +168,9 @@ class FeatureStruct:
     reqs: Requirements
     c_type: str
     s_type: str
-    features: typing.List[str]
+    features: list[str]
     guard: str
+    core_ext: str | None = None
 
     def condition(self, physical_dev):
         conds = []
@@ -182,6 +184,11 @@ class FeatureStruct:
             return None
         return '(' + ' || '.join(conds) + ')'
 
+@dataclass
+class FeatureGroup:
+    core_ext: str
+    features: list[(str, str | None)] = field(default_factory=list)
+
 TEMPLATE_H = Template(COPYRIGHT + """
 /* This file generated from ${filename}, don't edit directly. */
 #ifndef VK_FEATURES_H
@@ -194,8 +201,16 @@ extern "C" {
 #endif
 
 struct vk_features {
-% for flag in all_flags:
+% for group in feature_groups:
+   /* ${group.core_ext} */
+% for flag, promo in group.features:
+% if promo:
+   /* ${flag} was promoted in ${promo} */
+% else:
    bool ${flag};
+% endif
+% endfor
+
 % endfor
 };
 
@@ -456,6 +471,9 @@ def filter_api(elem, api):
 
     return api in elem.attrib['api'].split(',')
 
+VK_VERSION_RE = re.compile(r'VK_\w*VERSION_(?P<maj>\d+)_(?P<min>\d+)')
+CORE_STRUCT_RE = re.compile(r'VkPhysicalDeviceVulkan\d+Features')
+
 def get_feature_structs(doc, api, beta):
     feature_structs = OrderedDict()
 
@@ -499,6 +517,41 @@ def get_feature_structs(doc, api, beta):
         feature_struct = FeatureStruct(reqs=reqs, c_type=_type.attrib.get('name'), s_type=s_type, features=flags, guard=guard)
         feature_structs[feature_struct.c_type] = feature_struct
 
+    for e in doc.findall('./extensions/extension'):
+        for t in e.findall('./require/type'):
+            c_type = t.attrib['name']
+            if c_type not in feature_structs:
+                continue
+
+            # Core features shouldn't be re-defined in extensions
+            assert not CORE_STRUCT_RE.match(c_type)
+
+            assert feature_structs[c_type].core_ext is None
+            feature_structs[c_type].core_ext = e.attrib['name']
+
+    for f in doc.findall('./feature'):
+        m = VK_VERSION_RE.match(f.attrib['name'])
+        if not m:
+            continue
+
+        # Normalize to VK_VERSION_M_m and get rid of vulkan base component
+        core_name = f'VK_VERSION_{m["maj"]}_{m["min"]}'
+
+        for t in f.findall('./require/type'):
+            c_type = t.attrib['name']
+            if c_type not in feature_structs:
+                continue
+
+            if feature_structs[c_type].core_ext is not None:
+                continue
+
+            if c_type == 'VkPhysicalDeviceVulkan11Features':
+                # This one was a special case because it was actually added
+                # in Vulkan 1.2
+                feature_structs[c_type].core_ext = 'VK_VERSION_1_1'
+            elif c_type in feature_structs:
+                feature_structs[c_type].core_ext = core_name
+
     return feature_structs.values()
 
 def get_feature_structs_from_xml(xml_files, beta, api='vulkan'):
@@ -513,32 +566,86 @@ def get_feature_structs_from_xml(xml_files, beta, api='vulkan'):
         if not pdev_features:
             pdev_features = get_pdev_features(doc)
 
+    # Now sort the feature structs.  Core versions go first, followed
+    # immediately by any structs promoted to core just for that core
+    # version.  Then extensions, KHR first then EXT then vendor extensions
+    # sorted by prefix.
+
+    def core_ext_order(fs):
+        m = VK_VERSION_RE.match(fs.core_ext)
+        if m:
+            if CORE_STRUCT_RE.match(fs.c_type):
+                return [0, m['maj'], m['min'], fs.core_ext]
+            else:
+                return [1, m['maj'], m['min'], fs.core_ext]
+        else:
+            return [2, extension_order(fs.core_ext)]
+
+    feature_structs.sort(key=core_ext_order)
+
+    # Now perform some consistency/sanity checks.  In particular, we check
+    # the following:
+    #
+    #   1. If two features have the same name, there is an explicit rename
+    #      entry tying them together
+    #
+    #   2. Every rename entry is used, we don't have any extras
+    #
+    #   3. Every feature structure has a core version or extension name
+    #      assigned to it
+    #
+    #   4. Every feature promoted to core is in VkPhysicalDeviceVulkanNNFeatures
+    #
+    # At the same time, we group features into feature groups based on
+    # which extension they're tied to (if not in core).
+
     unused_renames = {**RENAMED_FEATURES}
 
     features = OrderedDict()
 
+    vk_1_0_group = FeatureGroup(core_ext='VK_BASE_VERSION_1_0')
     for flag in pdev_features:
-        features[flag] = 'VkPhysicalDeviceFeatures'
+        features[flag] = None
+        vk_1_0_group.features.append((flag, None))
+
+    feature_groups = [vk_1_0_group]
 
     for f in feature_structs:
+        if f.core_ext is None:
+            diagnostics.append(f'{f.c_type} is not in any core version or extension')
+
+        group = FeatureGroup(core_ext=f.core_ext)
+
         for flag in f.features:
             renamed_flag = get_renamed_feature(f.c_type, flag)
             if renamed_flag not in features:
-                features[renamed_flag] = f.c_type
+                features[renamed_flag] = f
+                group.features.append((renamed_flag, None))
             else:
-                a = features[renamed_flag].removeprefix('VkPhysicalDevice')
+                a = features[renamed_flag].c_type.removeprefix('VkPhysicalDevice')
                 b = f.c_type.removeprefix('VkPhysicalDevice')
                 if (a, flag) not in RENAMED_FEATURES or (b, flag) not in RENAMED_FEATURES:
                     diagnostics.append(f'{a} and {b} both define {flag}')
 
+                group.features.append((renamed_flag, features[renamed_flag].core_ext))
+
             unused_renames.pop((f.c_type.removeprefix('VkPhysicalDevice'), flag), None)
+
+        if f.core_ext.startswith('VK_VERSION') \
+                and not CORE_STRUCT_RE.match(f.c_type):
+            for flag, promo in group.features:
+                if promo is None:
+                    diagnostics.append(f'Some features of {f.c_type} ' +
+                                       f"weren't promoted: {group.features}")
+        else:
+            feature_groups.append(group)
 
     for rename in unused_renames:
         diagnostics.append(f'unused rename {rename}')
 
     assert len(diagnostics) == 0, '\n'.join(diagnostics)
 
-    return pdev_features, feature_structs, features
+    return pdev_features, feature_structs, feature_groups
 
 
 def main():
@@ -552,13 +659,14 @@ def main():
                         required=True, action='append', dest='xml_files')
     args = parser.parse_args()
 
-    pdev_features, feature_structs, all_flags = get_feature_structs_from_xml(args.xml_files, args.beta)
+    pdev_features, feature_structs, feature_groups = \
+        get_feature_structs_from_xml(args.xml_files, args.beta)
 
     environment = {
         'filename': os.path.basename(__file__),
         'pdev_features': pdev_features,
         'feature_structs': feature_structs,
-        'all_flags': all_flags,
+        'feature_groups': feature_groups,
         'get_renamed_feature': get_renamed_feature,
     }
 

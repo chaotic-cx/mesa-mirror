@@ -117,9 +117,9 @@ class Extension:
 # Sort the extension list the way we expect: KHR, then EXT, then vendors
 # alphabetically. For digits, read them as a whole number sort that.
 # eg.: VK_KHR_8bit_storage < VK_KHR_16bit_storage < VK_EXT_acquire_xlib_display
-def extension_order(ext):
+def extension_order(ext_name):
     order = []
-    for substring in re.split('(KHR|EXT|[0-9]+)', ext.name):
+    for substring in re.split('(KHR|EXT|[0-9]+)', ext_name):
         if substring == 'KHR':
             order.append(1)
         if substring == 'EXT':
@@ -146,7 +146,7 @@ def get_all_exts_from_xml(xml, beta, api='vulkan'):
 
         extensions.append(ext)
 
-    return sorted(extensions, key=extension_order)
+    return sorted(extensions, key=lambda ext : extension_order(ext.name))
 
 @dataclass
 class Requirements:
