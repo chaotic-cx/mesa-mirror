@@ -567,6 +567,7 @@ dri_create_image_from_winsys(struct dri_screen *screen,
                               int width, int height, const struct dri2_format_mapping *map,
                               int num_handles, struct winsys_handle *whandle,
                               unsigned bind,
+                              unsigned *error,
                               void *loaderPrivate)
 {
    struct pipe_screen *pscreen = screen->base.screen;
@@ -710,12 +711,16 @@ dri_create_image_from_winsys(struct dri_screen *screen,
          tex_usage |= PIPE_BIND_SAMPLER_VIEW;
    }
 
-   if (!tex_usage)
+   if (!tex_usage) {
+      *error = __DRI_IMAGE_ERROR_BAD_MATCH;
       return NULL;
+   }
 
    img = CALLOC_STRUCT(dri_image);
-   if (!img)
+   if (!img) {
+      *error = __DRI_IMAGE_ERROR_BAD_ALLOC;
       return NULL;
+   }
 
    unsigned handle_usage = 0;
 
@@ -740,6 +745,7 @@ dri_create_image_from_winsys(struct dri_screen *screen,
       if (!tex) {
          pipe_resource_reference(&img->texture, NULL);
          FREE(img);
+         *error = __DRI_IMAGE_ERROR_BAD_ALLOC;
          return NULL;
       }
 
@@ -764,6 +770,7 @@ dri_create_image_from_winsys(struct dri_screen *screen,
       if (!tex) {
          pipe_resource_reference(&img->texture, NULL);
          FREE(img);
+         *error = __DRI_IMAGE_ERROR_BAD_ALLOC;
          return NULL;
       }
 
@@ -776,6 +783,7 @@ dri_create_image_from_winsys(struct dri_screen *screen,
          pipe_resource_reference(&img->texture, NULL);
          pipe_resource_reference(&tex, NULL);
          FREE(img);
+         *error = __DRI_IMAGE_ERROR_BAD_ACCESS;
          return NULL;
       }
 
@@ -1365,11 +1373,10 @@ dri2_from_dma_bufs(struct dri_screen *screen,
 
    img = dri_create_image_from_winsys(screen, width, height, map,
                                        num_fds, whandles, flags,
+                                       &err,
                                        loaderPrivate);
-   if (img == NULL) {
-      err = __DRI_IMAGE_ERROR_BAD_ALLOC;
+   if (img == NULL)
       goto exit;
-   }
 
    img->dri_fourcc = fourcc;
    img->dri_format = map->dri_format;
