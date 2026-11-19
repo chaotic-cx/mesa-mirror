@@ -2741,11 +2741,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                                     nir_src_as_uint(intr->src[0])));
             } else {
                jay_def addr = jay_SHL_u32(b, nj_src(b, intr->src[0]), shift);
-
-               if (nj_src(b, intr->src[0]).file == GPR) {
-                  addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
-               }
-
+               addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
                jay_SHUFFLE(b, JAY_TYPE_U32, dst, gs->icp_handles, addr);
             }
 
