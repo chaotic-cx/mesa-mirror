@@ -2734,8 +2734,8 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          if (tcs) {
             addr = jay_SHL_u32(b, addr, shift);
          } else if (gs && s->info.gs.invocations == 1) {
-            addr = jay_SHL_u32(b, addr, shift);
-            addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
+            addr =
+               jay_MAD_u32(b, jay_SHL_u32(b, lane_id(b), 2), addr, 1u << shift);
          } else {
             addr = jay_SHL_u32(b, addr, 2u);
          }
