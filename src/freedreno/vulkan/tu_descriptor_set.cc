@@ -41,6 +41,38 @@ pool_base(struct tu_descriptor_pool *pool)
    return pool->host_bo ?: static_cast<uint8_t *>(pool->bo->map);
 }
 
+/* util_vma_heap uses 0 for a failed allocation, so heap offsets start at TU_POOL_HEAP_START instead of 0.
+ * TU_POOL_HEAP_START is intentionally huge, to quickly detect any leaks of it, and it is a multiple of
+ * TU_DESCRIPTOR_SET_ALIGNMENT, so an aligned heap offset is an aligned BO offset.
+ */
+#define TU_POOL_HEAP_START 0xc0ffee0000000000ull
+
+static void
+tu_descriptor_pool_heap_init(struct tu_descriptor_pool *pool, uint64_t size)
+{
+   util_vma_heap_init(&pool->bo_heap, TU_POOL_HEAP_START, size);
+   pool->bo_heap.alloc_high = false;
+}
+
+static VkResult
+tu_descriptor_pool_heap_alloc(struct tu_descriptor_pool *pool, uint32_t size, uint32_t *offset)
+{
+   uint64_t addr = util_vma_heap_alloc(&pool->bo_heap, size, TU_DESCRIPTOR_SET_ALIGNMENT);
+   if (!addr) {
+      return pool->bo_heap.free_size >= size ? VK_ERROR_FRAGMENTED_POOL : VK_ERROR_OUT_OF_POOL_MEMORY;
+   }
+
+   assert(addr >= TU_POOL_HEAP_START && addr + size <= TU_POOL_HEAP_START + pool->size);
+   *offset = addr - TU_POOL_HEAP_START;
+   return VK_SUCCESS;
+}
+
+static void
+tu_descriptor_pool_heap_free(struct tu_descriptor_pool *pool, uint32_t offset, uint32_t size)
+{
+   util_vma_heap_free(&pool->bo_heap, TU_POOL_HEAP_START + offset, size);
+}
+
 static uint32_t
 descriptor_size(struct tu_device *dev,
                 const VkDescriptorSetLayoutBinding *binding,
@@ -669,20 +701,12 @@ tu_descriptor_set_create(struct tu_device *device,
       uint64_t current_offset = pool->current_offset;
 
       if (!pool->host_memory_base) {
-         uint64_t pool_vma_offset =
-            util_vma_heap_alloc(&pool->bo_heap, set->size, 1);
-         if (!pool_vma_offset) {
-            uint32_t size = set->size;
+         VkResult result = tu_descriptor_pool_heap_alloc(pool, set->size, &set->offset);
+         if (result != VK_SUCCESS) {
             vk_object_free(&device->vk, NULL, set);
-            if (pool->bo_heap.free_size >= size)
-               return VK_ERROR_FRAGMENTED_POOL;
-            else
-               return VK_ERROR_OUT_OF_POOL_MEMORY;
+            return result;
          }
 
-         assert(pool_vma_offset >= TU_POOL_HEAP_OFFSET &&
-                pool_vma_offset <= pool->size + TU_POOL_HEAP_OFFSET);
-         set->offset = pool_vma_offset - TU_POOL_HEAP_OFFSET;
          current_offset = set->offset;
       } else {
          if (current_offset + set->size > pool->size)
@@ -691,6 +715,7 @@ tu_descriptor_set_create(struct tu_device *device,
          pool->current_offset += set->size;
       }
 
+      assert(current_offset % TU_DESCRIPTOR_SET_ALIGNMENT == 0);
       set->mapped_ptr = reinterpret_cast<uint32_t*>(pool_base(pool) + current_offset);
       set->va = pool->host_bo ? 0 : pool->bo->iova + current_offset;
    }
@@ -730,11 +755,8 @@ tu_descriptor_set_destroy(struct tu_device *device,
 {
    assert(!pool->host_memory_base);
 
-   if (set->size) {
-      util_vma_heap_free(&pool->bo_heap,
-                         static_cast<uint64_t>(set->offset) + TU_POOL_HEAP_OFFSET,
-                         set->size);
-   }
+   if (set->size)
+      tu_descriptor_pool_heap_free(pool, set->offset, set->size);
 
    pool->entry_count--;
    vk_object_free(&device->vk, NULL, set);
@@ -821,11 +843,8 @@ tu_CreateDescriptorPool(VkDevice _device,
       pool->host_memory_ptr = pool->host_memory_base;
       pool->host_memory_end = reinterpret_cast<uint8_t*>(pool) + size;
    } else {
-      if (bo_size) {
-         util_vma_heap_init(&pool->bo_heap, TU_POOL_HEAP_OFFSET,
-                            bo_size + TU_POOL_HEAP_OFFSET);
-         pool->bo_heap.alloc_high = false;
-      }
+      if (bo_size)
+         tu_descriptor_pool_heap_init(pool, bo_size);
    }
 
    if (bo_size) {
@@ -919,8 +938,7 @@ tu_ResetDescriptorPool(VkDevice _device,
 
    if (!pool->host_memory_base && pool->size) {
       util_vma_heap_finish(&pool->bo_heap);
-      util_vma_heap_init(&pool->bo_heap, TU_POOL_HEAP_OFFSET,
-                         pool->size + TU_POOL_HEAP_OFFSET);
+      tu_descriptor_pool_heap_init(pool, pool->size);
    }
 
    pool->entry_count = 0;

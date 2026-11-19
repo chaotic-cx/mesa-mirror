@@ -28,11 +28,10 @@
  */
 #define MAX_SET_SIZE ((1 << 28) * 4)
 
-/* The vma heap reserves 0 to mean NULL; we have to offset by some amount to
- * ensure we can allocate the entire BO without hitting zero. The actual
- * amount doesn't matter.
+/* The bindless base address of a descriptor set must be 64-byte aligned.
+ * Otherwise the hardware reads descriptors from the wrong place.
  */
-#define TU_POOL_HEAP_OFFSET 32
+#define TU_DESCRIPTOR_SET_ALIGNMENT (4 * FDL6_TEX_CONST_DWORDS)
 
 struct tu_descriptor_set_binding_layout
 {

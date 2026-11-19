@@ -754,7 +754,7 @@
         "description": "tu: Fix descriptor set alignment after descriptor pool reset",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "62f0ef3445460f1610530aefe3537dba6f5ef934",
         "notes": null
