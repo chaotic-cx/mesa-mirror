@@ -130,7 +130,7 @@ def extension_order(ext):
             order.append(substring)
     return order
 
-def get_all_exts_from_xml(xml, api='vulkan'):
+def get_all_exts_from_xml(xml, beta, api='vulkan'):
     """ Get a list of all Vulkan extensions. """
 
     xml = et.parse(xml)
@@ -138,8 +138,13 @@ def get_all_exts_from_xml(xml, api='vulkan'):
     extensions = []
     for ext_elem in xml.findall('.extensions/extension'):
         ext = Extension.from_xml(ext_elem)
-        if api in ext.supported:
-            extensions.append(ext)
+        if api not in ext.supported:
+            continue
+
+        if not beta and ext.provisional:
+            continue
+
+        extensions.append(ext)
 
     return sorted(extensions, key=extension_order)
 

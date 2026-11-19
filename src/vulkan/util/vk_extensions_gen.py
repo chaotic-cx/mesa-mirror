@@ -139,6 +139,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out-c', help='Output C file.')
     parser.add_argument('--out-h', help='Output H file.')
+    parser.add_argument('--beta', action='store_true',
+                        help='Enable beta extensions.')
     parser.add_argument('--xml',
                         help='Vulkan API XML file.',
                         required=True,
@@ -148,7 +150,7 @@ def main():
 
     extensions = []
     for filename in args.xml_files:
-        extensions += get_all_exts_from_xml(filename)
+        extensions += get_all_exts_from_xml(filename, args.beta)
 
     gen_extensions(args.xml_files, extensions, args.out_c, args.out_h)
 

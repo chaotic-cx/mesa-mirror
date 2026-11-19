@@ -116,7 +116,8 @@ vk_extensions = custom_target(
   output : ['vk_extensions.c', 'vk_extensions.h'],
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@',
-    '--out-c', '@OUTPUT0@', '--out-h', '@OUTPUT1@'
+    '--out-c', '@OUTPUT0@', '--out-h', '@OUTPUT1@',
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_extensions_gen_depend_files,
 )
