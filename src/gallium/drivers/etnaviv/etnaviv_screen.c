@@ -835,23 +835,21 @@ etna_get_specs(struct etna_screen *screen)
    if (etna_core_has_feature(info, ETNA_FEATURE_CORE_GPU)) {
       instruction_count = info->gpu.max_instructions;
       screen->specs.pixel_pipes = info->gpu.pixel_pipes;
-
-      if (screen->npu)
-         info = etna_gpu_get_core_info(screen->npu);
    }
 
-   if (etna_core_has_feature(info, ETNA_FEATURE_CORE_NPU)) {
-      if (etna_core_has_feature(info, ETNA_FEATURE_NN_XYDP0))
+   if (screen->npu) {
+      const struct etna_core_info *npu_info = etna_gpu_get_core_info(screen->npu);
+
+      if (etna_core_has_feature(npu_info, ETNA_FEATURE_NN_XYDP0))
          screen->specs.nn_core_version = 8;
-      else if (etna_core_has_feature(info, ETNA_FEATURE_VIP_V7))
+      else if (etna_core_has_feature(npu_info, ETNA_FEATURE_VIP_V7))
          screen->specs.nn_core_version = 7;
       else
          screen->specs.nn_core_version = 6;
    }
 
-   screen->info->halti = info->halti;
-   if (screen->info->halti >= 0)
-      DBG("etnaviv: GPU arch: HALTI%d", screen->info->halti);
+   if (info->halti >= 0)
+      DBG("etnaviv: GPU arch: HALTI%d", info->halti);
    else
       DBG("etnaviv: GPU arch: pre-HALTI");
 
