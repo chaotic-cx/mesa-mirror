@@ -2844,7 +2844,7 @@
         "description": "tu/autotune: use unique_ptr<rp_histories_t> to fix GCC 11 build",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
