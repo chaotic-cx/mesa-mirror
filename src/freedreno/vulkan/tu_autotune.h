@@ -213,9 +213,12 @@ struct tu_autotune {
       }
    };
 
-   /* A map between the hash of an RP and the historical state of the RP. Synchronized by rp_mutex. */
+   /* A map between the hash of an RP and the historical state of the RP. Synchronized by rp_mutex.
+    *
+    * Stored via unique_ptr because rp_history is incomplete at this point in the header.
+    */
    using rp_histories_t = std::unordered_map<rp_key, rp_history, rp_hash>;
-   rp_histories_t rp_histories;
+   std::unique_ptr<rp_histories_t> rp_histories;
    std::shared_mutex rp_mutex;
    uint64_t last_reap_ts = 0;
 

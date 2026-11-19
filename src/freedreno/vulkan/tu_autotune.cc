@@ -1381,8 +1381,8 @@ tu_autotune::rp_history_handle
 tu_autotune::find_rp_history(const rp_key &key)
 {
    std::shared_lock lock(rp_mutex);
-   auto it = rp_histories.find(key);
-   if (it != rp_histories.end())
+   auto it = rp_histories->find(key);
+   if (it != rp_histories->end())
       return rp_history_handle(it->second);
 
    return rp_history_handle(nullptr);
@@ -1397,10 +1397,10 @@ tu_autotune::find_or_create_rp_history(const rp_key &key)
 
    /* If we reach here, we have to create a new history. */
    std::unique_lock lock(rp_mutex);
-   auto it = rp_histories.find(key);
-   if (it != rp_histories.end())
+   auto it = rp_histories->find(key);
+   if (it != rp_histories->end())
       return it->second; /* Another thread created the history while we were waiting for the lock. */
-   auto history = rp_histories.emplace(std::make_pair(key, key.hash));
+   auto history = rp_histories->emplace(std::make_pair(key, key.hash));
    return rp_history_handle(history.first->second);
 }
 
@@ -1417,18 +1417,18 @@ tu_autotune::reap_old_rp_histories()
    {
       /* Quicker non-unique lock, should hit this path mostly. */
       std::shared_lock lock(rp_mutex);
-      if (rp_histories.size() <= MAX_RP_HISTORIES)
+      if (rp_histories->size() <= MAX_RP_HISTORIES)
          return;
    }
 
    std::unique_lock lock(rp_mutex);
-   size_t og_size = rp_histories.size();
+   size_t og_size = rp_histories->size();
    if (og_size <= MAX_RP_HISTORIES)
       return;
 
    std::vector<rp_histories_t::iterator> candidates;
    candidates.reserve(og_size);
-   for (auto it = rp_histories.begin(); it != rp_histories.end(); ++it) {
+   for (auto it = rp_histories->begin(); it != rp_histories->end(); ++it) {
       if (it->second.refcount.load(std::memory_order_relaxed) == 0)
          candidates.push_back(it);
    }
@@ -1453,11 +1453,11 @@ tu_autotune::reap_old_rp_histories()
       rp_history &history = (*it)->second;
       if (history.refcount.load(std::memory_order_acquire) == 0) {
          at_log_base("reaping RP history %016" PRIx64, history.hash);
-         rp_histories.erase(*it);
+         rp_histories->erase(*it);
       }
    }
 
-   at_log_base("reaped old RP histories %zu -> %zu", og_size, rp_histories.size());
+   at_log_base("reaped old RP histories %zu -> %zu", og_size, rp_histories->size());
 }
 
 std::shared_ptr<tu_autotune::rp_entry_batch>
@@ -1506,8 +1506,8 @@ tu_autotune::cleanup_latency_tracking()
 
       /* Check if corresponding rp_history has cleared its latency_risk flag. */
       if (tracker.info.seen_latency_spike) {
-         auto history_it = rp_histories.find(rp_key { rp_hash });
-         if (history_it == rp_histories.end() || !history_it->second.preempt_optimize.is_latency_sensitive() ||
+         auto history_it = rp_histories->find(rp_key { rp_hash });
+         if (history_it == rp_histories->end() || !history_it->second.preempt_optimize.is_latency_sensitive() ||
              history_it->second.last_use_ts.load(std::memory_order_relaxed) + FORGET_ABOUT_DELAY_AFTER_NS < now) {
             tracker.info.seen_latency_spike = false;
             at_log_preempt_h("clearing latency-sensitive flag", rp_hash);
@@ -1670,7 +1670,8 @@ tu_autotune::on_submit(struct tu_cmd_buffer **cmd_buffers, uint32_t cmd_buffer_c
 }
 
 tu_autotune::tu_autotune(struct tu_device *device, VkResult &result)
-    : device(device), supported_mod_flags(get_supported_mod_flags(device)), active_config(get_env_config())
+    : device(device), supported_mod_flags(get_supported_mod_flags(device)), active_config(get_env_config()),
+      rp_histories(std::make_unique<rp_histories_t>())
 {
    tu_bo_suballocator_init(&suballoc, device, 128 * 1024, TU_BO_ALLOC_INTERNAL_RESOURCE, "autotune_suballoc");
 
