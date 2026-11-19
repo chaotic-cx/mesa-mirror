@@ -71,17 +71,15 @@ ac_compute_guardband(const struct radeon_info *info, int minx, int miny,
     *
     * This is done by applying the inverse viewport transformation on the
     * viewport limits to get those limits in clip space.
-    *
-    * The viewport range is [-max_viewport_size/2 - 1, max_viewport_size/2].
-    * (-1 to the min coord because max_viewport_size is odd and ViewportBounds
-    * Min/Max are -32768, 32767).
+    * The viewport range is [-max_viewport_size/2 + 1, max_viewport_size/2 - 1],
+    * (ie. [-32767,32767] in 16.8 mode).
     */
    assert(quant_mode < ARRAY_SIZE(max_viewport_size));
    max_range = max_viewport_size[quant_mode] / 2;
-   left = (-max_range - 1 - translate[0]) / scale[0];
-   right = (max_range - translate[0]) / scale[0];
-   top = (-max_range - 1 - translate[1]) / scale[1];
-   bottom = (max_range - translate[1]) / scale[1];
+   left = (-max_range + 1 - translate[0]) / scale[0];
+   right = (max_range - 1 - translate[0]) / scale[0];
+   top = (-max_range + 1 - translate[1]) / scale[1];
+   bottom = (max_range - 1 - translate[1]) / scale[1];
 
    guardband_x = MIN2(-left, right);
    guardband_y = MIN2(-top, bottom);

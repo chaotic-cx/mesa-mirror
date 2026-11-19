@@ -99,9 +99,9 @@ traces:
       checksum: dbe1de4e2e812413f173ea6c423117ff
       text: "'egl_platform.cpp( 227) - Error   - Couldn't find a suitable EGL config' -- revisit when we can turn on X11?"
     zink-radv-vangogh:
-      checksum: 764b8c91c715830f18956ddc55bae7f1
+      checksum: 8e122e71c2e716d0d2e9deeafef3849c
     zink-radv-gfx1201:
-      checksum: 96f714ce413ee4c58f2b82b80002fc65
+      checksum: 6b4ada1083fb899d90864a3bcb42a356
 
   gputest/pixmark-julia-fp32-v2.trace:
     gl-zink-anv-adl:
@@ -163,9 +163,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 0bb0e9caf5820f4ead2391ed69791505
     zink-radv-vangogh:
-      checksum: b10784c25b479418302c6354c3b79d72
+      checksum: 3116a6d5ee7af051f0057821fbb4b0bf
     zink-radv-gfx1201:
-      checksum: f727a69d162d65bcd761a17070ce71a0
+      checksum: 7e5942c0f9b82031241a4344012c5c85
 
   humus/Portals-v2.trace:
     gl-zink-anv-adl:
@@ -173,9 +173,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: ae4dd23b6d3eac332d61cf3e28e968a4
     zink-radv-vangogh:
-      checksum: d550180c4f2b692cb1172476979278eb
+      checksum: 33493c7ab4040c37edb2bcbac27553bb
     zink-radv-gfx1201:
-      checksum: 82c0181e02c83b8b7cbaab936382f2f5
+      checksum: 05b7c02d32e7fa8ad6ce81da403c94f0
 
   humus/CelShading-v2.trace:
     gl-zink-anv-adl:
@@ -240,9 +240,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 0f2d9664dc0983f87068a7e487b3824d
     zink-radv-vangogh:
-      checksum: 1d22695672992477e6ce8ee9ac05231e
+      checksum: 36700e275e47c703c6cb6f1db901653e
     zink-radv-gfx1201:
-      checksum: 6d405aeea76ec497feeaf19bb380957d
+      checksum: 6c1a6e07780bb778ff07508455400f24
 
   paraview/pv-manyspheres-v2.trace:
     gl-zink-anv-adl:
@@ -325,9 +325,9 @@ traces:
     gl-zink-anv-tgl:
       checksum: 037eef0b288cc6e9e37bb2334edb7368
     zink-radv-vangogh:
-      checksum: f7d6140727ab868bbac1989654af4d47
+      checksum: 634977064ab20dffc8868d9a075a9f40
     zink-radv-gfx1201:
-      checksum: f7d6140727ab868bbac1989654af4d47
+      checksum: 634977064ab20dffc8868d9a075a9f40
 
   supertuxkart/supertuxkart-antediluvian-abyss.rdc:
     gl-zink-anv-adl:
@@ -419,9 +419,9 @@ traces:
       checksum: d5eb7d064ca31cb316e853a082a3950d
       text: occasional segfaults
     zink-radv-vangogh:
-      checksum: 35acc6074be4f9947561f98a812107d2
+      checksum: f48691aa23c92bc08a8b5a875b52732c
     zink-radv-gfx1201:
-      checksum: 84e272f12cce5d4cddb198906de5b5ea
+      checksum: f88a02a9faa7980994b8badf338273f3
 
   valve/half-life-2-v2.trace:
     gl-zink-anv-adl:
