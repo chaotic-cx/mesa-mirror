@@ -79,7 +79,7 @@ vk_dispatch_table = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@',
     '--out-c', '@OUTPUT0@', '--out-h', '@OUTPUT1@',
-    '--beta', with_vulkan_beta.to_string()
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_dispatch_table_gen_depend_files,
 )
@@ -93,7 +93,7 @@ vk_enum_to_str = custom_target(
     '--out-c', '@OUTPUT0@',
     '--out-h', '@OUTPUT1@',
     '--out-d', '@OUTPUT2@',
-    '--beta', with_vulkan_beta.to_string()
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_enum_to_str_depend_files,
 )
@@ -105,7 +105,7 @@ vk_struct_type_cast = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@',
     '--out', '@OUTPUT@',
-    '--beta', with_vulkan_beta.to_string()
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_struct_type_cast_depend_files,
 )

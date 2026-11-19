@@ -532,7 +532,8 @@ def parse_xml(enum_factory, ext_factory, struct_factory, bitmask_factory,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--beta', required=True, help='Enable beta extensions.')
+    parser.add_argument('--beta', action='store_true',
+                        help='Enable beta extensions.')
     parser.add_argument('--xml', required=True,
                         help='Vulkan API XML files',
                         action='append',

@@ -94,7 +94,8 @@ def main():
     parser.add_argument('--out',
                         help='Output H file',
                         required=True)
-    parser.add_argument('--beta', required=True, help='Enable beta extensions.')
+    parser.add_argument('--beta', action='store_true',
+                        help='Enable beta extensions.')
 
     args = parser.parse_args()
 

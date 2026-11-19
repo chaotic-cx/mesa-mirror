@@ -10,7 +10,7 @@ kk_dispatch_trampolines = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@',
     '--out-c', '@OUTPUT0@', '--out-h', '@OUTPUT1@',
-    '--beta', with_vulkan_beta.to_string()
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_dispatch_trampolines_gen_depend_files,
 )
@@ -24,7 +24,7 @@ kk_dispatch_cmd = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@',
     '--out-c', '@OUTPUT0@', '--out-h', '@OUTPUT1@',
-    '--beta', with_vulkan_beta.to_string()
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_dispatch_trampolines_gen_depend_files,
 )

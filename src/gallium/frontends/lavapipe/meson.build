@@ -19,7 +19,7 @@ lvp_entrypoints = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@', '--proto', '--weak',
     '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@', '--prefix', 'lvp',
-    '--beta', with_vulkan_beta.to_string(),
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_entrypoints_gen_depend_files,
 )

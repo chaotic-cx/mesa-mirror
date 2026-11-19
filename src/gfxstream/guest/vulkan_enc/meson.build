@@ -18,8 +18,7 @@ gfxstream_vk_entrypoints = custom_target(
         '@OUTPUT1@',
         '--prefix',
         'gfxstream_vk',
-        '--beta',
-        with_vulkan_beta.to_string(),
+        vulkan_gen_beta_arg,
     ],
 )
 

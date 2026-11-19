@@ -15,7 +15,7 @@ panvk_entrypoints = custom_target(
     '--device-prefix', 'panvk_v9', '--device-prefix', 'panvk_v10',
     '--device-prefix', 'panvk_v11', '--device-prefix', 'panvk_v12',
     '--device-prefix', 'panvk_v13', '--device-prefix', 'panvk_v14',
-    '--beta', with_vulkan_beta.to_string()
+    vulkan_gen_beta_arg,
   ],
   depend_files : vk_entrypoints_gen_depend_files,
 )

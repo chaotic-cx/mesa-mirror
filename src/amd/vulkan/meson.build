@@ -23,8 +23,7 @@ idep_radv_tracepoints = declare_dependency(
 
 radv_entrypoints_gen_command = [
   prog_python, '@INPUT0@', '--xml', '@INPUT1@', '--proto', '--weak',
-  '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@',
-  '--beta', with_vulkan_beta.to_string()
+  '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@', vulkan_gen_beta_arg,
 ]
 
 radv_entrypoints_gen_command += [

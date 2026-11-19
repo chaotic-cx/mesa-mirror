@@ -450,8 +450,10 @@ if host_machine.system() == 'darwin'
   #macOS seems to need beta extensions to build for now:
   with_vulkan_beta = true
 endif
+vulkan_gen_beta_arg = []
 if with_vulkan_beta
   pre_args += '-DVK_ENABLE_BETA_EXTENSIONS'
+  vulkan_gen_beta_arg = '--beta'
 endif
 
 _codecs = get_option('video-codecs')

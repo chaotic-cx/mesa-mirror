@@ -471,7 +471,7 @@ def get_feature_structs(doc, api, beta):
         reqs = required[_type.attrib['name']]
         # Skip extensions with a define that isn't a platform define for now
         guard = reqs.guard
-        if guard is not None and ((guard != "VK_ENABLE_BETA_EXTENSIONS" or beta != "true") and
+        if guard is not None and ((guard != "VK_ENABLE_BETA_EXTENSIONS" or not beta) and
                                  (not guard.startswith("VK_USE_PLATFORM"))):
             continue
 
@@ -545,7 +545,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out-c', required=True, help='Output C file.')
     parser.add_argument('--out-h', required=True, help='Output H file.')
-    parser.add_argument('--beta', required=True, help='Enable beta extensions.')
+    parser.add_argument('--beta', action='store_true',
+                        help='Enable beta extensions.')
     parser.add_argument('--xml',
                         help='Vulkan API XML file.',
                         required=True, action='append', dest='xml_files')

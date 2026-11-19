@@ -21,7 +21,7 @@ v3dv_entrypoints = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@', '--proto', '--weak',
     '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@', '--prefix', 'v3dv',
-    '--beta', with_vulkan_beta.to_string(),
+    vulkan_gen_beta_arg,
     '--device-prefix', 'ver42',
     '--device-prefix', 'ver71',
   ],

@@ -8,7 +8,7 @@ anv_hasvk_entrypoints = custom_target(
   command : [
     prog_python, '@INPUT0@', '--xml', '@INPUT1@', '--proto', '--weak',
     '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@', '--prefix', 'anv',
-    '--beta', with_vulkan_beta.to_string(),
+    vulkan_gen_beta_arg,
     '--device-prefix', 'gfx7', '--device-prefix', 'gfx75',
     '--device-prefix', 'gfx8',
     '--device-prefix', 'doom64',

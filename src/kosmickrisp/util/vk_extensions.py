@@ -207,7 +207,7 @@ def get_all_required(xml, thing, api, beta):
         if api not in ext.supported:
             continue
 
-        if beta != 'true' and ext.provisional:
+        if not beta and ext.provisional:
             continue
 
         for require in extension.findall('./require'):

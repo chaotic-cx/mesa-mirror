@@ -169,7 +169,7 @@ def get_alias(aliases, name):
         return get_alias(aliases, aliases[name])
     return name
 
-def get_all_required(xml, thing, api, beta):
+def get_all_required(xml, thing, api, beta: bool):
     things = {}
     aliases = {}
     for struct in xml.findall('./types/type[@category="struct"][@alias]'):
@@ -197,7 +197,7 @@ def get_all_required(xml, thing, api, beta):
         if api not in ext.supported:
             continue
 
-        if beta != 'true' and ext.provisional:
+        if not beta and ext.provisional:
             continue
 
         for require in extension.findall('./require'):
