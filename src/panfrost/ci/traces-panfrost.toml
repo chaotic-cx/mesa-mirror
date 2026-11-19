@@ -120,7 +120,7 @@ path = "humus/DynamicBranching3-v2.trace"
 [traces.devices]
 panfrost-t860 = { checksum = "5049dc77e75b188ec23bd9430bcc556630ccce1060274cf793ee8dedbf6995ce" }
 panfrost-g610 = { checksum = "9e11589653c4797efe53d663667411672477c04eb460ee58b1164382deb63d34" }
-panfrost-g925 = { checksum = "e11cdbd8cab2ffef2a6d2a923b89f1beb52039877f08bd1403fa0d2abc13a8fc" }
+panfrost-g925 = { checksum = "7b09b2c6b03ec1e72bd73a26cb3718ba34ce0e0018301962e1987f86248571ce" }
 
 [[traces]]
 path = "humus/RaytracedShadows-v2.trace"
