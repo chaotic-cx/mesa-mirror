@@ -29,3 +29,6 @@ dEQP-VK.api.image_compression_control.swapchain.direct.*
 # hang) until the issue is resolved: https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16027
 dEQP-VK.ray_tracing_pipeline.misc.maxrtinvocations_AABB
 dEQP-VK.ray_tracing_pipeline.misc.maxrtinvocations_tri
+
+# These tests are invalid (image->image with MSAA and Z/S on compute/transfer).
+dEQP-VK.api.copy_and_blit.core.use_after_copy.d.*q_.*msaa
