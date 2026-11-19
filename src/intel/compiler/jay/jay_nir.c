@@ -252,6 +252,17 @@ jay_nir_lower_simd(nir_builder *b, nir_intrinsic_instr *intr, void *simd_)
           * indirect register file access.
           */
          nir_def *index = nir_iand_imm(b, intr->src[1].ssa, simd_width - 1);
+         if (intr->intrinsic == nir_intrinsic_read_invocation) {
+            /* read_invocation allows the index to be dynamically uniform
+             * rather than statically convergent (results are undefined if
+             * the index differs across active invocations).  But the result
+             * is always treated as convergent.  Shuffles, on the other hand,
+             * produce a divergent value if their index is divergent.
+             *
+             * Uniformize the index so that our result remains convergent.
+             */
+            index = nir_as_uniform(b, index);
+         }
          nir_def *offset_B = nir_imul_imm(b, index, 4);
          nir_def_replace(&intr->def, nir_shuffle_intel(b, 1, data, offset_B));
       }
