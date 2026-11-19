@@ -1184,7 +1184,7 @@
         "description": "tu: Fix tu_descriptor_set UAF in tu_descriptor_set_create",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4a2b930d2df3dc24810f0c8c3cc0de0c7b9e33bb",
         "notes": null
