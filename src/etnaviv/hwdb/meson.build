@@ -5,6 +5,7 @@ prog_hwdb = files('hwdb.h.py')
 hwdb_h = custom_target(
   'hwdb.h',
   input: [
+    'allwinner/gc_feature_database.h',
     'amlogic/gc_feature_database.h',
     'd-robotics/gc_feature_database.h',
     'eys3d/gc_feature_database.h',
