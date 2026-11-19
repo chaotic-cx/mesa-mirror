@@ -1161,13 +1161,14 @@ radv_image_create_layout(struct radv_device *device, struct radv_image_create_in
    create_info.vk_info = NULL;
 
    struct ac_surf_info image_info = radv_get_ac_surf_info(device, image);
+
+   radv_image_reset_layout(pdev, image);
+
    VkResult result = radv_patch_image_from_extra_info(device, image, &create_info, &image_info);
    if (result != VK_SUCCESS)
       return result;
 
    assert(!mod_info || mod_info->drmFormatModifierPlaneCount >= image->plane_count);
-
-   radv_image_reset_layout(pdev, image);
 
    /*
     * Due to how the decoder works, the user can't supply an oversized image, because if it attempts
