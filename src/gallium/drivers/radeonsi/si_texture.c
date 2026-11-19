@@ -2562,16 +2562,10 @@ void si_init_screen_texture_functions(struct si_screen *sscreen)
    sscreen->b.get_sparse_texture_virtual_page_size =
       si_get_sparse_texture_virtual_page_size;
 
-   /* By not setting it the frontend will fall back to non-modifier create,
-    * which works around some applications using modifiers that are not
-    * allowed in combination with lack of error reporting in
-    * gbm_dri_surface_create */
-   if (sscreen->info.kernel_has_modifiers) {
-      sscreen->b.resource_create_with_modifiers = si_texture_create_with_modifiers;
-      sscreen->b.query_dmabuf_modifiers = si_query_dmabuf_modifiers;
-      sscreen->b.is_dmabuf_modifier_supported = si_is_dmabuf_modifier_supported;
-      sscreen->b.get_dmabuf_modifier_planes = si_get_dmabuf_modifier_planes;
-   }
+   sscreen->b.resource_create_with_modifiers = si_texture_create_with_modifiers;
+   sscreen->b.query_dmabuf_modifiers = si_query_dmabuf_modifiers;
+   sscreen->b.is_dmabuf_modifier_supported = si_is_dmabuf_modifier_supported;
+   sscreen->b.get_dmabuf_modifier_planes = si_get_dmabuf_modifier_planes;
 }
 
 void si_init_context_texture_functions(struct si_context *sctx)
