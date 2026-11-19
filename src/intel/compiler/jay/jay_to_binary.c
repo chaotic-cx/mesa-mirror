@@ -158,7 +158,7 @@ to_gen_operand(jay_function *f,
          if ((I->type == JAY_TYPE_F16 && !jay_type_is_any_float(src0_type)) ||
              (src0_type == JAY_TYPE_F16 && !jay_type_is_any_float(I->type))) {
             assert(jay_num_values(d) == 1 && "must not vectorize HF<->Int");
-            R = gen_restride(R, 8, 2, 4);
+            R = gen_restride(R, 4, 2, 2);
          }
 
          /* Packed floats have restrictions on mixed sizes.  Use <2>. */
