@@ -19,6 +19,9 @@ def declare_options():
         B("kk_fake_depth_bounds", False,
           "Reports support for depth bounds test even if the hardware does not support it",
           c_name="fake_depth_bounds"),
+        B("vs_position_always_invariant", False,
+          "Forces all pre-rasterization shader geometry outputs to be invariant",
+          c_name="position_always_invariant"),
     ]
     debug_options = []
     features_options = []

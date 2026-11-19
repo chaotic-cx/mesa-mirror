@@ -12,6 +12,7 @@
 #include "kk_descriptor_set_layout.h"
 #include "kk_device.h"
 #include "kk_format.h"
+#include "kk_instance.h"
 #include "kk_nir_lower_vbo.h"
 #include "kk_physical_device.h"
 #include "kk_sampler.h"
@@ -66,15 +67,22 @@ kk_get_spirv_options(struct vk_physical_device *vk_pdev,
 }
 
 static void
-kk_preprocess_nir(UNUSED struct vk_physical_device *vk_pdev, nir_shader *nir,
+kk_preprocess_nir(struct vk_physical_device *vk_pdev, nir_shader *nir,
                   UNUSED const struct vk_pipeline_robustness_state *rs)
 {
+   struct kk_physical_device *pdev =
+      container_of(vk_pdev, struct kk_physical_device, vk);
+   struct kk_instance *instance = kk_physical_device_instance(pdev);
+
    /* Gather info before preprocess_nir but after some general lowering, so
     * inputs_read and system_values_read are accurately set.
     */
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
    msl_preprocess_nir(nir);
+
+   if (instance->drirc.misc.position_always_invariant)
+      NIR_PASS(_, nir, nir_propagate_invariant, true);
 
    /* Cannot be part of msl_preprocess_nir since clc does not expose
     * has_base_workgroup_id */

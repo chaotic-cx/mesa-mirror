@@ -977,6 +977,10 @@ kk_physical_device_init_pipeline_cache(struct kk_physical_device *pdev)
    _mesa_blake3_update(&blake3_ctx, instance->driver_build_sha,
                        sizeof(instance->driver_build_sha));
 
+   _mesa_blake3_update(&blake3_ctx,
+                       &instance->drirc.misc.position_always_invariant,
+                       sizeof(instance->drirc.misc.position_always_invariant));
+
    unsigned char blake3[BLAKE3_KEY_LEN];
    _mesa_blake3_final(&blake3_ctx, blake3);
 
