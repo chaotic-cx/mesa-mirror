@@ -655,8 +655,9 @@ tu_descriptor_set_create(struct tu_device *device,
          uint64_t pool_vma_offset =
             util_vma_heap_alloc(&pool->bo_heap, set->size, 1);
          if (!pool_vma_offset) {
+            uint32_t size = set->size;
             vk_object_free(&device->vk, NULL, set);
-            if (pool->bo_heap.free_size >= set->size)
+            if (pool->bo_heap.free_size >= size)
                return VK_ERROR_FRAGMENTED_POOL;
             else
                return VK_ERROR_OUT_OF_POOL_MEMORY;
