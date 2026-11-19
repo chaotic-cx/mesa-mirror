@@ -1342,13 +1342,14 @@ jay_src_as_strided(jay_builder *b,
       }
 
       uint32_t indices[JAY_MAX_DEF_LENGTH] = { 0 };
-      unsigned nr = jay_num_values(x) * jay_ugpr_per_grf(b->shader);
+      unsigned stride =
+         jay_grf_size_B(b->shader) / (jay_size_to_bits(x.size) / 8);
+      unsigned nr = jay_num_values(x) * stride;
       assert(nr < ARRAY_SIZE(indices));
 
       for (unsigned i = 0; i < jay_num_values(x) / element_sz; ++i) {
          for (unsigned j = 0; j < element_sz; ++j) {
-            indices[(i * jay_ugpr_per_grf(b->shader)) + j] =
-               jay_channel(x, (i * element_sz) + j);
+            indices[(i * stride) + j] = jay_channel(x, (i * element_sz) + j);
          }
       }
 
