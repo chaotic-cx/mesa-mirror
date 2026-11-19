@@ -429,6 +429,8 @@ impl ParallelCopy<'_> {
         let mut b = InstrBuilder::new(self.model);
 
         let mut copy_size = MAX_COPY_SIZE;
+        // Do not allow copy splits on the first iteration.
+        let mut allow_copy_split = false;
         loop {
             let mut progress = false;
             let mut start = 0;
@@ -445,8 +447,31 @@ impl ParallelCopy<'_> {
 
                 while dst_b < ready_range.end {
                     let dst_byte = &bytes[dst_b];
-                    let src_b = dst_byte.src_byte;
 
+                    // Check if this copy is a subset of a larger copy and only add it
+                    // once we have established that the larger copy was not unblocked
+                    // by a smaller, stand-alone copy.
+                    if !allow_copy_split {
+                        let mut next_copy_size = copy_size * 2;
+                        while next_copy_size <= MAX_COPY_SIZE {
+                            let aligned_dst_b =
+                                dst_b & !(next_copy_size as u16 - 1);
+                            let aligned_max_size =
+                                bytes[aligned_dst_b].max_copy_size;
+                            if aligned_max_size >= next_copy_size {
+                                break;
+                            }
+                            next_copy_size *= 2;
+                        }
+
+                        if next_copy_size <= MAX_COPY_SIZE {
+                            // This copy is part of a larger copy, skip it this round
+                            dst_b += u16::from(copy_size);
+                            continue;
+                        }
+                    }
+
+                    let src_b = dst_byte.src_byte;
                     let copy_size = copy_size.min(dst_byte.max_copy_size);
                     let dst = dst_b..(dst_b + u16::from(copy_size));
                     let src = src_b..(src_b + u16::from(copy_size));
@@ -479,6 +504,12 @@ impl ParallelCopy<'_> {
             } else if copy_size > 1 {
                 // If we couldn't make progress, drop the copy size
                 copy_size /= 2;
+                continue;
+            } else if !allow_copy_split && !ready.is_empty() {
+                // If we reached the end with still more copies to do,
+                // allow us to split larger copies
+                allow_copy_split = true;
+                copy_size = MAX_COPY_SIZE;
                 continue;
             } else {
                 // If we couldn't make progress with byte copies, we're done.
@@ -627,12 +658,10 @@ mod tests {
             (r(1), r(0)),       // r1    <- r0    (32-bit)
         ];
         let histogram = count_copy_len(&copies);
-        // TODO: this could be done with 1 single 16-bit copy and 3 32-bit
-        //       copies instead (issue 16907)
         let expected = CopyLenHistogram {
             c64: 0,
-            c32: 0,
-            c16: 7,
+            c32: 3,
+            c16: 1,
             c8: 0,
         };
         assert_eq!(histogram, expected);
