@@ -2148,6 +2148,16 @@ static const struct {
    { "add (8) r0.4<2>:b r2<16;2,4>:w r4:w",   SAME_ERROR, { .ge = 200 } },
    { "add (8) r0.4<2>:b r2.2<16;2,4>:w r4:w", SAME_ERROR, { .ge = 200 } },
 
+   /* Source 0. Uniform stride B->W cases. */
+   { "mov (8) r0.8:uw r1.32<4>:ub", VALID, { .ge = 200 } },
+   { "mov (8) r0.8:uw r1<4>:ub",
+     "Invalid register region for source 0. See special restrictions section.", { .ge = 200 }
+   },
+   { "mov (4) r0.4:uw r1.32<8>:ub", VALID, { .ge = 200 } },
+   { "mov (4) r0.4:uw r1<8>:ub",
+     "Invalid register region for source 0. See special restrictions section.", { .ge = 200 }
+   },
+
    /* Source 0. Packed B->B cases. */
    { "mov (16) r40.0<1>:ub r20.0<8;2,4>:ub",  VALID, { .ge = 200 } },
    { "mov (16) r40.16<1>:ub r21.0<8;2,4>:ub", VALID, { .ge = 200 } },

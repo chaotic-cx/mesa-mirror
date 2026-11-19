@@ -2216,8 +2216,8 @@ private:
 
             } else if (src_idx == 0 && src_size == 1 && dst_size == 2) {
                if ((src_stride < 4) ||
-                   (src_stride == 4 && src_uniform_stride && ((2 * dst_subnr) % 16 == src_subnr / 2)) ||
-                   (src_stride == 8 && src_uniform_stride && ((2 * dst_subnr) % 8 == src_subnr / 4)))
+                   (src_stride == 4 && src_uniform_stride && (2 * (dst_subnr % 16) == src_subnr / 2)) ||
+                   (src_stride == 8 && src_uniform_stride && (2 * (dst_subnr % 8) == src_subnr / 4)))
                   allowed = true;
 
             } else if (src_idx == 0 && src_size == 1 && dst_size == 1 && dst_stride == 2) {
