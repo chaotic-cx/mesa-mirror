@@ -39,3 +39,4 @@ VK_EXT_private_data on dzn
 VK_KHR_performance_query on nvk
 VK_KHR_external_fence on dzn
 VK_KHR_external_fence_capabilities on dzn
+VK_EXT_attachment_feedback_loop_dynamic_state on nvk

@@ -4225,6 +4225,23 @@ nvk_flush_cb_state(struct nvk_cmd_buffer *cmd)
    }
 }
 
+static void
+nvk_flush_feedback_loops_state(struct nvk_cmd_buffer *cmd)
+{
+   const struct vk_dynamic_graphics_state *dyn =
+      &cmd->vk.dynamic_graphics_state;
+
+   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_ATTACHMENT_FEEDBACK_LOOP_ENABLE)) {
+      bool zs_loop_enable = dyn->feedback_loops &
+         (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
+
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 1);
+      P_IMMD_WORD(p, NV9097, SET_OPPORTUNISTIC_EARLY_Z_HYSTERESIS,
+                  zs_loop_enable ? ACCUMULATED_PRIM_AREA_THRESHOLD_LATEZ_ALWAYS
+                                 : ACCUMULATED_PRIM_AREA_THRESHOLD__512);
+   }
+}
+
 void
 nvk_cmd_flush_gfx_dynamic_state(struct nvk_cmd_buffer *cmd)
 {
@@ -4244,6 +4261,7 @@ nvk_cmd_flush_gfx_dynamic_state(struct nvk_cmd_buffer *cmd)
    nvk_flush_ms_state(cmd);
    nvk_flush_ds_state(cmd);
    nvk_flush_cb_state(cmd);
+   nvk_flush_feedback_loops_state(cmd);
 
    vk_dynamic_graphics_state_clear_dirty(dyn);
 }
