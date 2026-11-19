@@ -162,6 +162,9 @@ LAYOUTS = {
     "ArgMaxOptions": {
         "output_type": (0, "int8"),
     },
+    "ShapeOptions": {
+        "out_type": (0, "int8"),
+    },
     "PackOptions": {
         "values_count": (0, "int32"),
         "axis": (1, "int32"),
@@ -197,6 +200,7 @@ UNIONS = {
         29: "DivOptions",
         32: "StridedSliceOptions",
         40: "ArgMaxOptions",
+        55: "ShapeOptions",
         59: "PackOptions",
         64: "UnpackOptions",
         74: "ResizeNearestNeighborOptions",
