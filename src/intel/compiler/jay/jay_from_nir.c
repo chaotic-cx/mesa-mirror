@@ -4185,13 +4185,12 @@ jay_emit_eot(struct nir_to_jay_state *nj)
 
          jay_def srcs[2];
          for (unsigned i = 0; i < 2; i++) {
-            srcs[i] = jay_alloc_def(b, UGPR, 32, 1);
+            srcs[i] = jay_alloc_def(b, GPR, 32, 1);
             jay_UNDEF(b, JAY_TYPE_U32, srcs[i]);
          }
 
          I = jay_SEND(b, .sfid = GEN_SFID_URB, .msg_desc = desc, .srcs = srcs,
-                      .nr_srcs = 2, .type = JAY_TYPE_U32, .uniform = true,
-                      .eot = true);
+                      .nr_srcs = 2, .type = JAY_TYPE_U32, .eot = true);
          I = jay_add_predicate(b, I, never, jay_null());
       } else {
          /* As above but for HDC URB platforms */
