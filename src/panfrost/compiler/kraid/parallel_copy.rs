@@ -438,7 +438,7 @@ impl ParallelCopy<'_> {
                 copy_size.into(),
                 0,
             ) {
-                start += usize::from(copy_size);
+                start = dst_b + usize::from(copy_size);
 
                 let mut dst_b = u16::try_from(dst_b).unwrap();
                 let ready_range = dst_b..(dst_b + u16::from(copy_size));
