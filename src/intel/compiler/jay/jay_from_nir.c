@@ -2726,27 +2726,17 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       jay_def icp_handles = tcs ? tcs->icp_handles : gs->icp_handles;
       nir_src vertex_id = intr->src[0];
 
-      if (tcs) {
-         if (nir_src_is_const(vertex_id)) {
-            jay_copy(b, dst,
-                     jay_extract(icp_handles, nir_src_as_uint(vertex_id)));
-         } else {
-            jay_SHUFFLE(b, JAY_TYPE_U32, dst, icp_handles,
-                        jay_SHL_u32(b, nj_src(b, vertex_id), shift));
-         }
+      if (nir_src_is_const(vertex_id)) {
+         jay_copy(b, dst, jay_extract(icp_handles, nir_src_as_uint(vertex_id)));
+      } else if (tcs) {
+         jay_SHUFFLE(b, JAY_TYPE_U32, dst, icp_handles,
+                     jay_SHL_u32(b, nj_src(b, vertex_id), shift));
       } else if (gs) {
          if (s->info.gs.invocations == 1) {
-            if (nir_src_is_const(vertex_id)) {
-               jay_copy(b, dst,
-                        jay_extract(icp_handles, nir_src_as_uint(vertex_id)));
-            } else {
-               jay_def addr = jay_SHL_u32(b, nj_src(b, vertex_id), shift);
-               addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
-               jay_SHUFFLE(b, JAY_TYPE_U32, dst, gs->icp_handles, addr);
-            }
-
+            jay_def addr = jay_SHL_u32(b, nj_src(b, vertex_id), shift);
+            addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
+            jay_SHUFFLE(b, JAY_TYPE_U32, dst, gs->icp_handles, addr);
          } else {
-            assert(s->info.gs.invocations > 1);
             jay_SHUFFLE(b, JAY_TYPE_U32, dst, icp_handles,
                         jay_SHL_u32(b, nj_src(b, vertex_id), 2u));
          }
