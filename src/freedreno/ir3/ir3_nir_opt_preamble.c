@@ -311,8 +311,7 @@ ir3_nir_opt_preamble(nir_shader *nir, struct ir3_shader_variant *v)
    bool progress = nir_opt_preamble(nir, &options, &size);
 
    if (!v->binning_pass) {
-      uint32_t preamble_size_vec4 =
-         align(DIV_ROUND_UP(size, 4), v->compiler->const_upload_unit);
+      uint32_t preamble_size_vec4 = DIV_ROUND_UP(size, 4);
       ir3_const_alloc(&ir3_const_state_mut(v)->allocs, IR3_CONST_ALLOC_PREAMBLE,
                       preamble_size_vec4, v->compiler->const_upload_unit);
    }
