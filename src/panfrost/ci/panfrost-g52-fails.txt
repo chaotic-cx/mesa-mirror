@@ -280,10 +280,6 @@ spec@arb_framebuffer_object@framebuffer-blit-oblong tall,Fail
 spec@ext_multisampled_render_to_texture2@mrt,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
 spec@arb_shader_image_load_store@invalid,Crash
-spec@arb_shader_image_load_store@early-z,Fail
-spec@arb_shader_image_load_store@early-z@image access test/early-z fail,Fail
-spec@arb_shader_image_load_store@early-z@occlusion query test/early-z fail,Fail
-spec@arb_shader_image_load_store@early-z@occlusion query test/early-z pass,Fail
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1D/rgba32f,Fail
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1DArray/rgba32f,Fail
 spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba32f,Fail
