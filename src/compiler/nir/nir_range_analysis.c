@@ -1882,6 +1882,7 @@ unsigned_upper_bound_alu_supported(nir_scalar scalar)
    case nir_op_ixor:
    case nir_op_ishl:
    case nir_op_imul:
+   case nir_op_umul_high:
    case nir_op_ushr:
    case nir_op_ishr:
    case nir_op_iadd:
@@ -2037,6 +2038,10 @@ get_alu_uub(struct analysis_state *state, struct scalar_query q, uint32_t *resul
             *result = src[0] * src[1];
          *result = MIN2(*result, max);
       }
+      break;
+   }
+   case nir_op_umul_high: {
+      *result = ((uint64_t)src[0] * (uint64_t)src[1]) >> q.scalar.def->bit_size;
       break;
    }
    case nir_op_ushr: {
