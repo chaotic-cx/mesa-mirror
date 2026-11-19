@@ -2728,18 +2728,19 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
       if (nir_src_is_const(vertex_id)) {
          jay_copy(b, dst, jay_extract(icp_handles, nir_src_as_uint(vertex_id)));
-      } else if (tcs) {
-         jay_SHUFFLE(b, JAY_TYPE_U32, dst, icp_handles,
-                     jay_SHL_u32(b, nj_src(b, vertex_id), shift));
-      } else if (gs) {
-         if (s->info.gs.invocations == 1) {
-            jay_def addr = jay_SHL_u32(b, nj_src(b, vertex_id), shift);
+      } else {
+         jay_def addr = nj_src(b, vertex_id);
+
+         if (tcs) {
+            addr = jay_SHL_u32(b, addr, shift);
+         } else if (gs && s->info.gs.invocations == 1) {
+            addr = jay_SHL_u32(b, addr, shift);
             addr = jay_ADD_u32(b, addr, jay_SHL_u32(b, lane_id(b), 2u));
-            jay_SHUFFLE(b, JAY_TYPE_U32, dst, gs->icp_handles, addr);
          } else {
-            jay_SHUFFLE(b, JAY_TYPE_U32, dst, icp_handles,
-                        jay_SHL_u32(b, nj_src(b, vertex_id), 2u));
+            addr = jay_SHL_u32(b, addr, 2u);
          }
+
+         jay_SHUFFLE(b, JAY_TYPE_U32, dst, icp_handles, addr);
       }
       break;
    }
