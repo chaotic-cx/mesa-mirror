@@ -117,13 +117,17 @@ def compile_to_pte(module, example_inputs, pte_path):
         exec_prog.write_to_file(f)
 
 
+def clone_inputs(example_inputs):
+    return tuple(inp.clone() for inp in example_inputs)
+
+
 def quantize_module(module, example_inputs, *, is_prepared=False):
     """Prepare, calibrate, and convert a module to PT2E quantized form."""
     from torx import TorxQuantizer
 
     if not is_prepared:
         module = prepare_pt2e(module, TorxQuantizer())
-    module(*example_inputs)  # calibration
+    module(*clone_inputs(example_inputs))  # calibration
     return convert_pt2e(module)
 
 

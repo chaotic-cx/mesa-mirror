@@ -46,6 +46,7 @@ from extract_subgraph import is_dequantize, is_quantize  # noqa: E402
 from compile_torx_common import (
     QuantisationError,
     check_quantisation,
+    clone_inputs,
     compile_to_pte,
     configure_known_warning_filters,
     extract_quant_output_params,
@@ -71,7 +72,7 @@ def _collect_tensors(obj):
 
 def _run(module, example_inputs):
     with torch.no_grad():
-        return _collect_tensors(module(*example_inputs))
+        return _collect_tensors(module(*clone_inputs(example_inputs)))
 
 
 def _example_inputs(ep, input_shapes):
