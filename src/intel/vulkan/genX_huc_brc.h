@@ -1321,7 +1321,7 @@ anv_h265_brc_fill_init_dmem(struct anv_cmd_buffer *cmd,
    uint32_t gop = rc->gop_frame_count ? rc->gop_frame_count : 30;
    uint32_t gop_ref_dist = MAX2(rc->consecutive_b_frames + 1, 1);
 
-   dmem->BRCFunc_U32 = 0;
+   dmem->BRCFunc_U32 = rc->frame_counter ? 1 : 0;
    /* TODO: derive the profile and level based maximum frame size */
    dmem->UserMaxFrame = width * height;
    dmem->ProfileLevelMaxFramePB_U32 = dmem->UserMaxFrame;
