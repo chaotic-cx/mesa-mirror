@@ -39,6 +39,9 @@ etna_query_feature_db(struct etna_core_info *info)
    if (db->NNCoreCount)
       etna_core_enable_feature(info, ETNA_FEATURE_CORE_NPU);
 
+   if (db->COMPUTE_ONLY)
+      etna_core_disable_feature(info, ETNA_FEATURE_CORE_GPU);
+
    /* Features: */
    ETNA_FEATURE(REG_TessellationShaders, TESSELLATION_SHADERS);
    ETNA_FEATURE(REG_FastClear, FAST_CLEAR);
