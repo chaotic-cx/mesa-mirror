@@ -63,6 +63,7 @@ The three GitLab CI systems currently integrated are:
    :maxdepth: 1
 
    bare-metal
+   ci-tron
    LAVA
    docker
 
