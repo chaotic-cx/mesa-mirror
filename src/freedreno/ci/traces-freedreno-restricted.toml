@@ -854,19 +854,19 @@ freedreno-a660 = { checksum = "cb4a43398b1b8cf5a50fbb24121a2bd8ef1d220c94995daae
 path = "steam-d3d11/anno5-high-2.rdc"
 sysmem = 900
 [traces.devices]
-freedreno-a660 = { checksum = "340c801f405f6ab79a96644c5bf5901cfc901730760d874505b671d7b60aaeed" }
+freedreno-a660 = { checksum = "2972e36b060959852b1d1f6e6e6b30e996b791c4ea3025ec2f13a18739f6179e" }
 
 [[traces]]
 path = "steam-d3d11/anno5-low.rdc"
 sysmem = 600
 [traces.devices]
-freedreno-a660 = { checksum = "2c3516a88705b9ca1d6af59a8a6a9f7136452912f42d54b09c1f27a00ce8756b" }
+freedreno-a660 = { checksum = "cbd9dd07c3526c38f1b3ce6b46f2334cf788007b08cce11e35e3bfdafe41b517" }
 
 [[traces]]
 path = "steam-d3d11/anno-medium.rdc"
 sysmem = 600
 [traces.devices]
-freedreno-a660 = { checksum = "d8b7d958665c2e104ad2a2c14147284dac1b9414b5e596137aae7a0d62dcf75b" }
+freedreno-a660 = { checksum = "766eda6dd0d01aa57049081da97427b296dc4704ac75db73a09b37394a3ddf6b" }
 
 [[traces]]
 path = "steam-d3d11/arma-low.rdc"
