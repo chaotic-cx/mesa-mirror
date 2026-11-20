@@ -411,7 +411,7 @@ add_gpus([
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen3, GPUProps(lrz_track_quirk = False)],
-        num_ccu = 2,
+        num_ccu = 1,
         tile_align_w = 96,
         tile_align_h = 16,
         tile_max_w = 1024,

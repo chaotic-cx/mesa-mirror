@@ -364,7 +364,7 @@
         "description": "freedreno: Fix num_ccu for A623/A621",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "d94d15249863dc95070a5a6bafddcbddd2d0d71c",
         "notes": null
