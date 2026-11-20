@@ -100,11 +100,6 @@ void
 genX(cmd_buffer_emit_depth_stencil)(struct anv_cmd_buffer *cmd_buffer,
                                     enum isl_aux_usage hiz_usage);
 
-void genX(cmd_buffer_emit_vertex_buffers)(struct anv_cmd_buffer *cmd_buffer,
-                                          uint32_t vb_emit);
-
-void genX(cmd_buffer_emit_xfb_buffers)(struct anv_cmd_buffer *cmd_buffer);
-
 void genX(cmd_buffer_set_binding_for_gfx8_vb_flush)(struct anv_cmd_buffer *cmd_buffer,
                                                     int vb_index,
                                                     struct anv_address vb_address,

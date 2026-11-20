@@ -764,8 +764,8 @@ cmd_buffer_maybe_flush_rt_writes(struct anv_cmd_buffer *cmd_buffer,
 }
 
 ALWAYS_INLINE static void
-cmd_buffer_emit_vertex_buffers(struct anv_cmd_buffer *cmd_buffer,
-                               uint32_t vb_emit)
+cmd_buffer_flush_vertex_buffers(struct anv_cmd_buffer *cmd_buffer,
+                                uint32_t vb_emit)
 {
    const struct vk_dynamic_graphics_state *dyn =
       &cmd_buffer->vk.dynamic_graphics_state;
@@ -813,84 +813,6 @@ cmd_buffer_emit_vertex_buffers(struct anv_cmd_buffer *cmd_buffer,
       GENX(VERTEX_BUFFER_STATE_pack)(&cmd_buffer->batch, &p[1 + i * 4], &state);
       i++;
    }
-}
-
-void
-genX(cmd_buffer_emit_vertex_buffers)(struct anv_cmd_buffer *cmd_buffer,
-                                     uint32_t vb_emit)
-{
-   cmd_buffer_emit_vertex_buffers(cmd_buffer, vb_emit);
-}
-
-static inline void
-cmd_buffer_emit_xfb_buffers(struct anv_cmd_buffer *cmd_buffer)
-{
-   struct anv_device *device = cmd_buffer->device;
-
-   /* Wa_16011411144:
-    *
-    * SW must insert a PIPE_CONTROL cmd before and after the
-    * 3dstate_so_buffer_index_0/1/2/3 states to ensure so_buffer_index_*
-    * state is not combined with other state changes.
-    */
-   if (intel_needs_workaround(device->info, 16011411144)) {
-      anv_add_pending_pipe_bits(cmd_buffer,
-                                VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-                                VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-                                ANV_PIPE_CS_STALL_BIT,
-                                "before SO_BUFFER change WA");
-      genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
-   }
-
-   /* We don't need any per-buffer dirty tracking because you're not
-    * allowed to bind different XFB buffers while XFB is enabled.
-    */
-   for (unsigned idx = 0; idx < MAX_XFB_BUFFERS; idx++) {
-      struct anv_xfb_binding *xfb = &cmd_buffer->state.gfx.xfb_bindings[idx];
-      anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER), sob) {
-#if GFX_VER < 12
-         sob.SOBufferIndex = idx;
-#else
-         sob._3DCommandOpcode = 0;
-         sob._3DCommandSubOpcode = SO_BUFFER_INDEX_0_CMD + idx;
-#endif
-
-         if (cmd_buffer->state.gfx.xfb_enabled &&
-             xfb->addr != 0 && xfb->size != 0) {
-            sob.MOCS = xfb->mocs;
-            sob.SurfaceBaseAddress = anv_address_from_u64(xfb->addr);
-            sob.SOBufferEnable = true;
-            sob.StreamOffsetWriteEnable = false;
-            /* Size is in DWords - 1 */
-            sob.SurfaceSize = DIV_ROUND_UP(xfb->size, 4) - 1;
-         } else {
-            sob.MOCS = anv_mocs(device, NULL, 0);
-         }
-      }
-   }
-
-   if (intel_needs_workaround(device->info, 16011411144)) {
-      /* Wa_16011411144: also CS_STALL after touching SO_BUFFER change */
-      anv_add_pending_pipe_bits(cmd_buffer,
-                                VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-                                VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-                                ANV_PIPE_CS_STALL_BIT,
-                                "after SO_BUFFER change WA");
-      genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
-   } else if (GFX_VER >= 10) {
-      /* CNL and later require a CS stall after 3DSTATE_SO_BUFFER */
-      anv_add_pending_pipe_bits(cmd_buffer,
-                                VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-                                VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
-                                ANV_PIPE_CS_STALL_BIT,
-                                "after 3DSTATE_SO_BUFFER call");
-   }
-}
-
-void
-genX(cmd_buffer_emit_xfb_buffers)(struct anv_cmd_buffer *cmd_buffer)
-{
-   cmd_buffer_emit_xfb_buffers(cmd_buffer);
 }
 
 /** Flush 3D state programming except binding tables & push constants */
@@ -961,7 +883,7 @@ cmd_buffer_flush_gfx_state(struct anv_cmd_buffer *cmd_buffer)
       vb_emit |= dyn->vi->bindings_valid;
 
    if (vb_emit) {
-      cmd_buffer_emit_vertex_buffers(cmd_buffer, vb_emit);
+      cmd_buffer_flush_vertex_buffers(cmd_buffer, vb_emit);
       cmd_buffer->state.gfx.vb_dirty &= ~vb_emit;
    }
 
@@ -971,8 +893,66 @@ cmd_buffer_flush_gfx_state(struct anv_cmd_buffer *cmd_buffer)
    if (!cmd_buffer->state.gfx.dirty && !any_dynamic_state_dirty)
       return;
 
-   if (cmd_buffer->state.gfx.dirty & ANV_CMD_DIRTY_XFB_ENABLE)
-      cmd_buffer_emit_xfb_buffers(cmd_buffer);
+   if (cmd_buffer->state.gfx.dirty & ANV_CMD_DIRTY_XFB_ENABLE) {
+      /* Wa_16011411144:
+       *
+       * SW must insert a PIPE_CONTROL cmd before and after the
+       * 3dstate_so_buffer_index_0/1/2/3 states to ensure so_buffer_index_*
+       * state is not combined with other state changes.
+       */
+      if (intel_needs_workaround(device->info, 16011411144)) {
+         anv_add_pending_pipe_bits(cmd_buffer,
+                                   VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                                   ANV_PIPE_CS_STALL_BIT,
+                                   "before SO_BUFFER change WA");
+         genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
+      }
+
+      /* We don't need any per-buffer dirty tracking because you're not
+       * allowed to bind different XFB buffers while XFB is enabled.
+       */
+      for (unsigned idx = 0; idx < MAX_XFB_BUFFERS; idx++) {
+         struct anv_xfb_binding *xfb = &cmd_buffer->state.gfx.xfb_bindings[idx];
+         anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER), sob) {
+#if GFX_VER < 12
+            sob.SOBufferIndex = idx;
+#else
+            sob._3DCommandOpcode = 0;
+            sob._3DCommandSubOpcode = SO_BUFFER_INDEX_0_CMD + idx;
+#endif
+
+            if (cmd_buffer->state.gfx.xfb_enabled &&
+                xfb->addr != 0 && xfb->size != 0) {
+               sob.MOCS = xfb->mocs;
+               sob.SurfaceBaseAddress = anv_address_from_u64(xfb->addr);
+               sob.SOBufferEnable = true;
+               sob.StreamOffsetWriteEnable = false;
+               /* Size is in DWords - 1 */
+               sob.SurfaceSize = DIV_ROUND_UP(xfb->size, 4) - 1;
+            } else {
+               sob.MOCS = anv_mocs(device, NULL, 0);
+            }
+         }
+      }
+
+      if (intel_needs_workaround(device->info, 16011411144)) {
+         /* Wa_16011411144: also CS_STALL after touching SO_BUFFER change */
+         anv_add_pending_pipe_bits(cmd_buffer,
+                                   VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                                   ANV_PIPE_CS_STALL_BIT,
+                                   "after SO_BUFFER change WA");
+         genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
+      } else if (GFX_VER >= 10) {
+         /* CNL and later require a CS stall after 3DSTATE_SO_BUFFER */
+         anv_add_pending_pipe_bits(cmd_buffer,
+                                   VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
+                                   ANV_PIPE_CS_STALL_BIT,
+                                   "after 3DSTATE_SO_BUFFER call");
+      }
+   }
 
    /* Flush the runtime state into the HW state tracking */
    if (cmd_buffer->state.gfx.dirty || any_dynamic_state_dirty)

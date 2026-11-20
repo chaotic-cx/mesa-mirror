@@ -4289,28 +4289,6 @@ end_command_buffer(struct anv_cmd_buffer *cmd_buffer,
                                    ANV_PIPE_UNTYPED_DATAPORT_CACHE_FLUSH_BIT,
                                    "end render command buffer L1/L2 flush");
       }
-
-      /* Clear transform feedback & vertex buffers to make sure a following
-       * command buffer doesn't pull those addresses and leads to a pagefault.
-       */
-      if (anv_cmd_buffer_is_render_queue(cmd_buffer)) {
-         uint32_t vb_emit = 0;
-         for (uint32_t i = 0; i < ARRAY_SIZE(cmd_buffer->state.gfx.vertex_bindings); i++) {
-            struct anv_vertex_binding *binding =
-               &cmd_buffer->state.gfx.vertex_bindings[i];
-
-            if (binding->size > 0) {
-               binding->size = 0;
-               vb_emit |= BITFIELD_BIT(i);
-            }
-         }
-         if (vb_emit)
-            genX(cmd_buffer_emit_vertex_buffers)(cmd_buffer, vb_emit);
-
-         memset(&cmd_buffer->state.gfx.xfb_bindings, 0,
-                sizeof(cmd_buffer->state.gfx.xfb_bindings));
-         genX(cmd_buffer_emit_xfb_buffers)(cmd_buffer);
-      }
    }
 
    /* Flush any in-progress CCS/MCS operations in preparation for chaining. */
