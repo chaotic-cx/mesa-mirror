@@ -108,6 +108,8 @@ r300_nir_lower_vs_alu_r300 = [
         # fcsel_ge from ftrunc.
         (('fcsel_ge', a, b, c), ('flrp', c, b, ('sge', a, 0.0))),
         # seq/sne may be produced by bool/int lowering.
+        (('seq', 'a@32(is_not_negative)', 0.0), ('sge', 0.0, a)),
+        (('seq', 'a@32', 0.0), ('sge', 0.0, ('fabs', a))),
         (('seq', 'a@32', 'b@32'), ('fmul', ('sge', a, b), ('sge', b, a))),
         (('sne', 'a@32', 'b@32'), ('fmax', ('slt', a, b), ('slt', b, a))),
 ]
