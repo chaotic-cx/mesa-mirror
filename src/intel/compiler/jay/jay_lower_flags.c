@@ -127,7 +127,11 @@ pass(jay_function *f)
                i < I->num_srcs - I->predication) ||
               (i == 0 &&
                (jay_type_size_bits(I->type) == 64 ||
-                jay_type_is_any_float(I->type))))) {
+                jay_type_is_any_float(I->type) ||
+                (I->op == JAY_OPCODE_SEL &&
+                 I->src[2].file == UGPR &&
+                 !(jay_is_zero(I->src[1]) &&
+                   f->shader->dispatch_width == 32)))))) {
 
             BITSET_SET(read_as_ugpr, jay_index(I->src[i]));
             jay_replace_src(&I->src[i], as_ugpr[jay_index(I->src[i])]);
