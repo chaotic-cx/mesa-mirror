@@ -330,7 +330,9 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_line_rasterization                = true,
    .EXT_robustness2                       = true,
    .EXT_zero_initialize_device_memory     = true,
+#ifdef VK_ENABLE_BETA_EXTENSIONS
    .AMDX_shader_enqueue                   = true,
+#endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
    .ANDROID_native_buffer                 = true,
 #endif
