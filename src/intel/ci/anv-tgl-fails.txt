@@ -19,6 +19,8 @@ dEQP-VK.drm_format_modifiers.export_import_fmt_features2.b10g11r11_ufloat_pack32
 dEQP-VK.video.encode.h265.i_p_b_13_layered_src_video_layout,Fail
 dEQP-VK.video.encode.h265.rc_cbr_layered_src_video_layout,Fail
 dEQP-VK.video.encode.h265.query_with_status_separated_src_video_layout,Fail
+dEQP-VK.video.encode.h265.intra_refresh_column_based_midway_layered_src_video_layout,Fail
+dEQP-VK.video.encode.h265.intra_refresh_any_block_based_empty_region_layered_src_video_layout,Fail
 
 # Nightly run expectations update
 dEQP-VK.video.encode.h265.i_layered_src_video_layout,Fail
