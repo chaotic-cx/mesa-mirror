@@ -6954,6 +6954,37 @@ void genX(CmdBeginRendering)(
 
    gfx->dirty |= ANV_CMD_DIRTY_RENDER_TARGETS;
 
+   /* The Vulkan spec says about vkCmdSetRenderingAttachmentLocations() that :
+    *
+    *   "Until this command is called, mappings in the command buffer state
+    *    are treated as each color attachment specified in vkCmdBeginRendering
+    *    having a location equal to its index in
+    *    VkRenderingInfo::pColorAttachments. This state is reset whenever
+    *    vkCmdBeginRendering is called."
+    *
+    * Similarly for vkCmdSetRenderingInputAttachmentIndicesKHR() :
+    *
+    *   "Until this command is called, mappings in the command buffer state
+    *    are treated as each color attachment specified in vkCmdBeginRendering
+    *    mapping to subpass inputs with a InputAttachmentIndex equal to its
+    *    index in VkRenderingInfo::pColorAttachments, and depth/stencil
+    *    attachments mapping to input attachments without these decorations.
+    *    This state is reset whenever vkCmdBeginRendering is called."
+    *
+    * Reset both here.
+    */
+   vk_cmd_set_rendering_attachment_locations(
+      &cmd_buffer->vk, &(VkRenderingAttachmentLocationInfoKHR) {
+         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_LOCATION_INFO_KHR,
+         .colorAttachmentCount = MAX_RTS,
+      });
+   vk_common_CmdSetRenderingInputAttachmentIndicesKHR(
+      commandBuffer,
+      &(VkRenderingInputAttachmentIndexInfoKHR) {
+         .sType = VK_STRUCTURE_TYPE_RENDERING_INPUT_ATTACHMENT_INDEX_INFO_KHR,
+         .colorAttachmentCount = pRenderingInfo->colorAttachmentCount,
+      });
+
    /* It is possible to start a render pass with an old pipeline.  Because the
     * render pass and subpass index are both baked into the pipeline, this is
     * highly unlikely.  In order to do so, it requires that you have a render
