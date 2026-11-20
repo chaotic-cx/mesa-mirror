@@ -5,11 +5,13 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include "common/amdgpu_devices.h"
 #include "drm-shim/amdgpu_noop_drm_shim.h"
 #include "drm-shim/drm_shim.h"
 #include "drm-uapi/amdgpu_drm.h"
 #include "util/log.h"
+#include "util/macros.h"
 #include "util/os_misc.h"
 #include "util/u_debug.h"
 
@@ -57,18 +59,22 @@ amdgpu_ioctl_gem_mmap(int fd, unsigned long request, void *_arg)
 }
 
 static void
-amdgpu_info_hw_ip_info(uint32_t type, struct drm_amdgpu_info_hw_ip *out)
+amdgpu_info_hw_ip_info(uint32_t type, void *out, uint32_t return_size)
 {
+   const struct drm_amdgpu_info_hw_ip *ip_info;
+
    switch (type) {
    case AMDGPU_HW_IP_GFX:
-      *out = amdgpu_dev->hw_ip_gfx;
+      ip_info = &amdgpu_dev->hw_ip_gfx;
       break;
    case AMDGPU_HW_IP_COMPUTE:
-      *out = amdgpu_dev->hw_ip_compute;
+      ip_info = &amdgpu_dev->hw_ip_compute;
       break;
    default:
-      break;
+      return;
    }
+
+   memcpy(out, ip_info, MIN2(return_size, sizeof(*ip_info)));
 }
 
 static void
@@ -155,7 +161,7 @@ amdgpu_ioctl_info(int fd, unsigned long request, void *arg)
       *out.ui32 = 1;
       break;
    case AMDGPU_INFO_HW_IP_INFO:
-      amdgpu_info_hw_ip_info(info->query_hw_ip.type, out.ptr);
+      amdgpu_info_hw_ip_info(info->query_hw_ip.type, out.ptr, info->return_size);
       break;
    case AMDGPU_INFO_FW_VERSION:
       amdgpu_info_fw_version(info->query_fw.fw_type, out.ptr);
