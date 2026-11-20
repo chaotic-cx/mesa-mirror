@@ -980,6 +980,10 @@ deallocate_vgprs(wait_ctx& ctx, std::vector<aco_ptr<Instruction>>& instructions)
    imm.combine(bar.imm[ffs(storage_scratch) - 1]);
    imm.combine(bar.imm[ffs(storage_vgpr_spill) - 1]);
 
+   /* Only scratch stores matter, not loads or LDS stores */
+   imm =
+      wait_imm(wait_imm::unset_counter, wait_imm::unset_counter, wait_imm::unset_counter, imm.vs);
+
    /* Waiting for all stores is pointless */
    if (imm.vs == 0)
       return;

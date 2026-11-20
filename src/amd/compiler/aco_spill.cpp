@@ -1395,7 +1395,9 @@ spill_vgpr(spill_ctx& ctx, Block& block, std::vector<aco_ptr<Instruction>>& inst
       for (unsigned i = 0; i < temp.size(); i++) {
          Temp elem = split->definitions[i].getTemp();
          if (i < lds_slots) {
-            bld.ds(aco_opcode::ds_write_addtid_b32, bld.m0(ctx.lds_m0_zero), elem, lds_offset);
+            Instruction* instr =
+               bld.ds(aco_opcode::ds_write_addtid_b32, bld.m0(ctx.lds_m0_zero), elem, lds_offset);
+            instr->ds().sync = memory_sync_info(storage_vgpr_spill, semantic_private);
             lds_offset += workgroup_size * 4;
          } else if (ctx.program->gfx_level >= GFX9) {
             bld.scratch(aco_opcode::scratch_store_dword, Operand(v1), ctx.scratch_rsrc, elem,
@@ -1410,7 +1412,9 @@ spill_vgpr(spill_ctx& ctx, Block& block, std::vector<aco_ptr<Instruction>>& inst
          }
       }
    } else if (lds_slots) {
-      bld.ds(aco_opcode::ds_write_addtid_b32, bld.m0(ctx.lds_m0_zero), temp, lds_offset);
+      Instruction* instr =
+         bld.ds(aco_opcode::ds_write_addtid_b32, bld.m0(ctx.lds_m0_zero), temp, lds_offset);
+      instr->ds().sync = memory_sync_info(storage_vgpr_spill, semantic_private);
    } else if (ctx.program->gfx_level >= GFX9) {
       bld.scratch(aco_opcode::scratch_store_dword, Operand(v1), ctx.scratch_rsrc, temp, offset,
                   memory_sync_info(storage_vgpr_spill, semantic_private));
@@ -1458,8 +1462,9 @@ reload_vgpr(spill_ctx& ctx, Block& block, std::vector<aco_ptr<Instruction>>& ins
          Temp tmp = bld.tmp(v1.resize(MIN2(def.bytes() - i * 4, 4)));
          vec->operands[i] = Operand(tmp);
          if (i < lds_slots) {
-            bld.ds(aco_opcode::ds_read_addtid_b32, Definition(tmp), bld.m0(ctx.lds_m0_zero),
-                   lds_offset);
+            Instruction* instr = bld.ds(aco_opcode::ds_read_addtid_b32, Definition(tmp),
+                                        bld.m0(ctx.lds_m0_zero), lds_offset);
+            instr->ds().sync = memory_sync_info(storage_vgpr_spill, semantic_private);
             lds_offset += workgroup_size * 4;
          } else if (ctx.program->gfx_level >= GFX9) {
             bld.scratch(aco_opcode::scratch_load_dword, Definition(tmp), Operand(v1),
@@ -1477,7 +1482,9 @@ reload_vgpr(spill_ctx& ctx, Block& block, std::vector<aco_ptr<Instruction>>& ins
       }
       bld.insert(vec);
    } else if (lds_slots) {
-      bld.ds(aco_opcode::ds_read_addtid_b32, def, bld.m0(ctx.lds_m0_zero), lds_offset);
+      Instruction* instr =
+         bld.ds(aco_opcode::ds_read_addtid_b32, def, bld.m0(ctx.lds_m0_zero), lds_offset);
+      instr->ds().sync = memory_sync_info(storage_vgpr_spill, semantic_private);
    } else if (ctx.program->gfx_level >= GFX9) {
       bld.scratch(aco_opcode::scratch_load_dword, def, Operand(v1), ctx.scratch_rsrc, offset,
                   memory_sync_info(storage_vgpr_spill, semantic_private));
