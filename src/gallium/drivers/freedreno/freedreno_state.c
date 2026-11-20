@@ -737,7 +737,7 @@ fd_set_global_binding(struct pipe_context *pctx, unsigned first, unsigned count,
                                 struct pipe_resource *, i) = NULL;
    }
 
-   for (unsigned i = first; i < first + count; ++i) {
+   for (unsigned i = 0; i < count; ++i) {
       struct pipe_resource **res = util_dynarray_element(&ctx->global_bindings,
                                                          struct pipe_resource *,
                                                          first + i);
