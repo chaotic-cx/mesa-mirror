@@ -78,27 +78,34 @@ amdgpu_info_hw_ip_info(uint32_t type, void *out, uint32_t return_size)
 }
 
 static void
-amdgpu_info_fw_version(uint32_t type, struct drm_amdgpu_info_firmware *out)
+amdgpu_info_fw_version(uint32_t type, void *out, uint32_t return_size)
 {
+   const struct drm_amdgpu_info_firmware *firmware;
+
    switch (type) {
    case AMDGPU_INFO_FW_GFX_ME:
-      *out = amdgpu_dev->fw_gfx_me;
+      firmware = &amdgpu_dev->fw_gfx_me;
       break;
    case AMDGPU_INFO_FW_GFX_PFP:
-      *out = amdgpu_dev->fw_gfx_pfp;
+      firmware = &amdgpu_dev->fw_gfx_pfp;
       break;
    case AMDGPU_INFO_FW_GFX_MEC:
-      *out = amdgpu_dev->fw_gfx_mec;
+      firmware = &amdgpu_dev->fw_gfx_mec;
       break;
    default:
-      break;
+      return;
    }
+
+   memcpy(out, firmware, MIN2(return_size, sizeof(*firmware)));
 }
 
 static void
-amdgpu_info_read_mmr_reg(uint32_t reg, uint32_t count, uint32_t instance, uint32_t *vals)
+amdgpu_info_read_mmr_reg(uint32_t reg, uint32_t count, uint32_t instance,
+                        void *out, uint32_t return_size)
 {
-   for (int i = 0; i < count; i++) {
+   uint8_t *dst = out;
+
+   for (uint32_t i = 0; i < count && return_size; i++) {
       /* linear search */
       bool found = false;
       uint32_t val = 0;
@@ -114,31 +121,36 @@ amdgpu_info_read_mmr_reg(uint32_t reg, uint32_t count, uint32_t instance, uint32
       if (!found)
          mesa_logw("reg 0x%04x is unknown", reg + i);
 
-      vals[i] = val;
+      uint32_t copy_size = MIN2(return_size, sizeof(val));
+      memcpy(dst, &val, copy_size);
+      dst += copy_size;
+      return_size -= copy_size;
    }
 }
 
 static void
-amdgpu_info_dev_info(struct drm_amdgpu_info_device *out)
+amdgpu_info_dev_info(void *out, uint32_t return_size)
 {
-   *out = amdgpu_dev->dev;
+   memcpy(out, &amdgpu_dev->dev, MIN2(return_size, sizeof(amdgpu_dev->dev)));
 }
 
 static void
-amdgpu_info_memory(struct drm_amdgpu_memory_info *out)
+amdgpu_info_memory(void *out, uint32_t return_size)
 {
-   *out = amdgpu_dev->mem;
+   struct drm_amdgpu_memory_info memory = amdgpu_dev->mem;
 
    /* override all but total_heap_size */
-   out->vram.usable_heap_size = out->vram.total_heap_size;
-   out->vram.heap_usage = 0;
-   out->vram.max_allocation = out->vram.total_heap_size * 3 / 4;
-   out->cpu_accessible_vram.usable_heap_size = out->cpu_accessible_vram.total_heap_size;
-   out->cpu_accessible_vram.heap_usage = 0;
-   out->cpu_accessible_vram.max_allocation = out->cpu_accessible_vram.total_heap_size * 3 / 4;
-   out->gtt.usable_heap_size = out->gtt.total_heap_size;
-   out->gtt.heap_usage = 0;
-   out->gtt.max_allocation = out->gtt.total_heap_size * 3 / 4;
+   memory.vram.usable_heap_size = memory.vram.total_heap_size;
+   memory.vram.heap_usage = 0;
+   memory.vram.max_allocation = memory.vram.total_heap_size * 3 / 4;
+   memory.cpu_accessible_vram.usable_heap_size = memory.cpu_accessible_vram.total_heap_size;
+   memory.cpu_accessible_vram.heap_usage = 0;
+   memory.cpu_accessible_vram.max_allocation = memory.cpu_accessible_vram.total_heap_size * 3 / 4;
+   memory.gtt.usable_heap_size = memory.gtt.total_heap_size;
+   memory.gtt.heap_usage = 0;
+   memory.gtt.max_allocation = memory.gtt.total_heap_size * 3 / 4;
+
+   memcpy(out, &memory, MIN2(return_size, sizeof(memory)));
 }
 
 static void
@@ -151,36 +163,34 @@ static int
 amdgpu_ioctl_info(int fd, unsigned long request, void *arg)
 {
    const struct drm_amdgpu_info *info = arg;
-   union {
-      void *ptr;
-      uint32_t *ui32;
-   } out = { .ptr = (void *)info->return_pointer };
+   void *out = (void *)info->return_pointer;
+   const uint32_t one = 1;
 
    switch (info->query) {
    case AMDGPU_INFO_ACCEL_WORKING:
-      *out.ui32 = 1;
+      memcpy(out, &one, MIN2(info->return_size, sizeof(one)));
       break;
    case AMDGPU_INFO_HW_IP_INFO:
-      amdgpu_info_hw_ip_info(info->query_hw_ip.type, out.ptr, info->return_size);
+      amdgpu_info_hw_ip_info(info->query_hw_ip.type, out, info->return_size);
       break;
    case AMDGPU_INFO_FW_VERSION:
-      amdgpu_info_fw_version(info->query_fw.fw_type, out.ptr);
+      amdgpu_info_fw_version(info->query_fw.fw_type, out, info->return_size);
       break;
    case AMDGPU_INFO_READ_MMR_REG:
       amdgpu_info_read_mmr_reg(info->read_mmr_reg.dword_offset, info->read_mmr_reg.count,
-                               info->read_mmr_reg.instance, out.ptr);
+                              info->read_mmr_reg.instance, out, info->return_size);
       break;
    case AMDGPU_INFO_DEV_INFO:
-      amdgpu_info_dev_info(out.ptr);
+      amdgpu_info_dev_info(out, info->return_size);
       break;
    case AMDGPU_INFO_MEMORY:
-      amdgpu_info_memory(out.ptr);
+      amdgpu_info_memory(out, info->return_size);
       break;
    case AMDGPU_INFO_VIDEO_CAPS:
-      amdgpu_info_video_caps(info->video_cap.type, out.ptr);
+      amdgpu_info_video_caps(info->video_cap.type, out);
       break;
    case AMDGPU_INFO_HW_IP_COUNT:
-      *out.ui32 = 1;
+      memcpy(out, &one, MIN2(info->return_size, sizeof(one)));
       break;
    default:
       return -EINVAL;
