@@ -770,7 +770,7 @@ brw_instruction_scheduler::brw_instruction_scheduler(void *mem_ctx, const brw_sh
 
       this->hw_liveout = linear_alloc_array(lin_ctx, BITSET_WORD *, block_count);
       for (int i = 0; i < block_count; i++)
-         this->hw_liveout[i] = BITSET_LINEAR_ZALLOC(lin_ctx, grf_count);
+         this->hw_liveout[i] = BITSET_LINEAR_ZALLOC(lin_ctx, hw_reg_count);
 
       setup_liveness(s->cfg);
 
