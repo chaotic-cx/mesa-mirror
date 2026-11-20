@@ -90,6 +90,9 @@ rust-libc = [
 rust-log = [
     { target_name = "liblog_rust" }
 ]
+syn = [
+    { target_name = "libsyn" }
+]
 thiserror = [
     { target_name = "libthiserror" }
 ]
