@@ -726,6 +726,33 @@ anv_h264_frame_qp(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc_in
    return slice_qp;
 }
 
+static uint32_t
+anv_h264_slice_start_mb(const VkVideoEncodeH264PictureInfoKHR *frame_info,
+                        const StdVideoH264SequenceParameterSet *sps,
+                        uint32_t slice_id)
+{
+   const VkVideoEncodeH264NaluSliceInfoKHR *slices = frame_info->pNaluSliceEntries;
+   const uint32_t num_slices = frame_info->naluSliceEntryCount;
+   const uint32_t w_in_mb = sps->pic_width_in_mbs_minus1 + 1;
+   const uint32_t h_in_mb = sps->pic_height_in_map_units_minus1 + 1;
+
+   assert(num_slices <= h_in_mb);
+
+   if (slice_id >= num_slices)
+      return w_in_mb * h_in_mb;
+
+   for (uint32_t i = 0; i < num_slices; i++) {
+      uint32_t mb = slices[i].pStdSliceHeader->first_mb_in_slice;
+      bool in_order = i == 0 ? mb == 0 :
+         mb > slices[i - 1].pStdSliceHeader->first_mb_in_slice;
+
+      if (!in_order || mb >= w_in_mb * h_in_mb || mb % w_in_mb != 0)
+         return (slice_id * h_in_mb / num_slices) * w_in_mb;
+   }
+
+   return slices[slice_id].pStdSliceHeader->first_mb_in_slice;
+}
+
 static void
 anv_h264_emit_startup(struct anv_cmd_buffer *cmd)
 {
@@ -1776,15 +1803,12 @@ anv_h264_emit_mfx_avc_slice_state(struct anv_cmd_buffer *cmd,
    const StdVideoEncodeH264ReferenceListsInfo *ref_list_info = frame_info->pStdPictureInfo->pRefLists;
    const VkVideoEncodeH264NaluSliceInfoKHR *nalu = &frame_info->pNaluSliceEntries[slice_id];
    const StdVideoEncodeH264SliceHeader *slice_header = nalu->pStdSliceHeader;
-   const StdVideoEncodeH264SliceHeader *next_slice_header = NULL;
 
    bool is_last = (slice_id == frame_info->naluSliceEntryCount - 1);
    uint32_t slice_type = slice_header->slice_type % 5;
    uint32_t slice_qp = anv_h264_slice_qp(cmd, enc_info, slice_id);
-   uint32_t first_mb = slice_id == 0 ? 0 : slice_header->first_mb_in_slice;
-
-   if (!is_last)
-      next_slice_header = slice_header + 1;
+   uint32_t first_mb = anv_h264_slice_start_mb(frame_info, sps, slice_id);
+   uint32_t next_mb = anv_h264_slice_start_mb(frame_info, sps, slice_id + 1);
 
    const StdVideoEncodeH264WeightTable*      weight_table =  slice_header->pWeightTable;
 
@@ -1821,8 +1845,8 @@ anv_h264_emit_mfx_avc_slice_state(struct anv_cmd_buffer *cmd,
          avc_slice.NextSliceHorizontalPosition = 0;
          avc_slice.NextSliceVerticalPosition = h_in_mb;
       } else {
-         avc_slice.NextSliceHorizontalPosition = next_slice_header->first_mb_in_slice % w_in_mb;
-         avc_slice.NextSliceVerticalPosition = next_slice_header->first_mb_in_slice / w_in_mb;
+         avc_slice.NextSliceHorizontalPosition = next_mb % w_in_mb;
+         avc_slice.NextSliceVerticalPosition = next_mb / w_in_mb;
       }
 
       avc_slice.SliceID = slice_id;
@@ -1871,12 +1895,11 @@ anv_h264_emit_slice_header(struct anv_cmd_buffer *cmd,
    const VkVideoEncodeH264NaluSliceInfoKHR *nalu = &frame_info->pNaluSliceEntries[slice_id];
    const StdVideoEncodeH264SliceHeader *slice_header = nalu->pStdSliceHeader;
    uint32_t slice_qp = anv_h264_slice_qp(cmd, enc_info, slice_id);
-   uint32_t first_mb = slice_id == 0 ? 0 : slice_header->first_mb_in_slice;
 
    uint8_t slice_header_data[256] = { 0, };
    size_t slice_header_data_len_in_bits = 0;
    StdVideoEncodeH264SliceHeader slice_header_tmp = *slice_header;
-   slice_header_tmp.first_mb_in_slice = first_mb;
+   slice_header_tmp.first_mb_in_slice = 0;
    vk_video_encode_h264_slice_header(frame_info->pStdPictureInfo,
                                      sps,
                                      pps,
