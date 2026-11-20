@@ -889,7 +889,7 @@ static bool pvr_physical_device_get_properties(
       .conformanceVersion = {
          .major = 1,
          .minor = 4,
-         .subminor = 3,
+         .subminor = 5,
          .patch = 3,
       },
 
