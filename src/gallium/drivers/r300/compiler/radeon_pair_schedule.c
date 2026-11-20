@@ -349,6 +349,12 @@ calc_score_readers(struct schedule_instruction *sinst)
       }
       if (get_tex_read_count(sinst) == 0) {
          sinst->Score |= NO_READ_TEX_SCORE;
+         /* One point here lets a merged pair beat a single RGB or
+	  * alpha instruction with one more temporary read. This usually
+	  * lead to unlocking more pairing options later.
+          */
+         if (sinst->PairedInst)
+            sinst->Score++;
       }
       score_no_output(sinst);
    }
