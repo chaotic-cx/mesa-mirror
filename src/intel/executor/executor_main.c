@@ -51,8 +51,9 @@ enum {
 };
 
 const char usage_line[] =
-   "usage: executor [-d DEVICE] FILENAME [ARGS...]\n"
-   "       executor [-d DEVICE] --oa OA [--oa-csv FILE] FILENAME [ARGS...]\n"
+   "usage: executor [-d DEVICE] [--validation=strict|warn] FILENAME [ARGS...]\n"
+   "       executor [-d DEVICE] [--validation=strict|warn] --oa OA "
+   "[--oa-csv FILE] FILENAME [ARGS...]\n"
    "       executor [-d DEVICE] --oa list";
 
 static void
@@ -113,6 +114,10 @@ print_help()
       "- @store ADDR_REG SRC_REG\n"
       "- @param hw_threads N, @param simd 8|16|32, @param slm_size BYTES, @param autoswsb\n"
       "\n"
+      "VALIDATION:\n"
+      "- --validation=strict rejects invalid instructions (default).\n"
+      "- --validation=warn prints validation errors and continues execution.\n"
+      "\n"
       "PERFORMANCE COUNTERS:\n"
       "- --oa PROFILE[:COUNTER1,COUNTER2]\n"
       "- --oa COUNTER1[,COUNTER2]\n"
@@ -128,6 +133,8 @@ static struct {
    struct intel_device_info devinfo;
    struct isl_device isl_dev;
    int fd;
+
+   bool warn_validation;
 
    const char *oa_csv_path;
    const char *oa_spec;
@@ -1804,6 +1811,20 @@ executor_assemble(executor_run *run, const char *src)
    if (dump)
       executor_print_gen_program(ec, parse.insts, parse.num_insts, NULL, 0);
 
+   if (E.warn_validation) {
+      gen_validate_params validation = {
+         .devinfo = ec->devinfo,
+         .insts = parse.insts,
+         .num_insts = parse.num_insts,
+         .mem_ctx = run->tmp_ctx,
+      };
+      if (!gen_validate(&validation)) {
+         fprintf(stderr, "WARNING: Instruction validation failed; continuing.\n");
+         executor_print_gen_program(ec, parse.insts, parse.num_insts,
+                                    validation.errors, validation.num_errors);
+      }
+   }
+
    const int raw_bytes_size = parse.num_insts * (int)sizeof(gen_raw_inst);
 
    gen_encode_params encode = {
@@ -1813,6 +1834,7 @@ executor_assemble(executor_run *run, const char *src)
       .num_insts = parse.num_insts,
       .raw_bytes = rzalloc_size(run->tmp_ctx, raw_bytes_size),
       .raw_bytes_size = raw_bytes_size,
+      .skip_validation = E.warn_validation,
    };
 
    if (!gen_encode(&encode)) {
@@ -2644,6 +2666,7 @@ main(int argc, char *argv[])
    enum {
       OPT_OA_CSV = 1000,
       OPT_OA,
+      OPT_VALIDATION,
    };
 
    static const struct option long_options[] = {
@@ -2651,6 +2674,7 @@ main(int argc, char *argv[])
        {"device",  required_argument, 0, 'd'},
        {"oa-csv", required_argument, 0, OPT_OA_CSV},
        {"oa",     required_argument, 0, OPT_OA},
+       {"validation", required_argument, 0, OPT_VALIDATION},
        {},
    };
 
@@ -2677,6 +2701,16 @@ main(int argc, char *argv[])
          break;
       case OPT_OA:
          E.oa_spec = optarg;
+         break;
+      case OPT_VALIDATION:
+         if (!strcmp(optarg, "strict")) {
+            E.warn_validation = false;
+         } else if (!strcmp(optarg, "warn")) {
+            E.warn_validation = true;
+         } else {
+            fprintf(stderr, "invalid validation mode '%s' (expected strict or warn)\n", optarg);
+            return 1;
+         }
          break;
       default:
          fprintf(stderr, "%s\n", usage_line);
