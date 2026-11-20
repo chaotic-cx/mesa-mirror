@@ -13,6 +13,7 @@ axe-1-16m-vk:
     VK_DRIVER: powervr_mesa
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
     PVR_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
+    FLAKES_CHANNEL: "#powervr-ci"
 
 bxs-4-64-vk:
   extends:
@@ -26,3 +27,4 @@ bxs-4-64-vk:
     VK_DRIVER: powervr_mesa
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
     PVR_I_WANT_A_BROKEN_VULKAN_DRIVER: 1
+    FLAKES_CHANNEL: "#powervr-ci"
