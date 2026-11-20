@@ -1970,8 +1970,8 @@ anv_h264_emit_vdenc_walker_state(struct anv_cmd_buffer *cmd,
                                  uint32_t slice_id)
 {
    const StdVideoH264SequenceParameterSet *sps = anv_h264_sps(cmd, enc_info);
-#if GFX_VERx10 < 125
    const struct VkVideoEncodeH264PictureInfoKHR *frame_info = anv_h264_frame_info(enc_info);
+#if GFX_VERx10 < 125
    const VkVideoEncodeH264NaluSliceInfoKHR *nalu = &frame_info->pNaluSliceEntries[slice_id];
    const StdVideoEncodeH264SliceHeader *slice_header = nalu->pStdSliceHeader;
    const StdVideoEncodeH264WeightTable*      weight_table =  slice_header->pWeightTable;
@@ -1981,17 +1981,23 @@ anv_h264_emit_vdenc_walker_state(struct anv_cmd_buffer *cmd,
    const struct anv_image *src_img = iv->image;
 #endif
 #endif
-   unsigned h_in_mb = sps->pic_height_in_map_units_minus1 + 1;
+   unsigned w_in_mb = sps->pic_width_in_mbs_minus1 + 1;
+   uint32_t first_mb = anv_h264_slice_start_mb(frame_info, sps, slice_id);
+   uint32_t next_mb = anv_h264_slice_start_mb(frame_info, sps, slice_id + 1);
 
    anv_batch_emit(&cmd->batch, GENX(VDENC_WALKER_STATE), vdenc_walker) {
-      vdenc_walker.NextSliceMBStartYPosition = h_in_mb;
+      vdenc_walker.MBLCUStartYPosition = first_mb / w_in_mb;
+      vdenc_walker.NextSliceMBStartYPosition = next_mb / w_in_mb;
 #if GFX_VERx10 < 125
       vdenc_walker.Log2WeightDenominatorLuma = weight_table ? weight_table->luma_log2_weight_denom : 0;
 #if GFX_VER >= 12
       vdenc_walker.TileWidth = src_img->vk.extent.width - 1;
 #endif
 #else
-      vdenc_walker.FirstSuperSlice = 1;
+      /* Always 1 only if DG2/ATSM */
+      vdenc_walker.FirstSuperSlice =
+         intel_device_info_is_mtl_or_arl(cmd->device->info) ? slice_id == 0 : 1;
+
 #endif
    }
 }
@@ -2144,6 +2150,9 @@ anv_h264_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
 #endif
       anv_h264_emit_vdenc_walker_state(cmd, enc_info, slice_id);
       anv_vdenc_emit_vd_pipeline_flush(cmd);
+
+      if (slice_id != frame_info->naluSliceEntryCount - 1)
+         anv_video_emit_mi_flush_dw(cmd, false);
    }
 
    anv_video_emit_mi_flush_dw(cmd, true);
