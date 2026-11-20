@@ -2794,7 +2794,7 @@
         "description": "freedreno: fix slot indexing in fd_set_global_binding()",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "5c43cf823cde73a0092067e1bd1cd5dd4124cda3",
         "notes": null
