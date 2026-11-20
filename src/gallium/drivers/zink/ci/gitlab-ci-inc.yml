@@ -326,8 +326,6 @@
     - .zink-test
   variables:
     DEQP_SUITE: zink-nvk
-    # Disable reporting, since DUTs don't have internet access
-    FLAKES_CHANNEL: ""
 
 .tu-zink-test-valve:
   extends:
@@ -335,8 +333,6 @@
     - .zink-test
   variables:
     VK_DRIVER: freedreno
-    # Disable reporting, since DUTs don't have internet access
-    FLAKES_CHANNEL: ""
 
 .radv-zink-test-valve:
   extends:
@@ -348,8 +344,6 @@
   variables:
     DRIVER_NAME: zink-radv
     DEQP_SUITE: zink-radv
-    # Disable reporting, since DUTs don't have internet access
-    FLAKES_CHANNEL: ""
 
 .radv-zink-test-valve-nocl:
   extends:
@@ -367,5 +361,3 @@
   variables:
     DRIVER_NAME: zink-radv
     DEQP_SUITE: zink-radv-asan
-    # Disable reporting, since DUTs don't have internet access
-    FLAKES_CHANNEL: ""
