@@ -564,22 +564,10 @@ bool
 brw_opt_remove_extra_rounding_modes(brw_shader &s)
 {
    bool progress = false;
-   unsigned execution_mode = s.nir->info.float_controls_execution_mode;
-
-   brw_rnd_mode base_mode = BRW_RND_MODE_UNSPECIFIED;
-   if ((FLOAT_CONTROLS_ROUNDING_MODE_RTE_FP16 |
-        FLOAT_CONTROLS_ROUNDING_MODE_RTE_FP32 |
-        FLOAT_CONTROLS_ROUNDING_MODE_RTE_FP64) &
-       execution_mode)
-      base_mode = BRW_RND_MODE_RTNE;
-   if ((FLOAT_CONTROLS_ROUNDING_MODE_RTZ_FP16 |
-        FLOAT_CONTROLS_ROUNDING_MODE_RTZ_FP32 |
-        FLOAT_CONTROLS_ROUNDING_MODE_RTZ_FP64) &
-       execution_mode)
-      base_mode = BRW_RND_MODE_RTZ;
 
    foreach_block (block, s.cfg) {
-      brw_rnd_mode prev_mode = base_mode;
+      /* A predecessor may have changed the rounding mode. */
+      brw_rnd_mode prev_mode = BRW_RND_MODE_UNSPECIFIED;
 
       foreach_inst_in_block_safe (brw_inst, inst, block) {
          if (inst->opcode == SHADER_OPCODE_RND_MODE) {
@@ -590,6 +578,12 @@ brw_opt_remove_extra_rounding_modes(brw_shader &s)
                progress = true;
             } else {
                prev_mode = mode;
+            }
+         } else if (inst->opcode == SHADER_OPCODE_FLOAT_CONTROL_MODE) {
+            assert(inst->src[0].file == IMM && inst->src[1].file == IMM);
+            if ((inst->src[1].ud & BRW_CR0_RND_MODE_MASK) == BRW_CR0_RND_MODE_MASK) {
+               prev_mode = (brw_rnd_mode) ((inst->src[0].ud & BRW_CR0_RND_MODE_MASK) >>
+                                           BRW_CR0_RND_MODE_SHIFT);
             }
          }
       }
