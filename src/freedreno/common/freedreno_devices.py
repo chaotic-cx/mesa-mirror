@@ -1464,7 +1464,7 @@ a8xx_gen2 = GPUProps(
 
 a8xx_vpc_cache_lg = GPUProps(
         sysmem_vpc_attr_buf_size = 128 * 1024,
-        sysmem_vpc_pos_buf_size = 65 * 1024,
+        sysmem_vpc_pos_buf_size = 64 * 1024,
         sysmem_vpc_bv_pos_buf_size = 32 * 1024,
         gmem_vpc_attr_buf_size = 48 * 1024,
         gmem_vpc_pos_buf_size = 24 * 1024,
@@ -1473,7 +1473,7 @@ a8xx_vpc_cache_lg = GPUProps(
 
 a8xx_vpc_cache_med = GPUProps(
         sysmem_vpc_attr_buf_size = 128 * 1024,
-        sysmem_vpc_pos_buf_size = 48 * 102,
+        sysmem_vpc_pos_buf_size = 48 * 1024,
         sysmem_vpc_bv_pos_buf_size = 24 * 1024,
         gmem_vpc_attr_buf_size = 48 * 1024,
         gmem_vpc_pos_buf_size = 24 * 1024,
