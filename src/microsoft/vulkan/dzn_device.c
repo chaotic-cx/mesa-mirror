@@ -688,7 +688,7 @@ dzn_physical_device_get_features(const struct dzn_physical_device *pdev,
 
    *features = (struct vk_features) {
       .robustBufferAccess = true, /* This feature is mandatory */
-      .fullDrawIndexUint32 = false,
+      .fullDrawIndexUint32 = true,
       .imageCubeArray = true,
       .independentBlend = true,
       .geometryShader = true,
@@ -928,7 +928,7 @@ dzn_physical_device_get_properties(const struct dzn_physical_device *pdev,
       .subPixelPrecisionBits = D3D12_SUBPIXEL_FRACTIONAL_BIT_COUNT,
       .subTexelPrecisionBits = D3D12_SUBTEXEL_FRACTIONAL_BIT_COUNT,
       .mipmapPrecisionBits = D3D12_MIP_LOD_FRACTIONAL_BIT_COUNT,
-      .maxDrawIndexedIndexValue = 0x00ffffff,
+      .maxDrawIndexedIndexValue = UINT32_MAX,
       .maxDrawIndirectCount = UINT32_MAX,
       .maxSamplerLodBias = D3D12_MIP_LOD_BIAS_MAX,
       .maxSamplerAnisotropy = D3D12_REQ_MAXANISOTROPY,
