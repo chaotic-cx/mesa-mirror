@@ -4329,6 +4329,13 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
       brw_reg src = retype(get_nir_src(ntb, instr->src[0], 0), src_type);
       const brw_reg dst = retype(dest, dst_type);
 
+      if (brw_type_is_float_or_bfloat(dst_type)) {
+         const brw_rnd_mode rnd = brw_rnd_mode_from_execution_mode(
+            s.nir->info.float_controls_execution_mode);
+         if (rnd != BRW_RND_MODE_UNSPECIFIED)
+            bldn.emit(SHADER_OPCODE_RND_MODE, bldn.null_reg_ud(), brw_imm_d(rnd));
+      }
+
       assert(dst_cmat_desc.use == src_cmat_desc.use);
 
       const bool needs_intermediate =
