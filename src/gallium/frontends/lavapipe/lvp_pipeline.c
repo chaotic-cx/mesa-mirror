@@ -184,11 +184,13 @@ lvp_nir_lower_blend(nir_shader *nir, const nir_lower_blend_options *opts)
    /* nir_lower_blend operates on IO intrinsics, so lower derefs to intrinsics
     * first, run the blend lowering, then convert back to derefs for llvmpipe.
     */
-   NIR_PASS(_, nir, nir_lower_io, nir_var_shader_in | nir_var_shader_out, type_size_vec4, 0);
+   NIR_PASS(_, nir, nir_lower_io, nir_var_shader_in | nir_var_shader_out, type_size_vec4,
+            nir_lower_io_use_interpolated_input_intrinsics);
    NIR_PASS(_, nir, nir_opt_dce);
    NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_shader_in | nir_var_shader_out, NULL);
    NIR_PASS(_, nir, nir_lower_blend, opts);
    NIR_PASS(_, nir, nir_unlower_io_to_vars, false);
+   NIR_PASS(_, nir, nir_opt_dce);
 }
 
 static void
