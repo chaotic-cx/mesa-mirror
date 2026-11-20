@@ -230,7 +230,7 @@ if [ -n "$FLAKES_CHANNEL" ]; then
          --host irc.oftc.net \
          --port 6667 \
          --results $RESULTS_DIR/results.csv \
-         --channel "$FLAKES_CHANNEL" \
+         --channel $FLAKES_CHANNEL \
          --runner "$CI_RUNNER_DESCRIPTION" \
          --job "$CI_JOB_ID" \
          --url "$CI_JOB_URL" \

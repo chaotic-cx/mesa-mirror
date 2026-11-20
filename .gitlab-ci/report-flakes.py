@@ -90,7 +90,7 @@ def main() -> None:
                         help='Use the specified CONNECT proxy')
     parser.add_argument('--results', type=str,
                         help='results.csv file from deqp-runner or piglit-runner', required=True)
-    parser.add_argument('--channel', type=str,
+    parser.add_argument('--channel', type=str, nargs=argparse.ONE_OR_MORE,
                         help='Known flakes report channel', required=True)
     parser.add_argument('--url', type=str,
                         help='$CI_JOB_URL', required=True)
@@ -128,22 +128,24 @@ def main() -> None:
     irc.send_line(f"NICK {nick}")
     irc.send_line(f"USER {nick} unused unused: Gitlab CI Notifier")
     irc.wait(10)
-    irc.send_line(f"JOIN {args.channel}")
-    irc.wait(1)
 
-    branchinfo = ""
-    if args.branch:
-        branchinfo = f" on branch {args.branch} ({args.branch_title})"
-    irc.send_line(
-        f"PRIVMSG {args.channel} :Flakes detected in job {args.url} on {args.runner}{branchinfo}:")
+    for channel in args.channel:
+        irc.send_line(f"JOIN {channel}")
+        irc.wait(1)
 
-    for flake in new_flakes:
-        irc.send_line(f"PRIVMSG {args.channel} :NEW {flake}")
-    for flake in known_flakes:
-        irc.send_line(f"PRIVMSG {args.channel} :{flake}")
+        branchinfo = ""
+        if args.branch:
+            branchinfo = f" on branch {args.branch} ({args.branch_title})"
+        irc.send_line(
+            f"PRIVMSG {channel} :Flakes detected in job {args.url} on {args.runner}{branchinfo}:")
 
-    irc.send_line(
-        f"PRIVMSG {args.channel} :See {args.url}/artifacts/browse/results/")
+        for flake in new_flakes:
+            irc.send_line(f"PRIVMSG {channel} :NEW {flake}")
+        for flake in known_flakes:
+            irc.send_line(f"PRIVMSG {channel} :{flake}")
+
+        irc.send_line(
+            f"PRIVMSG {channel} :See {args.url}/artifacts/browse/results/")
 
     irc.quit()
 
