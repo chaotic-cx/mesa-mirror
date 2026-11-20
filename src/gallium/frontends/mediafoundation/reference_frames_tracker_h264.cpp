@@ -629,7 +629,7 @@ reference_frames_tracker_h264::GOPStateBeginFrame( bool forceKey )
    else
    {
       // perhaps should add some handling for the unreasonably long encode case.
-      assert( m_gop_state.current_reference_frame_count != UINT64_MAX );
+      assert( m_gop_state.current_reference_frame_count != UINT32_MAX );
 
       m_gop_state.frame_num = ( m_gop_state.current_reference_frame_count ) % m_max_frame_num;
       m_gop_state.frame_num_no_wrap = m_gop_state.current_reference_frame_count;
