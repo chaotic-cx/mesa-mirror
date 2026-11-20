@@ -514,8 +514,15 @@ dzn_GetDescriptorSetLayoutSupport(VkDevice _device,
                                   VkDescriptorSetLayoutSupport *pSupport)
 {
    VK_FROM_HANDLE(dzn_device, device, _device);
+   struct dzn_physical_device *pdev =
+      container_of(device->vk.physical, struct dzn_physical_device, vk);
    const VkDescriptorSetLayoutBinding *bindings = pCreateInfo->pBindings;
-   uint32_t sampler_count = 0, other_desc_count = 0;
+   uint32_t max_view_descs = pdev->options19.MaxViewDescriptorHeapSize;
+   uint32_t max_sampler_descs =
+      device->support_static_samplers ?
+      pdev->options19.MaxSamplerDescriptorHeapSizeWithStaticSamplers :
+      pdev->options19.MaxSamplerDescriptorHeapSize;
+   uint64_t sampler_count = 0, other_desc_count = 0;
 
    const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags =
       vk_find_struct_const(pCreateInfo->pNext, DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
@@ -529,9 +536,12 @@ dzn_GetDescriptorSetLayoutSupport(VkDevice _device,
       bool has_sampler = dzn_desc_type_has_sampler(desc_type);
       bool is_sampler = desc_type == VK_DESCRIPTOR_TYPE_SAMPLER;
 
-      UINT upper_bound = MAX_DESCS_PER_CBV_SRV_UAV_HEAP - other_desc_count;
+      UINT upper_bound =
+         other_desc_count <= max_view_descs ? max_view_descs - other_desc_count : 0;
       if (has_sampler) {
-         UINT sampler_upper_bound = MAX_DESCS_PER_SAMPLER_HEAP - sampler_count;
+         UINT sampler_upper_bound =
+            sampler_count <= max_sampler_descs ?
+            max_sampler_descs - sampler_count : 0;
          upper_bound = is_sampler ? sampler_upper_bound : MIN2(sampler_upper_bound, upper_bound);
       }
 
@@ -548,8 +558,8 @@ dzn_GetDescriptorSetLayoutSupport(VkDevice _device,
    }
 
    pSupport->supported = device->bindless ||
-      (sampler_count <= MAX_DESCS_PER_SAMPLER_HEAP &&
-       other_desc_count <= MAX_DESCS_PER_CBV_SRV_UAV_HEAP);
+      (sampler_count <= max_sampler_descs &&
+       other_desc_count <= max_view_descs);
 }
 
 static void
@@ -960,7 +970,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE
 dzn_descriptor_heap_get_cpu_handle(const struct dzn_descriptor_heap *heap, uint32_t desc_offset)
 {
    return (D3D12_CPU_DESCRIPTOR_HANDLE) {
-      .ptr = heap->cpu_base + (desc_offset * heap->desc_sz),
+      .ptr = heap->cpu_base + ((size_t)desc_offset * heap->desc_sz),
    };
 }
 
@@ -968,7 +978,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE
 dzn_descriptor_heap_get_gpu_handle(const struct dzn_descriptor_heap *heap, uint32_t desc_offset)
 {
    return (D3D12_GPU_DESCRIPTOR_HANDLE) {
-      .ptr = heap->gpu_base ? heap->gpu_base + (desc_offset * heap->desc_sz) : 0,
+      .ptr = heap->gpu_base ? heap->gpu_base + ((uint64_t)desc_offset * heap->desc_sz) : 0,
    };
 }
 
@@ -1933,14 +1943,30 @@ dzn_descriptor_heap_pool_alloc_slots(struct dzn_descriptor_heap_pool *pool,
       last_heap ? last_heap->desc_count : 0;
 
    if (desc_count > last_heap_desc_count - pool->offset) {
+      struct dzn_physical_device *pdev =
+         container_of(device->vk.physical, struct dzn_physical_device, vk);
+      uint32_t max_desc_count = 0;
+      uint32_t max_growth_desc_count = 0;
+      uint32_t heap_cap = 0;
+
       if (pool->shader_visible) {
-         uint32_t max_desc_count =
-            pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
-            MAX_DESCS_PER_CBV_SRV_UAV_HEAP : MAX_DESCS_PER_SAMPLER_HEAP;
-         assert(pool->type != D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER ||
-                desc_count <= MAX_DESCS_PER_SAMPLER_HEAP);
+         if (pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+            max_desc_count = pdev->options19.MaxViewDescriptorHeapSize;
+            max_growth_desc_count =
+               MIN2(D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1, max_desc_count);
+         } else {
+            assert(pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+            max_desc_count =
+               device->support_static_samplers ?
+               pdev->options19.MaxSamplerDescriptorHeapSizeWithStaticSamplers :
+               pdev->options19.MaxSamplerDescriptorHeapSize;
+            max_growth_desc_count =
+               MIN2(D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE, max_desc_count);
+         }
          if (desc_count > max_desc_count)
             return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         heap_cap = desc_count <= max_growth_desc_count ?
+            max_growth_desc_count : max_desc_count;
       }
 
       uint64_t granularity =
@@ -1949,42 +1975,52 @@ dzn_descriptor_heap_pool_alloc_slots(struct dzn_descriptor_heap_pool *pool,
          64 * 1024 : 4 * 1024;
       uint64_t alloc_step =
          ALIGN_POT((uint64_t)desc_count * pool->desc_sz, granularity);
-      if (alloc_step / pool->desc_sz > UINT32_MAX)
+      uint64_t aligned_desc_count = alloc_step / pool->desc_sz;
+      if (pool->shader_visible) {
+         aligned_desc_count = MIN2(aligned_desc_count, heap_cap);
+      } else if (aligned_desc_count > UINT32_MAX) {
          return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      }
 
-      uint32_t heap_desc_count = MAX2((uint32_t)(alloc_step / pool->desc_sz), 16);
+      uint32_t heap_desc_count = MAX2((uint32_t)aligned_desc_count, 16);
 
       if (pool->shader_visible) {
-         if (pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
-            uint32_t doubled =
-               last_heap_desc_count > MAX_DESCS_PER_CBV_SRV_UAV_HEAP / 2 ?
-               MAX_DESCS_PER_CBV_SRV_UAV_HEAP :
+         uint32_t target_desc_count = 0;
+         if (last_heap_desc_count <= max_growth_desc_count) {
+            target_desc_count =
+               last_heap_desc_count > max_growth_desc_count / 2 ?
+               max_growth_desc_count :
                last_heap_desc_count * 2;
-            heap_desc_count = MAX2(heap_desc_count, doubled);
-            heap_desc_count = MIN2(heap_desc_count, MAX_DESCS_PER_CBV_SRV_UAV_HEAP);
          } else {
-            /* Maximum of 2048 samplers per heap when shader_visible is true. */
-            heap_desc_count = MIN2(heap_desc_count, MAX_DESCS_PER_SAMPLER_HEAP);
+            list_for_each_entry(struct dzn_descriptor_heap_pool_entry, entry,
+                                &pool->active_heaps, link) {
+               if (entry->heap.desc_count <= max_growth_desc_count)
+                  target_desc_count = MAX2(target_desc_count, entry->heap.desc_count);
+            }
          }
+         heap_desc_count = MAX2(heap_desc_count, target_desc_count);
+         heap_desc_count = MIN2(heap_desc_count, heap_cap);
       }
 
       struct dzn_descriptor_heap_pool_entry *new_heap = NULL;
+      bool prune_smaller =
+         pool->shader_visible &&
+         heap_desc_count <= max_growth_desc_count;
 
       list_for_each_entry_safe(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link) {
          if (entry->heap.desc_count >= heap_desc_count) {
-            new_heap = entry;
-            list_del(&entry->link);
-            break;
-         }
-         if (pool->shader_visible &&
-             pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+            if (!new_heap || entry->heap.desc_count < new_heap->heap.desc_count)
+               new_heap = entry;
+         } else if (prune_smaller) {
             list_del(&entry->link);
             dzn_descriptor_heap_finish(&entry->heap);
             vk_free(pool->alloc, entry);
          }
       }
 
-      if (!new_heap) {
+      if (new_heap) {
+         list_del(&new_heap->link);
+      } else {
          new_heap =
             vk_zalloc(pool->alloc, sizeof(*new_heap), 8,
                       VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -2018,14 +2054,19 @@ dzn_descriptor_heap_pool_reset(struct dzn_descriptor_heap_pool *pool)
    list_splicetail(&pool->active_heaps, &pool->free_heaps);
    list_inithead(&pool->active_heaps);
 
-   if (pool->shader_visible &&
-       pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
-      uint32_t max_desc_count = 0;
-      list_for_each_entry(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link)
-         max_desc_count = MAX2(max_desc_count, entry->heap.desc_count);
+   if (pool->shader_visible) {
+      uint32_t max_growth_cap =
+         pool->type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
+         D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1 :
+         D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
+      uint32_t max_growth_desc_count = 0;
+      list_for_each_entry(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link) {
+         if (entry->heap.desc_count <= max_growth_cap)
+            max_growth_desc_count = MAX2(max_growth_desc_count, entry->heap.desc_count);
+      }
 
       list_for_each_entry_safe(struct dzn_descriptor_heap_pool_entry, entry, &pool->free_heaps, link) {
-         if (entry->heap.desc_count < max_desc_count) {
+         if (entry->heap.desc_count < max_growth_desc_count) {
             list_del(&entry->link);
             dzn_descriptor_heap_finish(&entry->heap);
             vk_free(pool->alloc, entry);

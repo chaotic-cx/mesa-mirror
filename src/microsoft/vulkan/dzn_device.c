@@ -839,6 +839,10 @@ dzn_physical_device_get_properties(const struct dzn_physical_device *pdev,
    struct dzn_instance *instance = container_of(pdev->vk.instance, struct dzn_instance, vk);
    /* minimum from the D3D and Vulkan specs */
    const VkSampleCountFlags supported_sample_counts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
+   const uint32_t max_view_descs = pdev->options19.MaxViewDescriptorHeapSize;
+   const uint32_t max_sampler_descs =
+      pdev->options19.MaxSamplerDescriptorHeapSizeWithStaticSamplers;
+   const uint32_t max_uab_descs = MAX2(max_view_descs, max_sampler_descs);
 
    VkPhysicalDeviceType devtype = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
    if (pdev->desc.is_warp)
@@ -874,31 +878,31 @@ dzn_physical_device_get_properties(const struct dzn_physical_device *pdev,
       .maxBoundDescriptorSets = MAX_SETS,
       .maxPerStageDescriptorSamplers =
          pdev->options.ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1 ?
-         16u : MAX_DESCS_PER_SAMPLER_HEAP,
+         16u : max_sampler_descs,
       .maxPerStageDescriptorUniformBuffers =
          pdev->options.ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2 ?
-         14u : MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+         14u : max_view_descs,
       .maxPerStageDescriptorStorageBuffers =
          pdev->options.ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2 ?
-         64u : MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+         64u : max_view_descs,
       .maxPerStageDescriptorSampledImages =
          pdev->options.ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1 ?
-         128u : MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+         128u : max_view_descs,
       .maxPerStageDescriptorStorageImages =
          pdev->options.ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2 ?
-         64u : MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+         64u : max_view_descs,
       .maxPerStageDescriptorInputAttachments =
          pdev->options.ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1 ?
-         128u : MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageResources = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetSamplers = MAX_DESCS_PER_SAMPLER_HEAP,
-      .maxDescriptorSetUniformBuffers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+         128u : max_view_descs,
+      .maxPerStageResources = max_view_descs,
+      .maxDescriptorSetSamplers = max_sampler_descs,
+      .maxDescriptorSetUniformBuffers = max_view_descs,
       .maxDescriptorSetUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS,
-      .maxDescriptorSetStorageBuffers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+      .maxDescriptorSetStorageBuffers = max_view_descs,
       .maxDescriptorSetStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS,
-      .maxDescriptorSetSampledImages = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetStorageImages = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetInputAttachments = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+      .maxDescriptorSetSampledImages = max_view_descs,
+      .maxDescriptorSetStorageImages = max_view_descs,
+      .maxDescriptorSetInputAttachments = max_view_descs,
       .maxVertexInputAttributes = MIN2(D3D12_STANDARD_VERTEX_ELEMENT_COUNT, MAX_VERTEX_GENERIC_ATTRIBS),
       .maxVertexInputBindings = MAX_VBS,
       .maxVertexInputAttributeOffset = D3D12_REQ_MULTI_ELEMENT_STRUCTURE_SIZE_IN_BYTES - 1,
@@ -1048,22 +1052,22 @@ dzn_physical_device_get_properties(const struct dzn_physical_device *pdev,
       .shaderInputAttachmentArrayNonUniformIndexingNative = true,
       .robustBufferAccessUpdateAfterBind = true,
       .quadDivergentImplicitLod = false,
-      .maxUpdateAfterBindDescriptorsInAllPools = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageDescriptorUpdateAfterBindSamplers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageDescriptorUpdateAfterBindUniformBuffers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageDescriptorUpdateAfterBindStorageBuffers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageDescriptorUpdateAfterBindSampledImages = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageDescriptorUpdateAfterBindStorageImages = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageDescriptorUpdateAfterBindInputAttachments = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxPerStageUpdateAfterBindResources = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetUpdateAfterBindSamplers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetUpdateAfterBindUniformBuffers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+      .maxUpdateAfterBindDescriptorsInAllPools = max_uab_descs,
+      .maxPerStageDescriptorUpdateAfterBindSamplers = max_uab_descs,
+      .maxPerStageDescriptorUpdateAfterBindUniformBuffers = max_view_descs,
+      .maxPerStageDescriptorUpdateAfterBindStorageBuffers = max_view_descs,
+      .maxPerStageDescriptorUpdateAfterBindSampledImages = max_view_descs,
+      .maxPerStageDescriptorUpdateAfterBindStorageImages = max_view_descs,
+      .maxPerStageDescriptorUpdateAfterBindInputAttachments = max_view_descs,
+      .maxPerStageUpdateAfterBindResources = max_view_descs,
+      .maxDescriptorSetUpdateAfterBindSamplers = max_uab_descs,
+      .maxDescriptorSetUpdateAfterBindUniformBuffers = max_view_descs,
       .maxDescriptorSetUpdateAfterBindUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS,
-      .maxDescriptorSetUpdateAfterBindStorageBuffers = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+      .maxDescriptorSetUpdateAfterBindStorageBuffers = max_view_descs,
       .maxDescriptorSetUpdateAfterBindStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS,
-      .maxDescriptorSetUpdateAfterBindSampledImages = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetUpdateAfterBindStorageImages = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
-      .maxDescriptorSetUpdateAfterBindInputAttachments = MAX_DESCS_PER_CBV_SRV_UAV_HEAP,
+      .maxDescriptorSetUpdateAfterBindSampledImages = max_view_descs,
+      .maxDescriptorSetUpdateAfterBindStorageImages = max_view_descs,
+      .maxDescriptorSetUpdateAfterBindInputAttachments = max_view_descs,
 
       .supportedDepthResolveModes = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT | VK_RESOLVE_MODE_AVERAGE_BIT |
          VK_RESOLVE_MODE_MIN_BIT | VK_RESOLVE_MODE_MAX_BIT,

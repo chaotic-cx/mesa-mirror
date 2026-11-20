@@ -431,9 +431,6 @@ struct dzn_buffer_desc {
    VkDeviceSize offset;
 };
 
-#define MAX_DESCS_PER_SAMPLER_HEAP     D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE
-#define MAX_DESCS_PER_CBV_SRV_UAV_HEAP D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1
-
 VkResult
 dzn_descriptor_heap_init(struct dzn_descriptor_heap *heap,
                          struct dzn_device *device,
