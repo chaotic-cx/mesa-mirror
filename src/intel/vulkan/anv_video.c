@@ -487,7 +487,8 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          ext->flags = VK_VIDEO_ENCODE_H264_CAPABILITY_HRD_COMPLIANCE_BIT_KHR |
                       VK_VIDEO_ENCODE_H264_CAPABILITY_PER_PICTURE_TYPE_MIN_MAX_QP_BIT_KHR;
          ext->maxLevelIdc = STD_VIDEO_H264_LEVEL_IDC_5_1;
-         ext->maxSliceCount = 1;
+         ext->maxSliceCount = pdevice->info.platform >= INTEL_PLATFORM_KBL ?
+                              ANV_VIDEO_H264_MAX_NUM_SLICES : 1;
          ext->maxPPictureL0ReferenceCount = 8;
          ext->maxBPictureL0ReferenceCount = 8;
          ext->maxL1ReferenceCount = 1;
