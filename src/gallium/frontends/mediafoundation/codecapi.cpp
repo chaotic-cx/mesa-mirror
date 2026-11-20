@@ -304,7 +304,7 @@ StringFromVariant( VARIANT *Value )
    {
       return std::to_string( Value->ulVal );
    }
-   else if( Value->vt = VT_UI8 )
+   else if( Value->vt == VT_UI8 )
    {
       return std::to_string( Value->ullVal );
    }
