@@ -542,13 +542,16 @@ init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
     * corrupted during object-level preemption. For now, restrict
     * to command buffer level preemption to avoid rendering
     * corruption.
+    *
+    * On Gfx11, preemption on 3DPRIMITIVE also intermittently drops whole
+    * draws, so disable it as on Gfx12.0.
     */
    anv_batch_write_reg(batch, GENX(CS_CHICKEN1), cc1) {
 #if GFX_VERx10 < 200
       cc1.ReplayMode = MidcmdbufferPreemption;
       cc1.ReplayModeMask = true;
 #endif
-#if GFX_VERx10 == 120
+#if GFX_VERx10 == 110 || GFX_VERx10 == 120
       cc1.DisablePreemptionandHighPriorityPausingdueto3DPRIMITIVECommand = true;
       cc1.DisablePreemptionandHighPriorityPausingdueto3DPRIMITIVECommandMask = true;
 #endif
