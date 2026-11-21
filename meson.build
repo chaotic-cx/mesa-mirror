@@ -1344,6 +1344,7 @@ else
     '-Qunused-arguments',
     '-fno-common',
     '-Wno-unknown-pragmas',
+    '-fzero-init-padding-bits=unions',
     # Clang
     '-Wno-microsoft-enum-value',
     '-Wno-unused-function',
@@ -1365,6 +1366,7 @@ else
     # For now we disable this optimization.
     '-flifetime-dse=1',
     '-Wno-unknown-pragmas',
+    '-fzero-init-padding-bits=unions',
     # Clang
     '-Wno-microsoft-enum-value',
   ]
