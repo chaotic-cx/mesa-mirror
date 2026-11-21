@@ -90,6 +90,9 @@ typedef int (*v3d_ioctl_fun)(int fd, unsigned long request, void *arg);
 bool
 v3d_get_device_info(int fd, struct v3d_device_info* devinfo, v3d_ioctl_fun fun);
 
+uint32_t
+v3d_get_reset_count(int fd, bool per_context);
+
 static inline bool
 v3d_device_has_draw_index(const struct v3d_device_info *devinfo)
 {

@@ -28,6 +28,7 @@
 
 #include "common/v3d_device_info.h"
 #include "common/v3d_limits.h"
+#include "common/v3d_util.h"
 #include "drm-uapi/v3d_drm.h"
 #include "util/log.h"
 #include "util/os_misc.h"
@@ -119,4 +120,17 @@ v3d_get_device_info(int fd, struct v3d_device_info* devinfo, v3d_ioctl_fun drm_i
             devinfo->has_reset_counter = true;
 
    return true;
+}
+
+uint32_t
+v3d_get_reset_count(int fd, bool per_context)
+{
+    struct drm_v3d_get_param reset_counter = {
+            .param = per_context ? DRM_V3D_PARAM_CONTEXT_RESET_COUNTER :
+                                   DRM_V3D_PARAM_GLOBAL_RESET_COUNTER,
+    };
+    ASSERTED int ret = v3d_ioctl(fd, DRM_IOCTL_V3D_GET_PARAM, &reset_counter);
+    assert(!ret);
+
+    return reset_counter.value;
 }
