@@ -34,7 +34,7 @@ radv-raven = { checksum = "93fef722d4306301b05a449a9a7a201cfb7eddf4aab95ae11ece8
 [[traces]]
 path = "angle/angle_trace_tests/minetest"
 [traces.devices]
-radv-raven = { checksum = "55f9bc8f7e631e4672f63a8e218230b9365d09a3bdb5a57864aa5f786bd29dd2" }
+radv-raven = { checksum = "ed4e918d4811d0d18ab407e1ace125d5b073d3e54dbbbf13fc33689d9ea1077b" }
 
 [[traces]]
 path = "angle/angle_trace_tests/mobile_legends"
@@ -44,7 +44,7 @@ radv-raven = { checksum = "256017105d46cb1e924c47686de1e48bad798282f78ecb3e9a4f4
 [[traces]]
 path = "angle/angle_trace_tests/pubg_mobile_battle_royale"
 [traces.devices]
-radv-raven = { checksum = "c1c56cc417fbcc0a775d4ed0a123f5800a39e087b71d949f88c3d03771e79e23" }
+radv-raven = { checksum = "5261763e2be8b48059f829f32aaea49b152490c2da54dd3fa16044f13240d361" }
 
 [[traces]]
 path = "angle/angle_trace_tests/temple_run_300"
@@ -59,12 +59,12 @@ radv-raven = { checksum = "24348cb7e48eac05dbb68dd1918d78cccf9f69afb9089f2a626ed
 [[traces]]
 path = "steam-d3d9/drakensang_unknown_dx9_unknown_unknown_none.trace"
 [traces.devices]
-radv-raven = { checksum = "5b380c648d6b623095fb6504e4259d04bfebddf28574f8066cdcfc7402b64aaf" }
+radv-raven = { checksum = "9b4b2f6d1baca321dbc14ad7cfd634da181fddc3e290534ecc56adbe8b907531" }
 
 [[traces]]
 path = "steam-d3d9/FalloutNewVegas_unknown_dx9_YesMan_ultra_1080p.trace"
 [traces.devices]
-radv-raven = { checksum = "ed261235e7f7b1144232771d4916fc71684fb7c74ff293a791883a9520276fe2" }
+radv-raven = { checksum = "d60a7d32fef3a7ad43124a19980b3b6e6631ee81b705259de742dd50b23ed353" }
 
 [[traces]]
 path = "steam-d3d9/FarCry2_unknown_dx9_unknown_unknown_none.trace"
@@ -90,7 +90,7 @@ radv-raven = { checksum = "e910a5c20a917491ea3462231a7bd42077cfcfa8616008829ee45
 path = "steam-d3d9/psychonauts_unknown_dx9_unknown_unknown_none.trace"
 nonloopable = true
 [traces.devices]
-radv-raven = { checksum = "53d87cec9dbf01a72f22b7f57a7590d5a1103c656d02e26413fc412eb5f7caf5" }
+radv-raven = { checksum = "83a760f968d005a68afa73a7d7516664839d3b90ec7f54c2e933a9146649a329" }
 
 [[traces]]
 path = "steam-d3d9/TFT_unknown_dx9_unknown_unknown_none.trace"
