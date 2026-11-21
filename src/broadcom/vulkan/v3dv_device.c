@@ -803,8 +803,6 @@ physical_device_finish(struct v3dv_physical_device *device)
    v3dv_physical_device_free_disk_cache(device);
    v3d_compiler_free(device->compiler);
 
-   util_sparse_array_finish(&device->bo_map);
-
    if (device->perfcntr)
       v3d_perfcntrs_fini(device->perfcntr);
 
@@ -1639,9 +1637,6 @@ create_physical_device(struct v3dv_instance *instance,
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
    mem->memoryTypes[0].heapIndex = 0;
 
-   /* Initialize sparse array for refcounting imported BOs */
-   util_sparse_array_init(&device->bo_map, sizeof(struct v3dv_bo), 512);
-
    device->merge_jobs = !V3D_DBG(NO_MERGE_JOBS);
 
    device->drm_syncobj_type = vk_drm_syncobj_get_type(device->render_fd);
@@ -2008,8 +2003,7 @@ destroy_queue_syncs(struct v3dv_queue *queue)
 {
    for (int i = 0; i < V3DV_QUEUE_COUNT; i++) {
       if (queue->last_job_syncs.syncs[i]) {
-         drmSyncobjDestroy(queue->device->pdevice->render_fd,
-                           queue->last_job_syncs.syncs[i]);
+         drmSyncobjDestroy(queue->device->fd, queue->last_job_syncs.syncs[i]);
       }
    }
 }
@@ -2038,8 +2032,7 @@ queue_init(struct v3dv_device *device, struct v3dv_queue *queue,
 
    for (int i = 0; i < V3DV_QUEUE_COUNT; i++) {
       queue->last_job_syncs.first[i] = true;
-      int ret = drmSyncobjCreate(device->pdevice->render_fd,
-                                 DRM_SYNCOBJ_CREATE_SIGNALED,
+      int ret = drmSyncobjCreate(device->fd, DRM_SYNCOBJ_CREATE_SIGNALED,
                                  &queue->last_job_syncs.syncs[i]);
       if (ret) {
          result = vk_errorf(device, VK_ERROR_INITIALIZATION_FAILED,
@@ -2084,6 +2077,49 @@ destroy_device_meta(struct v3dv_device *device)
    v3dv_meta_clear_finish(device);
    v3dv_meta_blit_finish(device);
    v3dv_meta_texel_buffer_copy_finish(device);
+}
+
+static VkResult
+device_open_render_node(struct v3dv_device *device)
+{
+   drmDevicePtr drm_device = NULL;
+
+   if (drmGetDeviceFromDevId(device->pdevice->render_devid, 0, &drm_device)) {
+      return vk_errorf(device->instance, VK_ERROR_INITIALIZATION_FAILED,
+                       "Failed to get DRM device: %m");
+   }
+
+   const char *path = drm_device->nodes[DRM_NODE_RENDER];
+   device->fd = open(path, O_RDWR | O_CLOEXEC);
+   if (device->fd < 0) {
+      VkResult result = vk_errorf(device->instance,
+                                  VK_ERROR_INITIALIZATION_FAILED,
+                                  "Failed to open device %s: %m", path);
+      drmFreeDevice(&drm_device);
+      return result;
+   }
+   drmFreeDevice(&drm_device);
+
+#if USE_V3D_SIMULATOR
+   device->sim_file = v3d_simulator_init(device->fd);
+#endif
+
+   /* Initialize sparse array for refcounting imported BOs */
+   util_sparse_array_init(&device->bo_map, sizeof(struct v3dv_bo), 512);
+
+   return VK_SUCCESS;
+}
+
+static void
+device_close_render_node(struct v3dv_device *device)
+{
+   util_sparse_array_finish(&device->bo_map);
+
+#if USE_V3D_SIMULATOR
+   v3d_simulator_destroy(device->sim_file);
+#endif
+
+   close(device->fd);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -2136,10 +2172,14 @@ v3dv_CreateDevice(VkPhysicalDevice physicalDevice,
    mtx_init(&device->events.lock, mtx_plain);
    cnd_init(&device->query_ended);
 
+   result = device_open_render_node(device);
+   if (result != VK_SUCCESS)
+      goto fail_open;
+
    device->vk.command_buffer_ops = &v3dv_cmd_buffer_ops;
    device->vk.copy_sync_payloads = vk_drm_syncobj_copy_payloads;
 
-   vk_device_set_drm_fd(&device->vk, physical_device->render_fd);
+   vk_device_set_drm_fd(&device->vk, device->fd);
 
    /* Threaded submit requires an implementation of syncobj which is not
     * available on the shim driver.
@@ -2254,6 +2294,8 @@ fail_queues_init:
       queue_finish(&device->queues[i]);
    vk_free2(&device->vk.alloc, pAllocator, device->queues);
 fail_queues_alloc:
+   device_close_render_node(device);
+fail_open:
    cnd_destroy(&device->query_ended);
    mtx_destroy(&device->events.lock);
    mtx_destroy(&device->query_mutex);
@@ -2299,6 +2341,8 @@ v3dv_DestroyDevice(VkDevice _device,
     * freeing their private bos
     */
    v3dv_bo_cache_destroy(device);
+
+   device_close_render_node(device);
 
    cnd_destroy(&device->query_ended);
    mtx_destroy(&device->query_mutex);
@@ -2406,7 +2450,7 @@ device_import_bo(struct v3dv_device *device,
    if (real_size < 0 || (uint64_t) real_size < size)
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
 
-   int render_fd = device->pdevice->render_fd;
+   int render_fd = device->fd;
    assert(render_fd >= 0);
 
    int ret;
@@ -2419,7 +2463,7 @@ device_import_bo(struct v3dv_device *device,
    /* A handle we haven't imported yet may come from another DRM file, so
     * the simulator doesn't know about it.
     */
-   if (v3dv_device_lookup_bo(device->pdevice, handle)->refcnt == 0)
+   if (v3dv_device_lookup_bo(device, handle)->refcnt == 0)
       v3d_simulator_open_from_handle(render_fd, handle, real_size);
 #endif
 
@@ -2431,7 +2475,7 @@ device_import_bo(struct v3dv_device *device,
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    assert(get_offset.offset != 0);
 
-   *bo = v3dv_device_lookup_bo(device->pdevice, handle);
+   *bo = v3dv_device_lookup_bo(device, handle);
    assert(*bo);
 
    v3dv_bo_init_import(*bo, handle, size, get_offset.offset, obj_type, obj_handle, false);
@@ -3354,8 +3398,7 @@ v3dv_GetMemoryFdKHR(VkDevice _device,
           pGetFdInfo->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
 
    int fd, ret;
-   ret = drmPrimeHandleToFD(device->pdevice->render_fd,
-                            mem->bo->handle,
+   ret = drmPrimeHandleToFD(device->fd, mem->bo->handle,
                             DRM_CLOEXEC | DRM_RDWR, &fd);
    if (ret)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);

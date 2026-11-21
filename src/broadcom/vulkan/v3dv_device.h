@@ -99,32 +99,9 @@ struct v3dv_physical_device {
    const struct v3d_compiler *compiler;
    uint32_t next_program_id;
 
-   /* This array holds all our 'struct v3dv_bo' allocations. We use this
-    * so we can add a refcount to our BOs and check if a particular BO
-    * was already allocated in this device using its GEM handle. This is
-    * necessary to properly manage BO imports, because the kernel doesn't
-    * refcount the underlying BO memory.
-    *
-    * Specifically, when self-importing (i.e. importing a BO into the same
-    * device that created it), the kernel will give us the same BO handle
-    * for both BOs and we must only free it once when  both references are
-    * freed. Otherwise, if we are not self-importing, we get two different BO
-    * handles, and we want to free each one individually.
-    *
-    * The BOs in this map all have a refcnt with the reference counter and
-    * only self-imported BOs will ever have a refcnt > 1.
-    */
-   struct util_sparse_array bo_map;
-
    bool merge_jobs;
    bool is_shim;
 };
-
-static inline struct v3dv_bo *
-v3dv_device_lookup_bo(struct v3dv_physical_device *device, uint32_t handle)
-{
-   return (struct v3dv_bo *) util_sparse_array_get(&device->bo_map, handle);
-}
 
 VkResult v3dv_wsi_init(struct v3dv_physical_device *physical_device);
 void v3dv_wsi_finish(struct v3dv_physical_device *physical_device);
@@ -226,6 +203,30 @@ struct v3dv_device {
 
    struct v3dv_instance *instance;
    struct v3dv_physical_device *pdevice;
+
+   /* Render node fd owned by this device */
+   int fd;
+
+#if USE_V3D_SIMULATOR
+   struct v3d_simulator_file *sim_file;
+#endif
+
+   /* This array holds all our 'struct v3dv_bo' allocations. We use this
+    * so we can add a refcount to our BOs and check if a particular BO
+    * was already allocated in this device using its GEM handle. This is
+    * necessary to properly manage BO imports, because the kernel doesn't
+    * refcount the underlying BO memory.
+    *
+    * Specifically, when self-importing (i.e. importing a BO into the same
+    * device that created it), the kernel will give us the same BO handle
+    * for both BOs and we must only free it once when  both references are
+    * freed. Otherwise, if we are not self-importing, we get two different BO
+    * handles, and we want to free each one individually.
+    *
+    * The BOs in this map all have a refcnt with the reference counter and
+    * only self-imported BOs will ever have a refcnt > 1.
+    */
+   struct util_sparse_array bo_map;
 
    struct v3d_device_info devinfo;
    struct v3dv_queue *queues;
@@ -384,6 +385,12 @@ struct v3dv_device {
    void *device_address_mem_ctx;
    struct util_dynarray device_address_bo_list; /* Array of struct v3dv_bo * */
 };
+
+static inline struct v3dv_bo *
+v3dv_device_lookup_bo(struct v3dv_device *device, uint32_t handle)
+{
+   return (struct v3dv_bo *) util_sparse_array_get(&device->bo_map, handle);
+}
 
 struct v3dv_device_memory {
    struct vk_device_memory vk;

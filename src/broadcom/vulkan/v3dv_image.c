@@ -256,7 +256,7 @@ v3d_setup_plane_slices(struct v3dv_device *device, struct v3dv_image *image,
       if (image->from_wsi) {
          slice->stride =
             align(slice->stride,
-                  v3d_simulator_get_raster_stride_align(device->pdevice->render_fd));
+                  v3d_simulator_get_raster_stride_align(device->fd));
       }
 #endif
 
