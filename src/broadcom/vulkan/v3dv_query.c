@@ -466,8 +466,13 @@ query_wait_available(struct v3dv_device *device,
    if (pool->query_type == VK_QUERY_TYPE_OCCLUSION) {
       uint8_t *q_addr = ((uint8_t *) pool->occlusion.bo->map) +
                         pool->occlusion.avail_offset + query_idx;
-      while (*q_addr == 0)
+      while (*q_addr == 0) {
+         VkResult status = vk_device_check_status(&device->vk);
+         if (status != VK_SUCCESS)
+            return status;
+
          usleep(250);
+      }
       return VK_SUCCESS;
    }
 
@@ -476,7 +481,7 @@ query_wait_available(struct v3dv_device *device,
                        0, VK_SYNC_WAIT_COMPLETE, UINT64_MAX) != VK_SUCCESS) {
          return vk_device_set_lost(&device->vk, "Query job wait failed");
       }
-      return VK_SUCCESS;
+      return vk_device_check_status(&device->vk);
    }
 
    assert(pool->query_type == VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR);
@@ -519,7 +524,7 @@ query_wait_available(struct v3dv_device *device,
       return vk_device_set_lost(&device->vk, "Query job wait failed");
    }
 
-   return result;
+   return vk_device_check_status(&device->vk);
 }
 
 static VkResult
