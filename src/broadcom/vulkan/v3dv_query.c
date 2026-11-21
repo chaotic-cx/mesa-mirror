@@ -506,7 +506,6 @@ query_wait_available(struct v3dv_device *device,
                                  &device->query_mutex,
                                  &timeout);
          if (ret != thrd_success) {
-            mtx_unlock(&device->query_mutex);
             result = vk_device_set_lost(&device->vk, "Query wait failed");
             break;
          }
