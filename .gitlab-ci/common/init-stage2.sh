@@ -74,9 +74,10 @@ set -ex
 
 # Set up ZRAM
 HWCI_ZRAM_SIZE=2G
-if /sbin/zramctl --find --size $HWCI_ZRAM_SIZE -a zstd; then
-    mkswap /dev/zram0
-    swapon /dev/zram0
+if ZRAM_DEV=$(/sbin/zramctl --find --size $HWCI_ZRAM_SIZE -a zstd) ||
+   ZRAM_DEV=$(/sbin/zramctl --find --size $HWCI_ZRAM_SIZE); then
+    mkswap "$ZRAM_DEV"
+    swapon "$ZRAM_DEV"
     echo "zram: $HWCI_ZRAM_SIZE activated"
 else
     echo "zram: skipping, not supported"
