@@ -35,6 +35,7 @@ extern "C" {
 
 #include "dxil_buffer.h"
 #include "dxil_signature.h"
+#include "nir_to_dxil.h"
 
 #include "util/list.h"
 
@@ -213,14 +214,13 @@ struct dxil_module {
    /* This array is indexed using var->data.driver_location, which
     * is not a direct match to IO rows, since a row is a vec4, and
     * variables can occupy less than that, and several vars can
-    * be packed in a row. Hence the x4, but I doubt we can end up
-    * with more than 80x4 variables in practice. Maybe this array
-    * should be allocated dynamically based on on the maximum
-    * driver_location across all input vars.
+    * be packed in a row. Hence the DXIL_IO_ROW_COMPONENTS factor.
+    * Maybe this array should be allocated dynamically based on the
+    * maximum driver_location across all input vars.
     */
-   uint8_t input_mappings[DXIL_SHADER_MAX_IO_ROWS * 4];
-   uint8_t output_mappings[DXIL_SHADER_MAX_IO_ROWS * 4];
-   uint8_t patch_mappings[DXIL_SHADER_MAX_IO_ROWS * 4];
+   uint8_t input_mappings[DXIL_SHADER_MAX_IO_ROWS * DXIL_IO_ROW_COMPONENTS];
+   uint8_t output_mappings[DXIL_SHADER_MAX_IO_ROWS * DXIL_IO_ROW_COMPONENTS];
+   uint8_t patch_mappings[DXIL_SHADER_MAX_IO_ROWS * DXIL_IO_ROW_COMPONENTS];
 
    struct dxil_psv_signature_element psv_inputs[DXIL_SHADER_MAX_IO_ROWS];
    struct dxil_psv_signature_element psv_outputs[DXIL_SHADER_MAX_IO_ROWS];

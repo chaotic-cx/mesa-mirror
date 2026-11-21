@@ -138,7 +138,7 @@ get_additional_semantic_info(nir_shader *s, nir_variable *var, struct semantic_i
    info->rows = 1;
    if (info->kind == DXIL_SEM_TARGET) {
       info->start_row = info->index;
-      info->cols = 4;
+      info->cols = DXIL_IO_ROW_COMPONENTS;
    } else if (is_depth ||
               (info->kind == DXIL_SEM_PRIMITIVE_ID && is_gs_input) ||
               info->kind == DXIL_SEM_COVERAGE ||
@@ -159,7 +159,7 @@ get_additional_semantic_info(nir_shader *s, nir_variable *var, struct semantic_i
 
       assert(glsl_type_is_array(type) && info->kind == DXIL_SEM_CLIP_DISTANCE);
       unsigned num_floats = glsl_get_aoa_size(type);
-      unsigned start_offset = (var->data.location - VARYING_SLOT_CLIP_DIST0) * 4 +
+      unsigned start_offset = (var->data.location - VARYING_SLOT_CLIP_DIST0) * DXIL_IO_ROW_COMPONENTS +
          var->data.location_frac;
 
       if (start_offset >= clip_size) {
@@ -175,7 +175,7 @@ get_additional_semantic_info(nir_shader *s, nir_variable *var, struct semantic_i
          type = glsl_get_array_element(type);
       next_row += info->rows;
       info->start_col = (uint8_t)var->data.location_frac;
-      info->cols = MIN2(glsl_get_component_slots(type), 4);
+      info->cols = MIN2(glsl_get_component_slots(type), DXIL_IO_ROW_COMPONENTS);
    }
 
    return next_row;
@@ -484,7 +484,7 @@ fill_signature_element(struct dxil_signature_element *elm,
    elm->comp_type = (uint32_t) semantic->comp_type;
    elm->reg = semantic->start_row + row;
 
-   assert(semantic->cols + semantic->start_col <= 4);
+   assert(semantic->cols + semantic->start_col <= DXIL_IO_ROW_COMPONENTS);
    elm->mask = (uint8_t) (((1 << semantic->cols) - 1) << semantic->start_col);
    elm->min_precision = DXIL_MIN_PREC_DEFAULT;
 }
@@ -593,7 +593,7 @@ get_input_signature_group(struct dxil_module *mod,
                                  semantic.start_row + semantic.rows);
 
       ++num_inputs;
-      assert(num_inputs < VARYING_SLOT_MAX * 4);
+      assert(num_inputs < VARYING_SLOT_MAX * DXIL_IO_ROW_COMPONENTS);
    }
    return num_inputs;
 }
@@ -797,8 +797,8 @@ prepare_dependency_tables(struct dxil_module *mod, nir_shader *s)
    uint32_t num_output_streams = s->info.stage == MESA_SHADER_GEOMETRY ? 4 : 1;
    uint32_t num_tables = s->info.stage == MESA_SHADER_TESS_CTRL || s->info.stage == MESA_SHADER_TESS_EVAL ? 2 : num_output_streams;
 
-   const uint32_t output_vecs_per_dword = 32 /* bits per dword */ / 4 /* components per vec */;
-   const uint32_t masks_per_input_vec = 4 /* components per vec */;
+   const uint32_t output_vecs_per_dword = 32 /* bits per dword */ / DXIL_IO_ROW_COMPONENTS;
+   const uint32_t masks_per_input_vec = DXIL_IO_ROW_COMPONENTS;
 
    for (uint32_t i = 0; i < num_output_streams; ++i)
       mod->dependency_table_dwords_per_input[i] = DIV_ROUND_UP(mod->num_psv_outputs[i], output_vecs_per_dword);
@@ -826,16 +826,16 @@ prepare_dependency_tables(struct dxil_module *mod, nir_shader *s)
    uint32_t *table = calloc(mod->serialized_dependency_table_size, sizeof(uint32_t));
    mod->serialized_dependency_table = table;
 
-   *(table++) = mod->num_psv_inputs * 4;
+   *(table++) = mod->num_psv_inputs * DXIL_IO_ROW_COMPONENTS;
    for (uint32_t i = 0; i < num_output_streams; ++i) {
-      *(table++) = mod->num_psv_outputs[i] * 4;
+      *(table++) = mod->num_psv_outputs[i] * DXIL_IO_ROW_COMPONENTS;
       mod->viewid_dependency_table[i] = table;
       table += view_id_table_sizes[i];
       mod->io_dependency_table[i] = table;
       table += mod->io_dependency_table_size[i];
    }
    if (s->info.stage == MESA_SHADER_TESS_CTRL || s->info.stage == MESA_SHADER_TESS_EVAL) {
-      *(table++) = mod->num_psv_patch_consts * 4;
+      *(table++) = mod->num_psv_patch_consts * DXIL_IO_ROW_COMPONENTS;
       if (s->info.stage == MESA_SHADER_TESS_CTRL) {
          mod->viewid_dependency_table[1] = table;
          table += view_id_table_sizes[1];
@@ -869,7 +869,7 @@ get_signature_metadata(struct dxil_module *mod,
    if (num_elements == 0)
       return NULL;
 
-   const struct dxil_mdnode *nodes[VARYING_SLOT_MAX * 4];
+   const struct dxil_mdnode *nodes[VARYING_SLOT_MAX * DXIL_IO_ROW_COMPONENTS];
    for (unsigned i = 0; i < num_elements; ++i) {
       nodes[i] = fill_SV_param_nodes(mod, i, &recs[i], &psvs[i], is_input);
    }

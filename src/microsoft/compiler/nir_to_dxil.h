@@ -33,6 +33,9 @@
 extern "C" {
 #endif
 
+/* A DXIL I/O row is a vec4, i.e. four scalar components. */
+#define DXIL_IO_ROW_COMPONENTS 4
+
 struct blob;
 
 /* Controls how resource decls/accesses are handled. Common to all:
