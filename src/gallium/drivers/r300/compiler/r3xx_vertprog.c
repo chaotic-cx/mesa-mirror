@@ -89,12 +89,7 @@ t_src_conflict(struct rc_src_register a, struct rc_src_register b)
    if (aclass == PVS_SRC_REG_TEMPORARY)
       return 0;
 
-   if (a.RelAddr || b.RelAddr)
-      return 1;
-   if (a.Index != b.Index)
-      return 1;
-
-   return 0;
+   return a.RelAddr != b.RelAddr || a.Index != b.Index;
 }
 
 static inline uint32_t
