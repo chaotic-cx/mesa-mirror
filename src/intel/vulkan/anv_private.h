@@ -961,7 +961,7 @@ struct anv_bo_pool {
 
    enum anv_bo_alloc_flags bo_alloc_flags;
 
-   struct util_sparse_array_free_list free_list[16];
+   struct util_sparse_array_free_list free_list[17];
 };
 
 void anv_bo_pool_init(struct anv_bo_pool *pool, struct anv_device *device,
