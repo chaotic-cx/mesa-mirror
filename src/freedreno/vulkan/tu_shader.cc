@@ -3430,6 +3430,9 @@ tu_shader_init(struct tu_device *dev, const void *key_data, size_t key_size)
    shader->const_state.inline_uniforms_ubo.idx = -1;
    shader->const_state.bindless_base_addrs_ubo.idx = -1;
 
+   for (unsigned i = 0; i < MAX_SETS; i++)
+      shader->dynamic_descriptor_sizes[i] = -1;
+
    return shader;
 }
 
@@ -4201,9 +4204,6 @@ tu_empty_fs_create(struct tu_device *dev, struct tu_shader **shader,
    (*shader)->fs.has_fdm = fragment_density_map;
    if (fragment_density_map && dev->physical_device->info->chip < 7)
       (*shader)->fs.lrz.status = TU_LRZ_FORCE_DISABLE_LRZ;
-
-   for (unsigned i = 0; i < MAX_SETS; i++)
-      (*shader)->dynamic_descriptor_sizes[i] = -1;
 
    struct ir3_shader *ir3_shader =
       ir3_shader_from_nir(dev->compiler, fs_b.shader, &options);
