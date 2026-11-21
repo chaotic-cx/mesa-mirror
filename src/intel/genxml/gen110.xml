@@ -4,6 +4,7 @@
     <exclude name="ACTHD_UDW" />
     <exclude name="BCS_ACTHD_UDW" />
     <exclude name="BCS_RING_BUFFER_CTL" />
+    <exclude name="CS_CHICKEN1" />
     <exclude name="COMMON_SLICE_CHICKEN2" />
     <exclude name="FAULT_REG" />
     <exclude name="GFX_ARB_ERROR_RPT" />
@@ -3215,6 +3216,21 @@
   <register name="COMMON_SLICE_CHICKEN4" length="1" num="0x7300">
     <field name="Enable Hardware Filtering in WM" dword="0" bits="5:5" type="bool" />
     <field name="Enable Hardware Filtering in WM Mask" dword="0" bits="21:21" type="bool" />
+  </register>
+  <register name="CS_CHICKEN1" length="1" num="0x2580">
+    <field name="Replay Mode" dword="0" bits="0:0" type="uint">
+      <value name="Mid-cmdbuffer Preemption" value="0" />
+      <value name="Object Level Preemption" value="1" />
+    </field>
+    <field name="Media And GPGPU Pre-emption Control" dword="0" bits="2:1" type="uint">
+      <value name="Mid-thread Pre-emption" value="0" />
+      <value name="Thread Group Pre-emption" value="1" />
+      <value name="Command Level Pre-emption" value="2" />
+    </field>
+    <field name="Disable Preemption and High Priority Pausing due to 3DPRIMITIVE Command" dword="0" bits="10:10" type="bool" />
+    <field name="Replay Mode Mask" dword="0" bits="16:16" type="bool" />
+    <field name="Media And GPGPU Pre-emption Control Mask" dword="0" bits="18:17" type="uint" />
+    <field name="Disable Preemption and High Priority Pausing due to 3DPRIMITIVE Command Mask" dword="0" bits="26:26" type="bool" />
   </register>
   <register name="GT_MODE" length="1" num="0x7008">
     <field name="Binding Table Alignment" dword="0" bits="10:10" type="uint">
