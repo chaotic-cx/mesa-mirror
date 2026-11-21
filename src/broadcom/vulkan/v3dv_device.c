@@ -2122,6 +2122,18 @@ device_close_render_node(struct v3dv_device *device)
    close(device->fd);
 }
 
+static VkResult
+v3dv_device_check_status(struct vk_device *vk_device)
+{
+   struct v3dv_device *device = container_of(vk_device, struct v3dv_device, vk);
+
+   /* The device owns its fd, so any reset counted on it was caused by us. */
+   if (v3d_get_reset_count(device->fd, true) != 0)
+      return vk_device_set_lost(&device->vk, "GPU hang caused by this device");
+
+   return VK_SUCCESS;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 v3dv_CreateDevice(VkPhysicalDevice physicalDevice,
                   const VkDeviceCreateInfo *pCreateInfo,
@@ -2208,6 +2220,9 @@ v3dv_CreateDevice(VkPhysicalDevice physicalDevice,
    }
 
    device->devinfo = physical_device->devinfo;
+
+   if (device->devinfo.has_reset_counter)
+      device->vk.check_status = v3dv_device_check_status;
 
    if (device->vk.enabled_features.robustBufferAccess)
       perf_debug("Device created with Robust Buffer Access enabled.\n");
