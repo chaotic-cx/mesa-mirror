@@ -2247,8 +2247,7 @@ nir_to_rc(struct nir_shader *s, struct pipe_screen *screen,
       NIR_PASS(progress, s, nir_opt_constant_folding);
    } while (progress);
 
-   if (s->info.stage == MESA_SHADER_FRAGMENT)
-      NIR_PASS(_, s, nir_opt_reassociate_for_fma);
+   NIR_PASS(_, s, nir_opt_reassociate_for_fma);
 
    do {
       progress = false;
