@@ -152,9 +152,9 @@ fill_so_declaration(const struct pipe_stream_output_info *info,
       assert((var->data.stream & ~NIR_STREAM_PACKED) == output->stream);
       unsigned location = var->data.location;
       if (location == VARYING_SLOT_CLIP_DIST0 || location == VARYING_SLOT_CLIP_DIST1) {
-         unsigned component = (location - VARYING_SLOT_CLIP_DIST0) * 4 + var->data.location_frac;
+         unsigned component = (location - VARYING_SLOT_CLIP_DIST0) * DXIL_IO_ROW_COMPONENTS + var->data.location_frac;
          if (component >= last_vertex_stage->info.clip_distance_array_size)
-            location = VARYING_SLOT_CULL_DIST0 + (component - last_vertex_stage->info.clip_distance_array_size) / 4;
+            location = VARYING_SLOT_CULL_DIST0 + (component - last_vertex_stage->info.clip_distance_array_size) / DXIL_IO_ROW_COMPONENTS;
       }
       entries[*num_entries].SemanticName = get_semantic_name(location, var->data.driver_location, &index);
       entries[*num_entries].SemanticIndex = index;
@@ -295,7 +295,10 @@ create_gfx_pipeline_state(struct d3d12_context *ctx)
       MESA_PRIM_PATCHES : u_reduced_prim(state->prim_type);
    D3D12_SO_DECLARATION_ENTRY entries[PIPE_MAX_SO_OUTPUTS];
    UINT strides[PIPE_MAX_VERTEX_STREAMS] = { 0 };
-   D3D12_INPUT_ELEMENT_DESC input_attribs[PIPE_MAX_ATTRIBS * 4];
+   /* Up to four component-qualified variables can share one attribute
+    * location, and each one gets its own input element.
+    */
+   D3D12_INPUT_ELEMENT_DESC input_attribs[PIPE_MAX_ATTRIBS * DXIL_IO_ROW_COMPONENTS];
    UINT num_entries = 0, num_strides = 0;
 
    CD3DX12_PIPELINE_STATE_STREAM3 pso_desc;

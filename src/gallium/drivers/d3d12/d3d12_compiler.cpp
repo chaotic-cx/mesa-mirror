@@ -1381,13 +1381,17 @@ d3d12_create_shader_impl(struct d3d12_context *ctx,
    nir_foreach_variable_with_modes(var, nir, nir_var_shader_in) {
       if (var->data.location >= VARYING_SLOT_VAR0 && var->data.location_frac) {
          sel->has_frac_inputs = 1;
-         BITSET_SET(sel->varying_frac_inputs, (var->data.location - VARYING_SLOT_VAR0) * 4 + var->data.location_frac);
+         BITSET_SET(sel->varying_frac_inputs,
+                    (var->data.location - VARYING_SLOT_VAR0) *
+                    DXIL_IO_ROW_COMPONENTS + var->data.location_frac);
       }
    }
    nir_foreach_variable_with_modes(var, nir, nir_var_shader_out) {
       if (var->data.location >= VARYING_SLOT_VAR0 && var->data.location_frac) {
          sel->has_frac_outputs = 1;
-         BITSET_SET(sel->varying_frac_outputs, (var->data.location - VARYING_SLOT_VAR0) * 4 + var->data.location_frac);
+         BITSET_SET(sel->varying_frac_outputs,
+                    (var->data.location - VARYING_SLOT_VAR0) *
+                    DXIL_IO_ROW_COMPONENTS + var->data.location_frac);
       }
    }
 

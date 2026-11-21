@@ -804,7 +804,7 @@ struct var_split_subvar_state {
 };
 struct var_split_var_state {
    unsigned num_subvars;
-   struct var_split_subvar_state subvars[4];
+   struct var_split_subvar_state subvars[DXIL_IO_ROW_COMPONENTS];
 };
 struct var_split_state {
    struct var_split_var_state vars[2][VARYING_SLOT_MAX];
