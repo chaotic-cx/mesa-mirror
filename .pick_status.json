@@ -1354,7 +1354,7 @@
         "description": "pan/desc: follow the caller's ZS/CRC extension layout in pan_emit_fbd",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "af35fc44a7052d69e72f7457f2f459720fe35ff8",
         "notes": null

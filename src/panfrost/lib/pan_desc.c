@@ -1173,7 +1173,7 @@ pan_crc_has_empty_tile_elimination(struct pan_crc *crc,
 #endif
 
 static struct pan_crc
-pan_get_crc_info(const struct pan_fb_info *fb)
+pan_get_crc_info(const struct pan_fb_info *fb, bool has_zs_crc_ext)
 {
    struct pan_crc crc = { .index = -1, };
    const struct pan_fb_color_attachment *rt;
@@ -1186,6 +1186,11 @@ pan_get_crc_info(const struct pan_fb_info *fb)
     * more expensive at smaller tile sizes, reducing the benefit. Restricting
     * CRC to 16x16 should work in practice. */
    if (fb->tile_size < 16 * 16)
+      goto skip;
+
+   /* The CRC buffer is described in the ZS/CRC extension. Without one, CRC
+    * can't be enabled and the CRC buffers must be flagged invalid. */
+   if (!has_zs_crc_ext)
       goto skip;
 
    crc.index = GENX(pan_select_crc_rt)(fb, fb->tile_size);
@@ -1230,6 +1235,20 @@ pan_get_crc_info(const struct pan_fb_info *fb)
          fb->rts[i].crc_state->valid = false;
 
    return crc;
+}
+
+/* The caller lays out the descriptors, so it decides whether a ZS/CRC
+ * extension is present. It can't be re-derived here: the CRC RT selection
+ * depends on crc_state->valid, which lives in the resource and can be changed
+ * by another context sharing that resource between the caller's
+ * pan_select_crc_rt() call and ours.
+ */
+static bool
+pan_fbd_has_zs_crc_ext(const struct pan_fb_info *fb,
+                       const struct pan_fbd_descs *out)
+{
+   assert(out->zs_crc || (!fb->zs.view.zs && !fb->zs.view.s));
+   return out->zs_crc != NULL;
 }
 
 /* Clean tiles must be written back for AFBC buffers (color, z/s) when either
@@ -1351,10 +1370,9 @@ GENX(pan_emit_fbd)(const struct pan_fb_info *fb, unsigned layer_idx,
 
    check_fb_attachments(fb);
 
-   struct pan_crc crc = pan_get_crc_info(fb);
+   const bool has_zs_crc_ext = pan_fbd_has_zs_crc_ext(fb, out);
+   struct pan_crc crc = pan_get_crc_info(fb, has_zs_crc_ext);
    const struct pan_clean_tile clean_tile = GENX(pan_get_clean_tile_info)(fb);
-   const bool has_zs_crc_ext = (fb->zs.view.zs || fb->zs.view.s ||
-      pan_crc_is_enabled(&crc));
 
    if (has_zs_crc_ext) {
       pan_emit_zs_crc_ext(fb, layer_idx, out->zs_crc, &crc, clean_tile);
@@ -1379,10 +1397,9 @@ GENX(pan_emit_fbd)(const struct pan_fb_info *fb, unsigned layer_idx,
    GENX(pan_emit_tls)(tls, pan_section_ptr(out->fbd, FRAMEBUFFER, LOCAL_STORAGE));
 #endif
 
-   struct pan_crc crc = pan_get_crc_info(fb);
+   const bool has_zs_crc_ext = pan_fbd_has_zs_crc_ext(fb, out);
+   struct pan_crc crc = pan_get_crc_info(fb, has_zs_crc_ext);
    struct pan_clean_tile clean_tile = GENX(pan_get_clean_tile_info)(fb);
-   bool has_zs_crc_ext = fb->zs.view.zs || fb->zs.view.s ||
-      pan_crc_is_enabled(&crc);
 
    pan_section_pack(out->fbd, FRAMEBUFFER, PARAMETERS, cfg) {
 #if PAN_ARCH >= 6
