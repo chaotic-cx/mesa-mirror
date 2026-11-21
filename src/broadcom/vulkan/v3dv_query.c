@@ -515,15 +515,14 @@ query_wait_available(struct v3dv_device *device,
 
       if (result != VK_SUCCESS)
          return result;
+   }
 
-      /* For performance queries, we also need to wait for the relevant syncobj
-       * to be signaled to ensure completion of the GPU work.
-       */
-      if (pool->query_type == VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR &&
-          vk_sync_wait(&device->vk, q->perf.last_job_sync,
-                       0, VK_SYNC_WAIT_COMPLETE, UINT64_MAX) != VK_SUCCESS) {
-        return vk_device_set_lost(&device->vk, "Query job wait failed");
-      }
+   /* For performance queries, we also need to wait for the relevant syncobj
+    * to be signaled to ensure completion of the GPU work.
+    */
+   if (vk_sync_wait(&device->vk, q->perf.last_job_sync,
+                    0, VK_SYNC_WAIT_COMPLETE, UINT64_MAX) != VK_SUCCESS) {
+      return vk_device_set_lost(&device->vk, "Query job wait failed");
    }
 
    return result;
