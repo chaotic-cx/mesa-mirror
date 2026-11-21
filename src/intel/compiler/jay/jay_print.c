@@ -114,7 +114,8 @@ jay_print_def(FILE *fp,
 
       fprintf(fp, "%s%u", file, def.reg);
       if (len > 1) {
-         fprintf(fp, ":%s%u", file, def.reg + len - 1);
+         unsigned reg_len = func->shader->post_ra ? jay_num_regs(def) : len;
+         fprintf(fp, ":%s%u", file, def.reg + reg_len - 1);
       }
 
       if (has_index)
