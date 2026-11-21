@@ -1494,7 +1494,7 @@
         "description": "tu: mark dynamic descriptor sizes of empty shaders unknown",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "88db736472b6e9b18d3736a42b038e2a7836b0b4",
         "notes": null
