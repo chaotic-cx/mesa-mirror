@@ -486,7 +486,7 @@ check_descriptors_left(struct d3d12_context *ctx, bool compute)
    return true;
 }
 
-#define MAX_DESCRIPTOR_TABLES (D3D12_GFX_SHADER_STAGES * 4)
+#define MAX_DESCRIPTOR_TABLES (D3D12_GFX_SHADER_STAGES * D3D12_NUM_DESCRIPTOR_TABLES_PER_STAGE)
 
 static void
 update_shader_stage_root_parameters(struct d3d12_context *ctx,

@@ -101,6 +101,9 @@ enum d3d12_binding_type {
    D3D12_NUM_BINDING_TYPES
 };
 
+/* All binding types except D3D12_BINDING_STATE_VARS use a descriptor table. */
+#define D3D12_NUM_DESCRIPTOR_TABLES_PER_STAGE (D3D12_NUM_BINDING_TYPES - 1)
+
 struct d3d12_sampler_state {
    struct d3d12_descriptor_handle handle, handle_without_shadow;
    bool is_integer_texture;
