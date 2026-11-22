@@ -79,8 +79,6 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
 
    debug_archiver *da = rzalloc(mem_ctx, debug_archiver);
 
-   char *filename = ralloc_asprintf(mem_ctx, "%s.mda.tar", name);
-
    const char *output_dir = debug_get_option_mda_output_dir();
    const char *prefix     = debug_get_option_mda_prefix();
 
@@ -125,28 +123,15 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
       }
    }
 
-   da->archive_path = ralloc_asprintf(da, "%s/%s%s%s",
-                                      output_dir,
-                                      prefix ? prefix : "",
-                                      prefix ? "."    : "",
-                                      filename);
+   const char *filename = prefix ?
+      ralloc_asprintf(da, "%s.%s", prefix, name) : name;
+   da->mda_dir_in_archive = ralloc_asprintf(da, "%s.mda", filename);
+   da->archive_path = ralloc_asprintf(da, "%s/%s.mda.tar", output_dir, filename);
 
    da->f = fopen(da->archive_path, "wb+");
 
    da->tw = rzalloc(da, tar_writer);
    tar_writer_init(da->tw, da->f);
-
-   {
-      const char *filename_start = strrchr(da->archive_path, '/');
-      filename_start = filename_start ? filename_start + 1 : da->archive_path;
-
-      char *filename_copy = ralloc_strdup(da, filename_start);
-      char *tar_ext = strstr(filename_copy, ".tar");
-      if (tar_ext) {
-         *tar_ext = '\0';
-      }
-      da->mda_dir_in_archive = filename_copy;
-   }
 
    debug_archiver_set_prefix(da, "");
 
