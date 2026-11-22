@@ -1,5 +1,5 @@
 [wrap-file]
-directory = npu-model-zoo-20261113-resnet-18
-source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261113-resnet-18/npu-model-zoo-20261113-resnet-18.tar.gz
-source_filename = npu-model-zoo-20261113-resnet-18.tar.gz
-source_hash = ee39c9a31024a4a45f0f79dd2cf69dcf3d3e21cf7d6fe993b23eef41460796b3
+directory = npu-model-zoo-20261119-efficientdet-lite3x
+source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261119-efficientdet-lite3x/npu-model-zoo-20261119-efficientdet-lite3x.tar.gz
+source_filename = npu-model-zoo-20261119-efficientdet-lite3x.tar.gz
+source_hash = 5a53c17743688b583422b22f65da8d0b24b26aee47807a22c01b27d0e37fa7ae
