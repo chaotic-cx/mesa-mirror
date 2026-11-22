@@ -6,30 +6,6 @@ import xml.etree.ElementTree as ET
 import sys
 import textwrap
 
-schema_filename, xml_filename = sys.argv[1:]
-
-try:
-    from lxml import etree
-    import rnc2rng
-
-    rng = rnc2rng.dumps(rnc2rng.load(schema_filename))
-    schema = etree.RelaxNG(etree.fromstring(rng.encode()))
-    valid = schema.validate(etree.parse(xml_filename))
-    if not valid:
-        print(schema.error_log, file=sys.stderr)
-        sys.exit(1)
-except ImportError:
-    # meson/ninja only displays stderr if the script fails, so this warning is
-    # only visible when someone changes the XML in a way that causes the below
-    # code to blow up. Ideally we'd add build dependencies but that might not be
-    # desirable for exotic platforms... This seems reasonable as a compromise.
-    print("", file=sys.stderr)
-    print("****", file=sys.stderr)
-    print("lxml or rnc2rng missing, skipping validation", file=sys.stderr)
-    print("If this script fails, install for diagnostics", file=sys.stderr)
-    print("****", file=sys.stderr)
-    print("", file=sys.stderr)
-
 # XXX: cribbed from genxml
 def to_alphanum(name):
     substitutions = {
@@ -141,10 +117,6 @@ def parse_file(root):
             isas += family.isas
 
     return (families, isas)
-
-tree = ET.parse(xml_filename)
-root = tree.getroot()
-families, isas = parse_file(root)
 
 template = Template("""\
 #ifndef __SHADER_STATS_H
@@ -265,4 +237,37 @@ ${family.c_name}_stats_serialize(uint8_t *dest, const ${family.c_struct_name} *s
 #endif
 """)
 
-print(template.render(isas=isas, families=families))
+schema_filename, xml_filename = sys.argv[1:]
+
+validation_missing = False
+try:
+    from lxml import etree
+    import rnc2rng
+
+    rng = rnc2rng.dumps(rnc2rng.load(schema_filename))
+    schema = etree.RelaxNG(etree.fromstring(rng.encode()))
+    valid = schema.validate(etree.parse(xml_filename))
+    if not valid:
+        print(schema.error_log, file=sys.stderr)
+        sys.exit(1)
+except ImportError:
+    validation_missing = True
+
+try:
+    tree = ET.parse(xml_filename)
+    root = tree.getroot()
+    families, isas = parse_file(root)
+
+    print(template.render(isas=isas, families=families))
+except Exception:
+    if validation_missing:
+        # Only warn if generation fails. Ideally we'd add build dependencies
+        # but that might not be desirable for exotic platforms... This seems
+        # reasonable as a compromise.
+        print("", file=sys.stderr)
+        print("****", file=sys.stderr)
+        print("lxml or rnc2rng missing, skipping validation", file=sys.stderr)
+        print("If this script fails, install for diagnostics", file=sys.stderr)
+        print("****", file=sys.stderr)
+        print("", file=sys.stderr)
+    raise
