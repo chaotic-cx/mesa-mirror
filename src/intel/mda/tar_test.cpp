@@ -19,6 +19,65 @@ class TarTest : public testing::Test {
 };
 
 
+TEST_F(TarTest, StopAtUnfinishedFile)
+{
+   tar_writer tw;
+   tar_writer_init(&tw, f);
+   tar_writer_file_from_bytes(&tw, "first", "a", 1);
+   ASSERT_FALSE(tw.error);
+
+   tar_writer_start_file(&tw, "unfinished");
+   ASSERT_FALSE(tw.error);
+   char payload[RECORD_SIZE] = "unfinished contents";
+   ASSERT_EQ(fwrite(payload, sizeof(payload), 1, f), 1u);
+   fflush(f);
+
+   ASSERT_EQ(fseek(f, 0, SEEK_END), 0);
+   long size = ftell(f);
+   ASSERT_GT(size, 0);
+   std::vector<char> contents(size);
+   rewind(f);
+   ASSERT_EQ(fread(contents.data(), size, 1, f), 1u);
+
+   tar_reader reader;
+   tar_reader_init_from_bytes(&reader, contents.data(), size);
+   tar_reader_entry entry;
+   ASSERT_TRUE(tar_reader_next(&reader, &entry));
+   EXPECT_TRUE(slice_equal_cstr(entry.name, "first"));
+   EXPECT_TRUE(slice_equal_cstr(entry.contents, "a"));
+
+   ASSERT_TRUE(tar_reader_next(&reader, &entry));
+   EXPECT_TRUE(slice_equal_cstr(entry.name, "unfinished"));
+   EXPECT_TRUE(slice_is_empty(entry.contents));
+
+   EXPECT_FALSE(tar_reader_next(&reader, &entry));
+   EXPECT_TRUE(reader.error);
+}
+
+TEST_F(TarTest, NonAsciiFilenameChecksum)
+{
+   tar_writer tw;
+   tar_writer_init(&tw, f);
+   tar_writer_file_from_bytes(&tw, "caf\xc3\xa9", "data", 4);
+   ASSERT_FALSE(tw.error);
+
+   ASSERT_EQ(fseek(f, 0, SEEK_END), 0);
+   long size = ftell(f);
+   ASSERT_GT(size, 0);
+   std::vector<char> contents(size);
+   rewind(f);
+   ASSERT_EQ(fread(contents.data(), size, 1, f), 1u);
+
+   tar_reader reader;
+   tar_reader_init_from_bytes(&reader, contents.data(), size);
+   tar_reader_entry entry;
+   ASSERT_TRUE(tar_reader_next(&reader, &entry));
+   EXPECT_TRUE(slice_equal_cstr(entry.name, "caf\xc3\xa9"));
+   EXPECT_TRUE(slice_equal_cstr(entry.contents, "data"));
+   EXPECT_FALSE(tar_reader_next(&reader, &entry));
+   EXPECT_FALSE(reader.error);
+}
+
 TEST_F(TarTest, RoundtripSmallFile)
 {
    const char *test = "TEST TEST TEST";

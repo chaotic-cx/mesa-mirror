@@ -6,6 +6,7 @@
 #include "tar.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <string.h>
 #include <time.h>
 
@@ -70,18 +71,51 @@ enum {
    HEADER_PREFIX_LENGTH = 155,
 };
 
+static unsigned
+archive_calculate_checksum(const char *header)
+{
+   /* Checksum of the header assumes the checksum field itself is
+    * filled with ASCII spaces (value 32).
+    */
+   unsigned checksum = 0;
+   for (unsigned i = 0; i < RECORD_SIZE; i++) {
+      unsigned char c = i >= HEADER_CHECKSUM_OFFSET &&
+                        i < HEADER_CHECKSUM_OFFSET + HEADER_CHECKSUM_LENGTH ?
+                        ' ' : (unsigned char)header[i];
+      checksum += c;
+   }
+   return checksum;
+}
+
+static unsigned
+archive_parse_checksum(const char *header)
+{
+   const char *p = &header[HEADER_CHECKSUM_OFFSET];
+   const char *end = p + HEADER_CHECKSUM_LENGTH;
+
+   while (p < end && *p == ' ')
+      p++;
+
+   unsigned stored = 0;
+   bool digits = false;
+   while (p < end && *p >= '0' && *p <= '7') {
+      stored = stored * 8 + (*p - '0');
+      digits = true;
+      p++;
+   }
+
+   if (!digits || (p < end && *p != '\0' && *p != ' '))
+      return UINT_MAX;
+
+   return stored;
+}
+
 static void
 archive_update_size(char *header, unsigned size)
 {
    snprintf(&header[HEADER_SIZE_OFFSET], HEADER_SIZE_LENGTH, "%011o", size);
 
-   /* Checksum of the header assumes the checksum field itself is
-    * filled with ASCII spaces (value 32).
-    */
-   memset(&header[HEADER_CHECKSUM_OFFSET], 32, HEADER_CHECKSUM_LENGTH);
-   unsigned checksum = 0;
-   for (int i = 0; i < RECORD_SIZE; i++)
-      checksum += header[i];
+   unsigned checksum = archive_calculate_checksum(header);
    snprintf(&header[HEADER_CHECKSUM_OFFSET], HEADER_CHECKSUM_LENGTH, "%07o", checksum);
 }
 
@@ -268,15 +302,14 @@ tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
    const char *name   = &header[HEADER_NAME_OFFSET];
    const char *prefix = &header[HEADER_PREFIX_OFFSET];
 
-   ar->pos += RECORD_SIZE;
-
-   /* The current writer enforces the NUL termination and padding, so for
-    * now let's rely on it.
-    */
-   if (name[HEADER_NAME_LENGTH-1] != 0 || prefix[HEADER_PREFIX_LENGTH-1] != 0) {
+   if (memcmp(header, archive_empty_records, RECORD_SIZE) == 0)
+      return false;
+   if (archive_parse_checksum(header) != archive_calculate_checksum(header)) {
       ar->error = true;
       return false;
    }
+
+   ar->pos += RECORD_SIZE;
 
    unsigned size = 0;
    if (sscanf((const char *)&header[HEADER_SIZE_OFFSET], "%011o", &size) == EOF) {
@@ -299,10 +332,8 @@ tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
    slice contents = slice_substr(ar->contents, ar->pos, ar->pos + size);
    ar->pos += padded_size;
 
-   /* TODO: Verify checksum. */
-
-   entry->prefix   = slice_from_cstr(prefix);
-   entry->name     = slice_from_cstr(name);
+   entry->prefix   = (slice){prefix, strnlen(prefix, HEADER_PREFIX_LENGTH)};
+   entry->name     = (slice){name, strnlen(name, HEADER_NAME_LENGTH)};
    entry->contents = contents;
    entry->mtime    = (time_t)mtime;
 
