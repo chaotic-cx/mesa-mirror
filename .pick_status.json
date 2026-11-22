@@ -324,7 +324,7 @@
         "description": "util/primconvert: Fix converted index count for primitive restart draws",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "583070748cb103560b173b5789998302d517b587",
         "notes": null

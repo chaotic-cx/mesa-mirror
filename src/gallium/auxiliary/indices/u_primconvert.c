@@ -120,6 +120,7 @@ primconvert_init_draw(struct primconvert_context *pc,
    unsigned ib_offset;
    unsigned total_index_count = draws->count;
    void *rewrite_buffer = NULL;
+   bool ret = false;
 
    struct pipe_draw_start_count_bias draw = draws[0];
 
@@ -191,12 +192,9 @@ primconvert_init_draw(struct primconvert_context *pc,
           *         if no indices were found, this was a single incomplete restart and can be discarded
           */
          if (total_index_count)
-            rewrite_buffer = malloc(index_size * total_index_count);
-         if (!rewrite_buffer) {
-            if (src_transfer)
-               pipe_buffer_unmap(pc->pipe, src_transfer);
-            return false;
-         }
+            rewrite_buffer = malloc((size_t)index_size * total_index_count);
+         if (!rewrite_buffer)
+            goto cleanup;
       }
       /* (step 4: get the actual primitive conversion translator function) */
       u_index_translator(pc->cfg.primtypes_mask,
@@ -207,6 +205,15 @@ primconvert_init_draw(struct primconvert_context *pc,
                          &trans_func);
       assert(new_info->mode == mode);
       assert(new_info->index_size == index_size);
+      if (num_direct_draws) {
+         uint64_t converted_count = 0;
+         for (unsigned i = 0; i < num_direct_draws; i++)
+            converted_count += u_index_count_converted_indices(pc->cfg.primtypes_mask, true,
+                                                               info->mode, direct_draws[i].count);
+         if (converted_count == 0 || converted_count > UINT_MAX)
+            goto cleanup;
+         new_draw->count = (unsigned)converted_count;
+      }
    }
    else {
       enum mesa_prim mode = 0;
@@ -224,11 +231,11 @@ primconvert_init_draw(struct primconvert_context *pc,
    /* (step 5: allocate gpu memory sized for the FINAL index count) */
    uint64_t new_size = (uint64_t)new_info->index_size * new_draw->count;
    if (new_size > UINT_MAX)
-      return false;
+      goto cleanup;
    u_upload_alloc(pc->pipe->stream_uploader, 0, new_size, 4,
                   &ib_offset, &new_info->index.resource, releasebuf, &dst);
    if (!dst)
-      return false;
+      goto cleanup;
    new_draw->start = ib_offset / new_info->index_size;
    new_draw->index_bias = info->index_size ? draw.index_bias : 0;
 
@@ -253,8 +260,7 @@ primconvert_init_draw(struct primconvert_context *pc,
             ptr += new_info->index_size * direct_draws[i].count;
             dst_ptr += new_info->index_size * tmp_count;
          }
-         /* step 7: set the final index count, which is the converted total index count from the original draw rewrite */
-         new_draw->count = u_index_count_converted_indices(pc->cfg.primtypes_mask, true, info->mode, total_index_count);
+         assert((size_t)(dst_ptr - (uint8_t *)dst) == (size_t)new_info->index_size * new_draw->count);
       } else
          trans_func(src, draw.start, draw.count, new_draw->count, info->restart_index, dst);
 
@@ -270,15 +276,15 @@ primconvert_init_draw(struct primconvert_context *pc,
       gen_func(draw.start, new_draw->count, dst);
    }
    new_info->was_line_loop = info->mode == MESA_PRIM_LINE_LOOP;
+   u_upload_unmap(pc->pipe->stream_uploader);
+   ret = true;
 
+cleanup:
    if (src_transfer)
       pipe_buffer_unmap(pc->pipe, src_transfer);
-
-   u_upload_unmap(pc->pipe->stream_uploader);
-
    free(direct_draws);
    free(rewrite_buffer);
-   return true;
+   return ret;
 }
 
 static void
