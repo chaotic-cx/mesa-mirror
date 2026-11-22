@@ -1134,7 +1134,7 @@
         "description": "d3d12: Derive MAX_DESCRIPTOR_TABLES from binding types",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "d0a3794d6def18a2545253d3d58eb15c9a1564c4",
         "notes": null
