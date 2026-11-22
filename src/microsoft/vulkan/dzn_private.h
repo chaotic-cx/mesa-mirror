@@ -418,7 +418,6 @@ struct dzn_descriptor_state {
       const struct dzn_descriptor_set *set;
       uint32_t dynamic_offsets[MAX_DYNAMIC_BUFFERS];
    } sets[MAX_SETS];
-   struct dzn_descriptor_heap *heaps[NUM_POOL_TYPES];
 };
 
 struct dzn_sampler;

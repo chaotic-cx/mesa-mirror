@@ -3274,8 +3274,8 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
    struct dzn_descriptor_state *desc_state =
       &cmdbuf->state.bindpoint[bindpoint].desc_state;
    struct dzn_descriptor_heap *new_heaps[NUM_POOL_TYPES] = {
-      desc_state->heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV],
-      desc_state->heaps[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER]
+      cmdbuf->state.heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV],
+      cmdbuf->state.heaps[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER]
    };
    uint32_t new_heap_offsets[NUM_POOL_TYPES] = { 0 };
    bool update_root_desc_table[NUM_POOL_TYPES] = { 0 };
@@ -3370,6 +3370,17 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
 
       for (unsigned h = 0; h < ARRAY_SIZE(cmdbuf->state.heaps); h++)
          cmdbuf->state.heaps[h] = new_heaps[h];
+
+      if (!device->bindless) {
+         /* Changing descriptor heaps invalidates root descriptor tables on
+          * both graphics and compute bindpoints in D3D12. */
+         uint32_t other_bindpoint =
+            bindpoint == VK_PIPELINE_BIND_POINT_GRAPHICS ?
+            VK_PIPELINE_BIND_POINT_COMPUTE : VK_PIPELINE_BIND_POINT_GRAPHICS;
+         cmdbuf->state.bindpoint[other_bindpoint].dirty |=
+            DZN_CMD_BINDPOINT_DIRTY_DESC_SETS |
+            DZN_CMD_BINDPOINT_DIRTY_DYNAMIC_BUFFERS;
+      }
    }
 
    if (!device->bindless) {
