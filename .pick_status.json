@@ -1144,7 +1144,7 @@
         "description": "microsoft/compiler: Don't ralloc_free() tess level variable",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "97b6ea71a0ff457d07cb609122453a5b5f5f59ec",
         "notes": null
