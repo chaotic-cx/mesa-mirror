@@ -176,6 +176,9 @@ static bool
 fence_finish(struct pipe_screen *pscreen, struct pipe_context *pctx,
              struct pipe_fence_handle *pfence, uint64_t timeout_ns)
 {
+   if (!pfence)
+      return true;
+
    bool ret = d3d12_fence_finish(d3d12_fence(pfence), timeout_ns);
    if (ret && pctx) {
       pctx = threaded_context_unwrap_sync(pctx);
