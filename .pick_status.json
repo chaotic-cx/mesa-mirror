@@ -1074,7 +1074,7 @@
         "description": "dzn: Track and free cached graphics pipeline DXIL bytecodes",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "91f1bd8f81dff866c769ea3bcc58450b9293b1a4",
         "notes": null

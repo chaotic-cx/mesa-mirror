@@ -637,36 +637,46 @@ dzn_pipeline_cache_lookup_gfx_pipeline(struct dzn_graphics_pipeline *pipeline,
 
    assert(cached_blob->size >= sizeof(*info));
 
+   const D3D12_INPUT_ELEMENT_DESC *inputs = NULL;
    if (info->input_count > 0) {
-      const D3D12_INPUT_ELEMENT_DESC *inputs =
-         (const D3D12_INPUT_ELEMENT_DESC *)((uint8_t *)cached_blob->data + offset);
+      inputs =
+         (const D3D12_INPUT_ELEMENT_DESC *)((const uint8_t *)cached_blob->data + offset);
 
       assert(cached_blob->size >= offset + sizeof(*inputs) * info->input_count);
-
-      memcpy(pipeline->templates.inputs, inputs,
-             sizeof(*inputs) * info->input_count);
-      d3d12_gfx_pipeline_state_stream_new_desc(stream_desc, INPUT_LAYOUT, D3D12_INPUT_LAYOUT_DESC, desc);
-      desc->pInputElementDescs = pipeline->templates.inputs;
-      desc->NumElements = info->input_count;
       offset += sizeof(*inputs) * info->input_count;
    }
 
    assert(cached_blob->size == offset + util_bitcount(info->stages) * BLAKE3_KEY_LEN);
 
+   D3D12_SHADER_BYTECODE bcs[MESA_VULKAN_SHADER_STAGES] = { 0 };
+   VkResult ret = VK_SUCCESS;
+
    u_foreach_bit(s, info->stages) {
-      uint8_t *dxil_hash = (uint8_t *)cached_blob->data + offset;
+      const uint8_t *dxil_hash = (const uint8_t *)cached_blob->data + offset;
       mesa_shader_stage stage;
 
-      D3D12_SHADER_BYTECODE *slot =
-         dzn_pipeline_get_gfx_shader_slot(stream_desc, s);
-
-      VkResult ret =
-         dzn_pipeline_cache_lookup_dxil_shader(cache, dxil_hash, &stage, slot);
-      if (ret != VK_SUCCESS)
-         return ret;
+      assert(s < MESA_VULKAN_SHADER_STAGES);
+      ret = dzn_pipeline_cache_lookup_dxil_shader(cache, dxil_hash, &stage, &bcs[s]);
+      if (ret != VK_SUCCESS || stage == MESA_SHADER_NONE)
+         goto out;
 
       assert(stage == s);
       offset += BLAKE3_KEY_LEN;
+   }
+
+   if (info->input_count > 0) {
+      memcpy(pipeline->templates.inputs, inputs,
+             sizeof(*inputs) * info->input_count);
+      d3d12_gfx_pipeline_state_stream_new_desc(stream_desc, INPUT_LAYOUT, D3D12_INPUT_LAYOUT_DESC, desc);
+      desc->pInputElementDescs = pipeline->templates.inputs;
+      desc->NumElements = info->input_count;
+   }
+
+   u_foreach_bit(s, info->stages) {
+      D3D12_SHADER_BYTECODE *slot =
+         dzn_pipeline_get_gfx_shader_slot(stream_desc, s);
+      *slot = bcs[s];
+      pipeline->templates.shaders[s].bc = slot;
    }
 
    pipeline->rast_disabled_from_missing_position = info->rast_disabled_from_missing_position;
@@ -674,8 +684,13 @@ dzn_pipeline_cache_lookup_gfx_pipeline(struct dzn_graphics_pipeline *pipeline,
 
    *cache_hit = true;
 
+out:
+   if (!*cache_hit) {
+      for (uint32_t i = 0; i < ARRAY_SIZE(bcs); i++)
+         free((void *)bcs[i].pShaderBytecode);
+   }
    vk_pipeline_cache_object_unref(cache->base.device, cache_obj);
-   return VK_SUCCESS;
+   return ret;
 }
 
 static void
@@ -1074,7 +1089,11 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
              !(pipeline->templates.shaders[prev_stage].nir->info.outputs_written & VARYING_BIT_POS)) {
             pipeline->rast_disabled_from_missing_position = true;
             /* Clear a cache hit if there was one. */
-            pipeline->templates.shaders[stage].bc = NULL;
+            if (pipeline->templates.shaders[stage].bc) {
+               free((void *)pipeline->templates.shaders[stage].bc->pShaderBytecode);
+               *pipeline->templates.shaders[stage].bc = (D3D12_SHADER_BYTECODE){ 0 };
+               pipeline->templates.shaders[stage].bc = NULL;
+            }
             continue;
          }
       } else if (prev_stage != MESA_SHADER_NONE) {
