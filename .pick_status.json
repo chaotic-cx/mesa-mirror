@@ -1064,7 +1064,7 @@
         "description": "dzn: Fix link_hashes array dimensions in graphics pipeline compile",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c0122b81a4e29213c532a9411abbd162c7ce7269",
         "notes": null

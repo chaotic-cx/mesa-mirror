@@ -781,7 +781,7 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
       uint8_t spirv_hash[BLAKE3_KEY_LEN];
       uint8_t dxil_hash[BLAKE3_KEY_LEN];
       uint8_t nir_hash[BLAKE3_KEY_LEN];
-      uint8_t link_hashes[BLAKE3_KEY_LEN][2];
+      uint8_t link_hashes[2][BLAKE3_KEY_LEN];
    } stages[MESA_VULKAN_SHADER_STAGES] = { 0 };
    const uint8_t *dxil_hashes[MESA_VULKAN_SHADER_STAGES] = { 0 };
    uint8_t attribs_hash[BLAKE3_KEY_LEN];
