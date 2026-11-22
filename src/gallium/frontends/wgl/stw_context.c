@@ -315,7 +315,7 @@ stw_create_context_handle(struct stw_context *ctx, DHGLRC handle)
       }
 
       /* replace table entry */
-      handle_table_set(stw_dev->ctx_table, (unsigned) handle, ctx);
+      handle = (DHGLRC) handle_table_set(stw_dev->ctx_table, (unsigned) handle, ctx);
    }
    else {
       /* create new table entry */
@@ -323,6 +323,8 @@ stw_create_context_handle(struct stw_context *ctx, DHGLRC handle)
    }
 
    ctx->dhglrc = handle;
+   if (!ctx->hglrc && !stw_dev->callbacks.pfnGetDhglrc)
+      ctx->hglrc = (HGLRC)(UINT_PTR)handle;
 
    stw_unlock_contexts(stw_dev);
 

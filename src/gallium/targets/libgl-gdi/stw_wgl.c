@@ -47,7 +47,6 @@
 #include "stw_context.h"
 #include "stw_pixelformat.h"
 #include "stw_wgl.h"
-#include "stw_ext_context.h"
 
 WINGDIAPI BOOL APIENTRY
 wglCopyContext(
@@ -64,7 +63,6 @@ WINGDIAPI HGLRC APIENTRY
 wglCreateContext(
    HDC hdc )
 {
-   stw_override_opengl32_entry_points(&wglCreateContext, &wglDeleteContext);
    return (HGLRC)(UINT_PTR)DrvCreateContext(hdc);
 }
 
@@ -73,7 +71,6 @@ wglCreateLayerContext(
    HDC hdc,
    int iLayerPlane )
 {
-   stw_override_opengl32_entry_points(&wglCreateContext, &wglDeleteContext);
    return (HGLRC)(UINT_PTR)DrvCreateLayerContext( hdc, iLayerPlane );
 }
 

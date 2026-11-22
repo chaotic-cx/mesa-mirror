@@ -43,12 +43,13 @@
 static wglCreateContext_t g_pfnwglCreateContext = NULL;
 static wglDeleteContext_t g_pfnwglDeleteContext = NULL;
 
-/* When this library is used as a opengl32.dll drop-in replacement, ensure we
- * use the wglCreate/Destroy entrypoints above, and not the true opengl32.dll,
- * which could happen if this library's name is not opengl32.dll exactly.
+/* Optional hook for external opengl32.dll drop-in wrappers that want
+ * wglCreateContextAttribsARB() to allocate/free public HGLRC handles through
+ * custom wglCreateContext/wglDeleteContext entry points.
  *
- * For example, Qt 5.4 bundles this as opengl32sw.dll:
- * https://blog.qt.io/blog/2014/11/27/qt-weekly-21-dynamic-opengl-implementation-loading-in-qt-5-4/
+ * When neither ICD callbacks (pfnGetDhglrc) nor these overrides are set,
+ * public HGLRC handles are identical to driver DHGLRC handles, so
+ * wglCreateContextAttribsARB() creates the context and handle directly.
  */
 void
 stw_override_opengl32_entry_points(wglCreateContext_t create, wglDeleteContext_t delete)
@@ -59,23 +60,23 @@ stw_override_opengl32_entry_points(wglCreateContext_t create, wglDeleteContext_t
 
 
 /**
- * The implementation of this function is tricky.  The OPENGL32.DLL library
- * remaps the context IDs returned by our stw_create_context_attribs()
- * function to different values returned to the caller of wglCreateContext().
- * That is, DHGLRC (driver) handles are not equivalent to HGLRC (public)
- * handles.
+ * When used as a Windows ICD, OPENGL32.DLL remaps the driver handles (DHGLRC)
+ * returned by DrvCreateContext() to public HGLRC handles.  In that mode we
+ * call OPENGL32.DLL's wglCreateContext() to allocate a public HGLRC ID and
+ * then replace its stw_context with a new one reflecting the requested
+ * attributes.
  *
- * So we need to generate a new HGLRC ID here.  We do that by calling
- * the regular wglCreateContext() function.  Then, we replace the newly-
- * created stw_context with a new stw_context that reflects the arguments
- * to this function.
+ * When used as a drop-in opengl32.dll (without ICD callbacks or an explicit
+ * entry-point override), HGLRC and DHGLRC are identical, so we create the
+ * stw_context and handle directly without round-tripping through a throwaway
+ * legacy wglCreateContext() call.
  *
  * The share context and the result are driver handles, see stw_apitrace.h.
  */
 HGLRC WINAPI
 stw_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
 {
-   HGLRC context;
+   HGLRC context = NULL;
 
    int majorVersion = 1, minorVersion = 0, layerPlane = 0;
    int contextFlags = 0x0;
@@ -168,8 +169,8 @@ stw_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribLi
       return NULL;
    }
 
-   wglCreateContext_t pfnwglCreateContext;
-   wglDeleteContext_t pfnwglDeleteContext;
+   wglCreateContext_t pfnwglCreateContext = NULL;
+   wglDeleteContext_t pfnwglDeleteContext = NULL;
 
    if (stw_dev->callbacks.pfnGetDhglrc) {
       /* Used as an ICD.
@@ -196,51 +197,62 @@ stw_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribLi
          return NULL;
       }
    } else {
-      /* Used as opengl32.dll drop-in alternative. */
-      assert(g_pfnwglCreateContext != NULL);
-      assert(g_pfnwglDeleteContext != NULL);
       pfnwglCreateContext = g_pfnwglCreateContext;
       pfnwglDeleteContext = g_pfnwglDeleteContext;
+
+      if ((pfnwglCreateContext != NULL) != (pfnwglDeleteContext != NULL)) {
+         _debug_printf("wgl: incomplete opengl32 entry point override for "
+                       "wglCreateContextAttribsARB()\n");
+         return NULL;
+      }
    }
 
-   /* Call wglCreateContext to get a valid context ID */
-   context = pfnwglCreateContext(hDC);
+   DHGLRC dhglrc = 0;
+   if (pfnwglCreateContext) {
+      /* Call wglCreateContext to get a valid public HGLRC ID */
+      context = pfnwglCreateContext(hDC);
+      if (!context)
+         return NULL;
 
-   if (context) {
-      /* Now replace the context we just created with a new one that reflects
-       * the attributes passed to this function.
-       */
-      DHGLRC dhglrc = stw_dhglrc(context), c;
-      DHGLRC share_dhglrc = (DHGLRC)(UINT_PTR)hShareContext;
-
-      struct stw_context *share_stw = stw_lookup_context(share_dhglrc);
-
-      const struct stw_pixelformat_info *pfi = stw_pixelformat_get_info_from_hdc(hDC);
-      if (!pfi)
-         return 0;
-
-      struct stw_context *stw_ctx = stw_create_context_attribs(hDC, layerPlane, share_stw,
-                                                               stw_dev->fscreen,
-                                                               majorVersion, minorVersion,
-                                                               contextFlags, profileMask, pfi,
-                                                               resetStrategy);
-
-      if (!stw_ctx) {
+      dhglrc = stw_dhglrc(context);
+      if (!dhglrc) {
          pfnwglDeleteContext(context);
          return NULL;
       }
-
-      stw_ctx->hglrc = context;
-      c = stw_create_context_handle(stw_ctx, dhglrc);
-      if (!c) {
-         stw_destroy_context(stw_ctx);
-         pfnwglDeleteContext(context);
-         return NULL;
-      }
-      return (HGLRC)(UINT_PTR)c;
    }
 
-   return NULL;
+   DHGLRC share_dhglrc = (DHGLRC)(UINT_PTR)hShareContext;
+   struct stw_context *share_stw = stw_lookup_context(share_dhglrc);
+
+   const struct stw_pixelformat_info *pfi = stw_pixelformat_get_info_from_hdc(hDC);
+   if (!pfi) {
+      if (context)
+         pfnwglDeleteContext(context);
+      return NULL;
+   }
+
+   struct stw_context *stw_ctx = stw_create_context_attribs(hDC, layerPlane, share_stw,
+                                                            stw_dev->fscreen,
+                                                            majorVersion, minorVersion,
+                                                            contextFlags, profileMask, pfi,
+                                                            resetStrategy);
+
+   if (!stw_ctx) {
+      if (context)
+         pfnwglDeleteContext(context);
+      return NULL;
+   }
+
+   stw_ctx->hglrc = context;
+   DHGLRC c = stw_create_context_handle(stw_ctx, dhglrc);
+   if (!c) {
+      stw_destroy_context(stw_ctx);
+      if (context)
+         pfnwglDeleteContext(context);
+      return NULL;
+   }
+
+   return (HGLRC)(UINT_PTR)c;
 }
 
 
