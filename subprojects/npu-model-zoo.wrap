@@ -1,5 +1,5 @@
 [wrap-file]
-directory = npu-model-zoo-20261119-mnist-convnet
-source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261119-mnist-convnet/npu-model-zoo-20261119-mnist-convnet.tar.gz
-source_filename = npu-model-zoo-20261119-mnist-convnet.tar.gz
-source_hash = edbf7af6e963c9e6c6d0f9642a784d5529034a9434642d440e565cb439b3f568
+directory = npu-model-zoo-20261123-processed-inputs
+source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261123-processed-inputs/npu-model-zoo-20261123-processed-inputs.tar.gz
+source_filename = npu-model-zoo-20261123-processed-inputs.tar.gz
+source_hash = 4e97677a2382e272ec6a98bf4abe9397b90818616dbc57245b6f38083a27ac53
