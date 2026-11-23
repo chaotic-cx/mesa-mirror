@@ -31,6 +31,20 @@
 #include "d3d12_format.h"
 #include "d3d12_interop_public.h"
 
+static struct d3d12_resource *
+d3d12_video_processor_get_resource(struct pipe_video_buffer *buf, UINT *subresource)
+{
+    assert(buf);
+    struct pipe_resource *resources[VL_NUM_COMPONENTS] = {};
+    buf->get_resources(buf, resources);
+    assert(resources[0]);
+    if (subresource) {
+        *subresource = (buf->destroy == d3d12_video_buffer_destroy) ?
+                       ((struct d3d12_video_buffer *) buf)->idx_texarray_slots : 0u;
+    }
+    return d3d12_resource(resources[0]);
+}
+
 void
 d3d12_video_processor_begin_frame(struct pipe_video_codec * codec,
                                 struct pipe_video_buffer *target,
@@ -61,9 +75,10 @@ d3d12_video_processor_begin_frame(struct pipe_video_codec * codec,
     }
 
     // Setup process frame arguments for output/target texture.
-    struct d3d12_video_buffer *pOutputVideoBuffer = (struct d3d12_video_buffer *) target;
+    UINT dstSubresource = 0;
+    struct d3d12_resource *pOutputResource = d3d12_video_processor_get_resource(target, &dstSubresource);
 
-    ID3D12Resource *pDstD3D12Res = d3d12_resource_resource(pOutputVideoBuffer->texture);    
+    ID3D12Resource *pDstD3D12Res = d3d12_resource_resource(pOutputResource);
     auto dstDesc = GetDesc(pDstD3D12Res);
     pD3D12Proc->m_OutputArguments = {
         //struct D3D12_VIDEO_PROCESS_OUTPUT_STREAM_ARGUMENTS args;
@@ -71,7 +86,7 @@ d3d12_video_processor_begin_frame(struct pipe_video_codec * codec,
             {
                 {
                         pDstD3D12Res, // ID3D12Resource *pTexture2D;
-                        pOutputVideoBuffer->idx_texarray_slots, // UINT Subresource;
+                        dstSubresource, // UINT Subresource;
                 },
                 {
                         NULL, // ID3D12Resource *pTexture2D;
@@ -81,7 +96,7 @@ d3d12_video_processor_begin_frame(struct pipe_video_codec * codec,
             { 0, 0, (int) dstDesc.Width, (int) dstDesc.Height }
         },
         // struct d3d12_resource* buffer;
-        pOutputVideoBuffer,
+        pOutputResource,
     };
     
     debug_printf("d3d12_video_processor_begin_frame: Beginning new scene with Output ID3D12Resource: %p (%d %d)\n", pDstD3D12Res, (int) dstDesc.Width, (int) dstDesc.Height);
@@ -200,9 +215,10 @@ d3d12_video_processor_process_frame(struct pipe_video_codec *codec,
     pD3D12Proc->input_surface_fence_value = process_properties->base.in_fence_value;
 
     // Get the underlying resources from the pipe_video_buffers
-    struct d3d12_video_buffer *pInputVideoBuffer = (struct d3d12_video_buffer *) input_texture;
+    UINT srcSubresource = 0;
+    struct d3d12_resource *pInputResource = d3d12_video_processor_get_resource(input_texture, &srcSubresource);
 
-    ID3D12Resource *pSrcD3D12Res = d3d12_resource_resource(pInputVideoBuffer->texture);
+    ID3D12Resource *pSrcD3D12Res = d3d12_resource_resource(pInputResource);
 
     // y0 = top
     // x0 = left
@@ -220,7 +236,7 @@ d3d12_video_processor_process_frame(struct pipe_video_codec *codec,
         {
         { // D3D12_VIDEO_PROCESS_INPUT_STREAM InputStream[0];
                 pSrcD3D12Res, // ID3D12Resource *pTexture2D;
-                pInputVideoBuffer->idx_texarray_slots, // UINT Subresource
+                srcSubresource, // UINT Subresource
                 {//D3D12_VIDEO_PROCESS_REFERENCE_SET ReferenceSet;
                     0, //UINT NumPastFrames;
                     NULL, //ID3D12Resource **ppPastFrames;
@@ -281,8 +297,8 @@ d3d12_video_processor_process_frame(struct pipe_video_codec *codec,
         (int)InputArguments.Transform.SourceRectangle.top, (int)InputArguments.Transform.SourceRectangle.left, (int)InputArguments.Transform.SourceRectangle.right, (int)InputArguments.Transform.SourceRectangle.bottom,
         (int)InputArguments.Transform.DestinationRectangle.top, (int)InputArguments.Transform.DestinationRectangle.left, (int)InputArguments.Transform.DestinationRectangle.right, (int)InputArguments.Transform.DestinationRectangle.bottom);
 
-    pD3D12Proc->m_ProcessInputs.emplace_back(std::move(InputArguments));    
-    pD3D12Proc->m_InputBuffers.emplace_back(pInputVideoBuffer);
+    pD3D12Proc->m_ProcessInputs.emplace_back(std::move(InputArguments));
+    pD3D12Proc->m_InputBuffers.emplace_back(pInputResource);
     
     ///
     /// Flush work to the GPU and blocking wait until GPU finishes
@@ -336,18 +352,18 @@ d3d12_video_processor_flush(struct pipe_video_codec * codec)
     if (!pD3D12Proc->m_needsGPUFlush) {
         debug_printf("[d3d12_video_processor] d3d12_video_processor_flush started. Nothing to flush, all up to date.\n");
     } else {
-        debug_printf("[d3d12_video_processor] d3d12_video_processor_flush - Promoting the output texture %p to d3d12_permanently_resident.\n", 
-                     pD3D12Proc->m_OutputArguments.buffer->texture);
+        debug_printf("[d3d12_video_processor] d3d12_video_processor_flush - Promoting the output texture %p to d3d12_permanently_resident.\n",
+                     pD3D12Proc->m_OutputArguments.buffer);
 
         // Make the resources permanently resident for video use
-        d3d12_promote_to_permanent_residency(pD3D12Proc->m_pD3D12Screen, &pD3D12Proc->m_OutputArguments.buffer->texture, 1, pD3D12Proc->m_spResidencyFence.Get(), &pD3D12Proc->m_ResidencyFenceValue);
+        d3d12_promote_to_permanent_residency(pD3D12Proc->m_pD3D12Screen, &pD3D12Proc->m_OutputArguments.buffer, 1, pD3D12Proc->m_spResidencyFence.Get(), &pD3D12Proc->m_ResidencyFenceValue);
 
         for(auto curInput : pD3D12Proc->m_InputBuffers)
         {
-            debug_printf("[d3d12_video_processor] d3d12_video_processor_flush - Promoting the input texture %p to d3d12_permanently_resident.\n", 
-                         curInput->texture);
+            debug_printf("[d3d12_video_processor] d3d12_video_processor_flush - Promoting the input texture %p to d3d12_permanently_resident.\n",
+                         curInput);
             // Make the resources permanently resident for video use
-            d3d12_promote_to_permanent_residency(pD3D12Proc->m_pD3D12Screen, &curInput->texture, 1, pD3D12Proc->m_spResidencyFence.Get(), &pD3D12Proc->m_ResidencyFenceValue);
+            d3d12_promote_to_permanent_residency(pD3D12Proc->m_pD3D12Screen, &curInput, 1, pD3D12Proc->m_spResidencyFence.Get(), &pD3D12Proc->m_ResidencyFenceValue);
         }
 
         HRESULT hr = S_OK;
