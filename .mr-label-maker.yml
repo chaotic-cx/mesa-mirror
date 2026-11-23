@@ -42,6 +42,7 @@ issues:
         'iris': 'iris'
         'isl': 'ISL'
         'kk': 'KosmicKrisp'
+        'kosmickrisp': 'KosmicKrisp'
         'kraid': 'Kraid'
         'lima': 'lima'
         'lima/ppir': 'lima'
