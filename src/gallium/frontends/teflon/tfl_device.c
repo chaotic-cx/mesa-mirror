@@ -1607,8 +1607,10 @@ check_op_support(TfLiteDelegate *tf_delegate, TfLiteContext *tf_context, TfLiteN
    struct pipe_ml_operation operation = {0};
    bool supported = false;
 
-   if (!fill_operation(delegate, tf_context, node, registration, &operation))
+   if (!fill_operation(delegate, tf_context, node, registration, &operation)) {
+      free_operation(&operation);
       return false;
+   }
 
    supported = delegate->ml_dev->ml_operation_supported(delegate->ml_dev, &operation);
 
