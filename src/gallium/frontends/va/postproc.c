@@ -409,8 +409,17 @@ vlVaPostProc(vlVaDriver *drv, vlVaContext *context, struct pipe_video_buffer *sr
 
    proc->process_frame(proc, src, param);
 
-   if (!context && proc->end_frame(proc, dst, &param->base) != 0)
-      return VA_STATUS_ERROR_OPERATION_FAILED;
+   if (!context) {
+      if (proc->end_frame(proc, dst, &param->base) != 0)
+         return VA_STATUS_ERROR_OPERATION_FAILED;
+
+      if (proc->flush &&
+          drv->pipe->screen->get_video_param(drv->pipe->screen,
+                                             proc->profile,
+                                             proc->entrypoint,
+                                             PIPE_VIDEO_CAP_REQUIRES_FLUSH_ON_END_FRAME))
+         proc->flush(proc);
+   }
 
    return VA_STATUS_SUCCESS;
 }

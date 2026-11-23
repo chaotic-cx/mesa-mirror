@@ -98,6 +98,17 @@ out:
    return ret;
 }
 
+static void
+proc_flush(struct pipe_video_codec *codec)
+{
+   struct vl_proc *proc = (struct vl_proc *)codec;
+
+   if (proc->main->flush)
+      proc->main->flush(proc->main);
+   if (proc->fallback && proc->fallback->flush)
+      proc->fallback->flush(proc->fallback);
+}
+
 static int
 proc_fence_wait(struct pipe_video_codec *codec,
                 struct pipe_fence_handle *fence,
@@ -155,6 +166,7 @@ vl_create_proc(struct pipe_context *context, struct pipe_video_codec *templat)
    proc->b.begin_frame = proc_begin_frame;
    proc->b.process_frame = proc_process_frame;
    proc->b.end_frame = proc_end_frame;
+   proc->b.flush = proc_flush;
    if (proc->main->fence_wait)
       proc->b.fence_wait = proc_fence_wait;
    if (proc->main->destroy_fence)
