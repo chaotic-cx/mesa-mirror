@@ -259,6 +259,21 @@ ac_emit_sdma_copy_linear(struct ac_cmdbuf *cs, enum sdma_version sdma_ip_version
    ac_cmdbuf_emit(dst_va >> 32);
    ac_cmdbuf_end();
 
+   if (sdma_ip_version == SDMA_6_0) {
+      /* SDMA 6.0 is affected by a hw bug which causes GPU hangs when the size
+       * per packet is large enough and the destination is GTT (GTT->VRAM or
+       * VRAM->VRAM are fine). Note that the exact threshold isn't
+       * deterministic (eg. 256MiB doesn't seem to hang, but 512 MiB has 50%
+       * chance to hang and 768MiB has 100%). PAL is affected by a similar
+       * issue, so it's very likely a firmware issue. Other SDMA generations
+       * don't seem affected.
+       *
+       * Although this isn't optimal, emitting a NOP packet between
+       * consecutive copies fixes the issue reliably.
+       */
+      ac_emit_sdma_nop(cs);
+   }
+
    return bytes_written;
 }
 

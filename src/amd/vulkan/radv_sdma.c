@@ -220,7 +220,7 @@ radv_sdma_copy_memory(const struct radv_device *device, struct radv_cmd_stream *
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
    while (size > 0) {
-      radeon_check_space(device->ws, cs->b, 7);
+      radeon_check_space(device->ws, cs->b, 8);
       uint64_t bytes_written = ac_emit_sdma_copy_linear(cs->b, pdev->info.sdma_ip_version, src_va, dst_va, size, tmz);
 
       size -= bytes_written;
