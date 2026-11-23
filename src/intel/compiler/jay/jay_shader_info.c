@@ -201,7 +201,12 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
    uint32_t per_primitive_stride = 0, first_read_offset = UINT32_MAX;
 
    if (mue_map != NULL) {
-      memcpy(&vue_map, &mue_map->vue_map, sizeof(vue_map));
+      brw_compute_vue_map(devinfo, &vue_map,
+                          mue_map->vue_map.slots_valid |
+                          (inputs_read & BRW_FS_ONLY_VARYING_INPUT_MASK),
+                          key->base.vue_layout,
+                          mue_map->vue_map.num_pos_slots);
+
       memcpy(per_primitive_offsets, mue_map->per_primitive_offsets,
              sizeof(mue_map->per_primitive_offsets));
 

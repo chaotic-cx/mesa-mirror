@@ -208,6 +208,9 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
     */
    slot += slot % 2;
 
+   /* Leave those for the end */
+   const uint64_t delayed_varyings = VARYING_BIT_PNTC;
+
    /* The hardware doesn't care about the rest of the vertex outputs, so we
     * can assign them however we like.  For normal programs, we simply assign
     * them contiguously.
@@ -219,7 +222,9 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
     */
    if (layout != INTEL_VUE_LAYOUT_SEPARATE_MESH) {
       vue_map->builtins_slot_offset = slot;
-      const uint64_t builtins = slots_valid & BITFIELD64_MASK(VARYING_SLOT_VAR0);
+      const uint64_t builtins = slots_valid &
+         BITFIELD64_MASK(VARYING_SLOT_VAR0) &
+         ~delayed_varyings;
       u_foreach_bit64(varying, builtins) {
          /* Already assigned above? */
          if (vue_map->varying_to_slot[varying] != -1)
@@ -233,7 +238,8 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
       (layout != INTEL_VUE_LAYOUT_FIXED ?
        BITFIELD64_MASK(util_last_bit64(slots_valid)) :
        slots_valid) &
-      ~BITFIELD64_MASK(VARYING_SLOT_VAR0);
+      ~BITFIELD64_MASK(VARYING_SLOT_VAR0) &
+      ~delayed_varyings;
    u_foreach_bit64(varying, generics) {
       if (layout != INTEL_VUE_LAYOUT_FIXED) {
          slot = first_generic_slot + varying - VARYING_SLOT_VAR0;
@@ -243,13 +249,37 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
 
    if (layout == INTEL_VUE_LAYOUT_SEPARATE_MESH) {
       vue_map->builtins_slot_offset = slot;
-      const uint64_t builtins = slots_valid & BITFIELD64_MASK(VARYING_SLOT_VAR0);
+      const uint64_t builtins = slots_valid &
+         BITFIELD64_MASK(VARYING_SLOT_VAR0) &
+         ~delayed_varyings;
       u_foreach_bit64(varying, builtins) {
          /* Already assigned above? */
          if (vue_map->varying_to_slot[varying] != -1)
             continue;
          assign_vue_slot(vue_map, varying, slot++);
       }
+   }
+
+   /* PointCoord is not a value written by the previous stage, it's generated
+    * by HW. We defer allocating a slot in the builtins and instead place at
+    * the end. SBE configuration will make the HW write the value at this
+    * location.
+    */
+   if (slots_valid & VARYING_BIT_PNTC) {
+      /* For non fixed layouts, try to put PointCoord in an unused slot if
+       * there is one available.
+       */
+      if (layout != INTEL_VUE_LAYOUT_FIXED) {
+         for (int i = first_generic_slot; i < slot; i++) {
+            if (vue_map->slot_to_varying[i] == -1) {
+               assign_vue_slot(vue_map, VARYING_SLOT_PNTC, i);
+               break;
+            }
+         }
+      }
+      /* Otherwise put it at the end */
+      if (vue_map->varying_to_slot[VARYING_SLOT_PNTC] == -1)
+         assign_vue_slot(vue_map, VARYING_SLOT_PNTC, slot++);
    }
 
    assert(vue_map->varying_to_slot[VARYING_SLOT_PSIZ] == 0);

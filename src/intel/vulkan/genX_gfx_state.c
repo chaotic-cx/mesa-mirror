@@ -937,22 +937,23 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
    SET(SBE, sbe.ConstantInterpolationEnable, flat_inputs);
    SET(SBE, sbe.VertexAttributesBypass, info->fs.vertex_attributes_bypass);
 
-   if (!has_mesh) {
-      for (uint8_t idx = 0; idx < info->fs.urb_setup_attribs_count; idx++) {
-         gl_varying_slot attr = info->fs.urb_setup_attribs[idx];
-         int input_index = info->fs.urb_setup[attr];
+   uint32_t point_sprite_enable = 0;
+   for (uint8_t idx = 0; idx < info->fs.urb_setup_attribs_count; idx++) {
+      gl_varying_slot attr = info->fs.urb_setup_attribs[idx];
+      int input_index = info->fs.urb_setup[attr];
 
-         assert(0 <= input_index);
+      assert(0 <= input_index);
 
-         if (attr == VARYING_SLOT_PNTC) {
-            SET(SBE, sbe.PointSpriteTextureCoordinateEnable, 1 << input_index);
-            continue;
-         }
+      if (attr == VARYING_SLOT_PNTC) {
+         point_sprite_enable |= BITFIELD_BIT(input_index);
+         continue;
+      }
 
-         const int slot = vue_map->varying_to_slot[attr];
-         if (slot == -1)
-            continue;
+      const int slot = vue_map->varying_to_slot[attr];
+      if (slot == -1)
+         continue;
 
+      if (!has_mesh) {
          /* We have to subtract two slots to account for the URB entry output
           * read offset in the VS and GS stages.
           */
@@ -971,10 +972,16 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
             assert(source_attr == input_index);
          }
       }
-
+   }
+   /* Only update the 3DSTATE_SBE vertex URB read offset/length if we're in
+    * non mesh pipeline because mesh has that value in the 3DSTATE_SBE_MESH
+    * instruction.
+    */
+   if (!has_mesh) {
       SET(SBE, sbe.VertexURBEntryReadOffset, vertex_read_offset);
       SET(SBE, sbe.VertexURBEntryReadLength, vertex_read_length);
    }
+   SET(SBE, sbe.PointSpriteTextureCoordinateEnable, point_sprite_enable);
 
    /* Ask the hardware to supply PrimitiveID if the fragment shader reads it
     * but a previous stage didn't write one.

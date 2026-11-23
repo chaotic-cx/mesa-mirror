@@ -612,6 +612,9 @@ intel_shader_info_cs_prog_offset(const struct intel_shader_info *info,
    (BITFIELD64_RANGE(0, VARYING_SLOT_MAX) & \
     ~VARYING_BIT_POS & ~VARYING_BIT_FACE)
 
+#define BRW_FS_ONLY_VARYING_INPUT_MASK \
+   (VARYING_BIT_FACE | VARYING_BIT_PNTC)
+
 void brw_print_vue_map(FILE *fp, const struct intel_vue_map *vue_map,
                        mesa_shader_stage stage);
 
