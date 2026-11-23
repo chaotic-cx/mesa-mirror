@@ -1274,7 +1274,7 @@
         "description": "tu: Properly wait for mem writes to finish in emit_copy_query_pool_results",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
