@@ -282,7 +282,7 @@ etna_emit_tex(struct etna_compile *c, nir_tex_instr * tex, unsigned dst_swiz,
       break;
    }
    case nir_texop_tg4:
-      inst.opcode = ISA_OPC_TG4;
+      inst.opcode = tex->is_shadow ? ISA_OPC_TG4PCF : ISA_OPC_TG4;
       inst.src[1] = etna_immediate_int(tex->component);
       break;
    default:
