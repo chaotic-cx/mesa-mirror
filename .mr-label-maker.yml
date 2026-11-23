@@ -77,6 +77,7 @@ issues:
         'teflon': 'teflon'
         'tegra': 'tegra'
         'tgsi': 'TGSI'
+        'torx': 'torx'
         'turnip': 'turnip'
         'util': 'util'
         'v3d': 'v3d'
@@ -221,6 +222,7 @@ merge_requests:
         '^src/gallium/frontends/lavapipe/': ['lavapipe']
         '^src/gallium/frontends/rusticl/': ['Rusticl']
         '^src/gallium/frontends/teflon/': ['teflon']
+        '^src/gallium/frontends/torx/': ['torx']
         '^src/gallium/frontends/va/': ['VA-API']
         '^src/gallium/frontends/wgl/': ['wgl']
         '^src/gallium/frontends/mediafoundation/': ['mediafoundation']
@@ -229,6 +231,7 @@ merge_requests:
         '^src/gallium/targets/': ['gallium']
         '^src/gallium/targets/rusticl/': ['Rusticl']
         '^src/gallium/targets/teflon/': ['teflon']
+        '^src/gallium/targets/torx/': ['torx']
         '^src/gallium/targets/mediafoundation/': ['mediafoundation']
         '^src/gallium/tests/': ['gallium']
         '^src/gallium/tools/': ['gallium']
