@@ -160,7 +160,7 @@ map_input(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    else
       ty = INT;
    test->inputs.push_back(nir_algebraic_pattern_test_input(nir_instr_as_load_const(nir_def_instr(load)),
-                                                           ty, test->fuzzing_bits));
+                                                           ty, test->fuzzing_bits, nir_intrinsic_base(intr)));
    test->fuzzing_bits += get_seed_bit_size(ty) * intr->def.num_components;
 
    nir_def_replace(&intr->def, load);
@@ -475,7 +475,7 @@ nir_algebraic_pattern_test::set_inputs(uint32_t seed)
 bool
 nir_algebraic_pattern_test::check_variable_conds()
 {
-   if (variable_conds.empty())
+   if (variable_conds.empty() && !transform_cond)
       return true;
 
    nir_fp_analysis_state range_ht = nir_create_fp_analysis_state(b->impl);
@@ -497,6 +497,21 @@ nir_algebraic_pattern_test::check_variable_conds()
          result = false;
          break;
       }
+   }
+
+   if (result && transform_cond) {
+      nir_match_variable vars[NIR_SEARCH_MAX_VARIABLES];
+      for (auto input : inputs) {
+         nir_match_variable *var = &vars[input.index];
+         var->num_components = input.instr->def.num_components;
+         var->src.src = nir_src_for_ssa(&input.instr->def);
+         memset(var->src.swizzle, 0, sizeof(var->src.swizzle));
+         for (unsigned i = 0; i < input.instr->def.num_components; i++)
+            var->src.swizzle[i] = i;
+      }
+
+      if (!transform_cond(&state, vars))
+         result = false;
    }
 
    _mesa_hash_table_destroy(state.numlsb_ht, NULL);

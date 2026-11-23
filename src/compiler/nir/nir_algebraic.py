@@ -21,7 +21,7 @@
 # IN THE SOFTWARE.
 
 import ast
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import itertools
 import struct
 import sys
@@ -29,7 +29,7 @@ import mako.template
 import re
 import traceback
 
-from nir_opcodes import opcodes, type_sizes, type_size, type_has_size
+from nir_opcodes import opcodes, type_sizes, type_size, type_has_size, type_base_type
 from enum import Enum
 
 
@@ -298,7 +298,7 @@ class Constant(Value):
 # doesn't match one of the field patterns.
 _var_name_re = re.compile(r"(?P<const>#)?(?P<name>\w+)"
                           r"(?P<bits>@\d+)?"
-                          r"(?P<cond>\([^\)]+\))?"
+                          r"(?:\((?P<cond>[^\)]+)\))?"
                           r"(?P<swiz>\.[xyzwabcdefghijklmnop]+)?"
                           r"$")
 
@@ -327,13 +327,25 @@ class Variable(Value):
         assert self.var_name != 'False'
 
         self.is_constant = m.group('const') is not None
-        self.cond = m.group('cond')
-        self.cond_index = get_cond_index(
-            algebraic_pass.variable_cond, m.group('cond'))
+        self.constant_type = None
         self._bit_size = int(m.group('bits')[1:]) if m.group('bits') else None
         self.swiz = m.group('swiz')
 
         self.index = varset[self.var_name]
+
+        self.cond = m.group('cond')
+        if self.is_constant and self.cond:
+            cond = self.cond.split(',')
+            valid_types = ['uint', 'int', 'float', 'bool']
+            types = [c for c in cond if c in valid_types]
+            conds = [c for c in cond if c not in valid_types]
+            assert len(types) <= 1
+            assert len(conds) <= 1
+            self.cond = conds[0] if conds else None
+            self.constant_type = types[0] if types else None
+
+        self.cond_index = get_cond_index(
+            algebraic_pass.variable_cond, self.cond)
 
     def equivalent(self, other):
         """Check that two variables are equivalent.
@@ -836,6 +848,125 @@ class BitSizeValidator(object):
         self.validate_replace(replace, search)
 
 
+TransformCondExprVar = namedtuple('TransformCondExprVar', ['index', 'name', 'is_const', 'data_type'])
+
+class SearchVarTypes(object):
+    def __init__(self):
+        self.float_srcs = False
+        self.nonfloat_srcs = False
+        self.explicit = None
+
+    def get_constant_type(self):
+        assert self.explicit or not self.nonfloat_srcs, \
+            'Unclear type in search expression constant'
+        return self.explicit or ('float' if self.float_srcs else 'bool')
+
+class TransformCondExpr(object):
+    def __init__(self, expr):
+        self.expr = expr
+        self.variables = {}
+
+        self.components = None
+        self.consts = set()
+
+    def _add_variables(self, val, components, data_type):
+        if isinstance(val, Expression):
+            opcode = opcodes[val.opcode + '32' if val.opcode in conv_opcode_types else val.opcode]
+
+            if components is None:
+                components = opcode.output_size
+
+            for src, src_type, src_size in zip(val.sources, opcode.input_types, opcode.input_sizes):
+                src_size = components if src_size == 0 else src_size
+                self._add_variables(src, src_size, type_base_type(src_type))
+        elif isinstance(val, Variable):
+            cur_var = self.variables.setdefault(val.index, SearchVarTypes())
+
+            # A string is an explicit type, False is an integer or conflicting type
+            if val.constant_type:
+                assert cur_var.explicit is None or cur_var == val.constant_type, \
+                    'Conflicting explicit constant types'
+                cur_var.explicit = val.constant_type
+
+            if data_type == 'float':
+                cur_var.float_srcs = True
+            elif val.c_bit_size != 1:
+                cur_var.nonfloat_srcs = True
+
+            if val.is_constant:
+                if self.components is None:
+                    self.components = components
+                else:
+                    assert self.components == components, \
+                        'All constant sources must have the same number of components'
+                self.consts.add(val.index)
+
+    def init(self, varset, search):
+        # Gather information on variables which are required to be a constant
+        self._add_variables(search, None, 'none')
+        self.variables = sorted(self.variables.items())
+        var_index_to_name = {i:n for n,i in varset.names.items()}
+        self.variables = tuple(TransformCondExprVar(k, var_index_to_name[k], k in self.consts,
+                                                    v) for k,v in self.variables)
+
+    def _get_const_val(self, var):
+        name = var.name
+        dtype = var.data_type.get_constant_type()
+        c_type = f'{dtype}64_t'
+        if dtype == 'bool':
+            c_type = 'bool'
+        elif dtype == 'float':
+            c_type = 'double'
+
+        load_const = f'nir_def_as_load_const({name}_def)'
+        component = f'{name}_var->src.swizzle[component]'
+        res = f'nir_const_value *{name}_cv = &{load_const}->value[{component}];\n'
+        res += f'UNUSED {c_type} {name} = '
+        if dtype == 'bool':
+            return res + f'nir_const_value_as_bool(*{name}_cv, {name}_def->bit_size);\n'
+        elif dtype == 'uint':
+            return res + f'nir_const_value_as_uint(*{name}_cv, {name}_def->bit_size);\n'
+        elif dtype == 'int':
+            return res + f'nir_const_value_as_int(*{name}_cv, {name}_def->bit_size);\n'
+        elif dtype == 'float':
+            return res + f'nir_const_value_as_float(*{name}_cv, {name}_def->bit_size);\n'
+        else:
+            assert False, 'unreachable'
+
+    def create_function_body(self):
+        res = 'UNUSED const nir_shader *shader = state->shader;\n'
+        res += 'UNUSED const nir_shader_compiler_options *options = state->options;\n'
+        res += 'UNUSED const shader_info *info = state->info;\n'
+
+        num_components = None
+        for var in self.variables:
+            res += f'UNUSED const nir_match_variable *{var.name}_var = &vars[{var.index}];\n'
+            res += f'UNUSED const nir_def *{var.name}{'_def' if var.is_const else ''} = vars[{var.index}].src.src.ssa;\n'
+            if var.is_const and num_components is None:
+                num_components = f'{var.name}_var->num_components'
+
+        if num_components:
+            res += f'for (unsigned component = 0; component < {num_components}; component++) {{\n'
+
+        for var in self.variables:
+            if var.is_const:
+                res += self._get_const_val(var)
+        res += f'if (!({self.expr})) return false;\n'
+
+        if num_components:
+            res += '}\n'
+        res += 'return true;\n'
+        return res
+
+    def __eq__(self, other):
+        return (self.expr, self.variables) == (other.expr, other.variables)
+
+    def __hash__(self):
+        return hash((self.expr, self.variables))
+
+    def __repr__(self):
+        return f'when({self.expr})'
+
 _optimization_ids = itertools.count()
 
 class SearchAndReplace(object):
@@ -844,15 +975,18 @@ class SearchAndReplace(object):
 
         search = transform[0]
         replace = transform[1]
-        if len(transform) > 2:
-            self.condition_flag = transform[2]
-        else:
-            self.condition_flag = 'true'
 
-        if len(transform) > 3:
-            self.test_status = transform[3]
-        else:
-            self.test_status = TestStatus.PASS
+        self.condition_flag = 'true'
+        self.test_status = TestStatus.PASS
+        self.transform_cond = None
+
+        for extra in transform[2:]:
+            if isinstance(extra, str):
+                self.condition_flag = extra
+            elif isinstance(extra, TestStatus):
+                self.test_status = extra
+            elif isinstance(extra, TransformCondExpr):
+                self.transform_cond = extra
 
         if self.condition_flag not in algebraic_pass.pattern_cond:
             algebraic_pass.pattern_cond.append(self.condition_flag)
@@ -874,6 +1008,12 @@ class SearchAndReplace(object):
                 replace, "replace{0}".format(self.id), varset, algebraic_pass)
 
         BitSizeValidator(varset).validate(self.search, self.replace)
+
+        if self.transform_cond:
+            self.transform_cond.init(varset, self.search)
+
+        self.transform_cond_index = get_cond_index(
+            algebraic_pass.transform_cond, self.transform_cond)
 
 
 class TreeAutomaton(object):
@@ -1216,12 +1356,31 @@ ${ '' if build_tests else 'static ' }const nir_search_variable_cond ${pass_name}
 };
 % endif
 
+% for cond in transform_cond:
+% if build_tests:
+bool ${pass_name}_transform_cond_${cond[1]}(const nir_search_state *state, const nir_match_variable *vars);
+% endif
+${ '' if build_tests else 'static ' }bool
+${pass_name}_transform_cond_${cond[1]}(const nir_search_state *state, const nir_match_variable *vars)
+{
+   ${cond[0].create_function_body()}
+}
+% endfor
+
+% if transform_cond:
+${ '' if build_tests else 'static ' }const nir_search_transform_cond ${pass_name}_transform_cond[] = {
+% for cond in transform_cond:
+   ${pass_name}_transform_cond_${cond[1]},
+% endfor
+};
+% endif
+
 static const struct transform ${pass_name}_transforms[] = {
 % for i in automaton.state_patterns:
 % if i is not None:
-   { ${xforms[i].search.array_index}, ${xforms[i].replace.array_index}, ${xforms[i].condition_flag_index} },
+   { ${xforms[i].search.array_index}, ${xforms[i].replace.array_index}, ${xforms[i].condition_flag_index}, ${xforms[i].transform_cond_index} },
 % else:
-   { ~0, ~0, ~0 }, /* Sentinel */
+   { ~0, ~0, ~0, ~0 }, /* Sentinel */
 
 % endif
 % endfor
@@ -1271,6 +1430,7 @@ static const nir_algebraic_table ${pass_name}_table = {
    .values = ${pass_name}_values,
    .expression_cond = ${ pass_name + "_expression_cond" if expression_cond else "NULL" },
    .variable_cond = ${ pass_name + "_variable_cond" if variable_cond else "NULL" },
+   .transform_cond = ${ pass_name + "_transform_cond" if transform_cond else "NULL" },
 };
 
 bool
@@ -1310,6 +1470,10 @@ extern "C" {
 % if variable_cond:
 UNUSED extern const nir_search_variable_cond ${pass_name}_variable_cond[];
 % endif
+
+% if transform_cond:
+UNUSED extern const nir_search_transform_cond ${pass_name}_transform_cond[];
+% endif
 }
 
 class ${pass_name}_pattern_test : public nir_algebraic_pattern_test {
@@ -1323,7 +1487,7 @@ protected:
 % for subset, chunk in enumerate(chunks):
 #if SUBSET == ${subset}
 
-% for test_name, verbose_name, xform_defs, expr_conds, search_def, replace_def, test_status, expected_result in chunk:
+% for test_name, verbose_name, xform_defs, expr_conds, search_def, replace_def, transform_cond_index, test_status, expected_result in chunk:
 TEST_F(${pass_name}_pattern_test, ${test_name})
 {
    b->shader->info.name = "${verbose_name}";
@@ -1346,6 +1510,9 @@ TEST_F(${pass_name}_pattern_test, ${test_name})
 % for cond in expr_conds:
    ${cond}
 % endfor
+% if transform_cond_index != -1:
+   transform_cond = ${pass_name}_transform_cond[${transform_cond_index}];
+% endif
    validate_pattern();
 }
 
@@ -1530,7 +1697,7 @@ def get_expression_def(expr, name, value_comps, variable_map, defs, expr_conds, 
         # patterns using them is "don't do this transformation when there are
         # actual constants rather than variable values here."  Similarly for
         # is_fmul in fma distribution
-        if isinstance(expr, Variable) and expr.cond_index != -1 and expr.cond not in {"(is_not_const)", "(is_not_const_zero)", "(is_fmul)", "(is_not_const_and_not_fsign)"}:
+        if isinstance(expr, Variable) and expr.cond_index != -1 and expr.cond not in {"is_not_const", "is_not_const_zero", "is_fmul", "is_not_const_and_not_fsign"}:
             defs.append(
                 f"variable_conds.push_back(nir_algebraic_pattern_test_variable_cond(nir_def_as_alu({def_name}), {src_index}, {pass_name}_variable_cond[{expr.cond_index}]));")
 
@@ -1547,6 +1714,7 @@ class AlgebraicPass(object):
         self.expression_cond = {}
         self.variable_cond = {}
         self.pattern_cond = ['true']
+        self.transform_cond = {}
         self.params = params
 
         error = False
@@ -1667,7 +1835,7 @@ class AlgebraicPass(object):
 
             verbose_name = f"{str(xform.search)} -> {str(xform.replace)}"
             self.tests.append((name, verbose_name, xform_defs, expr_conds, search_def, replace_def,
-                              TestStatus, xform.test_status))
+                               xform.transform_cond_index, TestStatus, xform.test_status))
 
             xform_index += 1
 
@@ -1687,6 +1855,8 @@ class AlgebraicPass(object):
                                                    self.expression_cond.items(), key=lambda kv: kv[1]),
                                                variable_cond=sorted(
                                                    self.variable_cond.items(), key=lambda kv: kv[1]),
+                                               transform_cond=sorted(
+                                                   self.transform_cond.items(), key=lambda kv: kv[1]),
                                                get_c_opcode=get_c_opcode,
                                                itertools=itertools,
                                                params=self.params)
@@ -1701,4 +1871,5 @@ class AlgebraicPass(object):
             chunks=chunks,
             subset=i,
             variable_cond=len(self.variable_cond) > 0,
+            transform_cond=len(self.transform_cond) > 0,
         )

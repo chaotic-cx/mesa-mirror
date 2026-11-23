@@ -41,7 +41,7 @@ struct match_state {
    const struct per_op_table *pass_op_table;
    const nir_algebraic_table *table;
 
-   nir_alu_src variables[NIR_SEARCH_MAX_VARIABLES];
+   nir_match_variable variables[NIR_SEARCH_MAX_VARIABLES];
    const nir_search_state *state;
 };
 
@@ -241,17 +241,19 @@ match_value(const nir_algebraic_table *table,
          return false;
 
       if (state->variables_seen & (1 << var->variable)) {
-         if (state->variables[var->variable].src.ssa != instr->src[src].src.ssa)
+         if (state->variables[var->variable].src.src.ssa != instr->src[src].src.ssa ||
+             state->variables[var->variable].num_components != num_components)
             return false;
 
-         return !memcmp(state->variables[var->variable].swizzle, new_swizzle, num_components);
+         return !memcmp(state->variables[var->variable].src.swizzle, new_swizzle, num_components);
       } else {
          state->variables_seen |= (1 << var->variable);
-         nir_alu_src *dst = &state->variables[var->variable];
-         dst->src = instr->src[src].src;
+         nir_match_variable *dst = &state->variables[var->variable];
+         dst->num_components = num_components;
+         dst->src.src = instr->src[src].src;
 
-         memcpy(dst->swizzle, new_swizzle, num_components);
-         memset(dst->swizzle + num_components, 0, NIR_MAX_VEC_COMPONENTS - num_components);
+         memcpy(dst->src.swizzle, new_swizzle, num_components);
+         memset(dst->src.swizzle + num_components, 0, NIR_MAX_VEC_COMPONENTS - num_components);
 
          return true;
       }
@@ -391,7 +393,7 @@ replace_bitsize(const nir_search_value *value, unsigned search_bitsize,
    if (value->bit_size > 0)
       return value->bit_size;
    if (value->bit_size < 0)
-      return nir_src_bit_size(state->variables[-value->bit_size - 1].src);
+      return nir_src_bit_size(state->variables[-value->bit_size - 1].src.src);
    return search_bitsize;
 }
 
@@ -476,11 +478,11 @@ construct_value(nir_builder *build,
       assert(state->variables_seen & (1 << var->variable));
 
       nir_alu_src val = { NIR_SRC_INIT };
-      nir_alu_src_copy(&val, &state->variables[var->variable]);
+      nir_alu_src_copy(&val, &state->variables[var->variable].src);
       assert(!var->is_constant);
 
       for (unsigned i = 0; i < NIR_MAX_VEC_COMPONENTS; i++)
-         val.swizzle[i] = state->variables[var->variable].swizzle[var->swizzle[i]];
+         val.swizzle[i] = state->variables[var->variable].src.swizzle[var->swizzle[i]];
 
       return val;
    }
@@ -644,6 +646,7 @@ nir_replace_instr(nir_builder *build, nir_alu_instr *instr,
                   const nir_search_state *search_state,
                   struct util_dynarray *states,
                   const nir_algebraic_table *table,
+                  uint16_t transform_cond_index,
                   const nir_search_expression *search,
                   const nir_search_value *replace,
                   nir_instr_worklist *algebraic_worklist,
@@ -676,6 +679,10 @@ nir_replace_instr(nir_builder *build, nir_alu_instr *instr,
       }
    }
    if (!found)
+      return false;
+
+   if (transform_cond_index != UINT16_MAX &&
+       !table->transform_cond[transform_cond_index](search_state, state.variables))
       return false;
 
 #if 0
@@ -825,10 +832,10 @@ nir_algebraic_instr(nir_builder *build, nir_instr *instr,
    int xform_idx = *util_dynarray_element(states, uint16_t,
                                           alu->def.index);
    for (const struct transform *xform = &table->transforms[table->transform_offsets[xform_idx]];
-        xform->condition_flag_offset != ~0;
+        xform->condition_flag_offset != UINT16_MAX;
         xform++) {
       if (condition_flags[xform->condition_flag_offset] &&
-          nir_replace_instr(build, alu, state, states, table,
+          nir_replace_instr(build, alu, state, states, table, xform->cond_index,
                             &table->values[xform->search].expression,
                             &table->values[xform->replace].value, worklist, dead_instrs)) {
          nir_invalidate_fp_analysis_state(state->range_ht);

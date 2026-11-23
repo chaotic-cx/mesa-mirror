@@ -186,7 +186,8 @@ struct per_op_table {
 struct transform {
    uint16_t search;  /* Index in table->values[] for the search expression. */
    uint16_t replace; /* Index in table->values[] for the replace value. */
-   unsigned condition_flag_offset;
+   uint16_t condition_flag_offset;
+   uint16_t cond_index;
 };
 
 typedef union {
@@ -196,6 +197,11 @@ typedef union {
    nir_search_variable variable;
    nir_search_expression expression;
 } nir_search_value_union;
+
+typedef struct nir_match_variable {
+   unsigned num_components;
+   nir_alu_src src;
+} nir_match_variable;
 
 typedef struct {
    const nir_shader *shader;
@@ -210,6 +216,8 @@ typedef bool (*nir_search_variable_cond)(const nir_search_state *state,
                                          const nir_alu_instr *instr,
                                          unsigned src, unsigned num_components,
                                          const uint8_t *swizzle);
+typedef bool (*nir_search_transform_cond)(const nir_search_state *state,
+                                          const nir_match_variable *vars);
 
 /* Generated data table for an algebraic optimization pass. */
 typedef struct {
@@ -222,15 +230,21 @@ typedef struct {
 
    /**
     * Array of condition functions for expressions, referenced by
-    * nir_search_expression->cond.
+    * nir_search_expression::cond_index.
     */
    const nir_search_expression_cond *expression_cond;
 
    /**
     * Array of condition functions for variables, referenced by
-    * nir_search_variable->cond.
+    * nir_search_variable::cond_index.
     */
    const nir_search_variable_cond *variable_cond;
+
+   /**
+    * Array of condition functions for transforms, referenced by
+    * transform::cond_index.
+    */
+   const nir_search_transform_cond *transform_cond;
 } nir_algebraic_table;
 
 /* Note: these must match the start states created in

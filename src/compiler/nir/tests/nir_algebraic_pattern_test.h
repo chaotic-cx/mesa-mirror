@@ -32,14 +32,15 @@ enum input_type {
 
 class nir_algebraic_pattern_test_input {
  public:
-   nir_algebraic_pattern_test_input(nir_load_const_instr *instr, input_type ty, uint32_t fuzzing_start_bit)
-       : instr(instr), ty(ty), fuzzing_start_bit(fuzzing_start_bit)
+   nir_algebraic_pattern_test_input(nir_load_const_instr *instr, input_type ty, uint32_t fuzzing_start_bit, uint32_t index)
+       : instr(instr), ty(ty), fuzzing_start_bit(fuzzing_start_bit), index(index)
    {
    }
 
    nir_load_const_instr *instr;
    input_type ty;
    uint32_t fuzzing_start_bit;
+   uint32_t index;
 };
 
 enum result {
@@ -99,6 +100,7 @@ class nir_algebraic_pattern_test : public nir_test {
                                                             nir_fp_preserve_inf |
                                                             nir_fp_preserve_nan);
    std::vector<nir_algebraic_pattern_test_variable_cond> variable_conds;
+   nir_search_transform_cond transform_cond = NULL;
    std::vector<nir_const_value> tmp_values;
 };
 

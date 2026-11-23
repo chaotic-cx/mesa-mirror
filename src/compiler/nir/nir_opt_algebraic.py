@@ -39,6 +39,8 @@ d = 'd'
 e = 'e'
 NAN = math.nan
 
+when = nir_algebraic.TransformCondExpr
+
 has_fmulz = '(options->has_fmulz || \
               (options->has_fmulz_no_denorms && \
                !nir_is_denorm_preserve(info->float_controls_execution_mode, 32)))'
@@ -99,6 +101,23 @@ denorm_ftz_64 = 'nir_is_denorm_flush_to_zero(info->float_controls_execution_mode
 # means that the replacement expression won't preserve the sign of zero of the
 # result, and so it will be skipped if the matching instruction has the
 # 'signed_zero_preserve' flag set.
+#
+# In addition to <search> and <replace>, the tuple can contain the test status
+# and transform conditions. A transform condition is a C expression using the
+# "shader" (nir_shader *), "options" (nir_shader_compiler_options *), or "info"
+# (shader_info *) variables. If the condition is wrapped in an when(), it can
+# also use variables corresponding to names in the search expression:
+# - variables with a constant ('#<name>') source have <name>_def (nir_def *) and
+#   <name> variable with a double data type if all the variable's sources in the search
+#   expression are float, or the explicit type ('#<name>(type)';
+#   bool for bool and 1-bit values, uint64_t/int64_t for uint/int and double for float).
+# - other variables have a <name> (nir_def *) variable.
+# All variables in the search expression also have <name>_var (nir_match_variable *).
+# When the search expression has constant sources, the condition is run for each
+# component.
+#
+# A tuple can have at most one string transform condition and at most one when()
+# transform condition.
 
 # based on https://web.archive.org/web/20180105155939/http://forum.devmaster.net/t/fast-and-accurate-sine-cosine/9648
 def lowered_sincos(c):
