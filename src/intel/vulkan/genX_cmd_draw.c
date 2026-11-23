@@ -434,6 +434,8 @@ cmd_buffer_emit_push_constant_all(struct anv_cmd_buffer *cmd_buffer,
                         .ShaderUpdateEnable = shader_mask,
                         .PointerBufferMask = buffer_mask,
                         .MOCS = isl_mocs(&cmd_buffer->device->isl_dev, 0, false));
+   if (dw == NULL)
+      return;
 
    for (int i = 0; i < buffer_count; i++) {
       const struct anv_push_range *range = &bind_map->push_ranges[i];
