@@ -21,7 +21,6 @@ issues:
         'dzn': 'dozen'
         'egl': 'EGL'
         'etnaviv': 'etnaviv'
-        'etnaviv/nn': ['etnaviv', 'teflon']
         'freedreno': 'freedreno'
         'freedreno/ir3': ['freedreno', 'ir3']
         'gallium': 'gallium'
@@ -193,7 +192,6 @@ merge_requests:
         '^src/gallium/drivers/crocus/': ['crocus']
         '^src/gallium/drivers/d3d12/': ['d3d12']
         '^src/gallium/drivers/etnaviv/': ['etnaviv']
-        '^src/gallium/drivers/etnaviv/etnaviv_ml_.*': ['teflon']
         '^src/gallium/drivers/freedreno/': ['freedreno']
         '^src/gallium/drivers/grate/': ['tegra']
         '^src/gallium/drivers/i915/': ['i915g']
