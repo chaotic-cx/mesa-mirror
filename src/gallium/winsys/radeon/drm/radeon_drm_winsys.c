@@ -603,6 +603,7 @@ static bool do_winsys_init(struct radeon_drm_winsys *ws)
    radeon_get_drm_value(ws, RADEON_INFO_MAX_SH_PER_SE, NULL,
                         &ws->info.max_sa_per_se);
    if (ws->gen == DRV_SI) {
+      ws->info.max_good_cu_per_se = DIV_ROUND_UP(ws->info.num_cu, ws->info.max_se);
       ws->info.max_good_cu_per_sa =
       ws->info.min_good_cu_per_sa = ws->info.num_cu /
                                     (ws->info.max_se * ws->info.max_sa_per_se);

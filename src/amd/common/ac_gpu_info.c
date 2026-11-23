@@ -1276,10 +1276,13 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
 
    /* Get the number of good compute units. */
    info->num_cu = 0;
+   info->max_good_cu_per_se = 0;
    info->min_good_cu_per_sa = UINT32_MAX;
    info->max_good_cu_per_sa = 0;
 
    for (int i = 0; i < info->max_se; i++) {
+      unsigned num_cu_per_se = 0;
+
       for (int j = 0; j < info->max_sa_per_se; j++) {
          if (info->gfx_level >= GFX11) {
             assert(info->max_sa_per_se <= 2);
@@ -1309,8 +1312,11 @@ void ac_fill_hw_info(struct radeon_info *info, const struct drm_amdgpu_info_devi
             info->min_good_cu_per_sa = MIN2(info->min_good_cu_per_sa, num_cu_in_sa);
             info->max_good_cu_per_sa = MAX2(info->max_good_cu_per_sa, num_cu_in_sa);
             info->num_cu += num_cu_in_sa;
+            num_cu_per_se += num_cu_in_sa;
          }
       }
+
+      info->max_good_cu_per_se = MAX2(info->max_good_cu_per_se, num_cu_per_se);
    }
 
    assert(info->min_good_cu_per_sa <= info->max_good_cu_per_sa);
@@ -2172,6 +2178,7 @@ void ac_print_gpu_info(FILE *f, const struct radeon_info *info, int fd)
       }
    }
    fprintf(f, "    spi_cu_en_has_effect = %i\n", info->spi_cu_en_has_effect);
+   fprintf(f, "    max_good_cu_per_se = %i\n", info->max_good_cu_per_se);
    fprintf(f, "    max_good_cu_per_sa = %i\n", info->max_good_cu_per_sa);
    fprintf(f, "    min_good_cu_per_sa = %i\n", info->min_good_cu_per_sa);
    fprintf(f, "    max_se = %i\n", info->max_se);
