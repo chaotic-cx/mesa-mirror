@@ -344,7 +344,7 @@
         "description": "vl/proc,va/postproc: Wire flush on vl_proc and flush in vlVaPostProc",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "46b6e332d2ea2b9c955581307085d4574b6bf305",
         "notes": null
