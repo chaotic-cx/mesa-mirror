@@ -223,6 +223,25 @@ SCALARS = {
 BUILTIN_CUSTOM = 32
 OPTIONAL_TENSOR = -1
 
+PARAMETER_INPUTS = {
+    22: (1,),       # RESHAPE: shape
+    23: (1,),       # RESIZE_BILINEAR: size
+    34: (1,),       # PAD: paddings
+    37: (1, 2),     # BATCH_TO_SPACE_ND: block shape, crops
+    38: (1, 2),     # SPACE_TO_BATCH_ND: block shape, paddings
+    39: (1,),       # TRANSPOSE: permutation
+    40: (1,),       # MEAN: axis
+    45: (1, 2, 3),  # STRIDED_SLICE: begin, end, strides
+    49: (0,),       # SPLIT: axis
+    56: (1,),       # ARG_MAX: axis
+    60: (1,),       # PADV2: paddings
+    97: (1,),       # RESIZE_NEAREST_NEIGHBOR: size
+    100: (1,),      # MIRROR_PAD: paddings
+    102: (1, 2),    # SPLIT_V: size splits, axis
+    107: (1,),      # GATHER_ND: indices
+    122: (2,),      # SCATTER_ND: shape
+}
+
 
 class TFLiteError(Exception):
     pass
@@ -368,6 +387,22 @@ def _builtin_code(model, op):
                opcode.get("builtin_code", 0))
 
 
+def _is_empty(buffer):
+    return ("data" not in buffer and not buffer.get("offset", 0) and
+            not buffer.get("size", 0))
+
+
+def _has_computed_parameter(model, op):
+    tensors = model["subgraphs"][0]["tensors"]
+    inputs = op.get("inputs", [])
+    for i in PARAMETER_INPUTS.get(_builtin_code(model, op), ()):
+        if i >= len(inputs) or inputs[i] == OPTIONAL_TENSOR:
+            continue
+        if _is_empty(model["buffers"][tensors[inputs[i]].get("buffer", 0)]):
+            return True
+    return False
+
+
 def _cut(model, indices):
     subgraph = model["subgraphs"][0]
     count = len(subgraph["operators"])
@@ -405,13 +440,9 @@ def _cut(model, indices):
                           for t in op[io]]
         new_ops.append(op)
 
-    def is_empty(buffer):
-        return ("data" not in buffer and not buffer.get("offset", 0) and
-                not buffer.get("size", 0))
-
     inputs = [t for t in new_ops[0].get("inputs", [])
               if t != OPTIONAL_TENSOR and
-              is_empty(new_buffers[new_tensors[t]["buffer"]])]
+              _is_empty(new_buffers[new_tensors[t]["buffer"]])]
 
     outputs = [t for op in new_ops for t in op.get("outputs", [])
                if t != OPTIONAL_TENSOR]
@@ -462,6 +493,8 @@ def split_model(model_path, output_dir):
     case_names = set()
     for i, op in enumerate(model["subgraphs"][0]["operators"]):
         if _builtin_code(model, op) == BUILTIN_CUSTOM:
+            continue
+        if _has_computed_parameter(model, op):
             continue
         case_name = f"{i:04d}.tflite"
         (output_dir / case_name).write_bytes(_cut(model, [i]))

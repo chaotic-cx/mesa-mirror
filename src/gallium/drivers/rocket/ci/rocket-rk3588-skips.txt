@@ -126,12 +126,3 @@ teflon/yolox_nano.0138
 teflon/yolox_nano.0144
 teflon/yolox_nano.0150
 teflon/yolox_nano.whole
-
-# GatherNd operations that are unsupported.
-# If they fail is because of a bug in the teflon test runner.
-teflon/movenet_lightning.0112
-teflon/movenet_lightning.0141
-teflon/movenet_lightning.0152
-teflon/movenet_thunder.0112
-teflon/movenet_thunder.0141
-teflon/movenet_thunder.0152

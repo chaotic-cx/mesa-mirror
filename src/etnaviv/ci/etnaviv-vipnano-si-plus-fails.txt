@@ -21,15 +21,9 @@ teflon/efficientdet_lite0.whole,Fail
 
 teflon/inception_v1.whole,Fail
 
-teflon/movenet_lightning.0112,Fail
-teflon/movenet_lightning.0141,Fail
-teflon/movenet_lightning.0152,Fail
 teflon/movenet_lightning.0155,Fail
 teflon/movenet_lightning.whole,Fail
 
-teflon/movenet_thunder.0112,Fail
-teflon/movenet_thunder.0141,Fail
-teflon/movenet_thunder.0152,Fail
 teflon/movenet_thunder.0155,Fail
 teflon/movenet_thunder.whole,Fail
 
