@@ -858,9 +858,6 @@ emit_copy_query_pool_results(struct tu_cmd_buffer *cmdbuf,
                              VkDeviceSize stride,
                              VkQueryResultFlags flags)
 {
-   /* Flush cache for the buffer to copy to. */
-   tu_emit_cache_flush<CHIP>(cmdbuf);
-
    /* From the Vulkan 1.1.130 spec:
     *
     *    vkCmdCopyQueryPoolResults is guaranteed to see the effect of previous
@@ -870,7 +867,12 @@ emit_copy_query_pool_results(struct tu_cmd_buffer *cmdbuf,
     * To ensure that previous writes to the available bit are coherent, first
     * wait for all writes to complete.
     */
-   tu_cs_emit_pkt7(cs, CP_WAIT_MEM_WRITES, 0);
+   cmdbuf->state.cache.flush_bits |= TU_CMD_FLAG_WAIT_MEM_WRITES |
+                                     /* For CP_COND_EXEC */
+                                     TU_CMD_FLAG_WAIT_FOR_ME;
+
+   /* Flush cache for the buffer to copy to. */
+   tu_emit_cache_flush<CHIP>(cmdbuf);
 
    for (uint32_t i = 0; i < queryCount; i++) {
       uint32_t query = firstQuery + i;
