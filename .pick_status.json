@@ -334,7 +334,7 @@
         "description": "d3d12/video_proc: Use get_resources() instead of casting pipe_video_buffer",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "db5d42d4374b2ecafcfe20fbe29f7cdb5f67e275",
         "notes": null
