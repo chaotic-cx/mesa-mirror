@@ -553,6 +553,11 @@ struct fd_dev_info {
       bool QCTDD10497382_rt_workaround;
       /* Do not use a0 in early preamble. */
       bool QCTDD10789828_no_a0_ep : 1;
+      /* Hw calculates pvtmem address using wave128, so driver needs
+       * to account for this by doubling the pvtmem size in per-wave
+       * layout.
+       */
+      bool QCTDD10982019_double_pvtmem_size : 1;
       /* On a7xx alias.tex may hang when in between mova and (ul). */
       bool QCTDD11147232_alias_mova : 1;
       /* On some HW alias.tex may hang when predicated (i.e. between

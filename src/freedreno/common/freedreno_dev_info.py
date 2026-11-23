@@ -49,6 +49,7 @@ quirk_names = {
     "QCTDD10204462": "flat_ei",
     "QCTDD10497382": "rt_workaround",
     "QCTDD10789828": "no_a0_ep",
+    "QCTDD10982019": "double_pvtmem_size",
     "QCTDD11147232": "alias_mova",
     "QCTDD11183148": "alias_pred",
     "QCTDD12766770": "r8g8_fc_alignment",

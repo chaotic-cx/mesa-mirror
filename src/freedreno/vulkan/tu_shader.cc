@@ -3181,6 +3181,8 @@ tu_setup_pvtmem(struct tu_device *dev,
          align(pvtmem_bo->per_fiber_size *
                   dev->physical_device->info->fibers_per_sp,
                1 << 12);
+      if (per_wave && FD_QUIRK(dev->physical_device->info, QCTDD10982019_double_pvtmem_size))
+         pvtmem_bo->per_sp_size *= 2;
       uint32_t total_size =
          dev->physical_device->info->num_sp_cores * pvtmem_bo->per_sp_size;
 

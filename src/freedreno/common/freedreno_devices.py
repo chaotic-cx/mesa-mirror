@@ -1445,7 +1445,9 @@ a8xx_gen1 = GPUProps(
         gmem_ccu_depth_cache_fraction = CCUColorCacheFraction.FULL.value,
         gmem_per_ccu_depth_cache_size = 256 * 1024,
 
-        has_salu_int_narrowing_quirk = True
+        has_salu_int_narrowing_quirk = True,
+
+        QCTDD10982019 = True,
 )
 
 a8xx_gen2 = GPUProps(
@@ -1459,7 +1461,9 @@ a8xx_gen2 = GPUProps(
         gmem_ccu_depth_cache_fraction = CCUColorCacheFraction.FULL.value,
         gmem_per_ccu_depth_cache_size = 256 * 1024,
         has_fs_tex_prefetch = False,
-        has_salu_int_narrowing_quirk = True
+        has_salu_int_narrowing_quirk = True,
+
+        QCTDD10982019 = False,
 )
 
 a8xx_vpc_cache_lg = GPUProps(

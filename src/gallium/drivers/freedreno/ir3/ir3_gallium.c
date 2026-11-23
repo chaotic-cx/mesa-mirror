@@ -626,6 +626,8 @@ ir3_get_private_mem(struct fd_screen *screen, const struct ir3_shader_variant *s
          fd_bo_del(screen->pvtmem[so->pvtmem_per_wave].bo);
 
       uint32_t per_sp_size = align(per_fiber_size * fibers_per_sp, 1 << 12);
+      if (so->pvtmem_per_wave && FD_QUIRK(screen->info, QCTDD10982019_double_pvtmem_size))
+         per_sp_size *= 2;
       uint32_t total_size = per_sp_size * num_sp_cores;
 
       screen->pvtmem[so->pvtmem_per_wave].per_fiber_size = per_fiber_size;
