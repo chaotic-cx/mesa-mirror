@@ -2535,8 +2535,6 @@ ac_get_compute_resource_limits(const struct radeon_info *info, unsigned waves_pe
    unsigned compute_resource_limits = S_00B854_SIMD_DEST_CNTL(waves_per_threadgroup % 4 == 0);
 
    if (info->gfx_level >= GFX7) {
-      unsigned num_cu_per_se = info->num_cu / info->num_se;
-
       /* Gfx9 should set the limit to max instead of 0 to fix high priority compute. */
       if (info->gfx_level == GFX9 && !max_waves_per_sh) {
          max_waves_per_sh = info->max_good_cu_per_sa *
@@ -2552,7 +2550,7 @@ ac_get_compute_resource_limits(const struct radeon_info *info, unsigned waves_pe
        * size is 64. This has shown some good improvements if # of CUs
        * per SE is not a multiple of 4.
        */
-      if (num_cu_per_se % 4 && waves_per_threadgroup == 1)
+      if (info->max_good_cu_per_se % 4 && waves_per_threadgroup == 1)
          compute_resource_limits |= S_00B854_FORCE_SIMD_DIST(1);
 
       assert(threadgroups_per_cu >= 1 && threadgroups_per_cu <= 8);
