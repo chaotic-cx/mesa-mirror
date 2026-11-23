@@ -1,5 +1,5 @@
 [wrap-file]
-directory = npu-model-zoo-20261119-efficientdet-lite3x
-source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261119-efficientdet-lite3x/npu-model-zoo-20261119-efficientdet-lite3x.tar.gz
-source_filename = npu-model-zoo-20261119-efficientdet-lite3x.tar.gz
-source_hash = 5a53c17743688b583422b22f65da8d0b24b26aee47807a22c01b27d0e37fa7ae
+directory = npu-model-zoo-20261119-mnist-convnet
+source_url = https://gitlab.freedesktop.org/tomeu/npu-model-zoo/-/archive/20261119-mnist-convnet/npu-model-zoo-20261119-mnist-convnet.tar.gz
+source_filename = npu-model-zoo-20261119-mnist-convnet.tar.gz
+source_hash = edbf7af6e963c9e6c6d0f9642a784d5529034a9434642d440e565cb439b3f568
