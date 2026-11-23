@@ -72,7 +72,7 @@
 .imagination-ti-am62-sk:arm64:
   extends:
     - .imagination-ci-tron-arm64
-  parallel: 12
+  parallel: 6
   variables:
     CI_TRON_DTB__0__URL: '$KERNEL_IMAGE_BASE/arm64/k3-am625-sk.dtb'
     GPU_VENDOR_TAG: dt_gpu:vendor:ti
@@ -84,7 +84,7 @@
 .imagination-ti-am68-sk:arm64:
   extends:
     - .imagination-ci-tron-arm64
-  parallel: 12
+  parallel: 6
   variables:
     CI_TRON_DTB__0__URL: '$KERNEL_IMAGE_BASE/arm64/k3-am68-sk-base-board.dtb'
     GPU_VENDOR_TAG: dt_gpu:vendor:ti
