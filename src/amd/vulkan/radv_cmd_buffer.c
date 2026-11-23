@@ -15530,7 +15530,9 @@ radv_get_dispatch_params(const struct radv_cmd_buffer *cmd_buffer, const struct 
             params->start[i] /= cs_block_size[i];
          }
 
-         params->dispatch_initiator |= S_00B800_PARTIAL_TG_EN(1);
+         if (params->num_thread_partial[0] != cs_block_size[0] || params->num_thread_partial[1] != cs_block_size[1] ||
+             params->num_thread_partial[2] != cs_block_size[2])
+            params->dispatch_initiator |= S_00B800_PARTIAL_TG_EN(1);
       }
 
       /* Must be the number of workgroups, before the offsets are added. */
