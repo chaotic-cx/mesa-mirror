@@ -1707,7 +1707,7 @@ iris_init_compute_context(struct iris_batch *batch)
 #endif
 
 #if GFX_VERx10 >= 125
-   if (GFX_VERx10 >= 350 && iris_bufmgr_is_eff_64bit_enabled(batch->screen->bufmgr)) {
+   if (!(GFX_VERx10 >= 350 && iris_bufmgr_is_eff_64bit_enabled(batch->screen->bufmgr))) {
       iris_emit_cmd(batch, GENX(CFE_STATE), cfe) {
          cfe.MaximumNumberofThreads =
             devinfo->max_cs_threads * devinfo->subslice_total;
