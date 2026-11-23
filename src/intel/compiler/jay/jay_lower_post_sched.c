@@ -66,7 +66,8 @@ insert_dummy_mov(jay_builder *b, jay_inst *u, jay_inst *v)
                   (u->src[1].reg >> 1) == (v->src[1].reg >> 1);
 
    /* Swapping sources can avoid a move from issue 2, try that */
-   if (macl_issue_2(u, v) && !jay_is_imm(u->src[1])) {
+   if (macl_issue_2(u, v) &&
+       !jay_is_imm(u->src[jay_num_isa_srcs(u) == 2 ? 1 : 0])) {
       jay_try_swap_src01(u);
    }
 
