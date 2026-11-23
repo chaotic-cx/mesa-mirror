@@ -1910,6 +1910,21 @@ radv_cmd_buffer_clear_rendering(struct radv_cmd_buffer *cmd_buffer, const VkRend
 
    radv_utrace_begin_clear_rendering(cmd_buffer);
 
+   /* Attachments can have draws in flight. Set that there are pending draw flushes, so that compute/CP DMA
+    * clears wait.
+    */
+   if (render->ds_att.iview) {
+      set_pending_draw_flush_flags(cmd_buffer, &sync_info, &render->ds_att, ATT_ZS, 0,
+                                   render->ds_att.iview->vk.layer_count);
+   }
+
+   for (unsigned a = 0; a < render->color_att_count; a++) {
+      if (render->color_att[a].iview) {
+         set_pending_draw_flush_flags(cmd_buffer, &sync_info, &render->color_att[a], ATT_COLOR0 + a, 0,
+                                      render->color_att[a].iview->vk.layer_count);
+      }
+   }
+
    radv_meta_begin_rendering(cmd_buffer);
 
    if (render->ds_att.iview != NULL) {
