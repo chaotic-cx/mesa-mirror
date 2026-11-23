@@ -1936,10 +1936,14 @@ brw_compute_sbe_per_primitive_urb_read(uint64_t inputs_read,
    /* Not loading any per-primitive data in this case, the push constants
     * should be adjusted though.
     */
-   if (mue_map->wa_18019110168_active) {
+   if (mue_map->wa_18019110168_active || first_read == UINT32_MAX) {
       *out_read_offset = *out_read_length = 0;
    } else {
-      *out_read_offset = DIV_ROUND_UP(first_read, 32);
-      *out_read_length = DIV_ROUND_UP(num_varyings, 2);
+      /* Reads need to be aligned to 32B, so if the first one is unaligned we
+       * need to increase the length by one to cover a 32B aligned area.
+       */
+      const bool first_read_unaligned = first_read % 32 != 0;
+      *out_read_offset = first_read / 32;
+      *out_read_length = DIV_ROUND_UP(num_varyings + first_read_unaligned, 2);
    }
 }
