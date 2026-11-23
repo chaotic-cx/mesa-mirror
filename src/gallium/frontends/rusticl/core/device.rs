@@ -664,6 +664,10 @@ impl DeviceBase {
         add_spirv(c"SPV_KHR_integer_dot_product");
         add_spirv(c"SPV_KHR_no_integer_wrap_decoration");
 
+        if Platform::dbg().untyped_pointers {
+            add_spirv(c"SPV_KHR_untyped_pointers");
+        }
+
         add_cap(SpvCapability::SpvCapabilityAddresses);
         add_cap(SpvCapability::SpvCapabilityBitInstructions);
         add_cap(SpvCapability::SpvCapabilityDotProduct);
