@@ -19,6 +19,9 @@ teflon/deeplabv3.whole,Fail
 
 teflon/efficientdet_lite0.whole,Fail
 
+teflon/efficientdet_lite3x.0418,Fail
+teflon/efficientdet_lite3x.whole,Fail
+
 teflon/inception_v1.whole,Fail
 
 teflon/movenet_lightning.0155,Fail
