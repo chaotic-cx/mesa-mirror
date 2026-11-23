@@ -1590,9 +1590,23 @@ emit_end_occlusion_query(struct tu_cmd_buffer *cmdbuf,
        */
       cs = &cmdbuf->draw_epilogue_cs;
 
-   tu_cs_emit_pkt7(cs, CP_MEM_WRITE, 4);
-   tu_cs_emit_qw(cs, available_iova);
-   tu_cs_emit_qw(cs, 0x1);
+   if (cmdbuf->device->physical_device->info->props.has_event_write_sample_count) {
+      /* ZPASS_DONE with write_accum_sample_count_diff accumulates the result asynchronously,
+       * and WFI/WFM/WAIT_FOR_MEM_WRITES don't waits for that write to land.
+       * Thus write availability through RB_DONE_TS which is guaranteed to be correctly ordered.
+       */
+      tu_cs_emit_pkt7(cs, CP_EVENT_WRITE7, 4);
+      tu_cs_emit(cs, CP_EVENT_WRITE7_0(.event = RB_DONE_TS,
+                                       .write_src = EV_WRITE_USER_32B,
+                                       .write_dst = EV_DST_RAM,
+                                       .write_enabled = true).value);
+      tu_cs_emit_qw(cs, available_iova);
+      tu_cs_emit(cs, 0x1);
+   } else {
+      tu_cs_emit_pkt7(cs, CP_MEM_WRITE, 4);
+      tu_cs_emit_qw(cs, available_iova);
+      tu_cs_emit_qw(cs, 0x1);
+   }
 
    cmdbuf->state.occlusion_query_may_be_running = false;
    cmdbuf->state.dirty |= TU_CMD_DIRTY_DISABLE_FS | TU_CMD_DIRTY_LRZ;
