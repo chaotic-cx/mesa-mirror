@@ -594,7 +594,7 @@
         "description": "panvk: hash immutable sampler descriptor count in layouts",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "cdf24f067e9ada5651e08634d0d315b5f1e068fd",
         "notes": null

@@ -230,10 +230,13 @@ panvk_per_arch(CreateDescriptorSetLayout)(
                layout->bindings[b].immutable_samplers[i];
 
             /* We zalloc the object, so it's safe to hash the whole thing */
-            if (sampler != NULL && sampler->vk.ycbcr_conversion != NULL)
+            if (sampler != NULL && sampler->vk.ycbcr_conversion != NULL) {
                _mesa_blake3_update(&hash_ctx,
                                    &sampler->vk.ycbcr_conversion->state,
                                    sizeof(sampler->vk.ycbcr_conversion->state));
+               _mesa_blake3_update(&hash_ctx, &sampler->desc_count,
+                                   sizeof(sampler->desc_count));
+            }
          }
       }
    }
