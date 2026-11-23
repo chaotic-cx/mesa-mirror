@@ -1473,8 +1473,7 @@ radv_destroy_device(struct radv_device *device, const VkAllocationCallbacks *pAl
 
    radv_device_finish_notifier(device);
    radv_device_finish_vs_prologs(device);
-   if (device->ps_epilogs.ops)
-      radv_shader_part_cache_finish(device, &device->ps_epilogs);
+   radv_shader_part_cache_finish(device, &device->ps_epilogs);
    radv_device_finish_border_color(device);
    radv_device_finish_vrs_image(device);
 
@@ -1787,14 +1786,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
          goto fail;
    }
 
-   if (device->vk.enabled_features.graphicsPipelineLibrary || device->vk.enabled_features.shaderObject ||
-       device->vk.enabled_features.extendedDynamicState ||
-       device->vk.enabled_features.extendedDynamicState3ColorBlendEnable ||
-       device->vk.enabled_features.extendedDynamicState3ColorWriteMask ||
-       device->vk.enabled_features.extendedDynamicState3AlphaToCoverageEnable ||
-       device->vk.enabled_features.extendedDynamicState3ColorBlendEquation ||
-       device->vk.enabled_features.extendedDynamicState3RasterizationSamples)
-      radv_shader_part_cache_init(&device->ps_epilogs, &ps_epilog_ops);
+   radv_shader_part_cache_init(&device->ps_epilogs, &ps_epilog_ops);
 
    if (pdev->info.has_zero_index_buffer_bug || device->compiler_info.key.mitigate_smem_oob) {
       result = radv_bo_create(

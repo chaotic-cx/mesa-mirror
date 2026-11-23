@@ -1327,8 +1327,7 @@ radv_cmd_buffer_init_shader_part_cache(struct radv_device *device, struct radv_c
 {
    if (device->vs_prologs.ops)
       _mesa_set_init(&cmd_buffer->vs_prologs, NULL, device->vs_prologs.ops->hash, device->vs_prologs.ops->equals);
-   if (device->ps_epilogs.ops)
-      _mesa_set_init(&cmd_buffer->ps_epilogs, NULL, device->ps_epilogs.ops->hash, device->ps_epilogs.ops->equals);
+   _mesa_set_init(&cmd_buffer->ps_epilogs, NULL, device->ps_epilogs.ops->hash, device->ps_epilogs.ops->equals);
 }
 
 static void radv_destroy_msrtss_transients(struct radv_cmd_buffer *cmd_buffer);
