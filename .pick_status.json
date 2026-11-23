@@ -294,7 +294,7 @@
         "description": "d3d12: Support R8G8B8X8_SRGB and B8G8R8X8_SRGB formats",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
