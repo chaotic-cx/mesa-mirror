@@ -589,12 +589,12 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
    struct radeon_cmdbuf *cs = &sctx->gfx_cs;
    bool render_cond_bit = sctx->render_cond_enabled;
    unsigned threads_per_threadgroup = info->block[0] * info->block[1] * info->block[2];
-   unsigned waves_per_threadgroup =
+   unsigned waves_per_workgroup =
       DIV_ROUND_UP(threads_per_threadgroup, sctx->cs_shader_state.program->shader.wave_size);
-   unsigned threadgroups_per_cu = 1;
+   unsigned workgroups_per_cu = 1;
 
-   if (sctx->gfx_level >= GFX10 && waves_per_threadgroup == 1)
-      threadgroups_per_cu = 2;
+   if (sctx->gfx_level >= GFX10 && waves_per_workgroup == 1)
+      workgroups_per_cu = 2;
 
    if (unlikely(si_is_sqtt_active(sctx))) {
       if (info->indirect) {
@@ -610,9 +610,9 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
 
    radeon_begin(cs);
    unsigned compute_resource_limits =
-      ac_get_compute_resource_limits(&sscreen->info, waves_per_threadgroup,
+      ac_get_compute_resource_limits(&sscreen->info, waves_per_workgroup,
                                      sctx->cs_max_waves_per_sh,
-                                     threadgroups_per_cu);
+                                     workgroups_per_cu);
 
    if (sctx->gfx_level >= GFX12) {
       gfx12_opt_push_compute_sh_reg(R_00B854_COMPUTE_RESOURCE_LIMITS,

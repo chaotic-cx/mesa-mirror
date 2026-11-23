@@ -634,13 +634,13 @@ static void si_emit_task_shader_packets(struct si_context *sctx)
 
    unsigned threads_per_threadgroup =
       workgroup_size[0] * workgroup_size[1] * workgroup_size[2];
-   unsigned waves_per_threadgroup =
+   unsigned waves_per_workgroup =
       DIV_ROUND_UP(threads_per_threadgroup, shader->wave_size);
-   unsigned threadgroups_per_cu = waves_per_threadgroup == 1 ? 2 : 1;
+   unsigned workgroups_per_cu = waves_per_workgroup == 1 ? 2 : 1;
    unsigned compute_resource_limits =
-      ac_get_compute_resource_limits(&sctx->screen->info, waves_per_threadgroup,
+      ac_get_compute_resource_limits(&sctx->screen->info, waves_per_workgroup,
                                      sctx->cs_max_waves_per_sh,
-                                     threadgroups_per_cu);
+                                     workgroups_per_cu);
 
    uint32_t num_threads[3];
    if (sctx->gfx_level >= GFX12) {
