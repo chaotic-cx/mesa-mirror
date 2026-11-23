@@ -2194,7 +2194,6 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
    device->sync_types[2] = NULL;
 
    device->heap.size = tu_get_system_heap_size(device);
-   device->heap.used = 0u;
    device->heap.flags = VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
 
    device->has_set_iova = kgsl_is_memory_type_supported(

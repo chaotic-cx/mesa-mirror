@@ -9,6 +9,13 @@
 
 #include "tu_device.h"
 
+#ifdef MAJOR_IN_MKDEV
+#include <sys/mkdev.h>
+#endif
+#ifdef MAJOR_IN_SYSMACROS
+#include <sys/sysmacros.h>
+#endif
+
 #include "drm-uapi/drm_fourcc.h"
 #include "git_sha1.h"
 #include "perfcntrs/freedreno_perfcntr.h"
@@ -1832,6 +1839,17 @@ tu_physical_device_init(struct tu_physical_device *device,
       device->memory.type_count++;
    }
 
+   /* kgsl leaves local_major/minor zeroed, which is fine as it only ever
+    * exposes a single device.
+    */
+   device->memory_budget = vk_memory_budget_acquire(
+      makedev(device->local_major, device->local_minor));
+   if (!device->memory_budget) {
+      result = vk_startup_errorf(instance, VK_ERROR_OUT_OF_HOST_MEMORY,
+                                 "memory budget alloc fail");
+      goto fail_free_name;
+   }
+
    /* Provide fallback UBWC config values if the kernel doesn't support
     * providing them. This should match what the kernel programs.
     */
@@ -1859,7 +1877,7 @@ tu_physical_device_init(struct tu_physical_device *device,
                                     NULL, NULL, NULL, /* We set up extensions later */
                                     &dispatch_table);
    if (result != VK_SUCCESS)
-      goto fail_free_name;
+      goto fail_release_budget;
 
    get_device_extensions(device, &device->vk.supported_extensions);
    tu_get_features(device, &device->vk.supported_features);
@@ -1899,7 +1917,7 @@ tu_physical_device_init(struct tu_physical_device *device,
    if (result != VK_SUCCESS) {
       vk_startup_errorf(instance, result, "WSI init failure");
       vk_physical_device_finish(&device->vk);
-      goto fail_free_name;
+      goto fail_release_budget;
    }
 #endif
 
@@ -1917,6 +1935,8 @@ tu_physical_device_init(struct tu_physical_device *device,
 
    return VK_SUCCESS;
 
+fail_release_budget:
+   vk_memory_budget_release(device->memory_budget);
 fail_free_name:
    vk_free(&instance->vk.alloc, const_cast<char *>(device->name));
    return result;
@@ -1938,6 +1958,8 @@ tu_physical_device_finish(struct tu_physical_device *device)
 
    disk_cache_destroy(device->vk.disk_cache);
    vk_free(&device->instance->vk.alloc, const_cast<char *>(device->name));
+
+   vk_memory_budget_release(device->memory_budget);
 
    vk_physical_device_finish(&device->vk);
 }
@@ -2189,7 +2211,7 @@ tu_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice pdev,
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
          VkPhysicalDeviceMemoryBudgetPropertiesEXT *memory_budget_props =
             static_cast<VkPhysicalDeviceMemoryBudgetPropertiesEXT *>(ext);
-         memory_budget_props->heapUsage[0] = p_atomic_read(&physical_device->heap.used);
+         memory_budget_props->heapUsage[0] = vk_memory_budget_used(physical_device->memory_budget, 0);
          memory_budget_props->heapBudget[0] = tu_get_budget_memory(physical_device, memory_budget_props->heapUsage[0]);
 
          /* The heapBudget and heapUsage values must be zero for array elements
@@ -3579,9 +3601,8 @@ static VkResult
 tu_add_to_heap(struct tu_device *dev, struct tu_bo *bo)
 {
    struct tu_memory_heap *mem_heap = &dev->physical_device->heap;
-   uint64_t mem_heap_used = p_atomic_add_return(&mem_heap->used, bo->size);
-   if (mem_heap_used > mem_heap->size) {
-      p_atomic_add(&mem_heap->used, -bo->size);
+   if (!vk_memory_budget_try_add(dev->physical_device->memory_budget, 0,
+                                 bo->size, mem_heap->size)) {
       tu_bo_finish(dev, bo);
       return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
                        "Out of heap memory");
@@ -3674,7 +3695,8 @@ _tu_destroy_memory(struct tu_device *device,
                   struct tu_device_memory *mem)
 {
    if (mem->bo) {
-      p_atomic_add(&device->physical_device->heap.used, -mem->bo->size);
+      vk_memory_budget_sub(device->physical_device->memory_budget, 0,
+                           mem->bo->size);
       tu_bo_finish(device, mem->bo);
    }
 
@@ -3743,7 +3765,8 @@ tu_AllocateMemory(VkDevice _device,
    assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
 
    struct tu_memory_heap *mem_heap = &device->physical_device->heap;
-   uint64_t mem_heap_used = p_atomic_read(&mem_heap->used);
+   uint64_t mem_heap_used =
+      vk_memory_budget_used(device->physical_device->memory_budget, 0);
    if (mem_heap_used > mem_heap->size)
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
 

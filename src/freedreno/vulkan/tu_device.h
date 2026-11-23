@@ -17,6 +17,7 @@
 #include "util/u_vector.h"
 #include "util/vma.h"
 #include "vk_device_memory.h"
+#include "vk_memory.h"
 #include "vk_meta.h"
 
 #include "common/fd6_gmem_cache.h"
@@ -63,16 +64,8 @@ enum global_shader {
 
 struct tu_memory_heap {
    /* Standard bits passed on to the client */
-   VkDeviceSize      size;
+   VkDeviceSize size;
    VkMemoryHeapFlags flags;
-
-   /** Copied from ANV:
-    *
-    * Driver-internal book-keeping.
-    *
-    * Align it to 64 bits to make atomic operations faster on 32 bit platforms.
-    */
-   alignas(8) VkDeviceSize used;
 };
 
 enum tu_kgsl_dma_type
@@ -193,6 +186,8 @@ struct tu_physical_device
    uint32_t submitqueue_priority_count;
 
    struct tu_memory_heap heap;
+   /* Heap usage, shared with other instances using the same device */
+   struct vk_memory_budget *memory_budget;
 
    struct vk_sync_type syncobj_type;
    struct vk_sync_timeline_type timeline_type;
