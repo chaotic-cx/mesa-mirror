@@ -89,7 +89,7 @@ gdi_sw_is_displaytarget_format_supported( struct sw_winsys *ws,
                                                 unsigned tex_usage,
                                                 enum pipe_format format )
 {
-   switch(format) {
+   switch (util_format_linear(format)) {
    case PIPE_FORMAT_B8G8R8X8_UNORM:
    case PIPE_FORMAT_B8G8R8A8_UNORM:
    case PIPE_FORMAT_B5G6R5_UNORM:
@@ -182,22 +182,24 @@ gdi_sw_displaytarget_create(struct sw_winsys *winsys,
    gdt->bmi.bV5ClrUsed = 0;
    gdt->bmi.bV5ClrImportant = 0;
 
-   if (format == PIPE_FORMAT_B5G6R5_UNORM) {
+   enum pipe_format linear_format = util_format_linear(format);
+   if (linear_format == PIPE_FORMAT_B5G6R5_UNORM) {
       gdt->bmi.bV5Compression = BI_BITFIELDS;
       gdt->bmi.bV5RedMask = 0xF800;
       gdt->bmi.bV5GreenMask = 0x07E0;
       gdt->bmi.bV5BlueMask = 0x001F;
-   } else if (format == PIPE_FORMAT_B4G4R4A4_UNORM) {
+   } else if (linear_format == PIPE_FORMAT_B4G4R4A4_UNORM) {
       gdt->bmi.bV5Compression = BI_BITFIELDS;
       gdt->bmi.bV5RedMask = 0x0F00;
       gdt->bmi.bV5GreenMask = 0x00F0;
       gdt->bmi.bV5BlueMask = 0x000F;
-   } else if (format == PIPE_FORMAT_R10G10B10A2_UNORM) {
+   } else if (linear_format == PIPE_FORMAT_R10G10B10A2_UNORM) {
       gdt->bmi.bV5Compression = BI_BITFIELDS;
       gdt->bmi.bV5RedMask = 0x000003FF;
       gdt->bmi.bV5GreenMask = 0x000FFC00;
       gdt->bmi.bV5BlueMask = 0x3FF00000;
-   } else if (format == PIPE_FORMAT_R8G8B8X8_UNORM || format == PIPE_FORMAT_R8G8B8A8_UNORM) {
+   } else if (linear_format == PIPE_FORMAT_R8G8B8X8_UNORM ||
+              linear_format == PIPE_FORMAT_R8G8B8A8_UNORM) {
       gdt->bmi.bV5Compression = BI_BITFIELDS;
       gdt->bmi.bV5RedMask = 0x0000ff;
       gdt->bmi.bV5GreenMask = 0x00ff00;
