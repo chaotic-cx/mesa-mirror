@@ -332,10 +332,11 @@ validate_inst(struct validate_state *validate, jay_inst *I)
 
    /* Pure flag operations must be bitwise for our lowering to work */
    CHECK(I->type != JAY_TYPE_U1 ||
-         (I->op == JAY_OPCODE_PHI_DST || I->op == JAY_OPCODE_UNDEF) ||
-         (I->op == JAY_OPCODE_MOV || I->op == JAY_OPCODE_NOT) ||
-         (I->op >= JAY_OPCODE_AND || I->op == JAY_OPCODE_XOR) ||
-         (I->op == JAY_OPCODE_DEMOTE || I->op == JAY_OPCODE_IS_HELPER));
+         I->op == JAY_OPCODE_PHI_DST || I->op == JAY_OPCODE_PHI_SRC ||
+         I->op == JAY_OPCODE_UNDEF || I->op == JAY_OPCODE_MOV ||
+         I->op == JAY_OPCODE_NOT || I->op == JAY_OPCODE_AND ||
+         I->op == JAY_OPCODE_OR || I->op == JAY_OPCODE_XOR ||
+         I->op == JAY_OPCODE_DEMOTE || I->op == JAY_OPCODE_IS_HELPER);
 
    if (I->op == JAY_OPCODE_DPAS) {
       CHECK(jay_num_values(I->dst) == get_src_words(validate, I, 0));
