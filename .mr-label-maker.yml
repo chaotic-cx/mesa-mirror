@@ -225,6 +225,7 @@ merge_requests:
         '^src/gallium/include/': ['gallium']
         '^src/gallium/targets/': ['gallium']
         '^src/gallium/targets/rusticl/': ['Rusticl']
+        '^src/gallium/targets/teflon/': ['teflon']
         '^src/gallium/targets/mediafoundation/': ['mediafoundation']
         '^src/gallium/tests/': ['gallium']
         '^src/gallium/tools/': ['gallium']
