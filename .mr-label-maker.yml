@@ -69,6 +69,7 @@ issues:
         'radeonsi': 'radeonsi'
         'radv': 'RADV'
         'radv/aco': ['RADV', 'ACO']
+        'rocket': 'rocket'
         'rust': 'Rust'
         'rusticl': 'Rusticl'
         'softpipe': 'softpipe'
@@ -149,6 +150,7 @@ merge_requests:
         '^docs/': ['docs']
         '^include/drm-uapi/ethosu_accel.h': ['ethosu']
         '^include/drm-uapi/i915_drm.h': ['intel']
+        '^include/drm-uapi/rocket_accel.h': ['rocket']
         '^include/drm-uapi/xe_drm.h': ['intel']
         '^include/vulkan/': ['vulkan']
         '^meson.options': ['meson']
@@ -210,6 +212,7 @@ merge_requests:
         '^src/gallium/drivers/r300/': ['r300']
         '^src/gallium/drivers/r600/': ['r600']
         '^src/gallium/drivers/radeonsi': ['radeonsi']
+        '^src/gallium/drivers/rocket/': ['rocket']
         '^src/gallium/drivers/softpipe': ['softpipe']
         '^src/gallium/drivers/svga/': ['svga']
         '^src/gallium/drivers/tegra/': ['tegra']
@@ -249,6 +252,7 @@ merge_requests:
         '^src/gallium/winsys/nouveau/': ['nouveau']
         '^src/gallium/winsys/panfrost/': ['panfrost']
         '^src/gallium/winsys/radeon/': ['r300', 'r600', 'radeonsi']
+        '^src/gallium/winsys/rocket/': ['rocket']
         '^src/gallium/winsys/svga/': ['svga']
         # '^src/gallium/winsys/sw/': ['']
         '^src/gallium/winsys/sw/gdi/': ['wgl']
