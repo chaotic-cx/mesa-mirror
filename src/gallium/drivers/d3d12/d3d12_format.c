@@ -69,7 +69,10 @@
    MAP_EMU_FORMAT_NO_ALPHA(BITS, TYPE)
 
 #define MAP_FORMAT_X8(BITS, TYPE) \
-   MAP_FORMAT2(BITS ## X8, TYPE, BITS ## A8, TYPE) \
+   MAP_FORMAT2(BITS ## X8, TYPE, BITS ## A8, TYPE)
+
+#define MAP_FORMAT_X8_SRGB(BITS) \
+   MAP_FORMAT2(BITS ## X8, SRGB, BITS ## A8, UNORM_SRGB)
 
 #define FORMAT_TABLE() \
    MAP_FORMAT_NORM(R8) \
@@ -91,6 +94,8 @@
    MAP_FORMAT_X8(R8G8B8, SNORM) \
    MAP_FORMAT_X8(R8G8B8, UINT) \
    MAP_FORMAT_X8(R8G8B8, SINT) \
+   MAP_FORMAT_X8_SRGB(R8G8B8) \
+   MAP_FORMAT_X8_SRGB(B8G8R8) \
 \
    MAP_FORMAT(B8G8R8A8, UNORM) \
 \
@@ -486,7 +491,8 @@ d3d12_get_format_info(enum pipe_format resource_format, enum pipe_format pformat
    unsigned plane_slice = 0;
 
    if (pformat == PIPE_FORMAT_DXT1_RGB ||
-       pformat == PIPE_FORMAT_DXT1_SRGB)
+       pformat == PIPE_FORMAT_DXT1_SRGB ||
+       util_format_has_alpha1(pformat))
       swizzle = RGB1_SWIZZLE;
 
    const struct util_format_description
@@ -519,8 +525,6 @@ d3d12_get_format_info(enum pipe_format resource_format, enum pipe_format pformat
           * but the shader will read the x component so we need to adjust the swizzle. */
          plane_slice = 1;
          swizzle = STENCIL_SWIZZLE;
-      } else if (util_format_has_alpha1(pformat)) {
-         swizzle = RGB1_SWIZZLE;
       }
    }
 
