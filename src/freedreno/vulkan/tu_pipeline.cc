@@ -53,6 +53,11 @@ emit_load_state(struct tu_cs *cs, unsigned opcode, enum a6xx_state_type st,
    tu_cs_emit_qw(cs, offset | (base << 28));
 }
 
+/* Combined image samplers need two CP_LOAD_STATE6 packets per array element and stage, and each packet costs CP time,
+ * so we have to put some limit to reduce CP overhead. From tests preloading more than 16 is never beneficial.
+ */
+#define TU_MAX_PRELOAD_COMBINED_SAMPLERS_PER_STAGE 16
+
 static unsigned
 tu6_load_state_size(struct tu_pipeline *pipeline,
                     struct tu_pipeline_layout *layout)
@@ -98,7 +103,7 @@ tu6_load_state_size(struct tu_pipeline *pipeline,
             /* Because of how we pack combined images and samplers, we
              * currently can't use one packet for the whole array.
              */
-            count = stage_count * binding->array_size * 2;
+            count = stage_count * MIN2(binding->array_size, TU_MAX_PRELOAD_COMBINED_SAMPLERS_PER_STAGE) * 2;
             break;
          case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
          case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK:
@@ -124,6 +129,10 @@ tu6_emit_load_state(struct tu_device *device,
 
    struct tu_cs cs;
    tu_cs_begin_sub_stream(&pipeline->cs, size, &cs);
+
+   unsigned combined_samplers_budget[MESA_SHADER_STAGES];
+   for (unsigned s = 0; s < MESA_SHADER_STAGES; s++)
+      combined_samplers_budget[s] = TU_MAX_PRELOAD_COMBINED_SAMPLERS_PER_STAGE;
 
    for (unsigned i = 0; i < layout->num_sets; i++) {
       /* From 13.2.7. Descriptor Set Binding:
@@ -226,7 +235,9 @@ tu6_emit_load_state(struct tu_device *device,
                /* TODO: We could emit less CP_LOAD_STATE6 if we used
                 * struct-of-arrays instead of array-of-structs.
                 */
-               for (unsigned i = 0; i < count; i++) {
+               unsigned num = MIN2(count, combined_samplers_budget[stage]);
+               combined_samplers_budget[stage] -= num;
+               for (unsigned i = 0; i < num; i++) {
                   unsigned tex_offset = offset + 2 * i * FDL6_TEX_CONST_DWORDS;
                   unsigned sam_offset = offset + (2 * i + 1) * FDL6_TEX_CONST_DWORDS;
                   emit_load_state(&cs, tu6_stage2opcode(stage),
