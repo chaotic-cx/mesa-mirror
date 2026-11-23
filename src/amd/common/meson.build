@@ -274,6 +274,7 @@ if with_amd_rdp
       idep_parson
     ],
     link_with: [libamd_common],
+    cpp_args : cpp.get_supported_arguments(['-fno-rtti']),
     gnu_symbol_visibility : 'hidden',
     build_by_default : false
   )
