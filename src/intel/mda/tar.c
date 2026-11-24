@@ -156,7 +156,8 @@ static bool
 archive_write_padding(FILE *archive, unsigned contents_size)
 {
    const unsigned padding_size = archive_calculate_padding(contents_size);
-   return fwrite(archive_empty_records, padding_size, 1, archive) == 1;
+   return padding_size == 0 ||
+          fwrite(archive_empty_records, padding_size, 1, archive) == 1;
 }
 
 static void
@@ -183,7 +184,7 @@ archive_file_from_bytes(FILE *archive, const char *prefix, const char *filename,
    if (fwrite(header, RECORD_SIZE, 1, archive) != 1)
       return false;
 
-   if (fwrite(contents, contents_size, 1, archive) != 1)
+   if (contents_size && fwrite(contents, contents_size, 1, archive) != 1)
       return false;
 
    archive_write_padding(archive, contents_size);
@@ -250,7 +251,7 @@ tar_writer_finish_file(tar_writer *tw)
       goto fail;
    if (fwrite(tw->header, RECORD_SIZE, 1, tw->file) != 1)
       goto fail;
-   if (fseek(tw->file, 0, SEEK_END) == -1)
+   if (fseek(tw->file, end_pos + archive_calculate_padding(size), SEEK_SET) == -1)
       goto fail;
 
    archive_prewrite_end_of_archive(tw->file);
