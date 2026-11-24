@@ -941,7 +941,7 @@ class TransformCondExpr(object):
         num_components = None
         for var in self.variables:
             res += f'UNUSED const nir_match_variable *{var.name}_var = &vars[{var.index}];\n'
-            res += f'UNUSED const nir_def *{var.name}{'_def' if var.is_const else ''} = vars[{var.index}].src.src.ssa;\n'
+            res += f'UNUSED const nir_def *{var.name}{"_def" if var.is_const else ""} = vars[{var.index}].src.src.ssa;\n'
             if var.is_const and num_components is None:
                 num_components = f'{var.name}_var->num_components'
 
