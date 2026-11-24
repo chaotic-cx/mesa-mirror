@@ -1,0 +1,2 @@
+# Running WSI tests seem to cause a random deadlock for some reasons.
+dEQP-VK.wsi.*
