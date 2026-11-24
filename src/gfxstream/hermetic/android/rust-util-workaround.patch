@@ -1,0 +1,33 @@
+diff --git a/Android.bp b/Android.bp
+index cdc3d5efbc3..53a95fe6d5b 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -28,6 +28,15 @@ license {
+     ],
+ }
+ 
++cc_library_headers {
++    name: "inc_root",
++    vendor: true,
++    host_supported: true,
++    export_include_dirs: [
++        ".",
++    ],
++}
++
+ cc_defaults {
+     name: "_trial_c",
+     vendor: true,
+diff --git a/src/util/rust/Android.bp b/src/util/rust/Android.bp
+index f6a211f4ee9..1b4512fa2a6 100644
+--- a/src/util/rust/Android.bp
++++ b/src/util/rust/Android.bp
+@@ -101,7 +101,7 @@ cc_library_static {
+     ],
+     header_libs: [
+         "inc_include",
+-        "inc_src_util_rust",
++        "inc_root",
+         "inc_util",
+         "inc_util_c11",
+     ] + select(os(), {

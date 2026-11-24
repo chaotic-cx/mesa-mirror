@@ -6,6 +6,7 @@ project_path = 'external/mesa3d'
 build_system = 'soong'
 patch_files = [
     'gfxstream_workaround.patch',
+    'rust-util-workaround.patch',
 ]
 
 [copyright]
