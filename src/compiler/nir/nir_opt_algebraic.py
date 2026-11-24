@@ -4211,12 +4211,14 @@ for N in [16, 32]:
                 ((x2xN, ('u2u16', aN)), (extract_x16, a, 0), '!options->lower_extract_word'),
             ])
 
-# Byte insertion
-late_optimizations.extend([(('ishl', ('extract_u8', 'a@32', 0), 8 * i), ('insert_u8', a, i), '!options->lower_insert_byte') for i in range(1, 4)])
-late_optimizations.extend([(('iand', ('ishl', 'a@32', 8 * i), 0xff << (8 * i)), ('insert_u8', a, i), '!options->lower_insert_byte') for i in range(1, 4)])
-late_optimizations.append((('ishl', 'a@32', 24), ('insert_u8', a, 3), '!options->lower_insert_byte'))
-
 late_optimizations += [
+   # Byte insertion
+   (('ishl', ('extract_u8', 'a@32', 0), '#b(uint)'), ('insert_u8', a, ('udiv', b, 8)),
+    '!options->lower_insert_byte', when('b != 0 && b < 32 && b % 8 == 0'), TestStatus.UNSUPPORTED),
+   (('iand', ('ishl', 'a@32','#b(uint)'), '#c(uint)'), ('insert_u8', a, ('udiv', b, 8)),
+    '!options->lower_insert_byte', when('b != 0 && b < 32 && b % 8 == 0 && c == 0xff << b'), TestStatus.UNSUPPORTED),
+   (('ishl', 'a@32', 24), ('insert_u8', a, 3), '!options->lower_insert_byte'),
+
    # Word insertion
    (('ishl', 'a@32', 16), ('insert_u16', a, 1), '!options->lower_insert_word'),
 
