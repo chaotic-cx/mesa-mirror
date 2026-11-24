@@ -97,6 +97,7 @@
 #include "vk_graphics_state.h"
 #include "vk_image.h"
 #include "vk_instance.h"
+#include "vk_memory.h"
 #include "vk_pipeline.h"
 #include "vk_pipeline_cache.h"
 #include "vk_pipeline_layout.h"
@@ -1467,22 +1468,6 @@ struct anv_memory_type {
    bool                    compressed;
 };
 
-/* Heaps tracking structure shared across multiple VkInstance */
-struct anv_memory_budget {
-   uint32_t ref_count;
-
-   struct list_head link;
-
-   int64_t local_major;
-   int64_t local_minor;
-
-   /** Driver-internal book-keeping, indexed by heap.
-    *
-    * Align it to 64 bits to make atomic operations faster on 32 bit platforms.
-    */
-   alignas(8) VkDeviceSize used[VK_MAX_MEMORY_HEAPS];
-};
-
 struct anv_memory_heap {
    /* Standard bits passed on to the client */
    VkDeviceSize      size;
@@ -1644,7 +1629,7 @@ struct anv_physical_device {
       struct anv_memory_type                    types[VK_MAX_MEMORY_TYPES];
       uint32_t                                  heap_count;
       struct anv_memory_heap                    heaps[VK_MAX_MEMORY_HEAPS];
-      struct anv_memory_budget                 *heaps_budget;
+      struct vk_memory_budget                  *heaps_budget;
 #ifdef SUPPORT_INTEL_INTEGRATED_GPUS
       bool                                      need_flush;
 #endif

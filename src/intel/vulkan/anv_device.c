@@ -1786,8 +1786,8 @@ VkResult anv_AllocateMemory(
    if (aligned_alloc_size > mem_heap->size)
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
 
-   uint64_t mem_heap_used = p_atomic_read(
-      &pdevice->memory.heaps_budget->used[mem_type->heapIndex]);
+   uint64_t mem_heap_used =
+      vk_memory_budget_used(pdevice->memory.heaps_budget, mem_type->heapIndex);
    if (mem_heap_used + aligned_alloc_size > mem_heap->size)
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
 
@@ -2079,11 +2079,9 @@ VkResult anv_AllocateMemory(
    }
 
  success:
-   mem_heap_used = p_atomic_add_return(
-      &pdevice->memory.heaps_budget->used[mem_type->heapIndex], mem->bo->size);
-   if (mem_heap_used > mem_heap->size) {
-      p_atomic_add(&pdevice->memory.heaps_budget->used[mem_type->heapIndex],
-                   -mem->bo->size);
+   if (!vk_memory_budget_try_add(pdevice->memory.heaps_budget,
+                                 mem_type->heapIndex,
+                                 mem->bo->size, mem_heap->size)) {
       anv_device_release_bo(device, mem->bo);
       result = vk_errorf(device, VK_ERROR_OUT_OF_DEVICE_MEMORY,
                          "Out of heap memory");
@@ -2203,8 +2201,8 @@ void anv_FreeMemory(
       anv_UnmapMemory2(_device, &unmap);
    }
 
-   p_atomic_add(&pdevice->memory.heaps_budget->used[mem->type->heapIndex],
-                -mem->bo->size);
+   vk_memory_budget_sub(pdevice->memory.heaps_budget,
+                        mem->type->heapIndex, mem->bo->size);
 
    ANV_DMR_BO_FREE_IMPORT(&mem->vk.base, mem->bo,
                           mem->vk.import_handle_type);
