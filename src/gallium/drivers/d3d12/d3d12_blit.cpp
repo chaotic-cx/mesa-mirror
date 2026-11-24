@@ -72,6 +72,10 @@ resolve_supported(const struct pipe_blit_info *info)
    if (src->dxgi_format != dst->dxgi_format)
       return false;
 
+   if (info->src.format != info->src.resource->format ||
+       info->dst.format != info->dst.resource->format)
+      return false;
+
    if (util_format_is_pure_integer(src->base.b.format))
       return false;
 
