@@ -2280,12 +2280,8 @@ optimizations.extend([
 
    # Downcast followed by upcast
    (('u2u32', ('u2u8', 'a@32')), ('extract_u8', a, 0), '!options->lower_extract_byte'),
-   (('u2u32', ('i2i8', 'a@32')), ('extract_u8', a, 0), '!options->lower_extract_byte'),
-   (('i2i32', ('i2i8', 'a@32')), ('extract_i8', a, 0), '!options->lower_extract_byte'),
    (('i2i32', ('u2u8', 'a@32')), ('extract_i8', a, 0), '!options->lower_extract_byte'),
    (('u2u32', ('u2u16', 'a@32')), ('extract_u16', a, 0), '!options->lower_extract_word'),
-   (('u2u32', ('i2i16', 'a@32')), ('extract_u16', a, 0), '!options->lower_extract_word'),
-   (('i2i32', ('i2i16', 'a@32')), ('extract_i16', a, 0), '!options->lower_extract_word'),
    (('i2i32', ('u2u16', 'a@32')), ('extract_i16', a, 0), '!options->lower_extract_word'),
 
    # The extract_X16(a & 0xff) patterns aren't included because the iand will
