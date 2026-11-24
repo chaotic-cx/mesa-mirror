@@ -2698,11 +2698,9 @@ cs_function_end(struct cs_builder *b,
 
    function->dump_size = BITSET_COUNT(function->dirty.regs) * sizeof(uint32_t);
 
-   /* Make sure the current chunk is able to accommodate the block
-    * instructions as well as the preamble and postamble.
-    * Adding 4 instructions (2x wait_slot and the move for the address) as
-    * the move might actually be translated to two MOVE32 instructions. */
-   num_instrs += (num_ranges * 2) + 4;
+   /* (preamble + postamble) * (load_addr + wait + store_reg + wait) */
+   if (num_ranges)
+      num_instrs += 2 * (num_ranges + 3);
 
    /* Align things on a cache-line in case the buffer contains more than one
     * function (64 bytes = 8 instructions). */
@@ -2711,8 +2709,8 @@ cs_function_end(struct cs_builder *b,
    if (!cs_reserve_instrs(b, padded_num_instrs))
       return;
 
-   function->address =
-      b->cur_chunk.buffer.gpu + (b->cur_chunk.pos * sizeof(uint64_t));
+   const uint32_t start_pos = b->cur_chunk.pos;
+   function->address = b->cur_chunk.buffer.gpu + start_pos * sizeof(uint64_t);
 
    /* Preamble: backup modified registers */
    if (num_ranges > 0) {
@@ -2751,6 +2749,8 @@ cs_function_end(struct cs_builder *b,
 
       cs_flush_loads(b);
    }
+
+   assert(b->cur_chunk.pos - start_pos == num_instrs);
 
    /* Fill the rest of the buffer with NOPs. */
    for (; num_instrs < padded_num_instrs; num_instrs++)
