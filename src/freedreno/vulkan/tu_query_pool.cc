@@ -1036,6 +1036,14 @@ emit_reset_query_pool(struct tu_cmd_buffer *cmdbuf, struct tu_query_pool *pool, 
 {
    struct tu_cs *cs = &cmdbuf->cs;
 
+   /* The result and availability of a previous occlusion query are written
+    * asynchronously by ZPASS_DONE and RB_DONE_TS, make sure they have landed.
+    */
+   if (pool->vk.query_type == VK_QUERY_TYPE_OCCLUSION &&
+       cmdbuf->device->physical_device->info->props.has_event_write_sample_count) {
+      tu7_wait_for_rb_done(cs, CP_SET_THREAD_BR, true);
+   }
+
    reset_query_pool<CHIP>(pool, firstQuery, queryCount, [cs](uint64_t result_iova) {
       tu_cs_emit_pkt7(cs, CP_MEM_WRITE, 4);
       tu_cs_emit_qw(cs, result_iova);

@@ -102,7 +102,7 @@ tu_cmd_buffer_status_gpu_write(struct tu_cmd_buffer *cmd_buffer,
 }
 
 static void
-tu_wait_for_rb_done(struct tu_cs *cs, uint32_t onchip_addr, uint32_t seqno)
+tu_emit_rb_done_ts(struct tu_cs *cs, uint32_t onchip_addr, uint32_t value)
 {
    tu_cs_emit_pkt7(cs, CP_EVENT_WRITE7, 4);
    tu_cs_emit(cs, CP_EVENT_WRITE7_0(
@@ -111,7 +111,13 @@ tu_wait_for_rb_done(struct tu_cs *cs, uint32_t onchip_addr, uint32_t seqno)
       .write_dst = EV_DST_ONCHIP,
       .write_enabled = true).value);
    tu_cs_emit_qw(cs, onchip_addr);
-   tu_cs_emit(cs, seqno);
+   tu_cs_emit(cs, value);
+}
+
+static void
+tu_wait_for_rb_done(struct tu_cs *cs, uint32_t onchip_addr, uint32_t seqno, bool clear)
+{
+   tu_emit_rb_done_ts(cs, onchip_addr, seqno);
 
    tu_cs_emit_pkt7(cs, CP_WAIT_REG_MEM, 6);
    tu_cs_emit(cs, CP_WAIT_REG_MEM_0_FUNCTION(WRITE_EQ) | CP_WAIT_REG_MEM_0_POLL(POLL_ON_CHIP));
@@ -119,6 +125,38 @@ tu_wait_for_rb_done(struct tu_cs *cs, uint32_t onchip_addr, uint32_t seqno)
    tu_cs_emit(cs, CP_WAIT_REG_MEM_3_REF(seqno));
    tu_cs_emit(cs, CP_WAIT_REG_MEM_4_MASK(~0u));
    tu_cs_emit(cs, CP_WAIT_REG_MEM_5_DELAY_LOOP_CYCLES(2));
+
+   if (clear)
+      tu_emit_rb_done_ts(cs, onchip_addr, 0);
+}
+
+/* Wait until the writes of all previously issued events that write through
+ * RB_DONE_TS (e.g. RB_DONE_TS writes or ZPASS_DONE accumulation) have landed.
+ * The only way to wait for them is to wait on a value they wrote, however we
+ * don't know the value nor can rely on the previous value being zero. So we
+ * have to issue our own RB_DONE_TS with a known value and wait for it.
+ */
+void
+tu7_wait_for_rb_done(struct tu_cs *cs, enum cp_thread threads, bool clear)
+{
+   static uint32_t seqno = 0;
+   uint32_t value = p_atomic_add_return(&seqno, 1);
+   /* 0 is the cleared value. */
+   if (value == 0)
+      value = p_atomic_add_return(&seqno, 1);
+
+   if (threads & CP_SET_THREAD_BR) {
+      tu_cond_exec_start(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) | CP_COND_REG_EXEC_0_BR);
+      tu_wait_for_rb_done(cs, TU_ONCHIP_BR_RB_DONE_BARRIER, value, clear);
+      tu_cond_exec_end(cs);
+   }
+
+   if (threads & CP_SET_THREAD_BV) {
+      /* BV can race BR so we cannot wait on the same addr in both since it can be overwritten. */
+      tu_cond_exec_start(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) | CP_COND_REG_EXEC_0_BV);
+      tu_wait_for_rb_done(cs, TU_ONCHIP_BV_RB_DONE_BARRIER, value, clear);
+      tu_cond_exec_end(cs);
+   }
 }
 
 template <chip CHIP>
@@ -130,25 +168,9 @@ tu_clone_trace_range(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    if (u_trace_iterator_equal(begin, end))
       return;
 
-   /* The only way to wait for tracepoint's RB_DONE_TS completion on A7XX+ is to wait
-    * on a value it written, however neither we know the value tracepoint writes,
-    * nor we can rely on previous value being zero. So we have to issue our own
-    * RB_DONE_TS with known value and wait for it.
-    */
-    /* TODO: Maybe we can do this only when we copy from memory written by RB_DONE_TS? */
-    if constexpr (CHIP >= A7XX) {
-      static uint32_t seqno = 0;
-      uint32_t value = p_atomic_add_return(&seqno, 1);
-
-      /* BV can race BR so we cannot wait on the same addr in both since it can be overwritten. */
-      tu_cond_exec_start(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) | CP_COND_REG_EXEC_0_BR);
-      tu_wait_for_rb_done(cs, TU_ONCHIP_BR_U_TRACE_BARRIER, value);
-      tu_cond_exec_end(cs);
-
-      tu_cond_exec_start(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) | CP_COND_REG_EXEC_0_BV);
-      tu_wait_for_rb_done(cs, TU_ONCHIP_BV_U_TRACE_BARRIER, value);
-      tu_cond_exec_end(cs);
-   }
+   /* TODO: Maybe we can do this only when we copy from memory written by RB_DONE_TS? */
+   if constexpr (CHIP >= A7XX)
+      tu7_wait_for_rb_done(cs, CP_SET_THREAD_BOTH, false);
 
    tu_cs_emit_wfi(cs);
    tu_cs_emit_pkt7(cs, CP_WAIT_FOR_ME, 0);

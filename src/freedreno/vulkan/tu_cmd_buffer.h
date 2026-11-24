@@ -1037,6 +1037,9 @@ void
 tu7_set_thread_both_patchpoint(struct tu_cmd_buffer *cmd,
                                struct tu_cs *cs);
 
+void
+tu7_wait_for_rb_done(struct tu_cs *cs, enum cp_thread threads, bool clear);
+
 /* For bin offsetting we want to do "Euclidean division," where the remainder
  * (i.e. the offset of the bin) is always positive. Unfortunately C/C++
  * remainder and division don't do this, so we have to implement it ourselves.
