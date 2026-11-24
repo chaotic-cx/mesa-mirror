@@ -570,6 +570,8 @@ apple_glx_context_surface_changed(unsigned int uid, pthread_t caller)
                                  uid);
 
             xp_update_gl_context(ac->context_obj);
+            /* Workaround for a macOS 26 bug.  See https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16523 */
+            apple_glx_surface_fix_position(&ac->drawable->types.surface, ac->context_obj);
          }
          else {
             ac->need_update = true;
@@ -603,6 +605,9 @@ apple_glx_context_update(Display * dpy, void *ptr)
 
    if (ac->need_update) {
       xp_update_gl_context(ac->context_obj);
+      /* Workaround for a macOS 26 bug.  See https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16523 */
+      if (ac->drawable && APPLE_GLX_DRAWABLE_SURFACE == ac->drawable->type)
+         apple_glx_surface_fix_position(&ac->drawable->types.surface, ac->context_obj);
       ac->need_update = false;
 
       apple_glx_log_debug("%s: updating context %p", __func__, ptr);

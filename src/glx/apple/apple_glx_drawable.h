@@ -63,6 +63,10 @@ struct apple_glx_surface
 {
    xp_surface_id surface_id;
    unsigned int uid;
+   /* CGS window and surface IDs from the server.  Only the macOS 26 workaround uses them.  See
+    * https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16523
+    */
+   unsigned int key[2];
    bool pending_destroy;
 };
 
@@ -187,6 +191,14 @@ bool apple_glx_surface_create(Display * dpy, int screen, GLXDrawable drawable,
                               struct apple_glx_drawable **resultptr);
 
 void apple_glx_surface_destroy(unsigned int uid);
+
+/* Workaround for a macOS 26 regression.  See https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16523
+ *
+ * SkyLight places the surface at the window bottom after each CGLUpdateContext().  This function moves the surface to
+ * its real position and flushes the drawable.  Call it after xp_update_gl_context().  It does nothing on earlier macOS
+ * releases.
+ */
+void apple_glx_surface_fix_position(const struct apple_glx_surface *s, CGLContextObj context_obj);
 
 /* Pbuffers */
 

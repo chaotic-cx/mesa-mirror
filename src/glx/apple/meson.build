@@ -31,8 +31,10 @@ files_libappleglx = files(
 )
 
 dep_xplugin = null_dep
+dep_coregraphics = null_dep
 if with_dri_platform == 'apple'
   dep_xplugin = meson.get_compiler('c').find_library('Xplugin')
+  dep_coregraphics = dependency('appleframeworks', modules : ['CoreGraphics'])
 endif
 
 libappleglx = static_library(
@@ -40,7 +42,7 @@ libappleglx = static_library(
   [files_libappleglx, main_dispatch_h],
   include_directories: [inc_mesa, inc_glx, inc_src, inc_include, inc_glapi, inc_gallium, inc_loader],
   c_args: ['-DGL_SILENCE_DEPRECATION'],
-  dependencies: [dep_xext, dep_xplugin],
+  dependencies: [dep_xext, dep_xplugin, dep_coregraphics],
   gnu_symbol_visibility : 'hidden',
   build_by_default: false,
 )

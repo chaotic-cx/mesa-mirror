@@ -27,10 +27,13 @@
  prior written authorization.
 */
 #include <assert.h>
+#include <CoreGraphics/CGGeometry.h>
+#include <CoreGraphics/CGError.h>
 #include "glxclient.h"
 #include "apple_glx.h"
 #include "appledri.h"
 #include "apple_glx_drawable.h"
+#include "apple_cgl.h"
 
 static bool surface_make_current(struct apple_glx_context *ac,
                                  struct apple_glx_drawable *d);
@@ -54,6 +57,47 @@ update_viewport_and_scissor(Display * dpy, GLXDrawable drawable)
    XGetGeometry(dpy, drawable, &root, &x, &y, &width, &height, &bd, &depth);
 
    apple_glapi_oglfw_viewport_scissor(0, 0, width, height);
+}
+
+/* Workaround for a macOS 26 bug.  See https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16523
+ *
+ * SkyLight on macOS 26 and later places the layer of an OpenGL surface at the bottom of the window each time
+ * CGLUpdateContext() binds the surface.  It skips a set of the same bounds after that.  A move of one pixel and
+ * back makes SkyLight place the layer from the real bounds.  The moves change nothing when SkyLight already places
+ * the layer correctly.  Call this after xp_update_gl_context().  A call after xp_attach_gl_context() blanks the layer.
+ * The move also blanks the layer until the next flush, so the function flushes the drawable.
+ */
+/* These CoreGraphics functions are not public API, so no header declares them.  The workaround for the macOS 26 bug
+ * needs them.
+ */
+extern CGError CGSGetSurfaceBounds(uint32_t cid, uint32_t wid, uint32_t sid, CGRect *bounds);
+extern CGError CGSMoveSurface(uint32_t cid, uint32_t wid, uint32_t sid, CGPoint location);
+extern CGError CGSGetWindowBounds(uint32_t cid, uint32_t wid, CGRect *bounds);
+
+void
+apple_glx_surface_fix_position(const struct apple_glx_surface *s, CGLContextObj context_obj)
+{
+   if (__builtin_available(macOS 26.0, *)) {
+      xp_client_id cid = apple_glx_get_client_id();
+      CGRect bounds, window_bounds;
+
+      if (cid == 0)
+         return;
+
+      /* The client does not know the bounds.  The server sets them. */
+      if (CGSGetSurfaceBounds(cid, s->key[0], s->key[1], &bounds) != kCGErrorSuccess ||
+          bounds.size.width <= 0 || bounds.size.height <= 0)
+         return;
+
+      /* SkyLight puts the layer at the window bottom.  That is correct when the surface touches the window bottom. */
+      if (CGSGetWindowBounds(cid, s->key[0], &window_bounds) == kCGErrorSuccess &&
+          bounds.origin.y + bounds.size.height == window_bounds.size.height)
+         return;
+
+      CGSMoveSurface(cid, s->key[0], s->key[1], CGPointMake(bounds.origin.x, bounds.origin.y + 1));
+      CGSMoveSurface(cid, s->key[0], s->key[1], bounds.origin);
+      apple_cgl.flush_drawable(context_obj);
+   }
 }
 
 static bool
@@ -148,6 +192,9 @@ create_surface(Display * dpy, int screen, struct apple_glx_drawable *d)
          fprintf(stderr, "error: xp_import_surface returned: %d\n", error);
          return true;
       }
+
+      s->key[0] = key[0];
+      s->key[1] = key[1];
 
       apple_glx_log_debug("%s: created a surface for drawable 0x%lx with uid %u",
                           __func__, d->drawable, s->uid);
