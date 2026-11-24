@@ -644,22 +644,6 @@ for s in [8, 16, 32, 64]:
                  ('bcsel', in_bounds(d, e), ('ishl', c, ('iand', ('iadd', d, e), mask)), 0))),
    ])
 
-# Optimize a pattern of address calculation created by DXVK where the offset is
-# divided by 4 and then multipled by 4. This can be turned into an iand and the
-# additions before can be reassociated to CSE the iand instruction.
-
-for size, mask in ((8, 0xff), (16, 0xffff), (32, 0xffffffff), (64, 0xffffffffffffffff)):
-    a_sz = 'a@{}'.format(size)
-
-    optimizations.extend([
-       # 'a >> #b << #b' -> 'a & ~((1 << #b) - 1)'
-       (('ishl', ('ushr', a_sz, '#b'), b), ('iand', a, ('ishl', mask, b))),
-       (('ishl', ('ishr', a_sz, '#b'), b), ('iand', a, ('ishl', mask, b))),
-
-       # This does not trivially work with ishr.
-       (('ushr', ('ishl', a_sz, '#b'), b), ('iand', a, ('ushr', mask, b))),
-    ])
-
 # Collapses ubfe(ubfe(a, b, c), d, e) when b, c, d, e are constants.
 def ubfe_ubfe(a, b, c, d, e):
     inner_offset = ('iand', b, 0x1f)
@@ -715,6 +699,17 @@ for log2 in range(1, 7): # powers of two from 2 to 64
    ])
 
 optimizations.extend([
+   # Optimize a pattern of address calculation created by DXVK where the offset is
+   # divided by 4 and then multipled by 4. This can be turned into an iand and the
+   # additions before can be reassociated to CSE the iand instruction.
+
+   # 'a >> #b << #b' -> 'a & ~((1 << #b) - 1)'
+   (('ishl', ('ushr', a, '#b'), b), ('iand', a, ('ishl', -1, b))),
+   (('ishl', ('ishr', a, '#b'), b), ('iand', a, ('ishl', -1, b))),
+
+   # This does not trivially work with ishr.
+   (('ushr', ('ishl', a, '#b'), b), ('iand', a, ('ushr', -1, b))),
+
    # Remove masking before/after shifts that already remove those bits
    # This pattern seems to only help in the soft-fp64 code.
    (('ishl', ('iand', a, '#b(uint)'), '#c(uint)'), ('ishl', a, c),
