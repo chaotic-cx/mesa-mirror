@@ -4068,6 +4068,7 @@ jay_emit_eot(struct nir_to_jay_state *nj)
       bool needs_halt = nj->needs_final_halt && !nj->s->helpers_tracked;
 
       if (needs_eot || needs_halt) {
+         const struct intel_shader_info *info = &b->shader->info;
          unsigned width = MIN2(b->shader->dispatch_width,
                                reg_unit(b->shader->devinfo) * 16);
          unsigned op =
@@ -4076,12 +4077,11 @@ jay_emit_eot(struct nir_to_jay_state *nj)
             width == 16 ?
                BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD16_SINGLE_SOURCE :
                BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD8_SINGLE_SOURCE_SUBSPAN01;
-         uint64_t desc = brw_fb_write_desc(b->shader->devinfo, 0, op, true, false);
+         uint64_t desc = brw_fb_write_desc(b->shader->devinfo, 0, op, true,
+                                           info->fs.coarse_pixel_dispatch);
          uint64_t ex_desc = (1 << 20) /* null rt */;
          unsigned gprs = 4;
          unsigned ugprs = 0;
-
-         const struct intel_shader_info *info = &b->shader->info;
 
          /* We seem to hang unless the payload size matches the state that was
           * programmed in 3DSTATE_PS_EXTRA.
