@@ -59,11 +59,6 @@ build_platforms = ["linux_glibc_x86_64"]
 
 [config.static_options]
 glx = "disabled"
-# Lavapipe is loaded into SP-HAL clients (SurfaceFlinger, apps), which
-# can only load vendor libraries labeled same_process_hal_file.
-# libz is labeled, libzstd is not.
-zlib = "enabled"
-zstd = "disabled"
 platforms = "android"
 android-strict = false
 vulkan-drivers = "gfxstream,swrast"
@@ -89,7 +84,6 @@ build_platforms = ["linux_glibc_x86_64"]
 
 [config.static_options]
 glx = "disabled"
-zlib = "disabled"
 platforms = "android"
 android-strict = false
 vulkan-drivers = "freedreno"
