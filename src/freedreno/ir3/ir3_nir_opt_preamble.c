@@ -590,6 +590,7 @@ is_descriptor_prefetchable(nir_def *desc)
 }
 
 
+/* Upper bound of fd_dev_info::props.max_desc_prefetches_*. */
 #define MAX_PREFETCHES 32
 
 struct prefetches {
@@ -617,6 +618,7 @@ add_prefetch(struct prefetches *prefetches, nir_def *def)
 
 struct prefetch_state {
    struct prefetches tex, sampler;
+   unsigned max_prefetches;
 };
 
 static bool
@@ -655,7 +657,7 @@ emit_descriptor_prefetch(nir_builder *b, nir_instr *instr, nir_def **descs,
       bool tex_already_prefetched = is_already_prefetched(&state->tex, descs[0]);
 
       if (!tex_already_prefetched &&
-          state->tex.num_prefetches == MAX_PREFETCHES)
+          state->tex.num_prefetches == state->max_prefetches)
          return false;
 
       assert(texture_index >= 0);
@@ -664,7 +666,7 @@ emit_descriptor_prefetch(nir_builder *b, nir_instr *instr, nir_def **descs,
             is_already_prefetched(&state->sampler, descs[1]);
 
          if (!sampler_already_prefetched &&
-             state->sampler.num_prefetches == MAX_PREFETCHES)
+             state->sampler.num_prefetches == state->max_prefetches)
             return false;
 
          if (tex_already_prefetched && sampler_already_prefetched)
@@ -686,15 +688,20 @@ emit_descriptor_prefetch(nir_builder *b, nir_instr *instr, nir_def **descs,
    } else {
       assert(instr->type == nir_instr_type_intrinsic);
 
-      if (state->tex.num_prefetches == MAX_PREFETCHES)
-         return false;
-
-      if (is_already_prefetched(&state->tex, descs[0]))
-         return false;
-
-      add_prefetch(&state->tex, descs[0]);
-
       nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+      /* UBO descriptors share the cache with sampler descriptors. */
+      struct prefetches *prefetches =
+         intrin->intrinsic == nir_intrinsic_load_ubo ? &state->sampler
+                                                     : &state->tex;
+
+      if (prefetches->num_prefetches == state->max_prefetches)
+         return false;
+
+      if (is_already_prefetched(prefetches, descs[0]))
+         return false;
+
+      add_prefetch(prefetches, descs[0]);
+
       if (intrin->intrinsic == nir_intrinsic_load_ubo)
          nir_prefetch_ubo_ir3(b, descs[0], .access = access);
       else
@@ -725,6 +732,18 @@ bool
 ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
 {
    const struct ir3_const_state *const_state = ir3_const_state(v);
+   const struct fd_dev_info *info = v->compiler->info;
+
+   unsigned max_prefetches;
+   if (v->binning_pass)
+      max_prefetches = info->props.max_desc_prefetches_binning_vs;
+   else if (v->type == MESA_SHADER_FRAGMENT)
+      max_prefetches = info->props.max_desc_prefetches_fs;
+   else
+      max_prefetches = info->props.max_desc_prefetches_non_fs;
+   assert(max_prefetches <= MAX_PREFETCHES);
+   if (max_prefetches == 0)
+      return false;
 
    nir_function_impl *main = nir_shader_get_entrypoint(nir);
    struct set instr_set;
@@ -733,7 +752,9 @@ ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
    nir_function_impl *preamble = main->preamble ? main->preamble->impl : NULL;
    nir_builder b;
    bool progress = false;
-   struct prefetch_state state = {};
+   struct prefetch_state state = {
+      .max_prefetches = max_prefetches,
+   };
 
    nir_def **preamble_defs =
       calloc(const_state->allocs.consts[IR3_CONST_ALLOC_PREAMBLE].size_vec4 * 4,
@@ -837,8 +858,8 @@ ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
          progress |= emit_descriptor_prefetch(&b, instr, preamble_descs, &state,
                                               is_speculatable);
 
-         if (state.sampler.num_prefetches == MAX_PREFETCHES &&
-             state.tex.num_prefetches == MAX_PREFETCHES)
+         if (state.sampler.num_prefetches == state.max_prefetches &&
+             state.tex.num_prefetches == state.max_prefetches)
             goto finished;
       }
    }

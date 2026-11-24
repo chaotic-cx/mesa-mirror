@@ -505,6 +505,33 @@ struct fd_dev_info {
        */
       bool prefetch_sam_helpers_quirk;
 
+      /* How many descriptors of each kind (texture/SSBO, sampler/UBO) ir3 may
+       * prefetch in the preamble of a fragment shader, of a shader of any
+       * other stage, and of a binning VS (which runs without a FS, so it
+       * can prefetch more).
+       *
+       * How we think descriptor caching behaves (A7XX+):
+       *
+       *    sample(set, index):                  // in any shader stage
+       *       desc = l1_desc_cache[type].lookup(set.address, index)
+       *       if not found:
+       *          desc = l2_state_cache.lookup(...)    // A750+ only
+       *          if not found:
+       *             desc = memory.read(...)           // slow
+       *          l1_desc_cache[type].insert(desc)
+       *       return fetch_texels(desc)
+       *
+       * l1_desc_cache: 32 texture/SSBO, 32 sampler/UBO
+       *                (on A7XX gen1 it's probably 16 tex/SSBO, 16 sampler/UBO).
+       * l2_state_cache: shared by all descriptor types.
+       *
+       * The compiler doesn't know which shaders run together, so each stage
+       * gets a fixed limit.
+       */
+      uint32_t max_desc_prefetches_fs;
+      uint32_t max_desc_prefetches_non_fs;
+      uint32_t max_desc_prefetches_binning_vs;
+
       /* Whether resbase can be used. It doesn't exist on a6xx, and on
        * a7xx gen1 it hangs the GPU, even when its result is unused.
        */

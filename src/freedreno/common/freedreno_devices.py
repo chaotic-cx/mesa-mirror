@@ -802,6 +802,11 @@ a7xx_base = GPUProps(
 
         prefetch_sam_helpers_quirk = True,
 
+        # Measured on a740, a750 and a830.
+        max_desc_prefetches_fs = 16,
+        max_desc_prefetches_non_fs = 16,
+        max_desc_prefetches_binning_vs = 32,
+
         QCTDD10204462 = True,
         QCTDD11147232 = True,
         QCTDD11183148 = True,
@@ -809,6 +814,10 @@ a7xx_base = GPUProps(
 
 a7xx_gen1 = GPUProps(
         supports_uav_ubwc = True,
+        # Measured on a725.
+        max_desc_prefetches_fs = 4,
+        max_desc_prefetches_non_fs = 8,
+        max_desc_prefetches_binning_vs = 16,
         enable_tp_ubwc_flag_hint = True,
         reading_shading_rate_requires_smask_quirk = True,
         QCTDD08049535 = True,
