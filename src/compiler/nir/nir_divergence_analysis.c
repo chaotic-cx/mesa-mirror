@@ -916,7 +916,8 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_smp_raw_pco:
    case nir_intrinsic_pack_pco:
    case nir_intrinsic_pck_prog_pco:
-   case nir_intrinsic_unpack_pco: {
+   case nir_intrinsic_unpack_pco:
+   case nir_intrinsic_is_null_descriptor: {
       unsigned num_srcs = nir_intrinsic_infos[instr->intrinsic].num_srcs;
       for (unsigned i = 0; i < num_srcs; i++) {
          if (src_divergent(instr->src[i], state)) {
