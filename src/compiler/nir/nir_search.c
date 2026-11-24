@@ -674,16 +674,16 @@ nir_replace_instr(nir_builder *build, nir_alu_instr *instr,
       if (match_expression(table, search, instr,
                            instr->def.num_components,
                            identity_swizzle, &state)) {
-         found = true;
-         break;
+         if (transform_cond_index == UINT16_MAX ||
+             table->transform_cond[transform_cond_index](search_state, state.variables)) {
+            found = true;
+            break;
+         }
       }
    }
    if (!found)
       return false;
 
-   if (transform_cond_index != UINT16_MAX &&
-       !table->transform_cond[transform_cond_index](search_state, state.variables))
-      return false;
 
 #if 0
    fprintf(stderr, "matched: ");
