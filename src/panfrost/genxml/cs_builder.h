@@ -2620,11 +2620,18 @@ struct cs_function_ctx {
 struct cs_function {
    struct cs_block block;
    struct cs_dirty_tracker dirty;
+   BITSET_DECLARE(dont_restore, 256);
    struct cs_function_ctx ctx;
    unsigned dump_size;
    uint64_t address;
    uint32_t length;
 };
+
+static inline void
+cs_function_dont_restore(struct cs_function *func, struct cs_index range)
+{
+   BITSET_SET_COUNT(func->dont_restore, range.reg, range.size);
+}
 
 static inline struct cs_function *
 cs_function_start(struct cs_builder *b,
@@ -2654,6 +2661,7 @@ cs_function_end(struct cs_builder *b,
    struct cs_index ranges[SAVE_RESTORE_MAX_OPS];
    uint16_t masks[SAVE_RESTORE_MAX_OPS];
    unsigned num_ranges = 0;
+
    uint32_t num_instrs =
       util_dynarray_num_elements(&b->blocks.instrs, uint64_t);
    struct cs_index addr_reg = {
@@ -2674,9 +2682,12 @@ cs_function_end(struct cs_builder *b,
 
    /* Try to minimize number of load/store by grouping them */
    unsigned nregs = b->conf.nr_registers - b->conf.nr_kernel_registers;
+   BITSET_DECLARE(save_regs, 256);
    unsigned pos, last = 0;
 
-   BITSET_FOREACH_SET(pos, function->dirty.regs, nregs) {
+   BITSET_ANDNOT(save_regs, function->dirty.regs, function->dont_restore);
+
+   BITSET_FOREACH_SET(pos, save_regs, nregs) {
       unsigned range = MIN2(nregs - pos, 16);
       unsigned word = BITSET_BITWORD(pos);
       unsigned bit = pos % BITSET_WORDBITS;
@@ -2685,9 +2696,9 @@ cs_function_end(struct cs_builder *b,
       if (pos < last)
          continue;
 
-      masks[num_ranges] = function->dirty.regs[word] >> bit;
+      masks[num_ranges] = save_regs[word] >> bit;
       if (remaining_bits < range)
-         masks[num_ranges] |= function->dirty.regs[word + 1] << remaining_bits;
+         masks[num_ranges] |= save_regs[word + 1] << remaining_bits;
       masks[num_ranges] &= BITFIELD_MASK(range);
 
       ranges[num_ranges] =
@@ -2696,7 +2707,7 @@ cs_function_end(struct cs_builder *b,
       last = pos + range;
    }
 
-   function->dump_size = BITSET_COUNT(function->dirty.regs) * sizeof(uint32_t);
+   function->dump_size = BITSET_COUNT(save_regs) * sizeof(uint32_t);
 
    /* (preamble + postamble) * (load_addr + wait + store_reg + wait) */
    if (num_ranges)

@@ -54,6 +54,42 @@ TEST_F(CsBuilderTest, basic)
    EXPECT_U64_ARRAY_EQUAL(output, expected, ARRAY_SIZE(expected));
 }
 
+TEST_F(CsBuilderTest, function_output_registers)
+{
+   struct cs_function func;
+   struct cs_function_ctx ctx = {.ctx_reg = cs_reg64(&b, 90)};
+
+   cs_function_def(&b, &func, ctx) {
+      /* Leave a hole in a transfer mask that spans two bitset words. */
+      cs_function_dont_restore(&func, cs_reg_tuple(&b, 31, 2));
+      for (unsigned r = 30; r < 34; r++)
+         cs_move32_to(&b, cs_reg32(&b, r), r);
+   }
+   cs_end(&b);
+
+   EXPECT_EQ(func.dump_size, 2 * sizeof(uint32_t));
+   EXPECT_EQ(output[2], 0x151e5e0000090000ull);  /* STORE r30,r33, [d94] */
+   EXPECT_EQ(output[10], 0x141e5e0000090000ull); /* LOAD r30,r33, [d94] */
+}
+
+TEST_F(CsBuilderTest, function_load_output_only)
+{
+   struct cs_function func;
+   struct cs_function_ctx ctx = {.ctx_reg = cs_reg64(&b, 90)};
+   struct cs_index value = cs_reg64(&b, 0);
+
+   cs_function_def(&b, &func, ctx) {
+      cs_function_dont_restore(&func, value);
+      cs_load64_to(&b, value, ctx.ctx_reg, 0);
+      cs_flush_loads(&b);
+   }
+   cs_end(&b);
+
+   EXPECT_EQ(func.dump_size, 0u);
+   EXPECT_EQ(output[0], 0x14005a0000030000ull); /* LOAD d0, [d90] */
+   EXPECT_EQ(output[1], 0x0300000000010000ull); /* WAIT #0x1 */
+}
+
 TEST_F(CsBuilderTest, maybe_no_patch)
 {
    struct cs_maybe *maybe;
