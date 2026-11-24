@@ -446,19 +446,18 @@ optimizations += [
     # Split fmad better for optimizations. It might get merged to fmad later.
     (('fmad', a, b, c), ('fadd', ('fmul', a, b), c)),
     (('fmadz', a, b, c), ('fadd', ('fmulz', a, b), c)),
+
+
+    # Bitwise operations affecting the sign may be replaced by equivalent
+    # floating point operations, except possibly for denormal
+    # behaviour hence the is_only_used_as_float.
+    (('iand(is_only_used_as_float)', a, '#b(uint)'), ('fabs', a),
+     when('a->bit_size >= 16 && b == BITFIELD64_MASK(a->bit_size - 1)'), TestStatus.UNSUPPORTED),
+    (('ixor(is_only_used_as_float)', a, '#b(uint)'), ('fneg', a),
+     when('a->bit_size >= 16 && b == BITFIELD64_BIT(a->bit_size - 1)'), TestStatus.UNSUPPORTED),
+    (('ior(is_only_used_as_float)', a, '#b(uint)'), ('fneg', ('fabs', a)),
+     when('a->bit_size >= 16 && b == BITFIELD64_BIT(a->bit_size - 1)'), TestStatus.UNSUPPORTED),
 ]
-
-# Bitwise operations affecting the sign may be replaced by equivalent
-# floating point operations, except possibly for denormal
-# behaviour hence the is_only_used_as_float.
-for sz in (16, 32, 64):
-    sign_bit = 1 << (sz - 1)
-
-    optimizations.extend([
-        (('iand(is_only_used_as_float)', f'a@{sz}', sign_bit - 1), ('fabs', a)),
-        (('ixor(is_only_used_as_float)', f'a@{sz}', sign_bit), ('fneg', a)),
-        (('ior(is_only_used_as_float)', f'a@{sz}', sign_bit), ('fneg', ('fabs', a))),
-    ])
 
 # Shorthand for the expansion of just the dot product part of the [iu]dp4a
 # instructions.
