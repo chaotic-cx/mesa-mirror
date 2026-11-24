@@ -480,6 +480,8 @@ init_subqueue(struct panvk_gpu_queue *queue, enum panvk_subqueue_id subqueue)
           */
          cs_ctx->tiler_oom_ctx.ir_scratch_fbd_ptr =
             panvk_priv_mem_dev_addr(queue->tiler_heap.oom_fbd);
+         cs_ctx->tiler_oom_ctx.ir_final_fbds =
+            panvk_priv_mem_dev_addr(queue->tiler_heap.oom_final_fbds);
       }
    }
 
@@ -750,6 +752,15 @@ init_tiler(struct panvk_gpu_queue *queue)
       goto err_free_desc;
    }
 
+   alloc_info.size *= MAX_FRAMEBUFFER_LAYERS;
+   tiler_heap->oom_final_fbds =
+      panvk_pool_alloc_mem(&dev->mempools.rw, alloc_info);
+   if (!panvk_priv_mem_check_alloc(tiler_heap->oom_final_fbds)) {
+      result = panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                            "Failed to allocate final IR pass FBDs");
+      goto err_free_desc;
+   }
+
    struct drm_panthor_tiler_heap_create thc = {
       .vm_id = pan_kmod_vm_handle(dev->kmod.vm),
       .chunk_size = tiler_heap->chunk_size,
@@ -781,6 +792,7 @@ init_tiler(struct panvk_gpu_queue *queue)
 err_free_desc:
    panvk_pool_free_mem(&tiler_heap->desc);
    panvk_pool_free_mem(&tiler_heap->oom_fbd);
+   panvk_pool_free_mem(&tiler_heap->oom_final_fbds);
    return result;
 }
 
@@ -798,6 +810,7 @@ cleanup_tiler(struct panvk_gpu_queue *queue)
 
    panvk_pool_free_mem(&tiler_heap->desc);
    panvk_pool_free_mem(&tiler_heap->oom_fbd);
+   panvk_pool_free_mem(&tiler_heap->oom_final_fbds);
 }
 
 struct panvk_queue_submit {

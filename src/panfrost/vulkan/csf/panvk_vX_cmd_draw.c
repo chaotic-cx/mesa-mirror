@@ -4804,17 +4804,8 @@ wait_finish_tiling(struct panvk_cmd_buffer *cmdbuf)
                            vt_sync_addr);
 }
 
-static uint32_t
-calc_tiler_oom_handler_idx(struct panvk_cmd_buffer *cmdbuf)
-{
-   const struct pan_fb_layout *fb = &cmdbuf->state.gfx.render.fb.layout;
-   const bool has_zs_crc_ext = render_needs_zs_crc_ext(cmdbuf);
-
-   return get_tiler_oom_handler_idx(has_zs_crc_ext, fb->rt_count);
-}
-
 static void
-setup_tiler_oom_ctx(struct panvk_cmd_buffer *cmdbuf)
+setup_tiler_oom_ctx(struct panvk_cmd_buffer *cmdbuf, uint32_t fbd_tag)
 {
    struct panvk_rendering_state *render = &cmdbuf->state.gfx.render;
    struct cs_builder *b = panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_FRAGMENT);
@@ -4828,21 +4819,8 @@ setup_tiler_oom_ctx(struct panvk_cmd_buffer *cmdbuf)
               TILER_OOM_CTX_FIELD_OFFSET(counter));
 
    struct cs_index fbd_ptr_reg = cs_scratch_reg64(b, 6);
-#if PAN_ARCH >= 14
-   cs_add_imm64(b, fbd_ptr_reg, cs_sr_reg64(b, FRAGMENT, FBD_POINTER), 0);
-#else
-   const struct pan_fb_layout *fb = &render->fb.layout;
-   const bool has_zs_crc_ext = render_needs_zs_crc_ext(cmdbuf);
-
-   struct mali_framebuffer_pointer_packed fb_tag;
-   pan_pack(&fb_tag, FRAMEBUFFER_POINTER, cfg) {
-      cfg.zs_crc_extension_present = has_zs_crc_ext;
-      cfg.render_target_count = fb->rt_count;
-   }
-
    cs_add_imm64(b, fbd_ptr_reg, cs_sr_reg64(b, FRAGMENT, FBD_POINTER),
-                -(int32_t)fb_tag.opaque[0]);
-#endif
+                -(int32_t)fbd_tag);
 
    /* The OOM handler may use both spill and final stores. Preserve every
     * possible CRC state address so the first IR invocation can invalidate them
@@ -5042,7 +5020,10 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
     * not needed (AKA RUN_FRAGMENT used for clears), because then the FBD
     * descriptors are constant (no need to patch them at runtime). */
    bool free_render_descs = simul_use && needs_tiling;
-   uint32_t fbd_sz = calc_fbd_size(cmdbuf);
+   const bool has_zs_ext = render_needs_zs_crc_ext(cmdbuf);
+   const uint32_t rt_count = cmdbuf->state.gfx.render.fb.layout.rt_count;
+   const uint32_t fbd_sz = get_fbd_size(has_zs_ext, rt_count);
+   const uint32_t fbd_tag = get_fbd_tag(has_zs_ext, rt_count);
    uint32_t td_count = 0;
    if (needs_tiling) {
       td_count = DIV_ROUND_UP(cmdbuf->state.gfx.render.layer_count,
@@ -5050,14 +5031,14 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    }
 
    /* Update the Tiler OOM context */
-   setup_tiler_oom_ctx(cmdbuf);
+   setup_tiler_oom_ctx(cmdbuf, fbd_tag);
 
    /* Enable the oom handler before waiting for the vertex/tiler work.
     * At this point, the tiler oom context has been set up with the correct
     * state for this renderpass, so it's safe to enable. */
    struct cs_index addr_reg = cs_scratch_reg64(b, 0);
    struct cs_index length_reg = cs_scratch_reg32(b, 2);
-   uint32_t handler_idx = calc_tiler_oom_handler_idx(cmdbuf);
+   uint32_t handler_idx = get_tiler_oom_handler_idx(has_zs_ext, rt_count);
    uint64_t handler_addr = dev->tiler_oom.handlers_bo->addr.dev +
                            handler_idx * dev->tiler_oom.handler_stride;
    cs_move64_to(b, addr_reg, handler_addr);

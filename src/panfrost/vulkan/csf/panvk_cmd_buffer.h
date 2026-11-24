@@ -113,6 +113,21 @@ get_tiler_oom_handler_idx(bool has_zs_ext, uint32_t rt_count)
 }
 
 static inline uint32_t
+get_fbd_tag(bool has_zs_ext, uint32_t rt_count)
+{
+#if PAN_ARCH >= 14
+   return 0;
+#else
+   struct mali_framebuffer_pointer_packed tag;
+   pan_pack(&tag, FRAMEBUFFER_POINTER, cfg) {
+      cfg.zs_crc_extension_present = has_zs_ext;
+      cfg.render_target_count = rt_count;
+   }
+   return tag.opaque[0];
+#endif
+}
+
+static inline uint32_t
 get_fbd_size(bool has_zs_ext, uint32_t rt_count)
 {
    assert(rt_count >= 1 && rt_count <= MAX_RTS);
@@ -177,8 +192,10 @@ struct panvk_cs_subqueue_context {
       uint32_t counter;
       /* Base pointer to regular FBD for layer 0 */
       uint64_t layer_fbd_ptr;
-      /* Pointer to scratch FBD used in the event of IR */
+      /* Pointer to scratch FBD used for FIRST|MIDDLE IR. */
       uint64_t ir_scratch_fbd_ptr;
+      /* Base of the LAST pass FBD array. */
+      uint64_t ir_final_fbds;
       /* FBD+DBD+RTDs IR descs to be copied to the scratch FBD when
        * IR is triggered.
        */
