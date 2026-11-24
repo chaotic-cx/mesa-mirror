@@ -1509,6 +1509,7 @@ a8xx_vpc_cache_sm = GPUProps(
 
 add_gpus([
        GPUId(chip_id=0xffff44010000, name="Adreno (TM) 810"),
+       GPUId(chip_id=0xffff44010200, name="Adreno (TM) 812"),
     ], A6xxGPUInfo(
         CHIP.A8XX,
         [a7xx_base, a7xx_gen3, a8xx_base, a8xx_gen1, a8xx_vpc_cache_sm, GPUProps(
