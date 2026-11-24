@@ -462,7 +462,16 @@ lower_image_access(nir_builder *b, nir_intrinsic_instr *intrin)
    }
    case nir_intrinsic_image_deref_store: {
       nir_def *fmt = load_su_info(b, deref, format_info);
-      nir_sustga_nv(b, addr, fmt, is_oob, intrin->src[3].ssa,
+      nir_def *data = intrin->src[3].ssa;
+
+      if (data->bit_size == 64) {
+         /* See also shrink_image_store in nak_nir_lower_tex.c */
+         assert(format == PIPE_FORMAT_R64_UINT ||
+                format == PIPE_FORMAT_R64_SINT);
+         data = nir_unpack_64_2x32(b, nir_channel(b, data, 0));
+      }
+
+      nir_sustga_nv(b, addr, fmt, is_oob, data,
                     .access = nir_intrinsic_access(intrin),
                     .flags = offset_mode);
       break;
