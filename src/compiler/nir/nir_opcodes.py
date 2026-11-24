@@ -1099,8 +1099,8 @@ def extract_insert_op(name, ty, expr):
    else:
      assert(name.endswith("8"))
      width = 8;
-   binop(name, ty, "", f"""
-         if ((uint64_t)(src1 * {width}) >= bit_size) {{
+   opcode(name, 0, ty, [0, 0], [ty, tuint32], False, "", f"""
+         if ((src1 * {width}) >= bit_size) {{
             dst = 0;
             poison = true;
          }} else {{

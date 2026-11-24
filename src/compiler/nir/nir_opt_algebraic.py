@@ -2232,10 +2232,10 @@ optimizations.extend([
    (('iand', ('extract_u8',  a, 0), '#b'), ('iand', a, ('iand', b, 0x00ff))),
    (('iand', ('extract_u16', a, 0), '#b'), ('iand', a, ('iand', b, 0xffff))),
 
-   (('ieq', ('iand', ('extract_u8',  a, '#b'), '#c'), 0), ('ieq', ('iand', a, ('ishl', ('iand', c, 0x00ff), ('imul', ('i2i32', b),  8))), 0)),
-   (('ine', ('iand', ('extract_u8',  a, '#b'), '#c'), 0), ('ine', ('iand', a, ('ishl', ('iand', c, 0x00ff), ('imul', ('i2i32', b),  8))), 0)),
-   (('ieq', ('iand', ('extract_u16(is_used_once)', a, '#b'), '#c'), 0), ('ieq', ('iand', a, ('ishl', ('iand', c, 0xffff), ('imul', ('i2i32', b), 16))), 0)),
-   (('ine', ('iand', ('extract_u16(is_used_once)', a, '#b'), '#c'), 0), ('ine', ('iand', a, ('ishl', ('iand', c, 0xffff), ('imul', ('i2i32', b), 16))), 0)),
+   (('ieq', ('iand', ('extract_u8',  a, '#b'), '#c'), 0), ('ieq', ('iand', a, ('ishl', ('iand', c, 0x00ff), ('imul', b,  8))), 0)),
+   (('ine', ('iand', ('extract_u8',  a, '#b'), '#c'), 0), ('ine', ('iand', a, ('ishl', ('iand', c, 0x00ff), ('imul', b,  8))), 0)),
+   (('ieq', ('iand', ('extract_u16(is_used_once)', a, '#b'), '#c'), 0), ('ieq', ('iand', a, ('ishl', ('iand', c, 0xffff), ('imul', b, 16))), 0)),
+   (('ine', ('iand', ('extract_u16(is_used_once)', a, '#b'), '#c'), 0), ('ine', ('iand', a, ('ishl', ('iand', c, 0xffff), ('imul', b, 16))), 0)),
 
     # Word extraction
    (('ushr', ('ishl', 'a@32', 16), 16), ('extract_u16', a, 0), '!options->lower_extract_word'),

@@ -1398,13 +1398,13 @@ nir_bitfield_insert_imm(nir_builder *build, nir_def *x, nir_def *insert, uint32_
 static inline nir_def *
 nir_extract_u8_imm(nir_builder *b, nir_def *a, unsigned i)
 {
-   return nir_extract_u8(b, a, nir_imm_intN_t(b, i, a->bit_size));
+   return nir_extract_u8(b, a, nir_imm_int(b, i));
 }
 
 static inline nir_def *
 nir_extract_i8_imm(nir_builder *b, nir_def *a, unsigned i)
 {
-   return nir_extract_i8(b, a, nir_imm_intN_t(b, i, a->bit_size));
+   return nir_extract_i8(b, a, nir_imm_int(b, i));
 }
 
 static inline nir_def *
