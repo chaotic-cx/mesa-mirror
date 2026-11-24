@@ -687,17 +687,6 @@ optimizations.extend([
      ubfe_ubfe(a, b, c, d, 31)),
 ])
 
-for log2 in range(1, 7): # powers of two from 2 to 64
-   v = 1 << log2
-   mask = -v
-   a_is_multiple = 'a(is_unsigned_multiple_of_{})'.format(v)
-
-   optimizations.extend([
-       (('iand', a_is_multiple, mask), a),
-       # Reassociate for improved CSE
-       (('iand', ('iadd', a_is_multiple, b), mask), ('iadd', ('iand', b, mask), a)),
-   ])
-
 optimizations.extend([
    # Optimize a pattern of address calculation created by DXVK where the offset is
    # divided by 4 and then multipled by 4. This can be turned into an iand and the
@@ -709,6 +698,17 @@ optimizations.extend([
 
    # This does not trivially work with ishr.
    (('ushr', ('ishl', a, '#b'), b), ('iand', a, ('ushr', -1, b))),
+
+   (('iand', a, '#b(uint)'), a,
+    when('''b & BITFIELD64_BIT(a->bit_size - 1) &&
+            nir_def_num_lsb_zero(state->numlsb_ht, nir_get_scalar((nir_def *)a, a_var->src.swizzle[component])) >=
+            util_last_bit64(~b & u_uintN_max(a->bit_size))''')),
+
+   # Reassociate for improved CSE
+   (('iand', ('iadd', a, b), '#c(uint)'), ('iadd', ('iand', b, c), a),
+    when('''c & BITFIELD64_BIT(a->bit_size - 1) &&
+            nir_def_num_lsb_zero(state->numlsb_ht, nir_get_scalar((nir_def *)a, a_var->src.swizzle[component])) >=
+            util_last_bit64(~c & u_uintN_max(a->bit_size))''')),
 
    # Remove masking before/after shifts that already remove those bits
    # This pattern seems to only help in the soft-fp64 code.
