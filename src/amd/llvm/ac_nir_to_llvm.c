@@ -1080,6 +1080,14 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
       bool is_signed = instr->op == nir_op_extract_i16 || instr->op == nir_op_extract_i8;
       unsigned size = instr->op == nir_op_extract_u8 || instr->op == nir_op_extract_i8 ? 8 : 16;
       LLVMValueRef offset = LLVMBuildMul(ctx->ac.builder, src[1], ac_const_uint_vec(&ctx->ac, LLVMTypeOf(src[1]), size), "");
+
+      if (ac_get_elem_bits(&ctx->ac, LLVMTypeOf(offset)) <
+          ac_get_elem_bits(&ctx->ac, LLVMTypeOf(src[0])))
+         offset = LLVMBuildZExt(ctx->ac.builder, offset, LLVMTypeOf(src[0]), "");
+      else if (ac_get_elem_bits(&ctx->ac, LLVMTypeOf(offset)) >
+               ac_get_elem_bits(&ctx->ac, LLVMTypeOf(src[0])))
+         offset = LLVMBuildTrunc(ctx->ac.builder, offset, LLVMTypeOf(src[0]), "");
+
       result = LLVMBuildLShr(ctx->ac.builder, src[0], offset, "");
 
       LLVMTypeRef small_type = LLVMIntTypeInContext(ctx->ac.context, size);
