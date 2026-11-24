@@ -1601,7 +1601,7 @@ fd_resource_from_handle(struct pipe_screen *pscreen,
       goto fail;
    }
 
-   if (rsc->layout.pitch0 != handle->stride) {
+   if (tmpl->target != PIPE_BUFFER && rsc->layout.pitch0 != handle->stride) {
       if (FD_DBG(LAYOUT))
          mesa_loge("invalid pitch (%u vs %u) for: %" PRSC_FMT, rsc->layout.pitch0,
                    handle->stride, PRSC_ARGS(tmpl));
