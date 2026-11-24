@@ -2176,9 +2176,8 @@ optimizations.extend([
    (('ishr', 'a@32', 24), ('extract_i8', a, 3), '!options->lower_extract_byte'),
    (('ishr', 'a@64', 56), ('extract_i8', a, 7), '!options->lower_extract_byte'),
    (('iand', 0xff, a), ('extract_u8', a, 0), '!options->lower_extract_byte'),
-   (('ishr', ('iand', 'a@32', 0x0000ff00),  8), ('extract_u8', a, 1), '!options->lower_extract_byte'),
-   (('ishr', ('iand', 'a@64', 0x0000ff00),  8), ('extract_u8', a, 1), '!options->lower_extract_byte'),
-   (('ishr', ('iand',  a,     0x00ff0000), 16), ('extract_u8', a, 2), '!options->lower_extract_byte'),
+   (('ishr', ('iand',  a, '#b(uint)'), '#c(uint)'), ('extract_u8', a, ('ushr', c, 3)), '!options->lower_extract_byte',
+     when('c < (a->bit_size - 8) && (c % 8) == 0 && b == (0xffull << c)'), TestStatus.UNSUPPORTED),
 
    # Common pattern in many Vulkan CTS tests that read 8-bit integers from a
    # storage buffer.
@@ -2392,20 +2391,16 @@ optimizations.extend([
    (('u2u16', ('ushr', ('ior', ('ishl', a, 16), ('u2u32', 'b@16')), 16)), ('u2u16', a)),
 ])
 
-# After the ('extract_u8', a, 0) pattern, above, triggers, there will be
-# patterns like those below.
-for extract_op in ('extract_u8', 'extract_i8'):
-   for op in ('ushr', 'ishr'):
-      optimizations.extend([((extract_op, (op, a, 8), i), (extract_op, a, i + 1)) for i in range (0, 3)])
-      optimizations.extend([((extract_op, (op, 'a@32',  8 * i), 0), (extract_op, a, i)) for i in range(2, 4)])
-      optimizations.extend([((extract_op, (op, 'a@64',  8 * i), 0), (extract_op, a, i)) for i in range(2, 8)])
-
-# After the ('extract_[iu]8', a, 3) patterns, above, trigger, there will be
-# patterns like those below.
-for op in ('extract_u8', 'extract_i8'):
-   optimizations.extend([((op, ('ishl', 'a@16',      8),     1), (op, a, 0))])
-   optimizations.extend([((op, ('ishl', 'a@32', 24 - 8 * i), 3), (op, a, i)) for i in range(2, -1, -1)])
-   optimizations.extend([((op, ('ishl', 'a@64', 56 - 8 * i), 7), (op, a, i)) for i in range(6, -1, -1)])
+# After the extract patterns above trigger, there will be patterns like those below.
+for extract_op, bit_size in (('extract_u8', 8), ('extract_i8', 8), ('extract_u16', 16), ('extract_i16', 16)):
+   optimizations.extend([
+      ((extract_op, ('ushr', a, '#b(uint)'), '#c(uint)'), (extract_op, a, ('iadd', c, ('udiv', b, bit_size))),
+       when(f'b % {bit_size} == 0 && c * {bit_size} + b < a->bit_size')),
+      ((extract_op, ('ishr', a, '#b(uint)'), '#c(uint)'), (extract_op, a, ('iadd', c, ('udiv', b, bit_size))),
+       when(f'b % {bit_size} == 0 && c * {bit_size} + b < a->bit_size')),
+      ((extract_op, ('ishl', a, '#b(uint)'), '#c(uint)'), (extract_op, a, ('isub', c, ('udiv', b, bit_size))),
+       when(f'b % {bit_size} == 0 && (int64_t)(c * {bit_size} - b) >= 0')),
+   ])
 
 for op, repl in [('ieq', 'ieq'), ('ine', 'ine'),
                  ('ult', 'ult'), ('ilt', 'ult'),
