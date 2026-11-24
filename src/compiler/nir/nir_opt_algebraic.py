@@ -714,26 +714,23 @@ for log2 in range(1, 7): # powers of two from 2 to 64
        (('iand', ('iadd', a_is_multiple, b), mask), ('iadd', ('iand', b, mask), a)),
    ])
 
-# To save space in the state tables, reduce to the set that is known to help.
-# Previously, this was range(1, 32).  In addition, a couple rules inside the
-# loop are commented out.  Revisit someday, probably after mesa/#2635 has some
-# resolution.
-for i in [1, 2, 16, 24]:
-    lo_mask = 0xffffffff >> i
-    hi_mask = (0xffffffff << i) & 0xffffffff
-
-    optimizations.extend([
-        # This pattern seems to only help in the soft-fp64 code.
-        (('ishl@32', ('iand', 'a@32', lo_mask), i), ('ishl', a, i)),
-#        (('ushr@32', ('iand', 'a@32', hi_mask), i), ('ushr', a, i)),
-#        (('ishr@32', ('iand', 'a@32', hi_mask), i), ('ishr', a, i)),
-
-        (('iand', ('ishl', 'a@32', i), hi_mask), ('ishl', a, i)),
-        (('iand', ('ushr', 'a@32', i), lo_mask), ('ushr', a, i)),
-#        (('iand', ('ishr', 'a@32', i), lo_mask), ('ushr', a, i)), # Yes, ushr is correct
-    ])
-
 optimizations.extend([
+   # Remove masking before/after shifts that already remove those bits
+   # This pattern seems to only help in the soft-fp64 code.
+   (('ishl', ('iand', a, '#b(uint)'), '#c(uint)'), ('ishl', a, c),
+    when('(~b & (u_uintN_max(a->bit_size) >> (c & (a->bit_size - 1)))) == 0')),
+   (('ushr', ('iand', a, '#b(uint)'), '#c(uint)'), ('ushr', a, c),
+    when('(~b & u_uintN_max(a->bit_size) & (u_uintN_max(a->bit_size) << (c & (a->bit_size - 1)))) == 0')),
+   (('ishr', ('iand', a, '#b(uint)'), '#c(uint)'), ('ishr', a, c),
+    when('(~b & u_uintN_max(a->bit_size) & (u_uintN_max(a->bit_size) << (c & (a->bit_size - 1)))) == 0')),
+
+   (('iand', ('ishl', a, '#b(uint)'), '#c(uint)'), ('ishl', a, b),
+    when('(~c & u_uintN_max(a->bit_size) & (u_uintN_max(a->bit_size) << (b & (a->bit_size - 1)))) == 0')),
+   (('iand', ('ushr', a, '#b(uint)'), '#c(uint)'), ('ushr', a, b),
+    when('(~c & (u_uintN_max(a->bit_size) >> (b & (a->bit_size - 1)))) == 0')),
+   (('iand', ('ishr', a, '#b(uint)'), '#c(uint)'), ('ushr', a, b), # Yes, ushr is correct
+    when('c == (u_uintN_max(a->bit_size) >> (b & (a->bit_size - 1)))')),
+
    # Common, more generic versions of the patterns above that can happen
    # after lowering IO to byte addresses.
    (('ishl@32', ('iand', a, 0x3fffffff), '#b(is_first_5_bits_uge_2)'), ('ishl', a, b)),
