@@ -95,6 +95,14 @@ copy_fbd(struct cs_builder *b, bool has_zs_ext, uint32_t rt_count,
 #endif
    cs_store(b, cs_scratch_reg_tuple(b, 0, 8), dst, BITFIELD_MASK(8),
             8 * sizeof(uint32_t));
+
+#if PAN_ARCH >= 11
+   /* Copy VRS Image Rate and VRS Image Plane fields. */
+   const unsigned vrs_offset = 16 * sizeof(uint32_t);
+   struct cs_index vrs = cs_scratch_reg64(b, 0);
+   cs_load64_to(b, vrs, src_other, vrs_offset);
+   cs_store64(b, vrs, dst, vrs_offset);
+#endif
 #endif
 
    if (has_zs_ext) {
