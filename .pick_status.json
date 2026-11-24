@@ -4,7 +4,7 @@
         "description": "anv: Don't program CS_CHICKEN on Gfx9",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3a9157a10b827e07ac728e320640babe8b81bdfe",
         "notes": null
