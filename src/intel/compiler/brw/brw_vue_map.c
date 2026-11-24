@@ -228,7 +228,7 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
       u_foreach_bit64(varying, builtins) {
          /* Already assigned above? */
          if (vue_map->varying_to_slot[varying] != -1)
-         continue;
+            continue;
          assign_vue_slot(vue_map, varying, slot++);
       }
    }
