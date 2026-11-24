@@ -274,7 +274,7 @@
         "description": "microsoft/compiler: Handle DXIL_TEX_WRAP_CLAMP as clamp-to-edge for int samplers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b9c61379ab4c5065d624fb9403c1df9d5589b313",
         "notes": null

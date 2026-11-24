@@ -169,7 +169,7 @@ wrap_mirror_clamp_to_edge(nir_builder *b, wrap_result_t *wrap_params, nir_def *s
 }
 
 static void
-wrap_clamp(nir_builder *b, wrap_result_t *wrap_params, nir_def *size)
+wrap_clamp_to_border(nir_builder *b, wrap_result_t *wrap_params, nir_def *size)
 {
    nir_def *is_low = nir_flt_imm(b, wrap_params->coords, 0.0);
    nir_def *is_high = nir_fge(b, wrap_params->coords, size);
@@ -196,6 +196,8 @@ wrap_coords(nir_builder *b, nir_def *coords, enum dxil_tex_wrap wrap,
    wrap_result_t result = {coords, nir_imm_false(b)};
 
    switch (wrap) {
+   /* Integer textures only use nearest filtering, where CLAMP equals CLAMP_TO_EDGE. */
+   case DXIL_TEX_WRAP_CLAMP:
    case DXIL_TEX_WRAP_CLAMP_TO_EDGE:
       wrap_clamp_to_edge(b, &result, size);
       break;
@@ -209,9 +211,8 @@ wrap_coords(nir_builder *b, nir_def *coords, enum dxil_tex_wrap wrap,
    case DXIL_TEX_WRAP_MIRROR_CLAMP_TO_EDGE:
       wrap_mirror_clamp_to_edge(b, &result, size);
       break;
-   case DXIL_TEX_WRAP_CLAMP:
    case DXIL_TEX_WRAP_CLAMP_TO_BORDER:
-      wrap_clamp(b, &result, size);
+      wrap_clamp_to_border(b, &result, size);
       break;
    case DXIL_TEX_WRAP_MIRROR_CLAMP_TO_BORDER:
       wrap_mirror_clamp(b, &result, size);
