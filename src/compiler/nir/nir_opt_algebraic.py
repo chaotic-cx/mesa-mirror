@@ -3601,18 +3601,15 @@ optimizations.extend([
      'options->lower_fquantize2f16'),
     ])
 
-for s in range(0, 31):
-    mask = 0xffffffff << s
-
-    # bfi is ((mask & ...) | (~mask & ...)). Since the two sources of the ior
-    # will never both have the same bits set, replacing the ior with an iadd
-    # is safe (i.e., a carry out of a bit can never be generated). The iadd is
-    # more likely to participate in other optimization patterns (e.g., iadd of
-    # constant reassociation)
-    optimizations.extend([
-        (('bfi', mask, a, '#b'), ('iadd', ('ishl', a, s), ('iand', b, ~mask)),
-         'options->avoid_ternary_with_two_constants'),
-    ])
+# bfi is ((mask & ...) | (~mask & ...)). Since the two sources of the ior
+# will never both have the same bits set, replacing the ior with an iadd
+# is safe (i.e., a carry out of a bit can never be generated). The iadd is
+# more likely to participate in other optimization patterns (e.g., iadd of
+# constant reassociation)
+optimizations.extend([
+    (('bfi', '#a(uint)', b, '#c(uint)'), ('iadd', ('ishl', b, ('find_lsb', a)), ('iand', c, ('inot', a))),
+     'options->avoid_ternary_with_two_constants', when('a != 0 && (uint32_t)a == UINT32_MAX << (ffs(a) - 1)')),
+])
 
 # NaN propagation: Binary opcodes. If any operand is NaN, replace it with NaN.
 # (unary opcodes with NaN are evaluated by nir_opt_constant_folding, not here)
