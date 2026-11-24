@@ -182,6 +182,7 @@ void *si_create_passthrough_tcs(struct si_context *sctx)
    nir_shader *tcs = nir_create_passthrough_tcs_impl(sctx->screen->nir_options, locations,
                                                      num_outputs, sctx->patch_vertices);
    NIR_PASS(_, tcs, nir_lower_system_values);
+   NIR_PASS(_, tcs, nir_opt_intrinsics);
 
    return si_create_shader_state(sctx, tcs);
 }

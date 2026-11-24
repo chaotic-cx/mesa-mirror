@@ -647,6 +647,14 @@ opt_intrinsics_intrin(nir_builder *b, nir_intrinsic_instr *intrin)
 {
    bool progress = false;
    switch (intrin->intrinsic) {
+   case nir_intrinsic_load_invocation_id:
+      if (b->shader->info.stage == MESA_SHADER_TESS_CTRL &&
+          b->shader->info.tess.tcs_vertices_out == 1) {
+         nir_def_replace(&intrin->def, nir_imm_int(b, 0));
+         return true;
+      }
+      return false;
+
    case nir_intrinsic_load_sample_mask_in: {
       /* Transform:
        *   gl_SampleMaskIn == 0 ---> gl_HelperInvocation

@@ -2833,12 +2833,27 @@ nir_system_value_from_instr(nir_instr *instr)
       if (intr->intrinsic == nir_intrinsic_load_deref) {
          nir_variable *var = nir_intrinsic_get_var(intr, 0);
 
-         if (var->data.mode == nir_var_system_value)
+         if (var && var->data.mode == nir_var_system_value)
             return var->data.location;
       }
    }
 
    return SYSTEM_VALUE_MAX;
+}
+
+bool
+nir_def_is_invocation_id(const nir_shader *shader, nir_def *def)
+{
+   if (def->num_components != 1)
+      return false;
+
+   nir_scalar scalar = nir_scalar_resolved(def, 0);
+   if (shader->info.stage == MESA_SHADER_TESS_CTRL &&
+       shader->info.tess.tcs_vertices_out == 1 && nir_scalar_is_zero(scalar))
+      return true;
+
+   return nir_system_value_from_instr(nir_def_instr(scalar.def)) ==
+          SYSTEM_VALUE_INVOCATION_ID;
 }
 
 void

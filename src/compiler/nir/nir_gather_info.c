@@ -27,14 +27,6 @@
 #include "util/set.h"
 
 static bool
-src_is_invocation_id(const nir_src *src)
-{
-   nir_scalar s = nir_scalar_resolved(src->ssa, 0);
-   return nir_scalar_is_intrinsic(s) &&
-          nir_scalar_intrinsic_op(s) == nir_intrinsic_load_invocation_id;
-}
-
-static bool
 src_is_local_invocation_index(nir_shader *shader, const nir_src *src)
 {
    assert(shader->info.stage == MESA_SHADER_MESH && !shader->info.workgroup_size_variable);
@@ -74,7 +66,7 @@ get_deref_info(nir_shader *shader, nir_variable *var, nir_deref_instr *deref,
    if (is_arrayed) {
       assert((*p)->deref_type == nir_deref_type_array);
       if (shader->info.stage == MESA_SHADER_TESS_CTRL)
-         *cross_invocation = !src_is_invocation_id(&(*p)->arr.index);
+         *cross_invocation = !nir_def_is_invocation_id(shader, (*p)->arr.index.ssa);
       else if (shader->info.stage == MESA_SHADER_MESH)
          *cross_invocation = !src_is_local_invocation_index(shader, &(*p)->arr.index);
       p++;
@@ -596,7 +588,7 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader)
 
       if (shader->info.stage == MESA_SHADER_TESS_CTRL &&
           instr->intrinsic == nir_intrinsic_load_per_vertex_input) {
-         if (src_is_invocation_id(nir_get_io_arrayed_index_src(instr)))
+         if (nir_def_is_invocation_id(shader, nir_get_io_arrayed_index_src(instr)->ssa))
             shader->info.tess.tcs_same_invocation_inputs_read |= slot_mask;
          else
             shader->info.tess.tcs_cross_invocation_inputs_read |= slot_mask;
@@ -644,7 +636,7 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader)
 
       if (shader->info.stage == MESA_SHADER_TESS_CTRL &&
           instr->intrinsic == nir_intrinsic_load_per_vertex_output &&
-          !src_is_invocation_id(nir_get_io_arrayed_index_src(instr)))
+          !nir_def_is_invocation_id(shader, nir_get_io_arrayed_index_src(instr)->ssa))
          shader->info.tess.tcs_cross_invocation_outputs_read |= slot_mask;
 
       /* NV_mesh_shader: mesh shaders can load their outputs. */
@@ -691,7 +683,7 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader)
 
          if (shader->info.stage == MESA_SHADER_TESS_CTRL) {
             if (instr->intrinsic == nir_intrinsic_store_per_vertex_output &&
-                !src_is_invocation_id(nir_get_io_arrayed_index_src(instr)))
+                !nir_def_is_invocation_id(shader, nir_get_io_arrayed_index_src(instr)->ssa))
                shader->info.tess.tcs_cross_invocation_outputs_written |= slot_mask;
 
             if (!nir_intrinsic_io_semantics(instr).no_varying) {

@@ -1564,9 +1564,8 @@ gather_inputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_d
       if (linkage->consumer_stage == MESA_SHADER_TESS_CTRL &&
           intr->intrinsic == nir_intrinsic_load_per_vertex_input) {
          nir_src *vertex_index_src = nir_get_io_arrayed_index_src(intr);
-         nir_instr *vertex_index_instr = nir_def_instr(vertex_index_src->ssa);
 
-         if (!is_sysval(vertex_index_instr, SYSTEM_VALUE_INVOCATION_ID)) {
+         if (!nir_def_is_invocation_id(builder->shader, vertex_index_src->ssa)) {
             if (intr->def.bit_size == 32)
                BITSET_SET(linkage->cross_invoc32_mask, slot);
             else if (intr->def.bit_size == 16)
@@ -4588,8 +4587,8 @@ backward_inter_shader_code_motion(struct linkage_info *linkage,
             assert(store->intrinsic == nir_intrinsic_store_per_vertex_output);
 
             /* The vertex index of the store must InvocationID. */
-            if (is_sysval(nir_def_instr(store->src[1].ssa),
-                          SYSTEM_VALUE_INVOCATION_ID)) {
+            if (nir_def_is_invocation_id(linkage->producer_builder.shader,
+                                         store->src[1].ssa)) {
                load_def = &slot->consumer.tes_interp_load->def;
                nir_def_instr(load_def)->pass_flags |= FLAG_ALU_IS_TES_INTERP_LOAD |
                                                              slot->consumer.tes_interp_mode;

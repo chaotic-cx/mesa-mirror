@@ -109,6 +109,8 @@
  */
 
 typedef struct {
+   const nir_shader *shader;
+
    /* Which hardware generation we're dealing with */
    enum amd_gfx_level gfx_level;
    unsigned wave_size;
@@ -388,7 +390,6 @@ filter_load_tcs_per_vertex_input(const nir_instr *instr,
 
    nir_src *off_src = nir_get_io_offset_src(intrin);
    nir_src *vertex_index_src = nir_get_io_arrayed_index_src(intrin);
-   nir_instr *vertex_index_instr = nir_def_instr(vertex_index_src->ssa);
    const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
 
    /* If this is accessed via gl_InvocationIndex, don't use LDS if tcs_inputs_via_temp is also set,
@@ -397,8 +398,7 @@ filter_load_tcs_per_vertex_input(const nir_instr *instr,
     */
    if (st->tcs_inputs_via_temp & BITFIELD64_BIT(io_sem.location) &&
        nir_src_is_const(*off_src) && /* array indexing */
-       vertex_index_instr->type == nir_instr_type_intrinsic &&
-       nir_instr_as_intrinsic(vertex_index_instr)->intrinsic == nir_intrinsic_load_invocation_id)
+       nir_def_is_invocation_id(st->shader, vertex_index_src->ssa))
       return false;
 
    return true;
@@ -1575,6 +1575,7 @@ ac_nir_lower_hs_inputs_to_mem(nir_shader *shader,
    assert(gfx_level >= GFX9 || !tcs_in_out_eq);
 
    lower_tess_io_state state = {
+      .shader = shader,
       .gfx_level = gfx_level,
       .map_io = map,
    };
