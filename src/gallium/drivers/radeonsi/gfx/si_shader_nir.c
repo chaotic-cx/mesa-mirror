@@ -57,7 +57,6 @@ void si_nir_opts(struct si_screen *sscreen, struct nir_shader *nir, bool has_arr
 
       /* Needed for algebraic lowering */
       NIR_PASS(progress, nir, nir_opt_algebraic);
-      NIR_PASS(progress, nir, nir_opt_generate_bfi);
       NIR_PASS(progress, nir, nir_opt_constant_folding);
 
       if (!nir->info.flrp_lowered) {

@@ -272,7 +272,6 @@ radv_optimize_nir_algebraic_early(nir_shader *nir)
       NIR_PASS(progress, nir, nir_opt_peephole_select, &peephole_select_options);
       NIR_PASS(_, nir, nir_opt_undef);
       NIR_PASS(_, nir, nir_opt_phi_to_bool);
-      NIR_PASS(_, nir, nir_opt_generate_bfi);
       NIR_PASS(progress, nir, nir_opt_remove_phis);
       NIR_PASS(progress, nir, nir_opt_dead_cf);
       NIR_PASS(progress, nir, nir_opt_algebraic);

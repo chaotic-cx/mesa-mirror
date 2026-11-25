@@ -3869,7 +3869,6 @@ brw_postprocess_nir_opts(brw_pass_tracker *pt)
    if (OPT(intel_nir_opt_peephole_ffma))
       OPT(nir_opt_shrink_vectors, false);
 
-   OPT(nir_opt_generate_bfi);
    OPT(nir_opt_reassociate_bfi);
 
    if (OPT(nir_opt_comparison_pre)) {
