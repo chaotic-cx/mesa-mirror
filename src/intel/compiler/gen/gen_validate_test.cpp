@@ -1906,15 +1906,15 @@ static const struct {
      "send with EOT must use g112-g127", { .lt = 120 }
    },
    { "send.null (16) null r112 0x0 0x0 {EOT}", VALID, { .lt = 120 } },
-   { "send.null (16) null r111 r112:0 0x0 0x0 {EOT}",
+   { "send.null (16) null r111 r112:1 0x40 0x02000000 {EOT}",
      "send with EOT must use g112-g127", { .ge = 120, .lt = 200 }
    },
-   { "send.null (16) null r111 r112:0 0x0 0x0 {EOT}", VALID, { .ge = 200 } },
-   { "send.null (16) null r112 r111:0 0x0 0x0 {EOT}",
+   { "send.null (16) null r111 r112:1 0x40 0x02000000 {EOT}", VALID, { .ge = 200 } },
+   { "send.null (16) null r112 r111:1 0x40 0x02000000 {EOT}",
      "send with EOT must use g112-g127", { .ge = 120, .lt = 200 }
    },
-   { "send.null (16) null r112 r111:0 0x0 0x0 {EOT}", VALID, { .ge = 200 } },
-   { "send.null (16) null r112 r112:0 0x0 0x0 {EOT}", VALID, { .ge = 120 } },
+   { "send.null (16) null r112 r111:1 0x40 0x02000000 {EOT}", VALID, { .ge = 200 } },
+   { "send.null (16) null r112 r113:1 0x40 0x02000000 {EOT}", VALID, { .ge = 120 } },
 
 
    { "sends.null (16) null r[a0.0 + 1] null 0x0 0x0",
@@ -1934,8 +1934,8 @@ static const struct {
    { "send.null (16) null r126 0x0 0x04100000", VALID, { .eq = 90 } },
 
 
-   { "sends.null (16) null r4 r6 0x0 0x04100000", VALID, { .lt = 120 } },
-   { "sends.null (16) null r4 r5 0x0 0x04100000",
+   { "sends.null (16) null r4 r6 0x40 0x04100000", VALID, { .lt = 120 } },
+   { "sends.null (16) null r4 r5 0x40 0x04100000",
      "Split-send payloads must not overlap.", { .lt = 120 }
    },
    { "sends.null (16) null r4 r4 a0.0 a0.0", SAME_ERROR, { .lt = 120 } },
