@@ -144,6 +144,15 @@ jay_lower_post_sched(jay_shader *shader, uint32_t api, uint32_t float_sizes)
                insert_dummy_mov(&b, last, I);
             }
 
+            /* Commute operands to promote instruction compaction */
+            if ((I->op == JAY_OPCODE_MAD && jay_type_is_any_float(I->type)) &&
+                (I->src[1].file == UGPR && I->src[2].file == GPR)) {
+               SWAP(I->src[1], I->src[2]);
+            } else if (I->op == JAY_OPCODE_MAC &&
+                       (I->src[0].file == UGPR && I->src[1].file == GPR)) {
+               SWAP(I->src[0], I->src[1]);
+            }
+
             last = I;
          }
 
