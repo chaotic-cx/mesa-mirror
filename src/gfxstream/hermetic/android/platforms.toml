@@ -77,6 +77,7 @@ secure_getenv = true
 [platform.c.supported_arguments.fails]
 args = [
     "-Wno-error=maybe-uninitialized", "-Wno-nonnull-compare",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.c.sizeof.sizes]
@@ -96,7 +97,7 @@ sysroot = { wrap_name = "android_ndk", path = "toolchains/llvm/prebuilt/linux-x8
 [platform.cpp.supported_arguments.fails]
 args = [
     "-Wno-class-memaccess", "-Wno-error=maybe-uninitialized",
-    "-flifetime-dse=1",
+    "-flifetime-dse=1", "-fzero-init-padding-bits=unions",
 ]
 
 [platform.rust]
@@ -150,6 +151,7 @@ secure_getenv = true
 [platform.c.supported_arguments.fails]
 args = [
     "-Wno-error=maybe-uninitialized", "-Wno-nonnull-compare",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.c.sizeof.sizes]
@@ -169,6 +171,7 @@ sysroot = { wrap_name = "android_ndk", path = "toolchains/llvm/prebuilt/linux-x8
 [platform.cpp.supported_arguments.fails]
 args = [
     "-Wno-error=maybe-uninitialized", "-flifetime-dse=1",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.rust]
@@ -219,6 +222,7 @@ secure_getenv = true
 [platform.c.supported_arguments.fails]
 args = [
     "-Wno-error=maybe-uninitialized", "-Wno-nonnull-compare",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.c.sizeof.sizes]
@@ -239,6 +243,7 @@ sysroot = { wrap_name = "android_ndk", path = "toolchains/llvm/prebuilt/linux-x8
 [platform.cpp.supported_arguments.fails]
 args = [
     "-Wno-error=maybe-uninitialized", "-flifetime-dse=1",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.rust]
@@ -286,6 +291,7 @@ mallinfo2 = true
 [platform.c.supported_arguments.fails]
 args = [
     "-Wno-nonnull-compare",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.cpp]
@@ -296,6 +302,7 @@ version = "21.0.0"
 [platform.cpp.supported_arguments.fails]
 args = [
     "-flifetime-dse=1",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.rust]
@@ -343,6 +350,7 @@ mallinfo2 = true
 [platform.c.supported_arguments.fails]
 args = [
     "-Wno-nonnull-compare",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.cpp]
@@ -353,6 +361,7 @@ version = "21.0.0"
 [platform.cpp.supported_arguments.fails]
 args = [
     "-flifetime-dse=1",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.rust]
@@ -400,6 +409,7 @@ mallinfo2 = true
 [platform.c.supported_arguments.fails]
 args = [
     "-Wno-nonnull-compare",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.cpp]
@@ -410,6 +420,7 @@ version = "21.0.0"
 [platform.cpp.supported_arguments.fails]
 args = [
     "-flifetime-dse=1",
+    "-fzero-init-padding-bits=unions",
 ]
 
 [platform.rust]
