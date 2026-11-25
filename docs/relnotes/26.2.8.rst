@@ -1,0 +1,388 @@
+Mesa 26.2.8 Release Notes / 2026-11-25
+======================================
+
+Mesa 26.2.8 is a bug fix release which fixes bugs found since the 26.2.7 release.
+
+Mesa 26.2.8 implements the OpenGL 4.6 API, but the version reported by
+glGetString(GL_VERSION) or glGetIntegerv(GL_MAJOR_VERSION) /
+glGetIntegerv(GL_MINOR_VERSION) depends on the particular driver being used.
+Some drivers don't support all the features required in OpenGL 4.6. OpenGL
+4.6 is **only** available if requested at context creation.
+Compatibility contexts may report a lower version depending on each driver.
+
+Mesa 26.2.8 implements the OpenCL 3.1 API, but the version reported by
+the CL_DEVICE_VERSION, CL_DEVICE_NUMERIC_VERSION and CL_DEVICE_OPENCL_C_ALL_VERSIONS
+clGetDeviceInfo queries depends on the particular driver being used.
+
+Mesa 26.2.8 implements the Vulkan 1.4 API, but the version reported by
+the apiVersion property of the VkPhysicalDeviceProperties struct
+depends on the particular driver being used.
+
+SHA checksums
+-------------
+
+::
+
+    TBD.
+
+
+New features
+------------
+
+- None
+
+
+Bug fixes
+---------
+
+- Alien Isolation hitting assert during launch
+- Confidential issue #16796
+- Confidential issue #16947
+- Crash accessing ignored array in Vulkan PSO create with dynamic state
+- OpenGL glitch and low performance in Tux racer(2000)
+- RADV:  GPU hang when mixing compute shader_object with ray tracing pipeline
+- Windows: u_memstream leaks MEM*.tmp files on SPIR-V shader compilation, stalling Lavapipe
+- [ANV]Payday 2 crashes on Intel B580
+- [NIR/RADV] nir_opt_offsets: try_fold_shared2 assertion \`st64 || normal` for a wrapping constant shared address (pipeline creation abort since 25.3)
+- [d3d12] broken graphics in Space Station 14
+- [d3d12][WSLg] d3d12_fence_finish() null pointer dereference
+- aco/gfx12: VOPD pairs RAW-dependent v_lshlrev_b32 + v_fmac_f32 after pack_32_2x16_split(0, a) rewrite (RADV, R9700, llama.cpp bf16 flash attention wrong results)
+- anv: CTS failures with dynamic rendering suspend/resume
+- anv: GPU hangs on Gfx9 (Comet Lake) with ffmpeg Vulkan filters since 25.3
+- anv: fast-linked graphics pipeline libraries read per-primitive fragment inputs one location late after an odd number of unread mesh per-primitive outputs
+- d3d12: NULL dereference in select_shader_variant() when compile_nir() fails
+- d3d12: glClearTexImage through a texture view of another format flushes float32-denormal bit patterns to zero
+- dozen: Driver should fail to enumate anything if requirements are not met
+- dzn: Invalid minImageTransferGranularity specified on graphics/compute queue families
+- dzn: Unaligned block-compressed textures are silently unsupported
+- dzn: WSL2 Civ7 instability: OODM in descriptor heap growth and downstream crash behavior
+- dzn: external memory buffers cannot be host mapped
+- dzn: maxStorageBufferRange reports 128 MiB, but raw storage buffer views allow 512 MiB
+- dzn: minImportedHostPointerAlignment is stricter than minimum host page size
+- dzn: use different bit pattern in device addresses
+- dzn: vkBindBufferMemory fails on memory imported from a host pointer
+- hasvk: vkCmdWaitEvents2 is broken
+- iris: WebGPU video pipeline flickers (intermittent black frames) on Intel GPUs - missed GPU synchronization
+- iris: ext_external_objects-vk-ping-pong -multi-sem fails
+- llvmpipe fails on null instances in an acceleration structure
+- nir_to_dxil has store_def and store_ssa_def and they're subtly different
+- nouveau: pushbuf_dump() segfaults after ENODEV with one push and zero buffer references
+- pipe-loader: pipe_loader_drm_probe_internal() closes probed render-node fd twice, clobbering other threads' fds via Rusticl ICD start-up (radeonsi, RX 9070 XT)
+- radeonsi/EGL Wayland: presenting a window surface taller than the GPU's max surface dimension intermittently SIGSEGVs in \`dri2_query_image` (via \`create_wl_buffer` / \`dri2_wl_swap_buffers_with_damage`) instead of failing — RX 9070 XT (gfx1201)
+- radeonsi: NULL pipe_memory_object dereference in si_resource_from_memobj()
+- radv/aco: fast-linked GPL pipeline breaks fragment shader interlock on GFX11 (no s_waitcnt_vscnt before the jump to the PSepilog)
+- radv: SIGSEGV in the hang-dump path with RADV_DEBUG=hang (null deref at 0x1a8) — no radv_dumps written
+- vkCmdDrawIndexed read access violation in Dozen (in dzn_descriptor_heap_copy)
+
+
+Changes
+-------
+
+Ali Milhim (3):
+
+- nir/opt_copy_prop_vars: don't create a copies array just to kill nothing
+- nir: use temporary deref paths for alias invalidation
+- lavapipe: encode all IR leaf nodes
+
+Andy Hsu (1):
+
+- intel/compiler: Handle load_barycentric_at_sample in lower_msaa_config
+
+Artem Peshkov (1):
+
+- tu: mark dynamic descriptor sizes of empty shaders unknown
+
+Caio Oliveira (2):
+
+- nir: Track cooperative matrix memory accesses
+- brw: Fix wrong count used in scheduler hw_liveout allocation
+
+Christian Gmeiner (5):
+
+- gallium: Add pipe_caps.needs_split_planar_samplers
+- freedreno: Set needs_split_planar_samplers
+- etnaviv/drm: Fail BO creation when no GPU address is left
+- etnaviv/rs: Reset RS_CONFIG before YUV tiler kick
+- mesa/st: Do not report multisampling for optional float formats
+
+Christoph Pillmayer (2):
+
+- panfrost/kmod: Fix pan[thor|frost] naming mistake
+- pan/perf: Fix BPS counter timespan
+
+Daniel Schürmann (2):
+
+- aco/tests: fix GFX11.7 unused source encoding expectations
+- nir/opt_offsets: skip unencodable shared2 offsets
+
+Danylo Piliaiev (1):
+
+- tu: Properly wait for mem writes to finish in emit_copy_query_pool_results
+
+David Airlie (1):
+
+- nouveau/winsys: don't pushbuf dump outside the range.
+
+David Rosca (8):
+
+- mesa: Handle import fail in ImportMemoryFd/Win32EXT
+- mesa: Handle import fail in ImportSemaphoreFd/Win32EXT
+- mesa: Fix crash in Wait/SignalSemaphoreEXT with null fence
+- va: Fix VP9 frame header length when parsing bitstream
+- ac/vcn_dec: Use max_num_ref_frames for h264 ref_id_size
+- ac/vcn_dec: Clamp number of ref frames
+- radeonsi/mm: Fix VCN5 AV1 encode uniform tile info
+- radv/video: Fix VCN5 AV1 encode uniform tile info
+
+Dmitry Baryshkov (9):
+
+- ir3: read a5xx SSBO sizes with the 4d resinfo
+- freedreno/ir3: don't read past the end of user constant buffers
+- freedreno/a5xx: clear the whole border color entry
+- freedreno/a5xx: return an absolute value from the timestamp query
+- freedreno/drm-shim: report the a702's chip id with the right digits
+- freedreno/drm-shim: report the a830 chip id drm/msm reports
+- freedreno/drm-shim: report the a540's chip id as 0x05040001
+- freedreno: prefer the entry that names a chip id exactly
+- freedreno: give a201 and a307 the chip ids they report
+
+Emma Anholt (1):
+
+- glsl: Fix linking of various FS inout layout qualifiers pre-GLSL-1.50.
+
+Eric Engestrom (3):
+
+- docs: add sha sum for 26.2.7
+- .pick_status.json: Update to 1756a2fc170832c264006b35184e1e32c02debd0
+- .pick_status.json: Mark 0f938cad4a8a635615518f71a3f099a20d97a485 as denominated
+
+Erik Faye-Lund (5):
+
+- pan/ci: restore flaky tests
+- pan/ci: remove stale flakes
+- pan/ci: remove stale flakes
+- pan/ci: remove stale flake
+- pan/ci: remove stale flake
+
+Fabricio Akio (3):
+
+- freedreno/a5xx: Implement alpha-to-one
+- freedreno/a5xx: Set the sample count for the binning pass
+- freedreno/a5xx: Re-enable stream output without re-emitting the program
+
+Francesco Stimola (8):
+
+- nv50: size surface views by blocks when the block size differs
+- nv50,nvc0: don't read pipe_surface templates as nv50_surface in clears
+- nv30: don't read pipe_surface templates as nv30_surface in clears
+- nouveau/winsys: pass the drm fd when deleting subchannel objects
+- nv50: only push constant buffer updates through a current binding
+- nouveau: pass chroma_format_idc to the vp3 H.264 decoder
+- nouveau: tell the vp3 H.264 decoder whether a picture is MBAFF
+- vl/compositor: render the V plane with its own gfx shaders
+
+Frank Binns (2):
+
+- docs: drop references to ROGUE_DEBUG & ROGUE_COLOR envvars
+- docs: fix PCO related envvar name
+
+Georg Lehmann (2):
+
+- nir/range_analysis: fix 8/16bit ishr uub
+- aco/sched_vopd: fix independence checks
+
+Iván Briano (1):
+
+- anv: pDstRange->size in vkCmdFillMemoryKHR can be 0
+
+Jose Maria Casanova Crespo (3):
+
+- v3d: fix the order of the alpha sampler state variants
+- broadcom/compiler: scalarize every phi
+- vc4: scalarize every phi
+
+José Expósito (1):
+
+- tu/autotune: use unique_ptr<rp_histories_t> to fix GCC 11 build
+
+Kajal Kajal (1):
+
+- freedreno: Fix num_ccu for A623/A621
+
+Karmjit Mahil (1):
+
+- tu: Update input attachment idx when MSRTSS internal is used
+
+Karol Herbst (1):
+
+- pipe-loader: do not close fds twice
+
+Lionel Landwerlin (6):
+
+- anv: use the actual size for vma allocations
+- anv: disable push pointer optimization by default
+- anv: avoid segfault when dword allocation fails
+- brw: fix missing subregion for indirect register
+- intel/compiler: fix unaligned per primitive FS URB reads
+- anv: add missing reset of color & input attachment at CmdBeginRendering()
+
+Louis-Francis Ratté-Boulianne (1):
+
+- mediafoundation: fix an assignment that should be a comparison
+
+Marek Olšák (1):
+
+- nir/opt_group_loads: fix stack overrun
+
+Matt Clark (2):
+
+- anv: disable preemption on 3DPRIMITIVE on Gfx11
+- intel/genxml: inherit CS_CHICKEN1 on Gfx12 from Gfx11
+
+MoGGuU (1):
+
+- rocket: allocate separate arrays for each job to avoid double-free
+
+Oliver Bestmann (1):
+
+- meson: use zero-init-padding-bits=unions to clear unions
+
+Olivia Lee (1):
+
+- panvk: fix null pointer dereference in shader variant helpers
+
+Rhys Perry (2):
+
+- aco: consider p_jump_to_epilog as a POPS end export
+- nir/opt_varyings: clear output_equal_mask when GS has looped output stores
+
+Sagar Ghuge (1):
+
+- anv: Don't program CS_CHICKEN on Gfx9
+
+Samuel Pitoiset (8):
+
+- radv: split copies after optimizing memcpy
+- radv: do not try to dump VBOs without a VS with RADV_DEBUG=hang
+- radv: fix emitting push constants with ESO
+- vulkan: ignore cbAttachmentCount when needed
+- radv: fix an interaction with compute ESO and ray tracing pipelines
+- ac/nir: skip gl_PrimitiveShadingRate for LS/ES
+- radv/meta: fix DCC decompression with compute and SRGB formats
+- vulkan: fix push data with unsized arrays
+
+Serdar Kocdemir (1):
+
+- util: avoid Windows memstream temp file leaks
+
+Silvio Vilerino (1):
+
+- d3d12: Do not use D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA1 as in/out param arg
+
+Simon Perretta (1):
+
+- pco: fence before mutex release ops
+
+Tapani Pälli (3):
+
+- zink: only attempt to resolve when nr_samples > 1
+- mesa/st: return NULL sampler view for too small texture buffers
+- dri: set up error code in dri_create_image_from_winsys
+
+Timothy Arceri (1):
+
+- mesa: read user arrays in glArrayElement when glthread's buffers are bound
+
+Timur Kristóf (3):
+
+- aco/isel: Consider access flags for load_buffer_amd intrinsic
+- aco/isel: Consider access flags for store_buffer_amd intrinsic
+- ac/nir: Wait for previous stores to finish before storing ready bit
+
+Tupili Krishna Gowtham Reddy (1):
+
+- freedreno: fix slot indexing in fd_set_global_binding()
+
+Utku Iseri (4):
+
+- panvk: fix consecutive IUB updates
+- panvk: fix copy descriptors for CombinedImageSampler
+- panvk: hash immutable sampler descriptor count in layouts
+- pan: avoid 0/0 with null texel buffer sizes
+
+Valentine Burley (4):
+
+- panfrost: Remove redundant perfetto header include
+- tu: Disable LRZ for imported depth images
+- tu: Lower UBO access sizes before lowering inline uniform blocks
+- tu/kgsl: Fix single-queue timestamp waits in wait_any
+
+Yiwei Zhang (1):
+
+- zink: gate conditional rendering buffer usage behind the extension
+
+Zeyang Lyu (1):
+
+- radv: fix WoW water rendering with DXVK and vkd3d-proton
+
+Zhaoliang Ma (1):
+
+- iris: join engine completion before signaling external semaphores
+
+broken-branch (1):
+
+- egl/wayland: clear back after buffer allocation fails
+
+hamb3r (42):
+
+- d3d12: Preserve raw texel bits in clear_texture
+- dzn: Report 512 MiB for maxStorageBufferRange
+- dzn: Pass modified resource desc in dzn_BindBufferMemory2
+- dzn: Enumerate zero devices when runtime requirements are not met
+- dzn: Handle descriptor heap allocation failure in cmd_buffer_update_heaps
+- dzn: Preserve host-visible memory types for host-imported buffers
+- dzn: Set minImageTransferGranularity to (1, 1, 1)
+- dzn: Apply all dependencies in CmdWaitEvents2
+- d3d12: Clean up failed shader variant allocations in compile_nir()
+- d3d12: Hook up DXIL logger in compile_nir()
+- d3d12: Handle shader variant compilation failures
+- dzn: Fix resource flags for MSAA and concurrent linear images
+- dzn: Handle D3D12 image allocation info failures
+- microsoft/compiler: Unify DXIL SSA definition storage
+- microsoft/compiler: Fix memory leaks on nir_to_dxil() error paths
+- dzn: Set bits 52-63 of buffer device addresses
+- dzn: Fix query result zero-fill copy sizes
+- dzn: Fix pooled descriptor set vk_object_base lifecycle
+- dzn: Free the enhanced barrier allocation base
+- dzn: Advertise KHR_external_memory_capabilities and KHR_external_semaphore_capabilities
+- wgl: exclude pbuffer-only formats in wglChoosePixelFormatARB unless requested
+- dzn: Fix collect_buffer barriers around vkCmdCopyQueryPoolResults
+- vulkan/wsi: Preserve the swapchain image type
+- dzn: Grow shader-visible CBV/SRV/UAV descriptor heaps geometrically
+- dzn: Free transition barriers when hash insertion fails
+- dzn: Fix enhanced barriers on simultaneous-access textures
+- dzn: Open host-imported heaps with the exact allocation size
+- hasvk: Fix vkCmdWaitEvents2 handling
+- vulkan/wsi/win32: Fix DXGI blit image usage2 and dedicated memory target
+- microsoft/compiler: Don't ralloc_free() tess level variable
+- d3d12: Derive MAX_DESCRIPTOR_TABLES from binding types
+- dzn: Preserve bound descriptor heaps and dirty other bindpoint on switch
+- dzn: Track and free cached graphics pipeline DXIL bytecodes
+- dzn: Fix link_hashes array dimensions in graphics pipeline compile
+- vl/proc,va/postproc: Wire flush on vl_proc and flush in vlVaPostProc
+- d3d12/video_proc: Use get_resources() instead of casting pipe_video_buffer
+- util/primconvert: Fix converted index count for primitive restart draws
+- winsys/gdi: Support sRGB display target formats
+- d3d12: Check blit view formats in resolve_supported()
+- d3d12: Support R8G8B8X8_SRGB and B8G8R8X8_SRGB formats
+- microsoft/compiler: Handle DXIL_TEX_WRAP_CLAMP as clamp-to-edge for int samplers
+- d3d12: Handle NULL fence in fence_finish
+
+osman.yagci (2):
+
+- mesa: don't advertise APIs that are not built
+- pan/desc: follow the caller's ZS/CRC extension layout in pan_emit_fbd
+
+soka (1):
+
+- frontends/va: parse VP9 chroma delta-q in spec order

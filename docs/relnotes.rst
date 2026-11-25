@@ -3,6 +3,7 @@ Release Notes
 
 The release notes summarize what's new or changed in each Mesa release.
 
+-  :doc:`26.2.8 release notes <relnotes/26.2.8>`
 -  :doc:`26.2.7 release notes <relnotes/26.2.7>`
 -  :doc:`26.2.6 release notes <relnotes/26.2.6>`
 -  :doc:`26.2.5 release notes <relnotes/26.2.5>`
@@ -498,6 +499,7 @@ The release notes summarize what's new or changed in each Mesa release.
    :maxdepth: 1
    :hidden:
 
+   26.2.8 <relnotes/26.2.8>
    26.2.7 <relnotes/26.2.7>
    26.2.6 <relnotes/26.2.6>
    26.2.5 <relnotes/26.2.5>
