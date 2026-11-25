@@ -85,7 +85,7 @@ all_uses_safe_conv(struct ir3_instruction *conv_src, type_t src_type)
    opc_t opc = conv_src->opc;
    bool first = true;
    foreach_ssa_use (use, conv_src) {
-      opc_t new_opc = opc;
+      opc_t new_opc = conv_src->opc;
       if (!is_safe_conv(use, src_type, &new_opc, conv_src))
          return false;
       /* Check if multiple uses have conflicting requirements on the opcode.
