@@ -5324,13 +5324,9 @@ select_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
             off += vec_op.bytes();
          }
          if (off != instr->operands[0].bytes() && op.bytes() == instr->definitions[idx].bytes()) {
-            ctx.uses[instr->operands[0].tempId()]--;
-            for (Operand& vec_op : vec->operands) {
-               if (vec_op.isTemp())
-                  ctx.uses[vec_op.tempId()]--;
-            }
             if (op.isTemp())
                ctx.uses[op.tempId()]++;
+            decrease_and_dce(ctx, instr->operands[0].getTemp());
 
             aco_ptr<Instruction> copy{
                create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, 1, 1)};
