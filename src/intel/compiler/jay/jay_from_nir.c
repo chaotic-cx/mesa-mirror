@@ -2167,7 +2167,10 @@ jay_emit_btd_ops(struct nir_to_jay_state *nj, nir_intrinsic_instr *instr)
    if (synchronous) {
       assert(instr->intrinsic == nir_intrinsic_trace_ray_intel);
       jay_SCHEDULE_BARRIER(&nj->bld);
-      jay_MOV(&nj->bld, nj_def(&nj->bld, &instr->def), notif);
+      unsigned bits = instr->def.bit_size;
+      jay_def src = jay_extract_range(notif, 0, s->dispatch_width * bits / 32);
+      jay_MOV(&nj->bld, nj_def(&nj->bld, &instr->def), src)->type =
+         jay_type(JAY_TYPE_U, bits);
    }
 }
 
