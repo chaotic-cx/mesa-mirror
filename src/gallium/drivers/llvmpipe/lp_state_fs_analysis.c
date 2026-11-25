@@ -248,9 +248,15 @@ llvmpipe_nir_fn_is_linear_compat(const struct nir_shader *shader,
                   nir_def_as_load_const(intrin->src[0].ssa);
                if (load->value[0].u32 != 0 || load->def.num_components > 1)
                   return false;
+            } else if (intrin->intrinsic == nir_intrinsic_load_deref) {
+               nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
+               if (!deref || deref->modes != nir_var_shader_in)
+                  return false;
             } else if (intrin->intrinsic == nir_intrinsic_store_deref) {
+               nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
+               if (!deref || deref->modes != nir_var_shader_out)
+                  return false;
                /*
-                * Assume the store destination is the FS output color.
                 * Check if the store src comes directly from a FS input.
                 * If so, we cannot use the linear path since we don't have
                 * code to convert VS outputs / FS inputs to ubyte with the
@@ -368,7 +374,9 @@ llvmpipe_nir_is_linear_compat(struct nir_shader *shader,
    if (util_bitcount64(shader->info.inputs_read) > LP_MAX_LINEAR_INPUTS)
       return false;
 
-   if (!shader->info.outputs_written || shader->info.fs.color_is_dual_source ||
+   if (!shader->info.outputs_written || shader->info.outputs_read ||
+       shader->info.fs.uses_fbfetch_output ||
+       shader->info.fs.color_is_dual_source ||
        (shader->info.outputs_written & ~BITFIELD64_BIT(FRAG_RESULT_DATA0)))
       return false;
 
