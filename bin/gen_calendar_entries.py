@@ -226,7 +226,7 @@ def extend(args: ExtendArguments) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers()
+    sub = parser.add_subparsers(required=True)
 
     rc = sub.add_parser('release-candidate', aliases=['rc'], help='Generate calendar entries for a release candidate.')
     rc.add_argument('manager', help="the name of the person managing the release.")
