@@ -811,14 +811,6 @@ radv_get_htile_mask(struct radv_cmd_buffer *cmd_buffer, const struct radv_image 
    assert(!(preserve & (RADV_HTILE_DYNAMIC_ZRANGE_PRECISION)));
    assert(preserve != RADV_HTILE_PRESERVE_ALL);
 
-   if (cmd_buffer->qf == RADV_QUEUE_TRANSFER) {
-      /* Clear the whole dword on SDMA because SDMA can't do read-modify-write if not executing
-       * as a gang with compute.
-       * TODO: We can't do this if we want to pass CTS.
-       */
-      return UINT32_MAX;
-   }
-
    /* Only preserve depth/stencil fields when they exist, and don't preserve them when they don't,
     * so that we get read-modify-write less often.
     */
@@ -1300,8 +1292,7 @@ radv_clear_htile_rmw(struct radv_cmd_buffer *cmd_buffer, const struct radv_image
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const bool zrange_precision_wa =
       range->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT && !(flags & RADV_HTILE_PRESERVE_HIZ_RANGE) &&
-      flags & RADV_HTILE_DYNAMIC_ZRANGE_PRECISION && cmd_buffer->qf != RADV_QUEUE_TRANSFER &&
-      radv_image_has_tc_compat_zrange_metadata(device, image) &&
+      flags & RADV_HTILE_DYNAMIC_ZRANGE_PRECISION && radv_image_has_tc_compat_zrange_metadata(device, image) &&
       radv_tc_compat_htile_enabled(image, range->baseMipLevel);
    const uint32_t layer_count = vk_image_subresource_layer_count(&image->vk, range);
    uint32_t level_count = vk_image_subresource_level_count(&image->vk, range);
@@ -1320,14 +1311,35 @@ radv_clear_htile_rmw(struct radv_cmd_buffer *cmd_buffer, const struct radv_image
    if (!htile_mask)
       return 0;
 
+   const bool use_gang = cmd_buffer->qf == RADV_QUEUE_TRANSFER && (htile_mask != UINT32_MAX || zrange_precision_wa);
+
    /* Invalidate the VMEM cache for read-modify-write HTILE clears because HTILE could be cached in VMEM
     * from previous such clears, causing VMEM loads to return stale values. This happens when HTILE bits
     * of depth and stencil are cleared separately - when clearing stencil bits, stale depth bits predating
     * the depth bits clear could be returned from the VMEM cache.
     */
-   cmd_buffer->state.flush_bits |=
-      radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            htile_mask != UINT32_MAX ? VK_ACCESS_2_SHADER_STORAGE_READ_BIT : 0, 0, image, range);
+   if (use_gang) {
+      cmd_buffer->gang.flush_bits |=
+         radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               htile_mask != UINT32_MAX ? VK_ACCESS_2_SHADER_STORAGE_READ_BIT : 0, 0, image, range);
+
+      if (!radv_gang_init(cmd_buffer))
+         return 0;
+
+      /* Wait for all pending work on SDMA. */
+      cmd_buffer->gang.sem.leader_value++;
+      if (radv_flush_gang_leader_semaphore(cmd_buffer)) {
+         radv_wait_gang_leader(cmd_buffer);
+         cmd_buffer->gang.flush_bits |= AC_BARRIER_INV_L2;
+      }
+
+      /* Emit pending cache flushes on ACE. */
+      radv_gang_cache_flush(cmd_buffer);
+   } else {
+      cmd_buffer->state.flush_bits |=
+         radv_dst_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                               htile_mask != UINT32_MAX ? VK_ACCESS_2_SHADER_STORAGE_READ_BIT : 0, 0, image, range);
+   }
 
    /* If we have 2 clear values and multiple levels, then we need to iterate levels because the clear
     * value selection is per level.
@@ -1375,6 +1387,15 @@ radv_clear_htile_rmw(struct radv_cmd_buffer *cmd_buffer, const struct radv_image
             clear_htile_mask(cmd_buffer, image, image->bindings[0].bo, image->bindings[0].addr + htile_offset, size,
                              value, htile_mask, zrange_precision_wa ? radv_get_tc_compat_zrange_va(image, 0) : 0);
       }
+   }
+
+   if (use_gang) {
+      cmd_buffer->gang.flush_bits |= flush_bits;
+
+      /* Wait on SDMA for the ACE clear to finish. */
+      cmd_buffer->gang.sem.follower_value++;
+      if (radv_flush_gang_follower_semaphore(cmd_buffer))
+         radv_wait_gang_follower(cmd_buffer);
    }
 
    return flush_bits;
