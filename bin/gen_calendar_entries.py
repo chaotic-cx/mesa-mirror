@@ -60,7 +60,7 @@ if typing.TYPE_CHECKING:
 _ROOT = pathlib.Path(__file__).parent.parent
 CALENDAR_CSV = _ROOT / 'docs' / 'release-calendar.csv'
 VERSION = _ROOT / 'VERSION'
-LAST_RELEASE = 'This is the last planned release of the {}.x series.'
+LAST_RELEASE = 'Last planned {}.x release.'
 OR_FINAL = 'Or {}.0 final.'
 
 
