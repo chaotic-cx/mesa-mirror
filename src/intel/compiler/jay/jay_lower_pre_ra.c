@@ -152,7 +152,11 @@ lower_immediates(jay_builder *b, jay_inst *I, struct hash_table_u64 *constants)
    if ((other < I->num_srcs && jay_is_imm(I->src[other])) &&
        !_mesa_hash_table_u64_search(constants, jay_as_uint(I->src[other]))) {
 
-      jay_try_swap_src01(I);
+      if (I->op == JAY_OPCODE_MAD && jay_type_is_any_float(I->type)) {
+         SWAP(I->src[1], I->src[2]);
+      } else {
+         jay_try_swap_src01(I);
+      }
    }
 
    /* Immediates allowed only in certain cases, lower the rest */
