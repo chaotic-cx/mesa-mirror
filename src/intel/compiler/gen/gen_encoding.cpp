@@ -1568,7 +1568,7 @@ struct gen_decoder {
 
          gen_range bits = { 127, 0 };
 
-         if constexpr (E::TYPE >= GEN_ENCODING_XE3P) {
+         if constexpr (E::TYPE >= GEN_ENCODING_XE3P_64BIT) {
             inst->send.combined_desc =
                get(bits(127, 112)) << 0 |
                get(bits(91, 80)) << 16 |

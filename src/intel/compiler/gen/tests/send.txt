@@ -2107,3 +2107,5 @@ dg2 | 31 9a 00 80 80 01 0e 17 8c 75 00 fa 00 00 30 00 | (W)     send.ugm (1)    
 dg2 | 31 95 03 00 80 01 02 00 14 0e f8 c1 24 18 d4 00 |         send.hdc1 (8)             null    r14    r24:4   a0.2        0x040350FC   {ExBSO,@1,$5}  // wr:2+4, rd:0; ?
 dg2 | 31 42 03 00 00 00 00 00 0c 33 00 80 0c 34 00 00 |         send.rtaccel (8)          null    r51    r52:1   0x00000040  0x02000000   {$2}  // wr:1+1, rd:0; trace_ray simd8 (8)
 dg2 | 31 46 04 00 00 00 00 00 0c 58 00 82 14 62 00 00 |         send.rtaccel (16)         null    r88    r98:2   0x00000080  0x02000100   {$6}  // wr:1+2, rd:0; trace_ray simd16 (16)
+
+nvl | 31 00 14 00 00 00 14 2c 24 5c 00 fb 00 00 00 00 |         send.ugm (32)             r44     r92    null:0  0x00000000  0x08200580   {ExBSO}  // wr:4+0, rd:2; load.ugm.d32.a64
