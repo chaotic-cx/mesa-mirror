@@ -2663,12 +2663,9 @@ optimizations.extend([
    (('bitfield_select', ('inot', a), b, c), ('bitfield_select', a, c, b)),
    (('bitfield_select', ('ineg', ('b2i', 'a@1')), b, c), ('bcsel', a, b, c)),
 
-   (('ior', ('iand', a, b), ('iand', ('inot', a), c)), ('bitfield_select', a, b, c), 'options->has_bitfield_select'),
-   (('iadd', ('iand', a, b), ('iand', ('inot', a), c)), ('bitfield_select', a, b, c), 'options->has_bitfield_select'),
-   (('ixor', ('iand', a, b), ('iand', ('inot', a), c)), ('bitfield_select', a, b, c), 'options->has_bitfield_select'),
    (('ixor', ('iand', a, ('ixor', b, c)), c), ('bitfield_select', a, b, c), 'options->has_bitfield_select'),
 
-   # The patterns above could create 1bit bitfield_select, but that's really just bcsel.
+   # Other patterns could create 1bit bitfield_select, but that's really just bcsel.
    (('bitfield_select@1', a, b, c), ('bcsel', a, b, c)),
 
    # Canonicalize bitfield_select with constant mask for better CSE
@@ -3422,6 +3419,27 @@ def bitfield_reverse_cp2077(u):
 optimizations += [(bitfield_reverse_xcom2('x@32'), ('bitfield_reverse', 'x'), '!options->lower_bitfield_reverse')]
 optimizations += [(bitfield_reverse_ue4('x@32'), ('bitfield_reverse', 'x'), '!options->lower_bitfield_reverse')]
 optimizations += [(bitfield_reverse_cp2077('x@32'), ('bitfield_reverse', 'x'), '!options->lower_bitfield_reverse')]
+
+# Create bitfield_select or bfi from (a & b) | (~a & c).
+# Instead of an or, xor and add can also be used to combine disjoint masks
+# These patterns must be after the bitfield_reverse patterns above
+for or_op in ['ior', 'ixor', 'iadd']:
+    optimizations.extend([
+       # Only bitfield_select can be used for the non constant case, because it doesn't shift.
+       ((or_op, ('iand', a, b), ('iand', ('inot', a), c)), ('bitfield_select', a, b, c), 'options->has_bitfield_select'),
+
+       # extracts are special iands
+       ((or_op, ('extract_u8', a, 0), ('iand', b, ~0xff)), ('bitfield_select', 0xff, a, b), 'options->has_bitfield_select'),
+       ((or_op, ('extract_u16', a, 0), ('iand', b, ~0xffff)), ('bitfield_select', 0xffff, a, b), 'options->has_bitfield_select'),
+       ((f'{or_op}@32', ('extract_u8', a, 0), ('iand', b, ~0xff)), ('bfi', 0xff, a, b), 'options->has_bfi'),
+       ((f'{or_op}@32', ('extract_u16', a, 0), ('iand', b, ~0xffff)), ('bfi', 0xffff, a, b), 'options->has_bfi'),
+
+       ((or_op, ('iand', '#a(uint)', b), ('iand', '#c(uint)', d)), ('bitfield_select', a, b, d), 'options->has_bitfield_select',
+        when('(a ^ c) == u_uintN_max(b->bit_size)')),
+       ((f'{or_op}@32', ('iand', '#a(uint)', b), ('iand', '#c(uint)', d)), ('bfi', a, b, d), 'options->has_bfi',
+        when('(a ^ c) == u_uintN_max(b->bit_size) && (a & 0x1)')),
+    ])
+
 
 # VKD3D-Proton DXBC f32 to f16 conversion implements a float conversion using PackHalf2x16.
 # Because the spec does not specify a rounding mode or behaviour regarding infinity,
