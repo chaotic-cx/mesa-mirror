@@ -703,7 +703,7 @@ pick_regs_from_block(jay_ra_state *ra,
           * actually be usable, the whole vector will need to be copied.
           */
          if (i < affinity.offset ||
-             !util_is_aligned(i - affinity.offset, 4) ||
+             !util_is_aligned(i - affinity.offset, MAX2(affinity.align, 1)) ||
              (i - affinity.offset) + affinity.nr > block.len_gpr) {
             cost += affinity.nr;
          }
