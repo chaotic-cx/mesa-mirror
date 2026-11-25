@@ -228,18 +228,28 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(required=True)
 
+    def parse_maj_min(value: str) -> str:
+        try:
+            maj, min = value.split('.')
+            int(maj), int(min)
+            return value
+        # Either because the split has the wrong number of components, or
+        # because the int() cast fails.
+        except ValueError:
+            raise argparse.ArgumentTypeError("value must be in the form YY.N")
+
     rc = sub.add_parser('release-candidate', aliases=['rc'], help='Generate calendar entries for a release candidate.')
     rc.add_argument('manager', help="the name of the person managing the release.")
     rc.set_defaults(func=release_candidate)
 
     fr = sub.add_parser('release', help='Generate calendar entries for a final release.')
     fr.add_argument('manager', help="the name of the person managing the release.")
-    fr.add_argument('series', help='The series to extend, such as "29.3" or "30.0".')
+    fr.add_argument('series', help='The series to extend, such as "29.3" or "30.0".', type=parse_maj_min)
     fr.add_argument('--zero-released', action='store_true', help='The .0 release was today, the next release is .1')
     fr.set_defaults(func=final_release)
 
     ex = sub.add_parser('extend', help='Generate additional entries for a release.')
-    ex.add_argument('series', help='The series to extend, such as "29.3" or "30.0".')
+    ex.add_argument('series', help='The series to extend, such as "29.3" or "30.0".', type=parse_maj_min)
     ex.add_argument('count', type=int, help='The number of new entries to add.')
     ex.set_defaults(func=extend)
 
