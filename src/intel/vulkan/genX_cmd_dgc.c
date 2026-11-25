@@ -971,6 +971,8 @@ void genX(CmdExecuteGeneratedCommandsEXT)(
       if (cmd_buffer->state.conditional_render_enabled)
          genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
+      bool apply_pipe_flushes = false;
+
 #if GFX_VER == 9
       /* Gfx9 has a VF cache issues (only considers the bottom 32bit of the VF
        * buffer address), since we're likely to emit those in the DGC buffer,
@@ -983,7 +985,7 @@ void genX(CmdExecuteGeneratedCommandsEXT)(
                                 VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                                 ANV_PIPE_VF_CACHE_INVALIDATE_BIT,
                                 "Gfx9 VF cache inval pre dgc exec");
-      genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
+      apply_pipe_flushes = true;
 #endif
 
       /* If a shader runs, flush the data to make it visible to CS. */
@@ -995,7 +997,7 @@ void genX(CmdExecuteGeneratedCommandsEXT)(
                                    ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT |
                                    ANV_PIPE_CS_STALL_BIT,
                                    "after generated commands");
-         genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
+         apply_pipe_flushes = true;
       }
 
 #if GFX_VER >= 35
@@ -1003,15 +1005,22 @@ void genX(CmdExecuteGeneratedCommandsEXT)(
          /* Unfortunately we need a TOP wait, the push constant data could
           * be gathered by prerasterization shader and cached at the point,
           * even if only used by a later fragment shader. We only need to
-          * invalidate the constant cache.
+          * invalidate the constant cache before executing generated commands.
+          * Use a CS stall to force a PIPE_CONTROL barrier before the generated
+          * commands read the updated data.
           */
          anv_add_pending_pipe_bits(cmd_buffer,
                                    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
                                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                   ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT,
+                                   ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT |
+                                   ANV_PIPE_CS_STALL_BIT,
                                    "efficient 64bit postprocess");
+         apply_pipe_flushes = true;
       }
 #endif
+
+      if (apply_pipe_flushes)
+         genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
 
 #if GFX_VER >= 12
       /* Prior to Gfx12 we cannot disable the CS prefetch but it doesn't matter
