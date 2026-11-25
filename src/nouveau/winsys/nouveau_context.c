@@ -260,6 +260,7 @@ nouveau_ws_video_context_init(struct nouveau_ws_device *dev,
 
 fail_subchan:
    nouveau_ws_subchan_dealloc(dev->fd, &ctx->vdec);
+   nouveau_ws_subchan_dealloc(dev->fd, &ctx->copy);
    nouveau_ws_channel_dealloc(dev->fd, req.channel);
 
    return ret;
