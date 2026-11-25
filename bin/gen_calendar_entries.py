@@ -54,7 +54,6 @@ if typing.TYPE_CHECKING:
         series: str
         count: int
 
-
     CalendarRowType = typing.Tuple[typing.Optional[str], str, str, str, typing.Optional[str]]
 
 
@@ -74,7 +73,6 @@ def read_calendar() -> typing.List[CalendarRowType]:
 def commit(message: str) -> None:
     """Commit the changes the the release-calendar.csv file."""
     subprocess.run(['git', 'commit', str(CALENDAR_CSV), '--message', message])
-
 
 
 def _calculate_release_start(major: str, minor: str) -> datetime.date:
