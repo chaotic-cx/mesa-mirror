@@ -2868,7 +2868,7 @@ tu6_emit_viewport_fdm(struct tu_cs *cs, struct tu_cmd_buffer *cmd,
    tu_create_fdm_bin_patchpoint(cmd, cs, size, TU_FDM_NONE,
                                 fdm_apply_viewports, state);
    cmd->state.rp.shared_viewport |= !cmd->state.per_view_viewport &&
-      !cmd->state.program.per_layer_viewport;
+      !cmd->state.program->per_layer_viewport;
 }
 
 static const enum mesa_vk_dynamic_graphics_state tu_scissor_state[] = {
@@ -4360,8 +4360,8 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
                cmd->state.dirty & (TU_CMD_DIRTY_SUBPASS | TU_CMD_DIRTY_SHADING_RATE),
                &cmd->vk.dynamic_graphics_state.fsr,
                cmd->state.subpass->fsr_attachment != VK_ATTACHMENT_UNUSED,
-               cmd->state.program.writes_shading_rate,
-               cmd->state.program.reads_shading_rate);
+               cmd->state.program->writes_shading_rate,
+               cmd->state.program->reads_shading_rate);
    }
    /* For SW multiview (no HW multiview), don't enable HW multiview
     * registers -- the driver handles multiview via draw duplication.
@@ -4394,7 +4394,7 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
                    cmd->state.shaders[MESA_SHADER_VERTEX],
                    cmd->state.shaders[MESA_SHADER_TESS_CTRL],
                    cmd->state.shaders[MESA_SHADER_TESS_EVAL],
-                   &cmd->state.program,
+                   cmd->state.program,
                    cmd->vk.dynamic_graphics_state.ts.patch_control_points);
    if (!cmd->device->physical_device->info->props.has_coherent_ubwc_flag_caches) {
       DRAW_STATE_COND(prim_mode_sysmem,

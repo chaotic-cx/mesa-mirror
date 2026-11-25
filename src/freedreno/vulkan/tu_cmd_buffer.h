@@ -496,7 +496,7 @@ struct tu_cmd_state
 
    struct tu_shader *shaders[MESA_SHADER_STAGES];
 
-   struct tu_program_state program;
+   const struct tu_program_state *program;
 
    struct tu_render_pass_state rp;
 

@@ -4917,7 +4917,8 @@ tu_bind_descriptor_sets(struct tu_cmd_buffer *cmd,
          (set->va | BINDLESS_DESCRIPTOR_64B) : 0;
 
       /* Compute consts are emitted on every dispatch. */
-      if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS && cmd->state.program.uses_bindless_base_addrs)
+      if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS && cmd->state.program &&
+          cmd->state.program->uses_bindless_base_addrs)
          cmd->state.dirty |= TU_CMD_DIRTY_SHADER_CONSTS;
 
       if (!set)
@@ -5094,7 +5095,8 @@ tu_set_descriptor_buffer_offsets(
          BINDLESS_DESCRIPTOR_64B;
 
       /* Compute consts are emitted on every dispatch. */
-      if ((bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS && cmd->state.program.uses_bindless_base_addrs) ||
+      if ((bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS && cmd->state.program &&
+           cmd->state.program->uses_bindless_base_addrs) ||
           set_layout->has_inline_uniforms)
          cmd->state.dirty |= TU_CMD_DIRTY_SHADER_CONSTS;
    }
@@ -5682,7 +5684,7 @@ tu_CmdBindPipeline(VkCommandBuffer commandBuffer,
 
    vk_cmd_set_dynamic_graphics_state(&cmd->vk,
                                      &gfx_pipeline->dynamic_state);
-   cmd->state.program = pipeline->program;
+   cmd->state.program = &pipeline->program;
 
    cmd->state.load_state = pipeline->load_state;
    cmd->state.prim_order_gmem = pipeline->prim_order.state_gmem;
@@ -8093,7 +8095,7 @@ tu_emit_consts(struct tu_cmd_buffer *cmd, bool compute)
    uint32_t dwords = 0;
    const struct tu_push_constant_range *shared_consts =
       compute ? &cmd->state.shaders[MESA_SHADER_COMPUTE]->const_state.push_consts :
-      &cmd->state.program.shared_consts;
+      &cmd->state.program->shared_consts;
 
    dwords = tu6_const_size(cmd, shared_consts, compute);
 
@@ -8130,7 +8132,7 @@ tu_emit_consts(struct tu_cmd_buffer *cmd, bool compute)
          tu_get_descriptors_state(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
       for (uint32_t type = MESA_SHADER_VERTEX; type <= MESA_SHADER_FRAGMENT; type++) {
          const struct tu_program_descriptor_linkage *link =
-            &cmd->state.program.link[type];
+            &cmd->state.program->link[type];
          tu6_emit_per_stage_push_consts(&cs, &link->tu_const_state,
                                         &link->const_state,
                                         static_cast<mesa_shader_stage>(type),
@@ -8379,7 +8381,7 @@ static uint32_t
 fs_params_offset(struct tu_cmd_buffer *cmd)
 {
    const struct tu_program_descriptor_linkage *link =
-      &cmd->state.program.link[MESA_SHADER_FRAGMENT];
+      &cmd->state.program->link[MESA_SHADER_FRAGMENT];
    const struct ir3_const_state *const_state = &link->const_state;
 
    if (const_state->num_driver_params <= IR3_DP_FS_DYNAMIC)
@@ -8398,7 +8400,7 @@ static uint32_t
 fs_params_size(struct tu_cmd_buffer *cmd)
 {
    const struct tu_program_descriptor_linkage *link =
-      &cmd->state.program.link[MESA_SHADER_FRAGMENT];
+      &cmd->state.program->link[MESA_SHADER_FRAGMENT];
    const struct ir3_const_state *const_state = &link->const_state;
 
    return DIV_ROUND_UP(const_state->num_driver_params - IR3_DP_FS_DYNAMIC, 4);
@@ -8656,16 +8658,16 @@ tu6_draw_common(struct tu_cmd_buffer *cmd,
                 /* note: draw_count is 0 for indirect */
                 uint32_t draw_count)
 {
-   const struct tu_program_state *program = &cmd->state.program;
+   const struct tu_program_state *program = cmd->state.program;
    struct tu_render_pass_state *rp = &cmd->state.rp;
 
    trace_start_draw(
       &cmd->rp_trace, &cmd->draw_cs, cmd, draw_count,
-      cmd->state.program.stage_blake3[MESA_SHADER_VERTEX],
-      cmd->state.program.stage_blake3[MESA_SHADER_TESS_CTRL],
-      cmd->state.program.stage_blake3[MESA_SHADER_TESS_EVAL],
-      cmd->state.program.stage_blake3[MESA_SHADER_GEOMETRY],
-      cmd->state.program.stage_blake3[MESA_SHADER_FRAGMENT]);
+      const_cast<char *>(program->stage_blake3[MESA_SHADER_VERTEX]),
+      const_cast<char *>(program->stage_blake3[MESA_SHADER_TESS_CTRL]),
+      const_cast<char *>(program->stage_blake3[MESA_SHADER_TESS_EVAL]),
+      const_cast<char *>(program->stage_blake3[MESA_SHADER_GEOMETRY]),
+      const_cast<char *>(program->stage_blake3[MESA_SHADER_FRAGMENT]));
 
    /* Emit state first, because it's needed for bandwidth calculations */
    uint32_t dynamic_draw_state_dirty = 0;
@@ -8738,7 +8740,7 @@ tu6_draw_common(struct tu_cmd_buffer *cmd,
    }
 
    if (FD_QUIRK(cmd->device->physical_device->info, QCTDD10497382_rt_workaround) &&
-       cmd->state.program.uses_ray_intersection) {
+       cmd->state.program->uses_ray_intersection) {
       tu_set_render_mode<CHIP>(cs, { .shader_uses_rt = true });
    }
 
@@ -8996,7 +8998,7 @@ static uint32_t
 vs_params_offset(struct tu_cmd_buffer *cmd)
 {
    const struct tu_program_descriptor_linkage *link =
-      &cmd->state.program.link[MESA_SHADER_VERTEX];
+      &cmd->state.program->link[MESA_SHADER_VERTEX];
    const struct ir3_const_state *const_state = &link->const_state;
 
    uint32_t param_offset =
