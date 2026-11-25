@@ -1857,6 +1857,9 @@ optimizations.extend([
    (('bitfield_select', 0xff000000, ('ishl', 'b@32', 24), ('ushr', a, 8)), ('shfr', b, a, 8), 'options->has_shfr32'),
    (('bitfield_select', 0xffff0000, ('ishl', 'b@32', 16), ('extract_u16', a, 1)), ('shfr', b, a, 16), 'options->has_shfr32'),
    (('bitfield_select', 0xffffff00, ('ishl', 'b@32', 8), ('extract_u8', a, 3)), ('shfr', b, a, 24), 'options->has_shfr32'),
+   (('bitfield_select', 0x00ffffff, ('ushr', a, 8), ('ishl', 'b@32', 24)), ('shfr', b, a, 8), 'options->has_shfr32'),
+   (('bitfield_select', 0x0000ffff, ('extract_u16', a, 1), ('ishl', 'b@32', 16)), ('shfr', b, a, 16), 'options->has_shfr32'),
+   (('bitfield_select', 0x000000ff, ('extract_u8', a, 3), ('ishl', 'b@32', 8)), ('shfr', b, a, 24), 'options->has_shfr32'),
    (('ior', ('ishl', 'b@32', 24), ('ushr', a, 8)), ('shfr', b, a, 8), 'options->has_shfr32'),
    (('ior', ('ishl', 'b@32', 16), ('extract_u16', a, 1)), ('shfr', b, a, 16), 'options->has_shfr32'),
    (('ior', ('ishl', 'b@32', 8), ('extract_u8', a, 3)), ('shfr', b, a, 24), 'options->has_shfr32'),
@@ -2652,7 +2655,6 @@ optimizations.extend([
    (('bitfield_select', 0, a, b), b),
    (('bitfield_select', a, b, -1), ('ior', ('inot', a), b)),
    (('bitfield_select', a, -1, b), ('ior', a, b)),
-   (('bitfield_select', -1, a, b), a),
    (('bitfield_select', a, b, b), b),
    (('bitfield_select', a, ('inot', b), b), ('ixor', a, b)),
    (('bitfield_select', a, b, ('inot', b)), ('inot', ('ixor', a, b))),
@@ -2668,6 +2670,11 @@ optimizations.extend([
 
    # The patterns above could create 1bit bitfield_select, but that's really just bcsel.
    (('bitfield_select@1', a, b, c), ('bcsel', a, b, c)),
+
+   # Canonicalize bitfield_select with constant mask for better CSE
+   # The chosen canonicalizion prefers positive constants because AMD
+   # has more inline constants for those.
+   (('bitfield_select', '#a(int)', b, c), ('bitfield_select', ('inot', a), c, b), when('a < 0')),
 
    # Note that these opcodes are defined to only use the five least significant bits of 'offset' and 'bits'
    (('ubfe', 'value', 'offset', ('iand', 31, 'bits')), ('ubfe', 'value', 'offset', 'bits')),
