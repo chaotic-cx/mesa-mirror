@@ -444,6 +444,34 @@ class TestResolveNomination:
         assert c.nominated
         assert c.nomination_type is core.NominationType.FIXES
 
+    @pytest.mark.asyncio
+    async def test_is_not_fix_and_backport(self):
+        s = self.FakeSubprocess(
+            b'Fixes: 1234abcd\n'
+            b'Backport-to: 16.1'
+        )
+        c = core.Commit('abcdef1234567890', 'a commit')
+
+        with mock.patch('bin.pick.core.asyncio.create_subprocess_exec', s.mock):
+            with mock.patch('bin.pick.core.is_commit_in_branch', self.return_false):
+                await core.resolve_nomination(c, '16.1')
+
+        assert not c.nominated
+
+    @pytest.mark.asyncio
+    async def test_is_not_backport_and_cc(self):
+        s = self.FakeSubprocess(
+            b'Backport-to: 16.2\n'
+            b'Cc: mesa-stable'
+        )
+        c = core.Commit('abcdef1234567890', 'a commit')
+
+        with mock.patch('bin.pick.core.asyncio.create_subprocess_exec', s.mock):
+            with mock.patch('bin.pick.core.is_commit_in_branch', self.return_false):
+                await core.resolve_nomination(c, '16.1')
+
+        assert not c.nominated
+
 
 class TestResolveFixes:
 

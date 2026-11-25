@@ -313,6 +313,11 @@ async def resolve_nomination(commit: 'Commit', version: str) -> 'Commit':
                 commit.nominated = True
                 return commit
 
+        # If `Fixes:` is declared and doesn't match a commit in this release
+        # branch, ignore any other backport tags as they can only incorrectly
+        # match by this point.
+        return commit
+
     if backport_to := IS_BACKPORT.findall(commit_message):
         for match in backport_to:
             if any(backport_version == '*' or Version(version) >= Version(backport_version)
@@ -320,6 +325,11 @@ async def resolve_nomination(commit: 'Commit', version: str) -> 'Commit':
                 commit.nominated = True
                 commit.nomination_type = NominationType.BACKPORT
                 return commit
+
+        # If `Backport-to:` is declared and doesn't match this release branch,
+        # ignore any other backport tags as they can only incorrectly match by
+        # this point.
+        return commit
 
     if cc_to := IS_CC.search(commit_message):
         if cc_to.groups() == (None, None) or version in cc_to.groups():
