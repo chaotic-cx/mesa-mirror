@@ -5698,6 +5698,12 @@ anv_av1_emit_vdenc_cmd2(struct anv_cmd_buffer *cmd,
       cmd2.MaxQp = 255;
       cmd2.IntraRefreshMBSizeMinusOne = 1;
 
+      if (!is_intra && picture_type == 1) {
+         anv_vdenc_cmd2_intra_refresh(cmd, enc_info, &cmd2, frame_width, frame_height,
+                                      seq_hdr->flags.use_128x128_superblock ? 128 : 64,
+                                      lists.frame_idx_l0, lists.num_ref_l0);
+      }
+
       cmd2.QpPrimeYDc = qp_prime_y_dc;
       cmd2.QpPrimeYAc = base_q_idx;
       /* qpForSegs: segmentation disabled puts base_q_idx in all 8 segments.
