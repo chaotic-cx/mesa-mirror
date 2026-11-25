@@ -198,10 +198,11 @@ jay_def_spilled(struct spill_ctx *ctx, unsigned index)
 static bool
 can_remat(jay_inst *I)
 {
-   return I->op == JAY_OPCODE_MOV &&
-          jay_is_imm(I->src[0]) &&
-          !jay_uses_flag(I) &&
-          jay_num_values(I->dst) == 1;
+   return (I->op == JAY_OPCODE_MOV &&
+           jay_is_imm(I->src[0]) &&
+           !jay_uses_flag(I) &&
+           jay_num_values(I->dst) == 1) ||
+          I->op == JAY_OPCODE_UNDEF;
 }
 
 static void
