@@ -783,9 +783,9 @@ transfer_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_i
       } else {
          radv_sdma_copy_image(device, cs, &src, &dst, extent);
       }
-
-      radv_transfer_fixup_copy_dst_metadata(cmd_buffer, dst_image, &dst_subresource);
    }
+
+   radv_transfer_fixup_copy_dst_metadata(cmd_buffer, dst_image, &region->dstSubresource);
 }
 
 static VkFormat
