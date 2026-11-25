@@ -173,6 +173,42 @@ anv_video_ref_dirty_regions(const VkVideoEncodeInfoKHR *enc_info, uint8_t slot_i
    return 0;
 }
 
+#if GFX_VER >= 12
+static void
+anv_vdenc_cmd2_intra_refresh(const struct anv_cmd_buffer *cmd,
+                             const VkVideoEncodeInfoKHR *enc_info,
+                             struct GENX(VDENC_CMD2) *cmd2,
+                             uint32_t width_in_pix, uint32_t height_in_pix,
+                             uint32_t sb_size,
+                             const uint8_t *ref_slots, uint32_t num_refs)
+{
+   struct anv_intra_refresh ir =
+      anv_video_intra_refresh(cmd, enc_info, DIV_ROUND_UP(width_in_pix, 32),
+                              DIV_ROUND_UP(height_in_pix, 32),
+                              MAX2(sb_size / 32, 1));
+   if (!ir.enable)
+      return;
+
+   uint32_t boundary[3] = { 0 };
+
+   for (unsigned i = 0; i < num_refs && i < ARRAY_SIZE(boundary); i++) {
+      uint32_t dirty = anv_video_ref_dirty_regions(enc_info, ref_slots[i]);
+      uint32_t clean = dirty < ir.cycle ?
+                       MIN2((ir.cycle - dirty) * ir.region_size, ir.blocks) : 0;
+
+      boundary[i] = clean ? clean - 1 : 0;
+   }
+
+   cmd2->IntraRefreshPos = ir.pos;
+   cmd2->IntraRefreshMBSizeMinusOne = ir.size - 1;
+   cmd2->IntraRefreshMode = ir.column;
+   cmd2->IntraRefreshEnable = true;
+   cmd2->IntraRefreshBoundaryRef0 = boundary[0];
+   cmd2->IntraRefreshBoundaryRef1 = boundary[1];
+   cmd2->IntraRefreshBoundaryRef2 = boundary[2];
+}
+#endif
+
 static uint32_t
 anv_video_encode_quantizer(const struct anv_video_session *vid,
                            uint32_t constant, uint32_t driver_default)
@@ -3387,32 +3423,10 @@ anv_h265_emit_vdenc_cmd2(struct anv_cmd_buffer *cmd,
       if (frame_info->pStdPictureInfo->pic_type == STD_VIDEO_H265_PICTURE_TYPE_P) {
          uint32_t ctb_size = 1 << (sps->log2_diff_max_min_luma_coding_block_size +
                                    sps->log2_min_luma_coding_block_size_minus3 + 3);
-         struct anv_intra_refresh ir =
-            anv_video_intra_refresh(cmd, enc_info, DIV_ROUND_UP(width_in_pix, 32),
-                                    DIV_ROUND_UP(height_in_pix, 32),
-                                    MAX2(ctb_size / 32, 1));
 
-         if (ir.enable) {
-            uint32_t boundary[3] = { 0 };
-
-            for (unsigned i = 0;
-                 i < ref_lists->num_ref_idx_l0_active_minus1 + 1 && i < ARRAY_SIZE(boundary);
-                 i++) {
-               uint32_t dirty = anv_video_ref_dirty_regions(enc_info, ref_lists->RefPicList0[i]);
-               uint32_t clean = dirty < ir.cycle ?
-                                MIN2((ir.cycle - dirty) * ir.region_size, ir.blocks) : 0;
-
-               boundary[i] = clean ? clean - 1 : 0;
-            }
-
-            cmd2.IntraRefreshPos = ir.pos;
-            cmd2.IntraRefreshMBSizeMinusOne = ir.size - 1;
-            cmd2.IntraRefreshMode = ir.column;
-            cmd2.IntraRefreshEnable = true;
-            cmd2.IntraRefreshBoundaryRef0 = boundary[0];
-            cmd2.IntraRefreshBoundaryRef1 = boundary[1];
-            cmd2.IntraRefreshBoundaryRef2 = boundary[2];
-         }
+         anv_vdenc_cmd2_intra_refresh(cmd, enc_info, &cmd2, width_in_pix, height_in_pix,
+                                      ctb_size, ref_lists->RefPicList0,
+                                      ref_lists->num_ref_idx_l0_active_minus1 + 1);
       }
 
       if (anv_vdenc_h265_picture_type(frame_info->pStdPictureInfo->pic_type) != 0) {
