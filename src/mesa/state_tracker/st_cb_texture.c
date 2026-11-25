@@ -1091,9 +1091,24 @@ guess_and_alloc_texture(struct st_context *st,
                              firstImage->Depth2,
                              firstImage->Level,
                              &width, &height, &depth)) {
-      if (stImage->Width2 == u_minify(width, stImage->Level) &&
-          stImage->Height2 == u_minify(height, stImage->Level) &&
-          stImage->Depth2 == u_minify(depth, stImage->Level))
+      /* Compare the sizes as gallium sizes, because the GL height or depth
+       * of an array texture is its number of layers, which doesn't change
+       * between mipmap levels.
+       */
+      unsigned base_w, base_h, img_w, img_h;
+      uint16_t base_d, base_layers, img_d, img_layers;
+
+      st_gl_texture_dims_to_pipe_dims(stObj->Target, width, height, depth,
+                                      &base_w, &base_h, &base_d,
+                                      &base_layers);
+      st_gl_texture_dims_to_pipe_dims(stObj->Target, stImage->Width2,
+                                      stImage->Height2, stImage->Depth2,
+                                      &img_w, &img_h, &img_d, &img_layers);
+
+      if (img_w == u_minify(base_w, stImage->Level) &&
+          img_h == u_minify(base_h, stImage->Level) &&
+          img_d == u_minify(base_d, stImage->Level) &&
+          img_layers == base_layers)
          guessed_box = true;
    }
 
