@@ -332,6 +332,17 @@ anv_video_encode_brc_supported(const struct anv_physical_device *pdevice)
    return pdevice->info.ver >= 12 && pdevice->has_huc;
 }
 
+static bool
+anv_video_encode_intra_refresh_supported(const struct anv_physical_device *pdev,
+                                         VkVideoCodecOperationFlagsKHR codec)
+{
+   return ((pdev->info.ver >= 12 &&
+            (codec == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR ||
+             codec == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR)) ||
+           (pdev->info.verx10 == 125 &&
+            (codec == VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR)));
+}
+
 VkResult
 anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
                                            const VkVideoProfileInfoKHR *pVideoProfile,
@@ -460,9 +471,7 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
       vk_find_struct(pCapabilities->pNext, VIDEO_ENCODE_INTRA_REFRESH_CAPABILITIES_KHR);
 
    if (ir_caps) {
-      if (pdevice->info.ver >= 12 &&
-          (pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR ||
-           pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR)) {
+      if (anv_video_encode_intra_refresh_supported(pdevice, pVideoProfile->videoCodecOperation)) {
          ir_caps->intraRefreshModes = VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_BASED_BIT_KHR |
                                       VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_ROW_BASED_BIT_KHR |
                                       VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_COLUMN_BASED_BIT_KHR;
