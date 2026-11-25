@@ -677,6 +677,14 @@ radv_sdma_supports_image(const struct radv_cmd_buffer *cmd_buffer, const struct 
         radv_layout_is_htile_compressed(device, image, subresource->mipLevel, image_layout, queue_mask)))
       return false;
 
+   /* Only GFX11 can write the uncompressed DWORD to HTILE for depth-only or stencil-only and
+    * without MSAA. Otherwise, fallback to compute.
+    */
+   if (pdev->info.gfx_level < GFX12 && to_image &&
+       radv_layout_is_htile_compressed(device, image, subresource->mipLevel, image_layout, queue_mask) &&
+       !radv_image_decompress_htile_on_image_stores(device, image))
+      return false;
+
    if (radv_is_format_emulated(pdev, image->vk.format))
       return to_image ? false : true;
 

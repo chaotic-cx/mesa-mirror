@@ -108,27 +108,15 @@ static void compute_copy_image_to_memory(struct radv_cmd_buffer *cmd_buffer, VkA
 
 static void
 radv_transfer_fixup_copy_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
-                                      const VkImageSubresourceLayers *subresource)
+                                      VkImageLayout layout, const VkImageSubresourceLayers *subresource,
+                                      const VkOffset3D *offset, const VkExtent3D *extent)
 {
-   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-
-   if (pdev->info.gfx_level < GFX12 || !radv_image_has_hiz(image))
+   /* Only ds images require a fixup. */
+   if (vk_format_is_color(image->vk.format))
       return;
 
-   if (!(subresource->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT))
-      return;
-
-   const VkImageSubresourceRange range = {
-      .aspectMask = subresource->aspectMask,
-      .baseMipLevel = subresource->mipLevel,
-      .levelCount = 1,
-      .baseArrayLayer = subresource->baseArrayLayer,
-      .layerCount = vk_image_subresource_layer_count(&image->vk, subresource),
-   };
-
-   /* Expand HiZ to [0,1] after the copy because HiZ is a separate image and SDMA doesn't update it. */
-   radv_expand_hiz_range(cmd_buffer, image, &range);
+   radv_meta_fixup_dst_metadata(cmd_buffer, image, layout, layout, subresource, offset, extent, image->vk.format,
+                                false);
 }
 
 static void
@@ -181,7 +169,8 @@ transfer_copy_memory_image(struct radv_cmd_buffer *cmd_buffer, VkAddressCopyFlag
    }
 
    if (to_image)
-      radv_transfer_fixup_copy_dst_metadata(cmd_buffer, image, &region->imageSubresource);
+      radv_transfer_fixup_copy_dst_metadata(cmd_buffer, image, region->imageLayout, &region->imageSubresource,
+                                            &region->imageOffset, &region->imageExtent);
 }
 
 void
@@ -247,6 +236,9 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       if (radv_image_has_hiz(image) && (subresource->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) && !before)
          radv_expand_hiz_range(cmd_buffer, image, &range);
    } else {
+      enum ac_barrier_flags *flush_bits =
+         cmd_buffer->qf == RADV_QUEUE_TRANSFER ? &cmd_buffer->gang.flush_bits : &cmd_buffer->state.flush_bits;
+
       if (!radv_htile_enabled(image, subresource->mipLevel))
          return;
 
@@ -298,7 +290,7 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
           * Note that this expects that the caller uses a compute shader.
           */
          if (image_stores_decompress) {
-            cmd_buffer->state.flush_bits |=
+            *flush_bits |=
                AC_BARRIER_SYNC_CS |
                radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, 0, image, &range) |
@@ -306,7 +298,7 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
                                      VK_ACCESS_2_SHADER_STORAGE_READ_BIT, 0, image, &range);
          }
 
-         cmd_buffer->state.flush_bits |= radv_clear_htile_rmw_to_uncompressed(cmd_buffer, image, &range, preserve);
+         *flush_bits |= radv_clear_htile_rmw_to_uncompressed(cmd_buffer, image, &range, preserve);
       }
    }
 }
@@ -785,7 +777,8 @@ transfer_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_i
       }
    }
 
-   radv_transfer_fixup_copy_dst_metadata(cmd_buffer, dst_image, &region->dstSubresource);
+   radv_transfer_fixup_copy_dst_metadata(cmd_buffer, dst_image, dst_image_layout, &region->dstSubresource,
+                                         &region->dstOffset, &region->extent);
 }
 
 static VkFormat
