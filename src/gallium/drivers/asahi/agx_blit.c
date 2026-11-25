@@ -298,7 +298,7 @@ asahi_compute_restore(struct agx_context *ctx)
       pctx->set_sampler_views(pctx, MESA_SHADER_COMPUTE, 0, 1, 0,
                               &blitter->saved_sampler_view);
 
-      blitter->saved_sampler_view = NULL;
+      pipe_sampler_view_reference(&blitter->saved_sampler_view, NULL);
    }
 
    if (blitter->saved_num_sampler_states) {
