@@ -4130,6 +4130,7 @@ jay_emit_eot(struct nir_to_jay_state *nj)
             jay_UNDEF(b, JAY_TYPE_U32, dummy_pld[i]);
          }
 
+         jay_CHECK_TDR(b);
          jay_inst *send =
             jay_SEND(b, .sfid = GEN_SFID_RENDER_CACHE,
                      .msg_desc = desc | (ex_desc << 32), .nr_srcs = srcs,
