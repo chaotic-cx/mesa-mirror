@@ -227,7 +227,7 @@ postprocess_gfx_sequences(struct anv_cmd_buffer *cmd_buffer,
 
       .data_prolog_size = layout->data_prolog_size,
 
-      .flags = gfx->att_states.offset,
+      .fs_color_offset = gfx->att_states.offset,
    };
 
    genX(emit_simple_shader_dispatch)(&simple_state,

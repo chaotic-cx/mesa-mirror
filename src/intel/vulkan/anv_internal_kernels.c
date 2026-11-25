@@ -226,7 +226,7 @@ anv_call_internal_shader(nir_builder *b,
          load_param(b, devinfo, 64, struct anv_dgc_gfx_params, seq_count_addr),
          load_param(b, devinfo, 32, struct anv_dgc_gfx_params, max_seq_count),
          load_param(b, devinfo, 32, struct anv_dgc_gfx_params, data_prolog_size),
-         load_param(b, devinfo, 32, struct anv_dgc_gfx_params, flags),
+         load_param(b, devinfo, 32, struct anv_dgc_gfx_params, fs_color_offset),
          load_fragment_index(b));
       return sizeof(struct anv_dgc_gfx_params);
 
