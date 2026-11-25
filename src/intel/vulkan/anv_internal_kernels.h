@@ -189,6 +189,9 @@ struct PACKED anv_dgc_gfx_params {
 
    /* Render target surface states offset (Gfx35+) */
    uint32_t fs_color_offset;
+
+   /* Fragment shader output to color attachment mapping (Gfx35+) */
+   uint32_t fs_color_map;
 };
 
 struct PACKED anv_dgc_cs_params {

@@ -228,6 +228,8 @@ postprocess_gfx_sequences(struct anv_cmd_buffer *cmd_buffer,
       .data_prolog_size = layout->data_prolog_size,
 
       .fs_color_offset = gfx->att_states.offset,
+      .fs_color_map = anv_get_fs_color_map(&cmd_buffer->vk.dynamic_graphics_state.cal,
+                                           gfx->color_att_count),
    };
 
    genX(emit_simple_shader_dispatch)(&simple_state,
@@ -925,9 +927,9 @@ void genX(CmdExecuteGeneratedCommandsEXT)(
             cmd_buffer, cmd_buffer, layout, pGeneratedCommandsInfo,
             ANV_INTERNAL_KERNEL_DGC_GFX_FRAGMENT);
       } else if (device->physical->uses_efficient_64bit) {
-         /* Efficient 64bit uses a push constant dword for the render target
-          * surface states. We only know the render targets at this point so
-          * we need a postprocess shader here.
+         /* Efficient 64bit uses push constants for the render target surface
+          * states and their mapping. These are known at execution time, so
+          * update the preprocessed constants here.
           */
          postprocess_gfx_sequences(cmd_buffer, layout, indirect_set,
                                    pGeneratedCommandsInfo);

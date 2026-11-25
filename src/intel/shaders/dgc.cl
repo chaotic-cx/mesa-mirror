@@ -611,6 +611,7 @@ genX(libanv_postprocess_gfx_generate)(global void *data_base,
                                       uint32_t max_seq_count,
                                       uint32_t data_prolog_size,
                                       uint32_t fs_color_offset,
+                                      uint32_t fs_color_map,
                                       uint32_t seq_idx)
 {
    uint32_t max_count = seq_count != 0 ? min(*seq_count, max_seq_count) : max_seq_count;
@@ -624,6 +625,7 @@ genX(libanv_postprocess_gfx_generate)(global void *data_base,
    global struct anv_push_constants *push_data_ptr =
       get_ptr(data_base, data_stride, data_prolog_size, seq_idx);
    push_data_ptr->drv_data.gfx.fs_color_offset = fs_color_offset;
+   push_data_ptr->drv_data.gfx.fs_color_map = fs_color_map;
 }
 
 #if GFX_VERx10 >= 125
