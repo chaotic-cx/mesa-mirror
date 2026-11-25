@@ -55,7 +55,19 @@ st_generate_mipmap(struct gl_context *ctx, GLenum target,
    enum pipe_format format;
    uint lastLevel, first_layer, last_layer;
 
-   if (!pt)
+   /* Section 8.14.4 (Manual Mipmap Generation) of the OpenGL 4.6 Core spec
+    * says:
+    *
+    *    "Mipmap generation replaces texture image levels levelbase + 1
+    *    through q with images derived from the levelbase image, regardless
+    *    of their previous contents."
+    *
+    * Mutable textures may not have a resource for the whole texture yet, even
+    * though the base level image has storage of its own. The levels still
+    * have to be replaced in that case, st_finalize_texture() creates the
+    * resource below.
+    */
+   if (!pt && texObj->Immutable)
       return;
 
    if (texObj->Immutable)
@@ -63,7 +75,7 @@ st_generate_mipmap(struct gl_context *ctx, GLenum target,
 
    /* not sure if this ultimately actually should work,
       but we're not supporting multisampled textures yet. */
-   assert(pt->nr_samples < 2);
+   assert(!pt || pt->nr_samples < 2);
 
    /* find expected last mipmap level to generate*/
    lastLevel = _mesa_compute_num_levels(ctx, texObj, target) - 1;
