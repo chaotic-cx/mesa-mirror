@@ -387,6 +387,10 @@ struct radeon_info {
    uint32_t vcn_fw_revision;
    struct ac_video_caps video_caps;
 
+   /* SDMA info. */
+   uint32_t sdma_fw_version;
+   uint32_t sdma_fw_feature;
+
    enum vcn_version vcn_ip_version;
    enum sdma_version sdma_ip_version;
    enum rt_version rt_ip_version;

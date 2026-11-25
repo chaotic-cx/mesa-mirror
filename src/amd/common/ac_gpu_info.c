@@ -1638,6 +1638,15 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
       }
    }
 
+   if (info->ip[AMD_IP_SDMA].num_queues) {
+      r = ac_drm_query_firmware_version(dev, AMDGPU_INFO_FW_SDMA, 0, 0, &info->sdma_fw_version,
+                                        &info->sdma_fw_feature);
+      if (r) {
+         fprintf(stderr, "amdgpu: ac_drm_query_firmware_version(sdma) failed.\n");
+         return false;
+      }
+   }
+
    r = ac_drm_query_sw_info(dev, amdgpu_sw_info_address32_hi, &info->address32_hi);
    if (r) {
       fprintf(stderr, "amdgpu: amdgpu_query_sw_info(address32_hi) failed.\n");
@@ -2105,6 +2114,12 @@ void ac_print_gpu_info(FILE *f, const struct radeon_info *info, int fd)
    fprintf(f, "    mec_fw_feature = %i\n", info->mec_fw_feature);
    fprintf(f, "    pfp_fw_version = %i\n", info->pfp_fw_version);
    fprintf(f, "    pfp_fw_feature = %i\n", info->pfp_fw_feature);
+
+   if (info->ip[AMD_IP_SDMA].num_queues) {
+      fprintf(f, "SDMA info:\n");
+      fprintf(f, "    sdma_fw_version = %i\n", info->sdma_fw_version);
+      fprintf(f, "    sdma_fw_feature = %i\n", info->sdma_fw_feature);
+   }
 
    if (info->gfx_level >= GFX11) {
       fprintf(f, "Userqueue info:\n");
