@@ -242,6 +242,12 @@ nouveau_ws_video_context_init(struct nouveau_ws_device *dev,
 
    if (engines & NOUVEAU_WS_ENGINE_VDEC) {
       uint32_t obj_class = nouveau_ws_context_find_class(classes, 0xb0);
+
+      if (!obj_class) {
+         ret = -EINVAL;
+         goto fail_subchan;
+      }
+
       ret = nouveau_ws_subchan_alloc(dev->fd, req.channel, base | 0x00b0,
                                      obj_class, &ctx->vdec);
       if (ret)
