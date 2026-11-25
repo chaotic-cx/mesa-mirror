@@ -247,17 +247,8 @@ This will backport the commit to the 21.0 branch, as well as any more recent
 stable branch. Multiple ``Backport-to:`` lines are allowed, but only the
 lowest number mentioned actually matters, so for clarity, please only use one.
 You can also use the special ``Backport-to: *`` which will nominate the commit
-to be backported to every active stable branch, making it a synonym to the ``Cc:
-mesa-stable`` below.
-
-The last option is deprecated and mostly here for historical reasons
-dating back to when patch submission was done via emails: using a ``Cc:``
-tag. Support for this tag will be removed at some point.
-Here are some examples of such a note::
-
-    Cc: mesa-stable
-    Cc: 20.0 <mesa-stable>
-    CC: 20.0 19.3 <mesa-stable>
+to be backported to every active stable branch, making it a synonym to the
+deprecated ``Cc: mesa-stable``.
 
 Using the CC tag **should** include the stable branches you want to
 nominate the commit to. If you do not provide any version it is nominated
@@ -465,12 +456,9 @@ branch and release. In order or preference:
 
 - By adding the ``Fixes:`` tag in the commit message as described above, if you are fixing
   a specific commit.
-- By adding the ``Cc: mesa-stable`` tag in the commit message as described above.
+- By adding the ``Backport-to: YY.N`` tag in the commit message as described above.
 - By submitting a merge request against the ``staging/year.quarter``
   branch on GitLab. Refer to the :ref:`instructions below <backports>`.
-
-Please **DO NOT** send patches to mesa-stable@lists.freedesktop.org, it
-is not monitored actively and is a historical artifact.
 
 If you are not the author of the original commit, please Cc: them in your
 nomination request.
