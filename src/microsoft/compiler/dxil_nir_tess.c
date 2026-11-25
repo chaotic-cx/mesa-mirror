@@ -81,16 +81,18 @@ add_instr_and_srcs_to_set(struct set *instr_set, nir_instr *instr)
       nir_foreach_src(instr, add_srcs_to_set, instr_set);
 }
 
-static void
-prune_patch_function_to_intrinsic_and_srcs(nir_function_impl *impl)
+static bool
+is_side_effect_with_dest(const nir_intrinsic_instr *intr)
+{
+   const nir_intrinsic_info *info = &nir_intrinsic_infos[intr->intrinsic];
+   return info->has_dest && !(info->flags & NIR_INTRINSIC_CAN_ELIMINATE);
+}
+
+static struct set *
+collect_patch_function_instrs(nir_function_impl *impl)
 {
    struct set *instr_set = _mesa_pointer_set_create(NULL);
 
-   /* Do this in two phases:
-    * 1. Find all instructions that contribute to a store_output and add them to
-    *    the set. Also, add instructions that contribute to control flow.
-    * 2. Erase every instruction that isn't in the set
-    */
    nir_foreach_block(block, impl) {
       nir_if *following_if = nir_block_get_following_if(block);
       if (following_if) {
@@ -108,6 +110,19 @@ prune_patch_function_to_intrinsic_and_srcs(nir_function_impl *impl)
       }
    }
 
+   return instr_set;
+}
+
+static void
+prune_patch_function_to_intrinsic_and_srcs(nir_function_impl *impl)
+{
+   /* Do this in two phases:
+    * 1. Find all instructions that contribute to a store_output and add them to
+    *    the set. Also, add instructions that contribute to control flow.
+    * 2. Erase every instruction that isn't in the set
+    */
+   struct set *instr_set = collect_patch_function_instrs(impl);
+
    nir_foreach_block_reverse(block, impl) {
       nir_foreach_instr_reverse_safe(instr, block) {
          struct set_entry *entry = _mesa_set_search(instr_set, instr);
@@ -117,6 +132,26 @@ prune_patch_function_to_intrinsic_and_srcs(nir_function_impl *impl)
    }
 
    _mesa_set_destroy(instr_set, NULL);
+}
+
+static bool
+remove_duplicate_patch_side_effects(nir_function_impl *impl, const struct set *patch_instrs)
+{
+   bool progress = false;
+   nir_foreach_block(block, impl) {
+      nir_foreach_instr_safe(instr, block) {
+         if (instr->type != nir_instr_type_intrinsic)
+            continue;
+         nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+         if (!is_side_effect_with_dest(intr))
+            continue;
+         if (list_is_empty(&intr->def.uses) && _mesa_set_search(patch_instrs, instr)) {
+            nir_instr_remove(instr);
+            progress = true;
+         }
+      }
+   }
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 static nir_cursor
@@ -151,6 +186,7 @@ start_tcs_loop(nir_builder *b, struct tcs_patch_loop_state *state, nir_deref_ins
    state->insert_cursor = b->cursor;
    nir_store_deref(b, loop_var_deref, nir_iadd_imm(b, state->count, 1), 1);
    nir_pop_loop(b, state->loop);
+   state->begin_cursor = b->cursor;
 }
 
 static void
@@ -193,6 +229,8 @@ dxil_nir_split_tess_ctrl(nir_shader *nir, nir_function **patch_const_func)
    assert(exec_list_length(&nir->functions) == 1);
    nir_function_impl *entrypoint = nir_shader_get_entrypoint(nir);
 
+   struct set *patch_instrs = collect_patch_function_instrs(entrypoint);
+
    *patch_const_func = nir_function_create(nir, "PatchConstantFunc");
    nir_function_impl *patch_const_func_impl = nir_function_impl_clone(nir, entrypoint);
    nir_function_set_impl(*patch_const_func, patch_const_func_impl);
@@ -201,14 +239,18 @@ dxil_nir_split_tess_ctrl(nir_shader *nir, nir_function **patch_const_func)
    prune_patch_function_to_intrinsic_and_srcs(patch_const_func_impl);
 
    /* Kill dead references to the invocation ID from the patch const func so we don't
-    * insert unnecessarily loops
+    * insert unnecessarily loops, and drop side-effecting intrinsics (e.g. atomics)
+    * from main once their results only fed patch constants now computed in PCF.
     */
    bool progress;
    do {
       progress = false;
       progress |= nir_opt_dead_cf(nir);
       progress |= nir_opt_dce(nir);
+      progress |= remove_duplicate_patch_side_effects(entrypoint, patch_instrs);
    } while (progress);
+
+   _mesa_set_destroy(patch_instrs, NULL);
 
    /* Now, the patch constant function needs to be split into blocks and loops.
     * The series of instructions up to the first block containing a load_invocation_id
@@ -247,24 +289,20 @@ dxil_nir_split_tess_ctrl(nir_shader *nir, nir_function **patch_const_func)
          if (instr->type != nir_instr_type_intrinsic)
             continue;
          nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-         switch (intr->intrinsic) {
-         case nir_intrinsic_load_invocation_id: {
+         if (intr->intrinsic == nir_intrinsic_load_invocation_id ||
+             is_side_effect_with_dest(intr)) {
             if (!loop_var) {
                loop_var = nir_local_variable_create(patch_const_func_impl, glsl_int_type(), "PatchConstInvocId");
                b.cursor = nir_before_impl(patch_const_func_impl);
                loop_var_deref = nir_build_deref_var(&b, loop_var);
             }
             if (!state.loop) {
-               b.cursor = state.begin_cursor = get_cursor_for_instr_without_cf(instr);
+               b.cursor = get_cursor_for_instr_without_cf(instr);
                start_tcs_loop(&b, &state, loop_var_deref);
             }
-            nir_def_rewrite_uses(&intr->def, state.count);
-            break;
-         }
-         case nir_intrinsic_barrier:
-            if (!is_memory_barrier_tcs_patch(intr))
-               break;
-
+            if (intr->intrinsic == nir_intrinsic_load_invocation_id)
+               nir_def_rewrite_uses(&intr->def, state.count);
+         } else if (is_memory_barrier_tcs_patch(intr)) {
             /* The GL tessellation spec says:
              * The barrier() function may only be called inside the main entry point of the tessellation control shader
              * and may not be called in potentially divergent flow control.  In particular, barrier() may not be called
@@ -277,9 +315,6 @@ dxil_nir_split_tess_ctrl(nir_shader *nir, nir_function **patch_const_func)
             state.end_cursor = nir_before_instr(instr);
             end_tcs_loop(&b, &state);
             nir_instr_remove(instr);
-            break;
-         default:
-            break;
          }
       }
    }

@@ -44,8 +44,6 @@ spec@arb_program_interface_query@arb_program_interface_query-getprogramresourcei
 spec@arb_sample_shading@arb_sample_shading-builtin-gl-sample-mask-mrt-alpha-to-coverage,Fail
 spec@arb_seamless_cube_map@arb_seamless_cubemap,Fail
 spec@arb_separate_shader_objects@rendezvous by location (5 stages),Crash
-spec@arb_shader_atomic_counters@semantics,Fail
-spec@arb_shader_atomic_counters@semantics@Tessellation control shader atomic built-in semantics,Fail
 spec@arb_texture_cube_map_array@arb_texture_cube_map_array-sampler-cube-array-shadow,Fail
 spec@arb_transform_feedback_instanced@draw-auto instanced,Fail
 spec@arb_vertex_program@arb_vertex_program-matrix-property-bindings,Fail
