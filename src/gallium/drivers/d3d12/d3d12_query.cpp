@@ -366,6 +366,8 @@ static void
 accumulate_subresult_gpu(struct d3d12_context *ctx, struct d3d12_query *q_parent,
                          unsigned sub_query)
 {
+   assert(ctx->queries_disabled);
+
    d3d12_compute_transform_save_restore save;
    d3d12_save_compute_transform_state(ctx, &save);
 
@@ -397,6 +399,8 @@ accumulate_subresult_gpu(struct d3d12_context *ctx, struct d3d12_query *q_parent
    grid.block[0] = grid.block[1] = grid.block[2] = 1;
    grid.grid[0] = grid.grid[1] = grid.grid[2] = 1;
    ctx->base.launch_grid(&ctx->base, &grid);
+
+   q_parent->subqueries[sub_query].curr_query = 1;
 
    d3d12_restore_compute_transform_state(ctx, &save);
 }
@@ -453,11 +457,8 @@ static void
 begin_subquery(struct d3d12_context *ctx, struct d3d12_query *q_parent, unsigned sub_query)
 {
    struct d3d12_query_impl *q = &q_parent->subqueries[sub_query];
-   if (q->curr_query == q->num_queries) {
-      /* Accumulate current results and store in first slot */
-      accumulate_subresult_gpu(ctx, q_parent, sub_query);
-      q->curr_query = 1;
-   }
+   assert(!q->active);
+   assert(q->curr_query < q->num_queries);
 
    ctx->cmdlist->BeginQuery(q->query_heap, q->d3d12qtype, q->curr_query);
    ctx->has_commands = true;
@@ -493,8 +494,13 @@ begin_timer_query(struct d3d12_context *ctx, struct d3d12_query *q_parent, bool 
       query_index = 0;
    } else if (query_index == q->num_queries) {
       /* Accumulate current results and store in first slot */
+      bool queries_disabled = ctx->queries_disabled;
+      if (!queries_disabled)
+         ctx->base.set_active_query_state(&ctx->base, false);
       accumulate_subresult_gpu(ctx, q_parent, 0);
-      q->curr_query = 1;
+      if (!queries_disabled)
+         ctx->base.set_active_query_state(&ctx->base, true);
+      query_index = 2 * q->curr_query;
    }
 
    ctx->cmdlist->EndQuery(q->query_heap, q->d3d12qtype, query_index);
@@ -650,6 +656,24 @@ d3d12_suspend_queries(struct d3d12_context *ctx)
 void
 d3d12_resume_queries(struct d3d12_context *ctx)
 {
+   /* Accumulate any full subqueries while queries are disabled before
+    * beginning any queries on the command list. Running the resolve compute
+    * shader while queries are enabled would re-enter d3d12_resume_queries()
+    * on compute-transform state restore.
+    */
+   bool queries_disabled = ctx->queries_disabled;
+   ctx->queries_disabled = true;
+
+   list_for_each_entry(struct d3d12_query, query, &ctx->active_queries, active_list) {
+      for (unsigned i = 0; i < num_sub_queries(query->type, query->index); ++i) {
+         struct d3d12_query_impl *q = &query->subqueries[i];
+         if (q->curr_query == q->num_queries && subquery_should_be_active(ctx, query, i))
+            accumulate_subresult_gpu(ctx, query, i);
+      }
+   }
+
+   ctx->queries_disabled = queries_disabled;
+
    list_for_each_entry(struct d3d12_query, query, &ctx->active_queries, active_list) {
       begin_query(ctx, query, false);
    }
@@ -661,6 +685,26 @@ d3d12_validate_queries(struct d3d12_context *ctx)
    /* Nothing to do, all queries are suspended */
    if (ctx->queries_disabled)
       return;
+
+   bool needs_accumulate = false;
+   list_for_each_entry(struct d3d12_query, query, &ctx->active_queries, active_list) {
+      for (unsigned i = 0; i < num_sub_queries(query->type, query->index); ++i) {
+         struct d3d12_query_impl *q = &query->subqueries[i];
+         if (!q->active && subquery_should_be_active(ctx, query, i) &&
+             q->curr_query == q->num_queries) {
+            needs_accumulate = true;
+            break;
+         }
+      }
+      if (needs_accumulate)
+         break;
+   }
+
+   if (needs_accumulate) {
+      d3d12_suspend_queries(ctx);
+      d3d12_resume_queries(ctx);
+      return;
+   }
 
    list_for_each_entry(struct d3d12_query, query, &ctx->active_queries, active_list) {
       for (unsigned i = 0; i < num_sub_queries(query->type, query->index); ++i) {
@@ -676,6 +720,9 @@ static void
 d3d12_set_active_query_state(struct pipe_context *pctx, bool enable)
 {
    struct d3d12_context *ctx = d3d12_context(pctx);
+   if (ctx->queries_disabled == !enable)
+      return;
+
    ctx->queries_disabled = !enable;
 
    if (enable)

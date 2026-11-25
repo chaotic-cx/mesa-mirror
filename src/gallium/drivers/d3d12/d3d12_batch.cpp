@@ -277,6 +277,8 @@ d3d12_start_batch(struct d3d12_context *ctx, struct d3d12_batch *batch)
       }
    }
 
+   batch->submit_id = ++ctx->submit_id;
+
 #ifdef HAVE_GALLIUM_D3D12_GRAPHICS
    if (screen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) {
       ID3D12DescriptorHeap* heaps[2] = { d3d12_descriptor_heap_get(batch->view_heap),
@@ -293,8 +295,6 @@ d3d12_start_batch(struct d3d12_context *ctx, struct d3d12_batch *batch)
          d3d12_enable_predication(ctx);
    }
 #endif // HAVE_GALLIUM_D3D12_GRAPHICS
-
-   batch->submit_id = ++ctx->submit_id;
 }
 
 void
