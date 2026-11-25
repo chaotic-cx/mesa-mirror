@@ -3063,18 +3063,33 @@ fn get_foldable_f32(a: &mut Acorn) -> u32 {
 
 #[test]
 pub fn test_op_fmnmx() {
-    for bits in 0..=0x7 {
-        let op = OpFMnMx {
-            dst: Dst::None,
-            srcs: [0.into(), 0.into()],
-            min: (bits & 0x4 == 0x4).into(),
-            ftz: false,
-            nan: bits & 0x2 == 0x2,
-            xorsign: bits & 0x1 == 0x1,
-        };
+    let run = &RunSingleton::get();
+    let sm = run.sm.sm();
 
-        let mut a = Acorn::new();
-        test_foldable_op_with(op, |_| get_foldable_f32(&mut a));
+    for min in [true, false] {
+        for xorsign in [true, false] {
+            if xorsign && sm < 86 {
+                continue;
+            }
+
+            for nan in [true, false] {
+                if nan && sm < 80 {
+                    continue;
+                }
+
+                let op = OpFMnMx {
+                    dst: Dst::None,
+                    srcs: [0.into(), 0.into()],
+                    min: min.into(),
+                    ftz: false,
+                    nan,
+                    xorsign,
+                };
+
+                let mut a = Acorn::new();
+                test_foldable_op_with(op, |_| get_foldable_f32(&mut a));
+            }
+        }
     }
 }
 
