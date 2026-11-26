@@ -78,6 +78,19 @@ enum dxil_validator_version val_ver = DXIL_VALIDATOR_1_4;
 
 struct nir_shader_compiler_options nir_options;
 
+static void
+init_nir_options(const struct dxil_spirv_runtime_conf *conf)
+{
+   const unsigned supported_bit_sizes = 16 | 32 | 64;
+   dxil_get_nir_compiler_options(&nir_options, conf->shader_model_max,
+                                 supported_bit_sizes, supported_bit_sizes);
+   /* We will manually handle base_vertex when vertex_id and instance_id have
+    * already been converted to zero-base.
+    */
+   nir_options.lower_base_vertex =
+      conf->first_vertex_and_base_instance_mode != DXIL_SPIRV_SYSVAL_TYPE_ZERO;
+}
+
 static bool
 compile_shader(const char *filename, mesa_shader_stage shader_stage, struct shader *shader,
                struct dxil_spirv_runtime_conf *conf)
@@ -185,12 +198,7 @@ main(int argc, char **argv)
    conf.first_vertex_and_base_instance_mode = DXIL_SPIRV_SYSVAL_TYPE_ZERO;
    conf.declared_read_only_images_as_srvs = true;
    conf.shader_model_max = SHADER_MODEL_6_2;
-
-   const unsigned supported_bit_sizes = 16 | 32 | 64;
-   dxil_get_nir_compiler_options(&nir_options, conf.shader_model_max, supported_bit_sizes, supported_bit_sizes);
-   // We will manually handle base_vertex when vertex_id and instance_id have
-   // have been already converted to zero-base.
-   nir_options.lower_base_vertex = false;
+   init_nir_options(&conf);
 
    bool any_shaders = false;
    while ((ch = getopt_long(argc, argv, "-s:e:o:m:x:vd", long_options, NULL)) !=
@@ -220,6 +228,7 @@ main(int argc, char **argv)
          conf.shader_model_max = SHADER_MODEL_6_0 + atoi(optarg);
          conf.first_vertex_and_base_instance_mode = conf.shader_model_max >= SHADER_MODEL_6_8 ?
             DXIL_SPIRV_SYSVAL_TYPE_NATIVE : DXIL_SPIRV_SYSVAL_TYPE_ZERO;
+         init_nir_options(&conf);
          break;
       case 'x':
          val_ver = DXIL_VALIDATOR_1_0 + atoi(optarg);
