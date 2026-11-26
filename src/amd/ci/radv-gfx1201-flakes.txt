@@ -1,10 +1,17 @@
 dEQP-VK.api.buffer_marker.compute.default_mem.bottom_of_pipe.memory_dep.buffer_copy
 dEQP-VK.api.buffer_marker.compute.external_host_mem.bottom_of_pipe.memory_dep.dispatch
 dEQP-VK.pipeline.*depth.*compare_ops.(line|triangle)_list_.*
+dEQP-VK.pipeline.fast_linked_library.depth_range_unrestricted.depthbounds.d16_unorm_compare_op_greater_or_equal_clear_value_2_viewport_min_-6_max_6_boundstest_min-4_max_4
+dEQP-VK.pipeline.monolithic.image_view.view_type.1d_array.format.r32g32b32a32_uint.subresource_range.lod_base_mip_level_array_size_compute
+dEQP-VK.pipeline.monolithic.image_view.view_type.cube_array.format.r16g16b16a16_uint.subresource_range.array_base_and_size_compute
+dEQP-VK.pipeline.shader_object_unlinked_spirv.early_destroy.no_cache_destroy_layout_compute
+dEQP-VK.pipeline.shader_object_unlinked_spirv.image.suballocation.sampling_type.separate.view_type.2d.format.a8b8g8r8_snorm_pack32.count_1.size.2x2_compute
+dEQP-VK.pipeline.shader_object_unlinked_spirv.image.suballocation.sampling_type.separate.view_type.2d.format.r5g5b5a1_unorm_pack16.count_1.size.13x13_compute
+dEQP-VK.pipeline.shader_object_unlinked_spirv.image.suballocation.sampling_type.separate.view_type.cube.format.b8g8r8a8_unorm.count_8.size.13x13_compute
 dEQP-VK.sparse_resources.image_sparse_residency.3d.rgba16_snorm.1024_128_8
-dEQP-VK.video.encode.av1.720x480_10le_420.i_15.rc_disabled_lr_layered_dpb
-dEQP-VK.video.encode.av1.720x480_8le_420.i_p_open_15.qindex192_tiling_1x2_rc_disabled_lr_layered_dpb
-
-# Nightly run expectations update
+dEQP-VK.subgroups.arithmetic.mesh.subgroupadd_i64vec4_task_requiredsubgroupsize
 dEQP-VK.subgroups.quad.mesh.subgroupquadswaphorizontal_i64vec4_task
 dEQP-VK.subgroups.shuffle.mesh.subgroupshuffledown_i8vec3_dynamically_uniform_task
+dEQP-VK.video.encode.av1.720x480_10le_420.i_15.rc_disabled_lr_layered_dpb
+dEQP-VK.video.encode.av1.720x480_8le_420.i_p_15.qindex255_rc_disabled_lr_cdef
+dEQP-VK.video.encode.av1.720x480_8le_420.i_p_open_15.qindex192_tiling_1x2_rc_disabled_lr_layered_dpb
