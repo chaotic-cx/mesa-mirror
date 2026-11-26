@@ -422,7 +422,7 @@ BlockCycleEstimator::add(aco_ptr<Instruction>& instr)
    int32_t prev_cur_cycle = cur_cycle;
    cur_cycle += get_dependency_cost(instr);
 
-   unsigned start;
+   unsigned start = 0;
    bool dual_issue = program->gfx_level >= GFX10 && program->wave_size == 64 &&
                      is_vector(instr->opcode) && !is_dual_issue_capable(*program, *instr) &&
                      program->workgroup_size > 32;
