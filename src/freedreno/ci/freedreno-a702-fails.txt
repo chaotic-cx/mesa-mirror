@@ -82,6 +82,7 @@ dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_discard_host
 dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_discard_local_memory,Crash
 dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_no_discard_host_memory,Crash
 dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_no_discard_local_memory,Crash
+gmem-dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_no_discard_host_memory,Crash
 
 dEQP-VK.glsl.logical_copy.initialized_struct,Crash
 dEQP-VK.glsl.logical_copy.undefined_memory,Crash
@@ -112,6 +113,8 @@ gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_buffer.1048576,Fail
 gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_texel_buffer.1024,Fail
 gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_texel_buffer.1048576,Fail
 gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_texel_buffer.65536,Fail
+gmem-dEQP-VK.multiview.dynamic_rendering.multisample_resolve.no_queries.1_2_4_8_16_32,Fail
+gmem-dEQP-VK.renderpasses.renderpass1.suballocation.subpass_dependencies.input_attachment_coherency.test,Fail
 
 # Some buffer values were incorrect
 dEQP-VK.sparse_resources.buffer.ssbo.read_write.sparse_residency_non_resident_strict,Fail
@@ -130,7 +133,7 @@ Atomics,Fail
 Atomics@atomic_and,Fail
 Atomics@atomic_or,Fail
 
-# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+# CTS bug - https://gerrit.khronos.org/c/vk-gl-cts/+/21783
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
@@ -153,8 +156,5 @@ dEQP-VK.renderpasses.renderpass2.fragment_density_map.4_views.render.density_for
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.4_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
-gmem-dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_no_discard_host_memory,Crash
-gmem-dEQP-VK.multiview.dynamic_rendering.multisample_resolve.no_queries.1_2_4_8_16_32,Fail
 gmem-dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
-gmem-dEQP-VK.renderpasses.renderpass1.suballocation.subpass_dependencies.input_attachment_coherency.test,Fail
 gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.1_view.render.density_formula.1_sample.static_subsampled_4_4,Fail

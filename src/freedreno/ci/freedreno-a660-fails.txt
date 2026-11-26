@@ -74,7 +74,7 @@ Subgroups@subgroup_functions_ballot,Fail
 Basic,Fail
 Basic@bufferreadwriterect,Fail
 
-# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+# CTS bug - https://gerrit.khronos.org/c/vk-gl-cts/+/21783
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail

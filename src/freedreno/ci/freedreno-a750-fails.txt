@@ -133,6 +133,11 @@ Basic,Fail
 Basic@bufferreadwriterect,Fail
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+# a750-only, passes on a740 with GMEM
+gmem-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.suballocation.low_resolution_z.cross_renderpass.always_write_then_load,Fail
+gmem-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.suballocation.low_resolution_z.cross_renderpass_suspend_resume.rp_before_sr_chain_then_load,Fail
+
+# CTS bug - https://gerrit.khronos.org/c/vk-gl-cts/+/21783
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
@@ -151,6 +156,4 @@ dEQP-VK.renderpasses.renderpass2.fragment_density_map.2_views.render_copy.densit
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.4_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
-gmem-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.suballocation.low_resolution_z.cross_renderpass.always_write_then_load,Fail
-gmem-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.suballocation.low_resolution_z.cross_renderpass_suspend_resume.rp_before_sr_chain_then_load,Fail
 gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
