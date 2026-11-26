@@ -326,19 +326,25 @@ tar_reader_next(tar_reader *ar, tar_reader_entry *entry)
    ar->pos += RECORD_SIZE;
 
    unsigned size = 0;
-   if (sscanf((const char *)&header[HEADER_SIZE_OFFSET], "%011o", &size) == EOF) {
+   if (sscanf((const char *)&header[HEADER_SIZE_OFFSET], "%11o", &size) != 1) {
       ar->error = true;
       return false;
    }
 
    unsigned long mtime = 0;
-   if (sscanf((const char *)&header[HEADER_MTIME_OFFSET], "%011lo", &mtime) == EOF) {
+   if (sscanf((const char *)&header[HEADER_MTIME_OFFSET], "%11lo", &mtime) != 1) {
+      ar->error = true;
+      return false;
+   }
+
+   const size_t remaining = ar->contents.len - ar->pos;
+   if (size > remaining) {
       ar->error = true;
       return false;
    }
 
    const unsigned padded_size = size + archive_calculate_padding(size);
-   if (ar->pos + padded_size > ar->contents.len) {
+   if (padded_size > remaining) {
       ar->error = true;
       return false;
    }
