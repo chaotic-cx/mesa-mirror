@@ -1498,6 +1498,7 @@ compile_shader(struct etna_shader_variant *v, bool spill_constants)
    NIR_PASS(_, s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, c->info);
 
    NIR_PASS(_, s, nir_remove_dead_variables, nir_var_function_temp, NULL);
+   NIR_PASS(_, s, nir_lower_frexp);
    NIR_PASS(_, s, nir_opt_algebraic_late);
 
    NIR_PASS(_, s, nir_move_vec_src_uses_to_dest, false);
