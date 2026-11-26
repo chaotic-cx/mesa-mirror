@@ -800,7 +800,7 @@ emit_vsc_overflow_test(struct fd_batch *batch)
          ))
          .add(CP_COND_WRITE5_4(.mask = ~0))
          .add(CP_COND_WRITE5_WRITE_ADDR(control_ptr(fd6_ctx, vsc_overflow)))
-         .add(CP_COND_WRITE5_7(.write_data = 1 + fd6_ctx->vsc_prim_strm_pitch));
+         .add(CP_COND_WRITE5_7(.write_data = 3 + fd6_ctx->vsc_prim_strm_pitch));
    }
 
    fd_pkt7(cs, CP_WAIT_MEM_WRITES, 0);
