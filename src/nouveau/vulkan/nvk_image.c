@@ -708,6 +708,8 @@ nil_image_error_to_vk_result(nil_image_error e)
    switch (e) {
    case NIL_IMAGE_ERROR_SUCCESS:
       return VK_SUCCESS;
+   case NIL_IMAGE_ERROR_INVALID_STRIDE:
+      return VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT;
    case NIL_IMAGE_ERROR_UNKNOWN:
       return VK_ERROR_UNKNOWN;
    default:
@@ -1167,7 +1169,10 @@ nvk_image_init(struct nvk_device *dev,
       image->image_align_B = MAX2(plane_align_B, image->image_align_B);
 
       if (explicit_offsets_B[plane] >= 0) {
-         assert(explicit_offsets_B[plane] % plane_align_B == 0);
+         if (explicit_offsets_B[plane] % plane_align_B != 0)
+            return vk_errorf(dev, VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT,
+                             "Unaligned image offset");
+
          image->planes[plane].plane_offset_B = explicit_offsets_B[plane];
          image->image_size_B =
             MAX2((explicit_offsets_B[plane] + image->planes[plane].nil.size_B),

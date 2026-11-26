@@ -36,6 +36,7 @@ pub enum ImageDim {
 pub enum ImageError {
     Success = 0,
     Unknown,
+    InvalidStride,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
@@ -249,7 +250,6 @@ impl Image {
             // alignments.  The texture headers can handle as low as 32B-aligned
             // and NVK has workarounds for rendering if needed.
             assert!(info.modifier == DRM_FORMAT_MOD_LINEAR);
-            debug_assert!(info.explicit_row_stride_B % 32 == 0);
             32
         } else {
             // If we get to pick the alignment, require 128B so that we can
@@ -266,7 +266,9 @@ impl Image {
 
         let extent_B = info.extent_px.to_B(info.format, sample_layout);
         let row_stride_B = if info.explicit_row_stride_B > 0 {
-            debug_assert!(info.explicit_row_stride_B % align_B == 0);
+            if info.explicit_row_stride_B % align_B != 0 {
+                return Err(ImageError::InvalidStride);
+            }
             info.explicit_row_stride_B
         } else {
             extent_B.width.next_multiple_of(align_B)
@@ -404,10 +406,12 @@ impl Image {
             // Align the size to tiles
             let lvl_tiling_ext_B = lvl_tiling.extent_B();
             lvl_ext_B = lvl_ext_B.align(&lvl_tiling_ext_B);
-            assert!(
-                info.explicit_row_stride_B == 0
-                    || info.explicit_row_stride_B == lvl_ext_B.width
-            );
+
+            if info.explicit_row_stride_B != 0
+                && info.explicit_row_stride_B != lvl_ext_B.width
+            {
+                return Err(ImageError::InvalidStride);
+            }
 
             image.levels[level as usize] = ImageLevel {
                 offset_B: layer_size_B,
