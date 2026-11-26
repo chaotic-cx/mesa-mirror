@@ -24,6 +24,22 @@ server {
 		alias /var/lib/lava/dispatcher/tmp;
 	}
 
+	# Nginx shipped with Debian 13 defaults to HTTP/1.0 which is obsolete and will cause
+	# error code 426 with servers no longer accepting that. Set HTTP/1.1 as default.
+	proxy_http_version 1.1;
+	# Send SNI server name in TLS handshake or TLS connection won't
+	# initialise for certain hosts.
+	proxy_ssl_server_name on;
+	# Verify proxy TLS connection
+	proxy_ssl_verify on;
+	# This is the base certificate path for Debian and its derivatives.
+	# Other distros will have a different paths.
+	# This setting is required when proxy_ssl_verify is enabled.
+	proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+	# Increase verification chain depth or some URL will fail when
+	# redirects are involved.
+	proxy_ssl_verify_depth 3;
+
 	proxy_cache my_cache;
 
 	# Wait for the cache creation when multiple query are done for the same file
