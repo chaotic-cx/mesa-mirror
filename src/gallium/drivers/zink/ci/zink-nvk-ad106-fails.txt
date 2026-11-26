@@ -9,12 +9,11 @@ glx@glx_arb_sync_control@swapbuffersmsc-return swap_interval 0,Fail
 glx@glx_arb_sync_control@swapbuffersmsc-return swap_interval 1,Fail
 glx@glx_arb_sync_control@swapbuffersmsc-return,Fail
 
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
 spec@!opengl 1.1@depthstencil-default_fb-copypixels samples=4,Fail
 spec@!opengl 1.1@depthstencil-default_fb-copypixels samples=6,Crash
 spec@!opengl 1.1@depthstencil-default_fb-copypixels samples=8,Crash
-spec@!opengl 1.1@depthstencil-default_fb-drawpixels-float-and-ushort samples=4,Fail
-spec@!opengl 1.1@depthstencil-default_fb-drawpixels-float-and-ushort samples=6,Crash
-spec@!opengl 1.1@depthstencil-default_fb-drawpixels-float-and-ushort samples=8,Crash
 spec@!opengl 1.1@line-smooth-coverage,Fail
 spec@!opengl 1.1@line-smooth-stipple,Fail
 spec@!opengl 1.1@polygon-mode,Fail
@@ -29,6 +28,7 @@ spec@!opengl 1.1@polygon-mode-offset@config 5: Expected blue pixel in center,Fai
 spec@!opengl 1.1@polygon-mode-offset@config 6: Expected blue pixel in center,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 6: Expected white pixel on right edge,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 6: Expected white pixel on top edge,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@!opengl 3.0@clearbuffer-depth-cs-probe,Fail
 spec@arb_framebuffer_object@fbo-blit-scaled-linear,Fail
 spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-separate,Fail
