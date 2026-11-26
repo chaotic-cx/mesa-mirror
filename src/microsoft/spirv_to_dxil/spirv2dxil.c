@@ -273,7 +273,7 @@ main(int argc, char **argv)
          fprintf(stderr, "Failed to convert to DXIL\n");
          if (dxil_blob.allocated)
             blob_finish(&dxil_blob);
-         return false;
+         return 1;
       }
 
       if (validate && !validate_dxil(&dxil_blob)) {
