@@ -102,14 +102,14 @@ predicate_if(jay_function *f, jay_block *if_block, jay_inst *if_)
       jay_remove_instruction(jay_first_inst(else_block));
    }
 
-   /* Optimize "if (f0) { break }" and "if (f0) { break } while", leaving the
-    * control flow graph intact for global data flow analysis.
+   /* Optimize "if (f0) { break/halt }" and "if (f0) { break } while", leaving
+    * the control flow graph intact for global data flow analysis.
     */
    if (!no_then && no_else) {
       jay_inst *brk = jay_first_inst(then_block);
       jay_inst *whl = jay_first_inst(jay_next_block(else_block));
 
-      if (brk && brk->op == JAY_OPCODE_BREAK) {
+      if (brk && (brk->op == JAY_OPCODE_BREAK || brk->op == JAY_OPCODE_HALT)) {
          jay_remove_instruction(if_);
          jay_remove_instruction(endif);
 
