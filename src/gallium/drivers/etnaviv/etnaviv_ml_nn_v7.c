@@ -19,8 +19,8 @@ map_resource(struct pipe_resource *resource)
 static unsigned
 calc_superblocks(struct etna_screen *screen, const struct etna_operation *operation, unsigned tile_y, unsigned interleave_mode)
 {
-   unsigned nn_core_count = screen->info->npu.nn_core_count;
-   unsigned nn_accum_buffer_depth = screen->info->npu.nn_accum_buffer_depth;
+   unsigned nn_core_count = etna_ml_get_core_info(screen)->nn_core_count;
+   unsigned nn_accum_buffer_depth = etna_ml_get_core_info(screen)->nn_accum_buffer_depth;
    unsigned output_channels = operation->addition ? 1 : operation->output_channels;
    unsigned kernels_per_core = DIV_ROUND_UP(output_channels, nn_core_count);
    unsigned foo = (nn_accum_buffer_depth * interleave_mode) / tile_y;
@@ -62,8 +62,8 @@ calc_interleave_mode(unsigned tile_width, unsigned weight_height)
 unsigned
 etna_ml_calculate_tiling_v7(struct etna_screen *screen, const struct etna_operation *operation, unsigned *tile_width_out, unsigned *tile_height_out)
 {
-   unsigned nn_input_buffer_depth = screen->info->npu.nn_input_buffer_depth;
-   unsigned nn_accum_buffer_depth = screen->info->npu.nn_accum_buffer_depth;
+   unsigned nn_input_buffer_depth = etna_ml_get_core_info(screen)->nn_input_buffer_depth;
+   unsigned nn_accum_buffer_depth = etna_ml_get_core_info(screen)->nn_accum_buffer_depth;
    unsigned input_width = operation->input_width;
    unsigned input_height = operation->input_height;
    unsigned input_channels = operation->input_channels;
