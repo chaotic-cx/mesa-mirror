@@ -2244,7 +2244,7 @@ tu6_init_static_regs(struct tu_device *dev, struct tu_cs *cs)
                         ? A6XX_SP_CHICKEN_BITS_EOLM_ENABLE
                         : 0);
             break;
-         case REG_A7XX_SP_CHICKEN_BITS_2:
+         case SP_CHICKEN_BITS_2(A7XX).reg:
             if (phys_dev->info->props.has_independent_icache_miss &&
                 dev->instance->drirc.perf.independent_icache_miss)
                value |= A7XX_SP_CHICKEN_BITS_2_INDEPENDENT_ICACHE_MISS;
