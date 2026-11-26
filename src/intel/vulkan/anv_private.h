@@ -3177,7 +3177,7 @@ VkResult anv_device_unmap_bo(struct anv_device *device,
                              void *map, size_t map_size,
                              bool replace);
 VkResult anv_device_import_bo_from_host_ptr(struct anv_device *device,
-                                            void *host_ptr, uint32_t size,
+                                            void *host_ptr, uint64_t size,
                                             enum anv_bo_alloc_flags alloc_flags,
                                             uint64_t client_address,
                                             struct anv_bo **bo_out);
