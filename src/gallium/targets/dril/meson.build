@@ -98,6 +98,7 @@ foreach d : [[with_gallium_kmsro, [
                'stm',
                'sun4i-drm',
                'udl',
+               'verisilicon',
                'vkms',
                'zynqmp-dpsub',
              ]],
