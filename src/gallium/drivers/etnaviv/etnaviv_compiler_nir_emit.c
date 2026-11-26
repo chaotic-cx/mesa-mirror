@@ -85,6 +85,8 @@ static const struct etna_op_info etna_ops[] = {
    /* arithmetic */
    IOP(iadd, ADD),
    IOP(imul, IMULLO0),
+   IOP(imul_high, IMULHI0),
+   UOP(umul_high, IMULHI0),
    /* IOP(imad, IMADLO0), */
    IOP(ineg, ADD), /* ADD 0, -x */
    IOP(iabs, IABS),
@@ -187,6 +189,8 @@ etna_emit_alu(struct etna_compile *c, nir_alu_instr *alu, struct etna_inst_dst d
    case nir_op_fexp2:
    case nir_op_fsqrt:
    case nir_op_imul:
+   case nir_op_imul_high:
+   case nir_op_umul_high:
       /* scalar instructions we want src to be in x component */
       inst.src[0] = etna_src_swizzle(src[0], swiz_scalar);
       inst.src[1] = etna_src_swizzle(src[1], swiz_scalar);

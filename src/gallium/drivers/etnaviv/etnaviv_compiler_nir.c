@@ -65,6 +65,8 @@ etna_alu_to_scalar_filter_cb(const nir_instr *instr, const void *data)
    case nir_op_fsin:
    case nir_op_fdiv:
    case nir_op_imul:
+   case nir_op_imul_high:
+   case nir_op_umul_high:
       return true;
    /* TODO: can do better than alu_to_scalar for vector compares */
    case nir_op_b32all_fequal2:
