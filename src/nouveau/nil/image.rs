@@ -31,6 +31,13 @@ pub enum ImageDim {
     _3D = 3,
 }
 
+#[derive(Clone, Debug, Copy, PartialEq)]
+#[repr(u8)]
+pub enum ImageError {
+    Success = 0,
+    Unknown,
+}
+
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
 #[repr(u8)]
 pub enum SampleLayout {
@@ -194,15 +201,8 @@ impl Image {
         dev: &nil_rs_bindings::nv_device_info,
         image_out: *mut Self,
         info: &ImageInitInfo,
-    ) -> bool {
-        panic::catch_unwind(|| {
-            let image = Self::new(dev, std::slice::from_ref(info), 0);
-            unsafe {
-                assert!(!image_out.is_null());
-                image_out.write(image);
-            }
-        })
-        .is_ok()
+    ) -> ImageError {
+        Self::nil_image_init_planar(dev, image_out, info, 0, 1)
     }
 
     #[unsafe(no_mangle)]
@@ -212,24 +212,28 @@ impl Image {
         info: *const ImageInitInfo,
         plane: usize,
         plane_count: usize,
-    ) -> bool {
+    ) -> ImageError {
         panic::catch_unwind(|| {
             assert!(plane < plane_count);
             let infos =
                 unsafe { std::slice::from_raw_parts(info, plane_count) };
             let image = Self::new(dev, infos, plane);
-            unsafe {
-                assert!(!image_out.is_null());
-                image_out.write(image);
+            match image {
+                Ok(image) => unsafe {
+                    assert!(!image_out.is_null());
+                    image_out.write(image);
+                    ImageError::Success
+                },
+                Err(e) => e,
             }
         })
-        .is_ok()
+        .unwrap_or(ImageError::Unknown)
     }
 
     fn new_linear(
         dev: &nil_rs_bindings::nv_device_info,
         info: &ImageInitInfo,
-    ) -> Self {
+    ) -> Result<Self, ImageError> {
         // Linear images need to be 2D
         assert!(info.dim == ImageDim::_2D);
         // Linear images can't be arrays
@@ -290,14 +294,14 @@ impl Image {
             mip_tail_first_lod: 0,
         };
         image.levels[0] = level0;
-        image
+        Ok(image)
     }
 
     fn new_tiled(
         dev: &nil_rs_bindings::nv_device_info,
         infos: &[ImageInitInfo],
         plane: usize,
-    ) -> Self {
+    ) -> Result<Self, ImageError> {
         let info = &infos[plane];
         let sample_layout = SampleLayout::choose_sample_layout(info.samples);
 
@@ -455,14 +459,14 @@ impl Image {
         image.align_B = std::cmp::max(image.align_B, 4096);
         image.size_B = image.size_B.next_multiple_of(image.align_B.into());
 
-        image
+        Ok(image)
     }
 
     pub fn new(
         dev: &nil_rs_bindings::nv_device_info,
         infos: &[ImageInitInfo],
         plane: usize,
-    ) -> Self {
+    ) -> Result<Self, ImageError> {
         let info = &infos[plane];
         match info.dim {
             ImageDim::_1D => {

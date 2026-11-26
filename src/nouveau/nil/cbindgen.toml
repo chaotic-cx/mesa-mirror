@@ -26,6 +26,7 @@ renaming_overrides_prefixing = true
 "GOBType" = "nil_gob_type"
 "Image" = "nil_image"
 "ImageDim" = "nil_image_dim"
+"ImageError" = "nil_image_error"
 "ImageInitInfo" = "nil_image_init_info"
 "ImageLevel" = "nil_image_level"
 "Offset4D" = "nil_offset4d"
