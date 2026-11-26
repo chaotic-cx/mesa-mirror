@@ -441,7 +441,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .QCOM_rotated_copy_commands = true,
       .VALVE_buffer_device_address_allocation_alignment =
          device->has_iova_align,
-      .VALVE_fragment_density_map_layered = true,
+      .VALVE_fragment_density_map_layered = device->info->props.has_hw_multiview,
       .VALVE_mutable_descriptor_type = true,
    } };
 }
@@ -577,7 +577,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->vulkanMemoryModel                   = true;
    features->vulkanMemoryModelDeviceScope        = true;
    features->vulkanMemoryModelAvailabilityVisibilityChains = true;
-   features->shaderOutputViewportIndex           = true;
+   features->shaderOutputViewportIndex           = pdevice->info->props.has_hw_multiview;
    features->shaderOutputLayer                   = true;
    features->subgroupBroadcastDynamicId          = true;
 
@@ -943,7 +943,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->textureBlockMatch = pdevice->vk.supported_extensions.QCOM_image_processing;
 
    /* VK_VALVE_fragment_density_map_layered */
-   features->fragmentDensityMapLayered = true;
+   features->fragmentDensityMapLayered = pdevice->info->props.has_hw_multiview;
 
    /* VK_EXT_dynamic_rendering_unused_attachments */
    features->dynamicRenderingUnusedAttachments = true;
@@ -1650,7 +1650,8 @@ tu_get_properties(struct tu_physical_device *pdevice,
    };
 
    /* VK_VALVE_fragment_density_map_layered */
-   props->maxFragmentDensityMapLayers = MAX_VIEWS;
+   props->maxFragmentDensityMapLayers =
+      pdevice->info->props.has_hw_multiview ? MAX_VIEWS : 1;
 
    /* VK_QCOM_image_processing */
    props->maxWeightFilterPhases = 1024;
