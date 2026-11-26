@@ -129,6 +129,10 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
    da->archive_path = ralloc_asprintf(da, "%s/%s.mda.tar", output_dir, filename);
 
    da->f = fopen(da->archive_path, "wb+");
+   if (!da->f) {
+      ralloc_free(da);
+      return NULL;
+   }
 
    da->tw = rzalloc(da, tar_writer);
    tar_writer_init(da->tw, da->f);
@@ -138,6 +142,12 @@ debug_archiver_open(void *mem_ctx, const char *name, const char *info)
    tar_writer_start_file(da->tw, "mesa.txt");
    fprintf(da->f, "Mesa %s\n", info);
    tar_writer_finish_file(da->tw);
+   if (da->tw->error) {
+      fclose(da->f);
+      unlink(da->archive_path);
+      ralloc_free(da);
+      return NULL;
+   }
 
    return da;
 }
@@ -163,6 +173,9 @@ debug_archiver_write_file(debug_archiver *da,
                           const char *data, unsigned size)
 {
    tar_writer_start_file(da->tw, filename);
+   if (da->tw->error)
+      return;
+
    fwrite(data, size, 1, da->tw->file);
    tar_writer_finish_file(da->tw);
 }

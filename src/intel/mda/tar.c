@@ -160,16 +160,17 @@ archive_write_padding(FILE *archive, unsigned contents_size)
           fwrite(archive_empty_records, padding_size, 1, archive) == 1;
 }
 
-static void
+static bool
 archive_prewrite_end_of_archive(FILE *archive)
 {
    /* Two empty records mark the proper end of the file, so always
     * keep them but reposition the cursor so next write overwrites
     * them.
     */
-   fwrite(&archive_empty_records, RECORD_SIZE * 2, 1, archive);
-   fflush(archive);
-   fseek(archive, -RECORD_SIZE * 2, SEEK_END);
+   if (fwrite(&archive_empty_records, RECORD_SIZE * 2, 1, archive) != 1 ||
+       fflush(archive) != 0)
+      return false;
+   return fseek(archive, -RECORD_SIZE * 2, SEEK_END) == 0;
 }
 
 static bool
@@ -187,10 +188,10 @@ archive_file_from_bytes(FILE *archive, const char *prefix, const char *filename,
    if (contents_size && fwrite(contents, contents_size, 1, archive) != 1)
       return false;
 
-   archive_write_padding(archive, contents_size);
-   archive_prewrite_end_of_archive(archive);
-
-   fflush(archive);
+   if (!archive_write_padding(archive, contents_size))
+      return false;
+   if (!archive_prewrite_end_of_archive(archive))
+      return false;
 
    return ferror(archive) == 0;
 }
@@ -209,6 +210,9 @@ tar_writer_init(tar_writer *tw, FILE *f)
 void
 tar_writer_start_file(tar_writer *tw, const char *filename)
 {
+   if (tw->error)
+      return;
+
    assert(tw->header_pos == -1);
    memset(tw->header, 0, RECORD_SIZE);
 
@@ -234,6 +238,10 @@ fail:
 void
 tar_writer_finish_file(tar_writer *tw)
 {
+   tw->error |= ferror(tw->file) != 0;
+   if (tw->error)
+      return;
+
    assert(tw->header_pos >= 0);
 
    const long end_pos = ftell(tw->file);
@@ -243,20 +251,22 @@ tar_writer_finish_file(tar_writer *tw)
    assert((tw->header_pos + RECORD_SIZE) <= end_pos);
    const unsigned size = end_pos - tw->header_pos - RECORD_SIZE;
 
-   archive_write_padding(tw->file, size);
+   if (!archive_write_padding(tw->file, size))
+      goto fail;
 
    archive_update_size(tw->header, size);
 
-   if (fseek(tw->file, tw->header_pos, SEEK_SET) == -1)
+   if (fseek(tw->file, tw->header_pos, SEEK_SET) != 0)
       goto fail;
    if (fwrite(tw->header, RECORD_SIZE, 1, tw->file) != 1)
       goto fail;
-   if (fseek(tw->file, end_pos + archive_calculate_padding(size), SEEK_SET) == -1)
+   if (fseek(tw->file, end_pos + archive_calculate_padding(size), SEEK_SET) != 0)
       goto fail;
 
-   archive_prewrite_end_of_archive(tw->file);
+   if (!archive_prewrite_end_of_archive(tw->file))
+      goto fail;
 
-   if (fflush(tw->file) != 0)
+   if (ferror(tw->file))
       goto fail;
 
    goto end;
@@ -273,6 +283,9 @@ void
 tar_writer_file_from_bytes(tar_writer *tw, const char *filename,
                            const char *contents, unsigned contents_size)
 {
+   if (tw->error)
+      return;
+
    assert(tw->header_pos == -1);
    if (!archive_file_from_bytes(tw->file, tw->prefix, filename, contents, contents_size, tw->timestamp))
       tw->error = true;

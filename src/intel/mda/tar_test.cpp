@@ -214,6 +214,23 @@ TEST_F(TarTest, TimestampRoundtrip)
    }
 }
 
+TEST_F(TarTest, FileFromBytesAfterFailedStream)
+{
+   FILE *file = fopen("/dev/null", "r");
+   if (!file) {
+      GTEST_SKIP() << "Requires /dev/null";
+   }
+   tar_writer writer;
+   tar_writer_init(&writer, file);
+   tar_writer_start_file(&writer, "first");
+   EXPECT_TRUE(writer.error);
+   tar_writer_finish_file(&writer);
+   clearerr(file);
+   tar_writer_file_from_bytes(&writer, "last", "b", 1);
+   EXPECT_TRUE(writer.error);
+   fclose(file);
+}
+
 TEST_F(TarTest, RoundtripEmptyMiddleFile)
 {
    const struct {
