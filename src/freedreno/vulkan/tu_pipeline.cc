@@ -2142,6 +2142,15 @@ done:
       }
    }
 
+   /* A complete pipeline may not have FS at all, which is allowed when rasterizer discard is statically enabled. */
+   if (pipeline->type == TU_PIPELINE_GRAPHICS && !shaders[MESA_SHADER_FRAGMENT]) {
+      assert(builder->graphics_state.rs && builder->graphics_state.rs->rasterizer_discard_enable &&
+             !BITSET_TEST(builder->graphics_state.dynamic, MESA_VK_DYNAMIC_RS_RASTERIZER_DISCARD_ENABLE));
+      shaders[MESA_SHADER_FRAGMENT] =
+         builder->fragment_density_map ? builder->device->empty_fs_fdm : builder->device->empty_fs;
+      vk_pipeline_cache_object_ref(&shaders[MESA_SHADER_FRAGMENT]->base);
+   }
+
    if (shaders[MESA_SHADER_VERTEX]) {
       const struct ir3_shader_variant *vs =
          shaders[MESA_SHADER_VERTEX]->variant;
