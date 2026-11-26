@@ -437,7 +437,7 @@ static void encode_byte(struct encoder *encoder, uint8_t byte)
 static void
 encode_value(struct etna_ml_subgraph *subgraph, const struct etna_operation *operation, struct encoder *encoder, uint8_t value)
 {
-   unsigned customer_id = subgraph->screen->info->customer_id;
+   unsigned customer_id = etna_gpu_get_core_info(subgraph->screen->npu)->customer_id;
    uint8_t zero_point = operation->weight_zero_point;
 
    value -= encoder->avg_bias;
