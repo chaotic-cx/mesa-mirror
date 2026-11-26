@@ -1987,6 +1987,8 @@ anv_device_import_bo_from_host_ptr(struct anv_device *device,
                                                   client_address,
                                                   alignment);
       if (result != VK_SUCCESS) {
+         if (device->info->kmd_type == INTEL_KMD_TYPE_XE)
+            vk_free(&device->vk.alloc, bo);
          simple_mtx_unlock(&cache->mutex);
          return result;
       }
@@ -1994,6 +1996,8 @@ anv_device_import_bo_from_host_ptr(struct anv_device *device,
       result = device->kmd_backend->vm_bind_bo(device, &new_bo);
       if (result != VK_SUCCESS) {
          anv_bo_vma_free(device, &new_bo);
+         if (device->info->kmd_type == INTEL_KMD_TYPE_XE)
+            vk_free(&device->vk.alloc, bo);
          simple_mtx_unlock(&cache->mutex);
          return result;
       }
