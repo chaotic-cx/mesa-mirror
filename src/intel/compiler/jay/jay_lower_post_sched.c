@@ -146,10 +146,12 @@ jay_lower_post_sched(jay_shader *shader, uint32_t api, uint32_t float_sizes)
 
             /* Commute operands to promote instruction compaction */
             if ((I->op == JAY_OPCODE_MAD && jay_type_is_any_float(I->type)) &&
-                (I->src[1].file == UGPR && I->src[2].file == GPR)) {
+                (I->src[1].file == UGPR &&
+                 (I->src[2].file == GPR || I->src[2].file == ACCUM))) {
                SWAP(I->src[1], I->src[2]);
             } else if (I->op == JAY_OPCODE_MAC &&
-                       (I->src[0].file == UGPR && I->src[1].file == GPR)) {
+                       (I->src[0].file == UGPR &&
+                        (I->src[1].file == GPR || I->src[1].file == ACCUM))) {
                SWAP(I->src[0], I->src[1]);
             }
 
