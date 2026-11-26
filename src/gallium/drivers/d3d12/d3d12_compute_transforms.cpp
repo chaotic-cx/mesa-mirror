@@ -29,6 +29,7 @@
 #include "nir.h"
 #include "nir_builder.h"
 
+#include "util/u_inlines.h"
 #include "util/u_memory.h"
 
 nir_shader *
@@ -480,19 +481,20 @@ d3d12_compute_transform_cache_destroy(struct d3d12_context *ctx)
 void
 d3d12_save_compute_transform_state(struct d3d12_context *ctx, d3d12_compute_transform_save_restore *save)
 {
-   if (ctx->current_predication)
-      ctx->cmdlist->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
-
    memset(save, 0, sizeof(*save));
+
+   if (ctx->current_predication) {
+      save->current_predication = ctx->current_predication;
+      ctx->current_predication = nullptr;
+      ctx->cmdlist->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
+   }
+
    save->cs = ctx->compute_state;
 
-   pipe_resource_reference(&save->cbuf0.buffer, ctx->cbufs[MESA_SHADER_COMPUTE][1].buffer);
-   save->cbuf0 = ctx->cbufs[MESA_SHADER_COMPUTE][1];
+   util_copy_constant_buffer(&save->cbuf0, &ctx->cbufs[MESA_SHADER_COMPUTE][1]);
 
-   for (unsigned i = 0; i < ARRAY_SIZE(save->ssbos); ++i) {
-      pipe_resource_reference(&save->ssbos[i].buffer, ctx->ssbo_views[MESA_SHADER_COMPUTE][i].buffer);
-      save->ssbos[i] = ctx->ssbo_views[MESA_SHADER_COMPUTE][i];
-   }
+   for (unsigned i = 0; i < ARRAY_SIZE(save->ssbos); ++i)
+      util_copy_shader_buffer(&save->ssbos[i], &ctx->ssbo_views[MESA_SHADER_COMPUTE][i]);
 
    save->queries_disabled = ctx->queries_disabled;
    ctx->base.set_active_query_state(&ctx->base, false);
@@ -506,8 +508,14 @@ d3d12_restore_compute_transform_state(struct d3d12_context *ctx, d3d12_compute_t
    ctx->base.bind_compute_state(&ctx->base, save->cs);
 
    ctx->base.set_constant_buffer(&ctx->base, MESA_SHADER_COMPUTE, 1, &save->cbuf0);
-   ctx->base.set_shader_buffers(&ctx->base, MESA_SHADER_COMPUTE, 0, ARRAY_SIZE(save->ssbos), save->ssbos, (1u << ARRAY_SIZE(save->ssbos)) - 1);
+   util_copy_constant_buffer(&save->cbuf0, NULL);
 
-   if (ctx->current_predication)
+   ctx->base.set_shader_buffers(&ctx->base, MESA_SHADER_COMPUTE, 0, ARRAY_SIZE(save->ssbos), save->ssbos, (1u << ARRAY_SIZE(save->ssbos)) - 1);
+   for (unsigned i = 0; i < ARRAY_SIZE(save->ssbos); ++i)
+      util_copy_shader_buffer(&save->ssbos[i], NULL);
+
+   if (save->current_predication) {
+      ctx->current_predication = save->current_predication;
       d3d12_enable_predication(ctx);
+   }
 }

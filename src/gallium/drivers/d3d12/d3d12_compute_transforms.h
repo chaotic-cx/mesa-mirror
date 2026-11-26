@@ -103,6 +103,7 @@ struct d3d12_compute_transform_save_restore
    struct d3d12_shader_selector *cs;
    struct pipe_constant_buffer cbuf0;
    struct pipe_shader_buffer ssbos[5];
+   struct d3d12_resource *current_predication;
    bool queries_disabled;
 };
 
