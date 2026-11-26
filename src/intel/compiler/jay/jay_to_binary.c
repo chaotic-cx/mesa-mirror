@@ -447,7 +447,16 @@ emit(struct jay_codegen *jc,
       break;
 
    case JAY_OPCODE_SYNC:
-      gen->src[0] = gen_restride(gen->src[0], 0, 1, 0);
+      /* Use gen_null() as-is which leaves the type zeroed. This is necessary to
+       * compact syncs, but it is invalid for instructions that respect the
+       * type, so this is the simplest solution.
+       */
+      if (jay_is_null(I->src[0])) {
+         gen->src[0] = gen_null();
+      } else {
+         gen->src[0] = gen_restride(gen->src[0], 0, 1, 0);
+      }
+
       gen->sync.func = (gen_sync_func) jay_sync_op(I);
       break;
 
