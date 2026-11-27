@@ -55,7 +55,8 @@ nvk_get_image_plane_format_features(const struct nvk_physical_device *pdev,
       return 0;
 
    /* You can't tile a non-power-of-two */
-   if (!util_is_power_of_two_nonzero(util_format_get_blocksize(p_format)))
+   if (tiling != VK_IMAGE_TILING_LINEAR &&
+       !util_is_power_of_two_nonzero(util_format_get_blocksize(p_format)))
       return 0;
 
    if (nil_format_supports_texturing(&pdev->info, p_format)) {

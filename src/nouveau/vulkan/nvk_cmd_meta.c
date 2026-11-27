@@ -315,6 +315,8 @@ nvk_meta_image_copy_gfx_supported(struct nvk_image *img)
       return false;
    if (vk_format_get_ycbcr_info(img->vk.format))
       return false;
+   if (!util_is_power_of_two_nonzero(vk_format_get_blocksize(img->vk.format)))
+      return false;
 
    assert(img->plane_count == 1);
    const struct nvk_image_plane *plane = &img->planes[0];
@@ -340,6 +342,8 @@ nvk_meta_image_copy_compute_supported(struct nvk_image *img)
    if (vk_format_is_compressed(img->vk.format))
       return false;
    if (vk_format_get_ycbcr_info(img->vk.format))
+      return false;
+   if (!util_is_power_of_two_nonzero(vk_format_get_blocksize(img->vk.format)))
       return false;
 
    return true;
