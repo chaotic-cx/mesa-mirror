@@ -11,6 +11,11 @@
 #include "nvk_image_view.h"
 #include "nvk_mme.h"
 #include "nvk_physical_device.h"
+#include "nvk_shader_internal.h"
+
+#include "nir_builder.h"
+
+#include "nvkcl.h"
 
 #include "vk_format.h"
 
@@ -347,6 +352,96 @@ vk_packed_int_format_for_size(unsigned size_B)
    }
 }
 
+struct nvk_clear_r32g32b32_push {
+   uint64_t out;
+   uint64_t row_stride_components;
+   uint32_t width;
+   uint32_t color[3];
+};
+
+static nir_shader *
+build_clear_r32g32b32_shader(void)
+{
+   nir_builder build =
+      nir_builder_init_simple_shader(MESA_SHADER_COMPUTE, NULL,
+                                     "nvk-meta-clear-r32g32b32");
+   nir_builder *b = &build;
+
+   struct glsl_struct_field push_fields[] = {
+      { .type = glsl_uint64_t_type(), .name = "out", .offset = 0 },
+      { .type = glsl_uint64_t_type(), .name = "row_stride_components", .offset = 8 },
+      { .type = glsl_uint_type(), .name = "width", .offset = 16 },
+      { .type = glsl_uvec_type(3), .name = "color", .offset = 20 },
+   };
+   const struct glsl_type *push_iface_type =
+      glsl_interface_type(push_fields, ARRAY_SIZE(push_fields),
+                          GLSL_INTERFACE_PACKING_STD140,
+                          false /* row_major */, "push");
+   nir_variable *push = nir_variable_create(b->shader, nir_var_mem_push_const,
+                                            push_iface_type, "push");
+   nir_deref_instr *push_deref = nir_build_deref_var(b, push);
+   b->shader->info.workgroup_size[0] = 32;
+
+   nvk_clear_r32g32b32(b, nir_load_struct_field(b, push_deref, 0),
+                       nir_load_struct_field(b, push_deref, 1),
+                       nir_load_struct_field(b, push_deref, 2),
+                       nir_load_struct_field(b, push_deref, 3));
+
+   return build.shader;
+}
+
+static void
+clear_image_r32g32b32(struct nvk_cmd_buffer *cmd, struct nvk_image *image,
+                      const uint32_t color[3], uint32_t range_count,
+                      const VkImageSubresourceRange *ranges)
+{
+   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
+   VkResult result;
+
+   struct nvk_shader *shader;
+   result = nvk_get_internal_shader(dev, &dev->clear_r32g32b32,
+                                    build_clear_r32g32b32_shader, &shader);
+   if (result != VK_SUCCESS) {
+      vk_command_buffer_set_error(&cmd->vk, result);
+      return;
+   }
+
+   for (uint32_t r = 0; r < range_count; r++) {
+      const uint32_t level_count =
+         vk_image_subresource_level_count(&image->vk, &ranges[r]);
+
+      for (uint32_t l = 0; l < level_count; l++) {
+         uint32_t level_idx = ranges[r].baseMipLevel + l;
+         struct nvk_image_plane *plane = &image->planes[0];
+         const struct nil_image *nil_image = &plane->nil;
+         const struct nil_image_level *level =
+            &nil_image->levels[level_idx];
+
+         const VkExtent3D level_extent =
+            vk_image_mip_level_extent(&image->vk, level_idx);
+
+         uint64_t addr = nvk_image_plane_base_address(plane) + level->offset_B;
+
+         assert(image->vk.image_type == VK_IMAGE_TYPE_2D);
+
+         uint32_t width_components = level_extent.width * 3;
+
+         const struct nvk_clear_r32g32b32_push push_constants = {
+            .out = addr,
+            .row_stride_components = level->row_stride_B / sizeof(uint32_t),
+            .width = width_components,
+            .color = { color[0], color[1], color[2] }
+         };
+
+         nvk_cmd_dispatch_shader(cmd, shader,
+                                 &push_constants, sizeof(push_constants),
+                                 DIV_ROUND_UP(width_components, 32),
+                                 level_extent.height,
+                                 level_extent.depth);
+      }
+   }
+}
+
 VKAPI_ATTR void VKAPI_CALL
 nvk_CmdClearColorImage(VkCommandBuffer commandBuffer,
                        VkImage _image,
@@ -370,6 +465,11 @@ nvk_CmdClearColorImage(VkCommandBuffer commandBuffer,
 
    enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
    assert(p_format != PIPE_FORMAT_NONE);
+
+   if (util_format_get_blocksize(p_format) == 12) {
+      clear_image_r32g32b32(cmd, image, pColor->uint32, rangeCount, pRanges);
+      return;
+   }
 
    if (!nil_format_supports_color_targets(&pdev->info, p_format)) {
       memset(&clear_value, 0, sizeof(clear_value));

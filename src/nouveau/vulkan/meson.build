@@ -101,6 +101,7 @@ nvk_files = files(
 )
 
 nvkcl_files = files(
+  'cl/nvk_clear_r32g32b32.cl',
   'cl/nvk_query.cl',
   'cl/nvk_copy_indirect.cl',
 )

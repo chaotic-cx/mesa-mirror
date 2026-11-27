@@ -61,6 +61,7 @@ struct nvk_device {
 
    struct nvk_shader *copy_queries;
    struct nvk_shader *copy_indirect;
+   struct nvk_shader *clear_r32g32b32;
 };
 
 VK_DEFINE_HANDLE_CASTS(nvk_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
