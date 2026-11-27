@@ -297,7 +297,8 @@ def_for_instr(nir_instr *instr)
           intr->intrinsic == nir_intrinsic_load_instance_id ||
           intr->intrinsic == nir_intrinsic_load_vertex_id ||
           intr->intrinsic == nir_intrinsic_ddx ||
-          intr->intrinsic == nir_intrinsic_ddy)
+          intr->intrinsic == nir_intrinsic_ddy ||
+          intr->intrinsic == nir_intrinsic_load_helper_invocation)
          def = &intr->def;
    } break;
    case nir_instr_type_deref:

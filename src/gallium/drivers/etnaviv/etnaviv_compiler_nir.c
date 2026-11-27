@@ -504,6 +504,7 @@ get_src(struct etna_compile *c, nir_src *src)
       case nir_intrinsic_load_reg:
       case nir_intrinsic_ddx:
       case nir_intrinsic_ddy:
+      case nir_intrinsic_load_helper_invocation:
          return ra_src(c, src);
       case nir_intrinsic_load_front_face:
          return (hw_src) { .use = 1, .rgroup = ISA_REG_GROUP_INTERNAL };
@@ -695,6 +696,21 @@ emit_intrinsic(struct etna_compile *c, nir_intrinsic_instr * intr)
    case nir_intrinsic_terminate:
       etna_emit_discard(c, SRC_DISABLE);
       break;
+   case nir_intrinsic_load_helper_invocation: {
+      unsigned dst_swiz;
+      struct etna_inst_dst dst = ra_def(c, &intr->def, &dst_swiz);
+
+      /* The hlp condition ignores the sources. */
+      emit_inst(c, &(struct etna_inst) {
+         .dst = dst,
+         .opcode = ISA_OPC_CMP,
+         .cond = ISA_COND_HLP,
+         .type = ISA_TYPE_U32,
+         .src[0] = etna_immediate_int(0),
+         .src[1] = etna_immediate_int(0),
+         .src[2] = etna_immediate_int(-1),
+      });
+   } break;
    case nir_intrinsic_ddx: {
       unsigned dst_swiz;
       struct etna_inst_dst dst = ra_def(c, &intr->def, &dst_swiz);
