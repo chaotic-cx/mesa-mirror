@@ -392,6 +392,17 @@ try_match_deref(nir_deref_path *base_path, int *path_array_idx,
    return *path_array_idx > 0;
 }
 
+static bool
+deref_has_unsized_array(nir_deref_instr *deref)
+{
+   for (; deref; deref = nir_deref_instr_parent(deref)) {
+      if (glsl_type_is_unsized_array(deref->type))
+         return true;
+   }
+
+   return false;
+}
+
 static void
 handle_read(nir_deref_instr *src, struct match_state *state)
 {
@@ -399,6 +410,7 @@ handle_read(nir_deref_instr *src, struct match_state *state)
     * an array copy. Hence no indirects or indexing into a vector.
     */
    if (nir_deref_instr_has_indirect(src) ||
+       deref_has_unsized_array(src) ||
        nir_deref_instr_is_known_out_of_bounds(src) ||
        (src->deref_type == nir_deref_type_array &&
         glsl_type_is_vector(nir_src_as_deref(src->parent)->type)))
@@ -426,6 +438,11 @@ handle_write(nir_deref_instr *dst, nir_deref_instr *src,
 
    nir_deref_path dst_path;
    nir_deref_path_init(&dst_path, dst, state->dead_ctx);
+
+   if (deref_has_unsized_array(dst)) {
+      foreach_aliasing_node(&dst_path, clobber, state);
+      return false;
+   }
 
    unsigned idx = 0;
    for (nir_deref_instr **instr = dst_path.path; *instr; instr++, idx++) {
@@ -615,6 +632,7 @@ opt_find_array_copies_block(nir_builder *b, nir_block *block,
        */
       if (src_deref &&
           (nir_deref_instr_has_indirect(src_deref) ||
+           deref_has_unsized_array(src_deref) ||
            nir_deref_instr_is_known_out_of_bounds(src_deref) ||
            nir_deref_instr_has_indirect(dst_deref) ||
            !glsl_type_is_vector_or_scalar(src_deref->type) ||
