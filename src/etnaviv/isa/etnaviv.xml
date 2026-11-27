@@ -48,6 +48,7 @@ SPDX-License-Identifier: MIT
 	<value val="14" display=".lez"/>
 	<value val="15" display=".lz"/>
 	<value val="22" display=".selmsb"/>
+	<value val="24" display=".hlp"/>
 </enum>
 
 <enum name="#swiz">
@@ -417,6 +418,47 @@ SPDX-License-Identifier: MIT
 	<pattern pos="119">0</pattern> <!-- SRC2_ABS -->
 	<pattern low="121" high="123">000</pattern> <!-- SRC2_AMODE -->
 	<pattern low="124" high="126">000</pattern> <!-- SRC2_RGROUP -->
+</bitset>
+
+<bitset name="#instruction-alu-cond-no-src" extends="#instruction-alu">
+	<meta type="alu_cond" has_dest="true" valid_srcs=""/>
+
+	<field name="COND" low="6" high="10" type="#cond"/>
+
+	<display>
+		{INSTR_ALU_COND} {DST:align=18}, void, void, void
+	</display>
+
+	<!-- SRC0 -->
+	<pattern pos="43">0</pattern> <!-- SRC0_USE -->
+	<pattern low="44" high="52">000000000</pattern> <!-- SRC0_REG -->
+	<pattern low="54" high="61">00000000</pattern> <!-- SRC0_SWIZ -->
+	<pattern pos="62">0</pattern> <!-- SRC0_NEG -->
+	<pattern pos="63">0</pattern> <!-- SRC0_ABS -->
+	<pattern low="64" high="66">000</pattern> <!-- SRC0_AMODE -->
+	<pattern low="67" high="69">000</pattern> <!-- SRC0_RGROUP -->
+
+	<!-- SRC1 -->
+	<pattern pos="70">0</pattern> <!-- SRC1_USE -->
+	<pattern low="71" high="79">000000000</pattern> <!-- SRC1_REG -->
+	<pattern low="81" high="88">00000000</pattern> <!-- SRC1_SWIZ -->
+	<pattern pos="89">0</pattern> <!-- SRC1_NEG -->
+	<pattern pos="90">0</pattern> <!-- SRC1_ABS -->
+	<pattern low="91" high="93">000</pattern> <!-- SRC1_AMODE -->
+	<pattern low="96" high="98">000</pattern> <!-- SRC1_RGROUP -->
+
+	<!-- SRC2 -->
+	<pattern pos="99">0</pattern> <!-- SRC2_USE -->
+	<pattern low="100" high="108">000000000</pattern> <!-- SRC2_REG -->
+	<pattern low="110" high="117">00000000</pattern> <!-- SRC2_SWIZ -->
+	<pattern pos="118">0</pattern> <!-- SRC2_NEG -->
+	<pattern pos="119">0</pattern> <!-- SRC2_ABS -->
+	<pattern low="121" high="123">000</pattern> <!-- SRC2_AMODE -->
+	<pattern low="124" high="126">000</pattern> <!-- SRC2_RGROUP -->
+
+	<encode type="struct etna_inst *" case-prefix="ISA_OPC_">
+		<map name="COND">src->cond</map>
+	</encode>
 </bitset>
 
 <bitset name="#instruction-alu-no-dst-cond-src0" extends="#instruction-alu">
@@ -1411,6 +1453,11 @@ SPDX-License-Identifier: MIT
 </bitset>
 
 <bitset name="set" extends="#instruction-alu-cond-src0-src1">
+	<pattern low="0" high="5">010000</pattern> <!-- OPC -->
+	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
+
+<bitset name="set_no_src" extends="#instruction-alu-cond-no-src" displayname="set">
 	<pattern low="0" high="5">010000</pattern> <!-- OPC -->
 	<pattern pos="80">0</pattern> <!-- OPCODE_BIT6 -->
 </bitset>
