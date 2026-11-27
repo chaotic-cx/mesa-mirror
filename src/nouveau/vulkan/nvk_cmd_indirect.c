@@ -9,6 +9,7 @@
 #include "nvk_mme.h"
 #include "nvk_physical_device.h"
 #include "nvk_shader.h"
+#include "nvk_shader_internal.h"
 
 #include "nir_builder.h"
 #include "vk_pipeline.h"
@@ -1282,21 +1283,6 @@ build_copy_indierct_shader(void)
                      nir_load_struct_field(b, push_deref, 3));
 
    return build.shader;
-}
-
-static struct nvk_shader *
-atomic_set_or_destroy_shader(struct nvk_device *dev,
-                             struct nvk_shader **shader_ptr,
-                             struct nvk_shader *shader,
-                             const VkAllocationCallbacks *alloc)
-{
-   struct nvk_shader *old_shader = p_atomic_cmpxchg(shader_ptr, NULL, shader);
-   if (old_shader == NULL) {
-      return shader;
-   } else {
-      vk_shader_destroy(&dev->vk, &shader->vk, alloc);
-      return old_shader;
-   }
 }
 
 static VkResult
