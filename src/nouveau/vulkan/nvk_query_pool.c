@@ -1189,27 +1189,6 @@ build_copy_queries_shader(void)
    return build.shader;
 }
 
-static VkResult
-get_copy_queries_shader(struct nvk_device *dev,
-                        struct nvk_shader **shader_out)
-{
-   struct nvk_shader *shader = p_atomic_read(&dev->copy_queries);
-   if (shader != NULL) {
-      *shader_out = shader;
-      return VK_SUCCESS;
-   }
-
-   nir_shader *nir = build_copy_queries_shader();
-   VkResult result = nvk_compile_nir_shader(dev, nir, &dev->vk.alloc, &shader);
-   if (result != VK_SUCCESS)
-      return result;
-
-   *shader_out = atomic_set_or_destroy_shader(dev, &dev->copy_queries,
-                                              shader, &dev->vk.alloc);
-
-   return VK_SUCCESS;
-}
-
 static void
 nvk_meta_copy_query_pool_results(struct nvk_cmd_buffer *cmd,
                                  struct nvk_query_pool *pool,
@@ -1222,7 +1201,8 @@ nvk_meta_copy_query_pool_results(struct nvk_cmd_buffer *cmd,
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
 
    struct nvk_shader *shader;
-   VkResult result = get_copy_queries_shader(dev, &shader);
+   VkResult result = nvk_get_internal_shader(dev, &dev->copy_queries,
+                                             build_copy_queries_shader, &shader);
    if (result != VK_SUCCESS) {
       vk_command_buffer_set_error(&cmd->vk, result);
       return;
