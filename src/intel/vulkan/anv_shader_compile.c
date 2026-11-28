@@ -2036,6 +2036,7 @@ set_debug_archive_filename(const struct anv_shader_data *shader_data,
       debug_archiver_set_prefix(
          shader_data->archiver,
          _mesa_shader_stage_to_abbrev(shader_data->info->stage));
+      return;
    }
 
    char directory_name[80];
