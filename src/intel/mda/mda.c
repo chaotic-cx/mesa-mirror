@@ -218,11 +218,8 @@ get_archive_contents(context *ctx, mesa_archive *ma)
       size_t size;
       ma->contents_ptr = os_read_file(filepath, &size);
 
-      if (!ma->contents_ptr) {
-         fprintf(stderr, "mda: failed to load %s: %s\n",
-                 filepath, strerror(errno));
-         return (slice){NULL, 0};
-      }
+      if (!ma->contents_ptr)
+         failf("mda: failed to load %s: %s\n", filepath, strerror(errno));
 
       ma->contents = (slice){ma->contents_ptr, size};
    }
